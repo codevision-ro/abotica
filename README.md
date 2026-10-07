@@ -77,7 +77,13 @@ On a Linux server (amd64 or arm64) or a Mac:
 curl -fsSL https://raw.githubusercontent.com/codevision-ro/abotica/main/install.sh | bash
 ```
 
-The script installs Docker if it is missing (Linux; on a Mac, install [OrbStack](https://orbstack.dev) or Docker Desktop first). It asks for a domain, generates the secrets and starts everything. With a domain, Abotica is served over HTTPS with automatic certificates. Without one, it runs only on that machine at `http://localhost:3000`.
+On Windows 10 or 11, with [Docker Desktop](https://www.docker.com/products/docker-desktop/), in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/codevision-ro/abotica/main/install.ps1 | iex
+```
+
+The script installs Docker if it is missing (Linux; on a Mac, install [OrbStack](https://orbstack.dev) or Docker Desktop first; on Windows it offers to install Docker Desktop with winget). It asks for a domain, generates the secrets and starts everything. With a domain, Abotica is served over HTTPS with automatic certificates. Without one, it runs only on that machine at `http://localhost:3000`.
 
 Then:
 

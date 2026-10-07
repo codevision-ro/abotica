@@ -1,6 +1,6 @@
 # Deploy
 
-Abotica runs on Linux (amd64 or arm64) and on macOS, from the images published with each release.
+Abotica runs on Linux (amd64 or arm64), macOS and Windows 10 or 11 (with Docker Desktop), from the images published with each release.
 
 - **Install script** (recommended): one command installs Docker when it is missing, writes the configuration with fresh secrets and starts everything.
 - **Docker by hand**: the same compose file and `.env`, written yourself.
@@ -30,6 +30,16 @@ Options, also as environment variables: `--domain NAME` (`ABOTICA_DOMAIN`), `--d
 ```bash
 curl -fsSL https://raw.githubusercontent.com/codevision-ro/abotica/main/install.sh | bash -s -- --domain abotica.example.com --yes
 ```
+
+### Windows
+
+With [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/codevision-ro/abotica/main/install.ps1 | iex
+```
+
+`install.ps1` does the same as `install.sh`: it offers to install Docker Desktop with winget when it is missing, starts it when it is not running, installs into `%USERPROFILE%\abotica`, writes `.env` on the first run, starts everything and opens the sign-up link. Options are environment variables set before the command, for example `$env:ABOTICA_DOMAIN = "abotica.example.com"`; `ABOTICA_DIR`, `ABOTICA_VERSION` and `ABOTICA_YES=1` work as well. Docker Desktop runs its containers in WSL2, which it sets up itself; the sandbox works the same as on Linux.
 
 **Update:** run the same command again. It keeps `.env`, moves `ABOTICA_VERSION` to the latest release, downloads that release's compose file and restarts what changed. Migrations run on every start.
 

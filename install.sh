@@ -45,7 +45,7 @@ main() {
   os="$(uname -s)"
   case "$os" in
     Linux | Darwin) ;;
-    *) fail "Unsupported system: $os. Abotica runs on Linux and macOS (on Windows, inside WSL2)." ;;
+    *) fail "Unsupported system: $os. On Windows, run install.ps1 in PowerShell: irm https://raw.githubusercontent.com/$REPO/main/install.ps1 | iex" ;;
   esac
 
   ensure_docker "$os"
