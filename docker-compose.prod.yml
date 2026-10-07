@@ -98,6 +98,10 @@ services:
       SANDBOX_DOCKER_HOST: tcp://docker-proxy:2375
       SANDBOX_DOCKER_NETWORK: abotica-sandbox
       SANDBOX_IMAGE: abotica-sandbox:latest
+    # On stop (restart, update) the runs in progress get WORKER_SHUTDOWN_DRAIN_MS (default 30 s) to
+    # finish, then the rest are stopped with their partial answers saved. This leaves time for that
+    # before Docker kills the process.
+    stop_grace_period: 60s
     # Previews, for a reverse proxy on this machine (the caddy service, or your own); never published
     # to the outside.
     ports:

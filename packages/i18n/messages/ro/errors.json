@@ -4,6 +4,7 @@
   "noModel": "Nu există niciun model setat: alege unul pentru agent sau setează modelul implicit în Setări → Provideri AI",
   "conversationBusy": "Agentul încă lucrează în această conversație; mesajul a intrat în coadă",
   "allProvidersFailed": "Toți providerii au eșuat:\n{failures}",
+  "allProvidersRateLimited": "Toate modelele din lanț au atins limita de cereri, inclusiv după reîncercări; încearcă din nou mai târziu:\n{failures}",
   "noOrchestrator": "Nu există niciun super agent activ. Rulează pnpm db:seed.",
   "run": {
     "agentDisabled": "Agentul {agent} este dezactivat",
@@ -16,6 +17,11 @@
     "stoppedFromTelegram": "Oprit din Telegram",
     "cancelled": "Anulat",
     "workerRestarted": "Worker-ul a fost repornit în timpul rulării",
-    "taskComment": "Rularea a eșuat: {error}"
+    "workerRestarting": "Oprit pentru că worker-ul repornește",
+    "taskComment": "Rularea a eșuat: {error}",
+    "contextOverflow": "Conversația nu mai încape în fereastra de context a modelului",
+    "stepLimitReached": "Rularea și-a consumat cei {steps} pași în timp ce încă lucra",
+    "loopDetected": "Oprit: agentul a repetat aceleași apeluri ({tool}) și după ce i s-a cerut să schimbe abordarea",
+    "timedOut": "Rularea a depășit limita de timp ({minutes} min)"
   }
 }

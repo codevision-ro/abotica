@@ -427,6 +427,7 @@
     "copied": "Copiat",
     "copyFailed": "Nu s-a putut copia",
     "safe": "Setările și datele rămân. Instalatorul face întâi o copie de rezervă a bazei de date în backups/, în folderul de instalare; revenirea la versiunea anterioară e descrisă în <link>DEPLOY.md</link>.",
+    "activeRuns": "{count, plural, one {O rulare este} few {# rulări sunt} other {# de rulări sunt}} în desfășurare: actualizarea oprește ce nu s-a terminat și salvează ce s-a făcut până atunci.",
     "autoTitle": "Verificare automată",
     "autoDescription": "Caută versiuni noi la câteva ore; primești și o notificare pe Telegram.",
     "autoNote": "Fiecare verificare este o cerere către API-ul GitHub.",

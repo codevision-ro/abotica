@@ -14,10 +14,12 @@ import {
 } from "@abotica/db";
 import { and, asc, eq, ne, sql } from "@abotica/db/orm";
 import type { ManagedSandboxSession } from "@abotica/sandbox";
+import type { UIMessage } from "ai";
 import { contextMemories, recentJournals } from "../memory/memory";
 import { availableProviders } from "../models/chain";
 import { localeEnglishNames, UserError } from "@abotica/i18n";
 import { type RunRepo, runRepos } from "../projects/repos";
+import type { StoredMessage } from "../runs/run-messages";
 import { type AppSettings, getSettings, settingsLocale } from "../platform/settings";
 import { workspaceToolsOf } from "./tools/workspace";
 
@@ -168,6 +170,15 @@ function formatDay(timezone: string): string {
 export function sentAtLine(sentAt: Date, timezone: string): string {
   const time = new Intl.DateTimeFormat("en-US", { timeZone: timezone, dateStyle: "full", timeStyle: "short" });
   return `[Sent ${time.format(sentAt)}]`;
+}
+
+/** The history as the model gets it: every user message opens with the time it was sent. */
+export function withSentTimes(history: StoredMessage[], timezone: string): UIMessage[] {
+  return history.map(({ message, createdAt }) =>
+    message.role === "user"
+      ? { ...message, parts: [{ type: "text", text: sentAtLine(createdAt, timezone) }, ...message.parts] }
+      : message,
+  );
 }
 
 type TeamMember = { id: string; slug: string; name: string; role: string };

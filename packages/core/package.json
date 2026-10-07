@@ -11,6 +11,7 @@
     "./agents/runner": "./src/agents/runner.ts",
     "./agents/tools/tool-catalog": "./src/agents/tools/tool-catalog.ts",
     "./audit-actions": "./src/platform/audit-actions.ts",
+    "./compaction-record": "./src/runs/compaction-record.ts",
     "./cron": "./src/automations/cron.ts",
     "./delegation-report": "./src/tasks/delegation-report.ts",
     "./events": "./src/infra/events.ts",

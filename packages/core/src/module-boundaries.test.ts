@@ -21,6 +21,7 @@ const CLIENT_SAFE = [
   "platform/limits",
   "platform/return-path",
   "platform/slug",
+  "runs/compaction-record",
   "sandbox/sandbox-policy",
   "skills/skill-md",
   "tasks/delegation-report",

@@ -30,6 +30,6 @@ export async function setKillSwitch(active: boolean, reason?: string): Promise<n
   const running = await db.select({ id: runs.id }).from(runs).where(eq(runs.status, "running"));
   await publish({ type: "kill-switch", active, reason: why });
   // After the abort went out: settling and reporting the cancelled runs' tasks takes a moment.
-  const cancelled = await cancelQueuedRuns(why);
+  const cancelled = await cancelQueuedRuns(why, "kill_switch");
   return cancelled.length + running.length;
 }

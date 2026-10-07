@@ -123,6 +123,11 @@
     "files": "Fișiere",
     "withheld": "Nu au fost date agentului: providerii AI permiși în proiectele acestor task-uri nu includ niciunul dintre modelele lui. Verifică task-urile și decide tu asupra lor."
   },
+  "compaction": {
+    "marker": "Mesajele anterioare au fost rezumate",
+    "show": "Arată rezumatul",
+    "hint": "Agentul lucrează cu acest rezumat în locul mesajelor de mai sus."
+  },
   "skillTest": {
     "label": "Test de skill: <link>{name}</link>",
     "hint": "În această conversație agentul are skill-ul, chiar dacă nu îi este atribuit sau skill-ul este oprit."

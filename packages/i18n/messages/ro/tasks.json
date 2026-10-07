@@ -173,7 +173,10 @@
       "title": "Rulări",
       "deletedAgent": "Agent șters",
       "empty": "Nicio rulare încă."
-    }
+    },
+    "circuitOpen": "Oprit după {failures, plural, one {# rulare eșuată} few {# rulări eșuate} other {# de rulări eșuate}}",
+    "circuitOpenHint": "Delegările și dependențele finalizate nu îl mai pornesc, pentru că ar eșua la fel. Rezolvă cauza, apoi pornește-l din nou.",
+    "startAnyway": "Pornește oricum"
   },
   "validation": {
     "titleRequired": "Titlul este obligatoriu",
@@ -187,6 +190,7 @@
     "circularDependency": "Dependență circulară",
     "runNotStarted": "Rularea nu a pornit",
     "dependencyNotFound": "Un task de care depinde nu există",
-    "alreadyRunning": "Task-ul are deja o rulare activă"
+    "alreadyRunning": "Task-ul are deja o rulare activă",
+    "circuitOpen": "{failures, plural, one {Ultima rulare a acestui task a eșuat} few {Ultimele # rulări ale acestui task au eșuat} other {Ultimele # de rulări ale acestui task au eșuat}} ({reason}), așa că nu mai pornește singur. Pornește-l tu după ce rezolvi cauza."
   }
 }

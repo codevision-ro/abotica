@@ -1,31 +1,31 @@
-import { approvals, db, messages, runs } from "@abotica/db";
-import {
-  convertToModelMessages,
-  generateId,
-  isStepCount,
-  isToolUIPart,
-  streamText,
-  toUIMessageStream,
-  type ToolSet,
-  type UIMessage,
-} from "ai";
-import { asc, eq } from "@abotica/db/orm";
+import { approvals, db, runs } from "@abotica/db";
+import { convertToModelMessages, type StopCondition, streamText, type ToolSet, type UIMessageChunk } from "ai";
+import { eq } from "@abotica/db/orm";
 import { createHmac } from "node:crypto";
 import { getTranslator, isUserError, translateKey } from "@abotica/i18n";
 import { applicableBudgets, type MonthlyBudget, tightestBudget } from "../platform/budgets";
-import { isWithheldReport } from "../tasks/delegation-report";
-import { type CacheTtl, estimateCost } from "../models/catalog";
+import { type CacheTtl, estimateCost, getCatalog } from "../models/catalog";
 import { env } from "../infra/env";
 import { publish } from "../infra/events";
 import { availableProviders, NoModelError } from "../models/chain";
 import { NoAllowedProviderError } from "../models/provider-policy";
 import { getFile, readFileBytes } from "../files/files";
 import { notify } from "../infra/queues";
+import { abortKind, failureKindOf, type RunFailureKind } from "../runs/run-failures";
 import { cancelClaimedRun, claimRun, failRun, finishRun, logRunEvent } from "../runs/run-lifecycle";
+import {
+  closeOpenToolCalls,
+  type ConversationHistory,
+  loadConversation,
+  responseMessageStream,
+  saveMessage,
+} from "../runs/run-messages";
 import type { Run } from "../runs/runs";
 import { isKillSwitchActive } from "../platform/kill-switch";
 import { settingsLocale } from "../platform/settings";
-import { buildInstructions, type DeferredToolGroup, loadRunContext, type RunContext, sentAtLine } from "./context";
+import { approxTokens, effectiveWindow } from "./compaction";
+import { createCompactor, summaryMessages, toolsUsedInHistory } from "./compactor";
+import { buildInstructions, type DeferredToolGroup, loadRunContext, type RunContext, withSentTimes } from "./context";
 import { FallbackModel } from "../models/fallback-model";
 import { inheritedEffort } from "../models/reasoning";
 import type { McpToolSource } from "./mcp";
@@ -34,8 +34,10 @@ import { withModelFiles } from "./message-files";
 import { fullModelChain, modelChain } from "./model-chain";
 import { builtinPermission, mcpToolPermission } from "./permissions";
 import { openRunSandbox } from "./sandbox-session";
+import { prepareSteps } from "./step-preparation";
 import { createRunStreamWriter } from "./stream";
-import { deferTools, isDeferredBuiltin, TOOL_SEARCH, toolsUsedIn } from "./tool-loading";
+import { loopGuard } from "./stuck";
+import { deferTools, isDeferredBuiltin, TOOL_SEARCH } from "./tool-loading";
 import { builtinTools } from "./tools";
 
 /** Progress of a running run; status changes go through run-lifecycle. */
@@ -109,61 +111,14 @@ function deferredGroups(
   return groups;
 }
 
-/**
- * A stopped run leaves tool calls without a result. They are saved as failed with the reason, so
- * the chat shows them stopped rather than still running and the next run tells the model why.
- */
-function closeOpenToolCalls(message: UIMessage, reason: string): UIMessage {
-  return {
-    ...message,
-    parts: message.parts.map((part) =>
-      isToolUIPart(part) && (part.state === "input-streaming" || part.state === "input-available")
-        ? ({ ...part, state: "output-error", input: part.input ?? {}, errorText: reason } as UIMessage["parts"][number])
-        : part,
-    ),
-  };
-}
+/** Why the run stopped before its answer, when a limit inside the loop stopped it. */
+type Stop = { reason: string; kind: RunFailureKind };
 
-type StoredMessage = { message: UIMessage; createdAt: Date };
+/** Stops that leave the work unfinished: the run fails and its task is blocked. The others end it as answered. */
+const FAILING_STOPS = new Set<RunFailureKind>(["loop", "step_limit", "timeout"]);
 
-/** The history the model gets: reports withheld from the agent went to the user only. */
-async function loadConversation(conversationId: string): Promise<StoredMessage[]> {
-  const rows = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conversationId))
-    .orderBy(asc(messages.createdAt));
-  return rows
-    .filter((m) => !isWithheldReport(m.metadata))
-    .map((m) => ({
-      message: { id: m.id, role: m.role, parts: m.parts, metadata: m.metadata ?? undefined } as UIMessage,
-      createdAt: m.createdAt,
-    }));
-}
-
-/** The history as the model gets it: every user message opens with the time it was sent. */
-function withSentTimes(history: StoredMessage[], timezone: string): UIMessage[] {
-  return history.map(({ message, createdAt }) =>
-    message.role === "user"
-      ? { ...message, parts: [{ type: "text", text: sentAtLine(createdAt, timezone) }, ...message.parts] }
-      : message,
-  );
-}
-
-/** createdAt is the run start, so an answer sorts before messages the user sent while it ran. */
-async function saveMessage(conversationId: string, message: UIMessage, createdAt: Date) {
-  await db
-    .insert(messages)
-    .values({
-      id: message.id,
-      conversationId,
-      createdAt,
-      role: message.role,
-      parts: message.parts,
-      metadata: (message.metadata as Record<string, unknown>) ?? null,
-    })
-    .onConflictDoUpdate({ target: messages.id, set: { parts: message.parts } });
-}
+/** The total timeout aborts the stream with this reason (AbortSignal.timeout). */
+const isTimeout = (reason: unknown) => reason instanceof DOMException && reason.name === "TimeoutError";
 
 export type ExecuteResult = {
   status: "succeeded" | "failed" | "cancelled" | "waiting_approval";
@@ -185,7 +140,8 @@ export async function executeRun(runId: string, signal: AbortSignal): Promise<Ex
     return await executeClaimed(run, signal);
   } catch (error) {
     // executeClaimed ends the run itself once it has its context; this is a failure to load it.
-    return outcome(await failRun(run, error instanceof Error ? error.message : String(error)), "failed");
+    const message = error instanceof Error ? error.message : String(error);
+    return outcome(await failRun(run, message, failureKindOf(error)), "failed");
   }
 }
 
@@ -198,8 +154,9 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
   const errorText = (error: unknown) =>
     isUserError(error) ? translateKey(t, error.key, error.values) : error instanceof Error ? error.message : String(error);
 
-  const fail = async (error: string) => outcome(await failRun(run, error), "failed");
-  const cancel = async (reason: string) => outcome(await cancelClaimedRun(run, reason), "cancelled");
+  const fail = async (error: string, kind: RunFailureKind) => outcome(await failRun(run, error, kind), "failed");
+  const cancel = async (reason: string, kind: RunFailureKind) =>
+    outcome(await cancelClaimedRun(run, reason, kind), "cancelled");
   const finish = async (status: "succeeded" | "waiting_approval", output: string, error?: string | null) =>
     outcome(await finishRun(run, { status, output, error, actor: `agent:${ctx.agent.slug}` }), status, output);
 
@@ -210,8 +167,13 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
   let inputTokens = 0;
   let outputTokens = 0;
   let steps = 0;
-  let stopReason: string | null = null;
-  let streamError: string | null = null;
+  let stop: Stop | null = null;
+  let streamError: Stop | null = null;
+  /** Records why the loop stops; the first condition to stop it explains it. */
+  const stopWith = (reason: string, kind: RunFailureKind) => {
+    stop ??= { reason, kind };
+    return true;
+  };
 
   const monthlyBudgetReached = (budget: MonthlyBudget) =>
     budget.scope === "global"
@@ -221,46 +183,51 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
   let monthly: ReturnType<typeof tightestBudget> = null;
   const budgetReached = () => {
     if (limits.budgetUsd != null && cost >= limits.budgetUsd) {
-      stopReason = t("errors.run.runBudgetReached", { budget: limits.budgetUsd });
-      return true;
+      return stopWith(t("errors.run.runBudgetReached", { budget: limits.budgetUsd }), "budget");
     }
     // Runs running at the same time do not share this headroom: each counts only its own cost, so
     // together they can go past the budget.
-    if (monthly && cost >= monthly.remainingUsd) {
-      stopReason = monthlyBudgetReached(monthly.budget);
-      return true;
-    }
+    if (monthly && cost >= monthly.remainingUsd) return stopWith(monthlyBudgetReached(monthly.budget), "budget");
     return false;
   };
+  /**
+   * Why the run fails, if it does: a stop that leaves the work unfinished, or the error that ended the
+   * stream (the model's, after the run made steps or before).
+   */
+  const runFailure = () => (stop && FAILING_STOPS.has(stop.kind) ? stop : null) ?? streamError;
+  /** The prompt did not fit the model before the run made a step: compacted, it can start again. */
+  const overflowedBeforeFirstStep = () => steps === 0 && streamError?.kind === "context_overflow" && !signal.aborted;
+  const stopReason = () => stop?.reason ?? null;
   // A limit hit inside the loop explains itself; otherwise the worker passed why it aborted.
   const abortReason = () =>
-    stopReason ??
+    stopReason() ??
     (signal.reason instanceof Error && signal.reason.message ? signal.reason.message : t("errors.run.cancelled"));
-  const killed = async () => {
-    if (await isKillSwitchActive()) {
-      stopReason = t("errors.run.stoppedByKillSwitch");
-      return true;
-    }
-    return false;
+  const killed = async () => (await isKillSwitchActive()) && stopWith(t("errors.run.stoppedByKillSwitch"), "kill_switch");
+  // Stop conditions run only after a step whose tool calls all have results: the run was still working.
+  const stepLimitReached: StopCondition<ToolSet> = ({ steps }) =>
+    steps.length >= limits.maxSteps && stopWith(t("errors.run.stepLimitReached", { steps: limits.maxSteps }), "step_limit");
+  const loop = loopGuard((found, text) => logEventInBackground(runId, "loop-nudge", { ...found, text }));
+  const loopDetected: StopCondition<ToolSet> = ({ steps }) => {
+    const found = loop.stopping(steps);
+    return found !== null && stopWith(t("errors.run.loopDetected", { tool: found.tools.join(", ") }), "loop");
   };
 
   // Everything after the claim runs inside the try, so the run always ends; the finally stops the MCP
   // processes and the sandbox session (on Docker nothing else would end those execs and their proxy tokens).
   let mcp: McpConnection | undefined;
   try {
-    if (await isKillSwitchActive()) return await cancel(t("errors.run.killSwitchActive"));
-    if (!ctx.agent.enabled) return await fail(t("errors.run.agentDisabled", { agent: ctx.agent.slug }));
+    if (await isKillSwitchActive()) return await cancel(t("errors.run.killSwitchActive"), "kill_switch");
+    if (!ctx.agent.enabled) return await fail(t("errors.run.agentDisabled", { agent: ctx.agent.slug }), "agent_disabled");
     monthly = tightestBudget(await applicableBudgets(ctx.project));
-    if (monthly && monthly.remainingUsd <= 0) return await fail(monthlyBudgetReached(monthly.budget));
-    if (!fullModelChain(ctx).length) return await fail(errorText(new NoModelError()));
+    if (monthly && monthly.remainingUsd <= 0) return await fail(monthlyBudgetReached(monthly.budget), "budget");
+    if (!fullModelChain(ctx).length) return await fail(errorText(new NoModelError()), "no_model");
     const chain = await modelChain(ctx);
-    if (!chain.length) return await fail(errorText(new NoAllowedProviderError()));
+    if (!chain.length) return await fail(errorText(new NoAllowedProviderError()), "provider_not_allowed");
     // Its conversation was deleted (runs keep a null conversation then): there is nothing to answer.
     const conversationId = ctx.run.conversationId;
-    if (!conversationId) return await fail(t("runs.errors.noConversation"));
+    if (!conversationId) return await fail(t("runs.errors.noConversation"), "no_conversation");
 
-    const history = await loadConversation(conversationId);
-    const uiMessages = history.map((h) => h.message);
+    let history = await loadConversation(conversationId);
 
     const model = new FallbackModel(chain, {
       effort: inheritedEffort(
@@ -269,6 +236,7 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
         ctx.settings.defaultReasoningEffort,
       ),
       onFallback: (e) => logEventInBackground(runId, "fallback", e),
+      onRetry: (e) => logEventInBackground(runId, "retry", e),
     });
 
     // A broken sandbox must not fail the run: the agent continues without workspace tools.
@@ -280,6 +248,7 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
       signal,
       secrets: { projectId: ctx.projectId },
       runWorkspace: ctx.sandbox ? () => ctx.sandbox!.workspace() : null,
+      toolOutput: ctx.sandbox ? { sandbox: ctx.sandbox, runId } : null,
       onLazyError: (server, error) => logEventInBackground(runId, "mcp-error", { error: `${server}: ${errorText(error)}` }),
     });
     for (const { server, error } of mcp.errors)
@@ -290,101 +259,169 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
       const { serverSlug, tool } = mcpSources[name]!;
       if (mcpToolPermission(ctx.agent.permissions, serverSlug, tool) !== "deny") available[name] = t;
     }
-    // MCP tools and rarely used built-ins load on demand; what this conversation used stays loaded.
+    // MCP tools and rarely used built-ins load on demand; what this conversation used stays loaded,
+    // including what a compaction summarized, so the tool list does not change with it.
     const { tools, deferred } = deferTools(
       available,
       (name) => name in mcpSources || isDeferredBuiltin(name),
-      toolsUsedIn(uiMessages),
+      toolsUsedInHistory(history),
     );
 
     // Anthropic caches only up to marked blocks: the top-level marker moves to the end of the
     // conversation on every step, and the one on the instructions caches tools and system prompt,
     // which the agent's other conversations share. Other providers cache prefixes on their own.
+    // Both stay when a compaction replaces the messages: the top-level one is a request option.
     const ttl = cacheTtl(ctx);
     const cacheOptions = { anthropic: { cacheControl: { type: "ephemeral", ttl } } } as const;
-    const result = streamText({
-      model,
-      instructions: {
-        role: "system",
-        content: await buildInstructions(ctx, deferredGroups(ctx, deferred, mcpSources)),
-        providerOptions: cacheOptions,
-      },
-      providerOptions: cacheOptions,
-      messages: await convertToModelMessages(
-        await withModelFiles(withSentTimes(history, ctx.settings.timezone), {
-          store: { get: getFile, read: readFileBytes },
-          workspace: ctx.sandbox !== null,
-          readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),
-        }),
-        { tools, ignoreIncompleteToolCalls: true },
-      ),
-      tools,
-      toolApproval: approvalPolicy(ctx, mcp.sources),
-      experimental_sandbox: ctx.sandbox ?? undefined,
-      experimental_toolApprovalSecret: approvalSecret(),
-      stopWhen: [isStepCount(limits.maxSteps), budgetReached, killed],
-      abortSignal: signal,
-      timeout: { totalMs: limits.timeoutMs },
-      maxRetries: 0,
-      onStepEnd: async (step) => {
-        steps += 1;
-        const served = model.lastServed;
-        const usage = {
-          inputTokens: step.usage.inputTokens ?? 0,
-          outputTokens: step.usage.outputTokens ?? 0,
-          cachedInputTokens: step.usage.inputTokenDetails?.cacheReadTokens ?? 0,
-          cacheWriteTokens: step.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
-        };
-        const stepCost = await estimateCost(served.provider, served.model, usage, ttl);
-        cost += stepCost;
+    const instructions = await buildInstructions(ctx, deferredGroups(ctx, deferred, mcpSources));
+    const compactor = createCompactor({
+      ctx,
+      conversationId,
+      chain,
+      window: effectiveWindow(chain, await getCatalog()),
+      cacheTtl: ttl,
+      signal,
+      fixedTokens:
+        approxTokens(instructions) + approxTokens(Object.entries(tools).map(([name, t]) => [name, t.description])),
+      onUsage: async (usage) => {
+        cost += usage.costUsd;
         inputTokens += usage.inputTokens;
         outputTokens += usage.outputTokens;
-        await logRunEvent(runId, "step", {
-          step: step.stepNumber,
-          provider: served.provider,
-          model: served.model,
-          reasoningEffort: model.lastEffort,
-          finishReason: step.finishReason,
-          text: step.text,
-          reasoning: step.reasoningText,
-          toolCalls: step.toolCalls.map((c) => ({ id: c.toolCallId, name: c.toolName, input: c.input })),
-          toolResults: step.toolResults.map((r) => ({ id: r.toolCallId, name: r.toolName, output: r.output })),
-          usage,
-          costUsd: stepCost,
-        });
-        await updateProgress(runId, {
-          provider: served.provider,
-          model: served.model,
-          steps,
-          inputTokens,
-          outputTokens,
-          costUsd: cost,
-        });
+        await updateProgress(runId, { inputTokens, outputTokens, costUsd: cost });
       },
+      errorText,
     });
+    history = await compactor.atStart(history);
 
-    const uiStream = toUIMessageStream({
-      stream: result.stream,
-      tools,
-      originalMessages: uiMessages,
-      generateMessageId: generateId,
-      // Reasoning is saved with the answer, since the next turn replays it to the model.
-      onError: (error) => {
-        streamError = errorText(error);
-        return streamError;
-      },
-      onEnd: async ({ responseMessage, isAborted }) => {
-        const message = isAborted || signal.aborted ? closeOpenToolCalls(responseMessage, abortReason()) : responseMessage;
-        if (message.parts.length) await saveMessage(conversationId, message, startedAt);
-      },
-    });
-    const reader = uiStream.getReader();
-    for (let next = await reader.read(); !next.done; next = await reader.read()) {
-      // Chats show answers, not the model thinking aloud; the reasoning stays in the run trace.
-      if (!next.value.type.startsWith("reasoning-")) await writer.write(next.value);
+    const startStream = async (prompt: ConversationHistory) => {
+      const result = streamText({
+        model,
+        instructions: { role: "system", content: instructions, providerOptions: cacheOptions },
+        providerOptions: cacheOptions,
+        messages: [
+          ...summaryMessages(prompt),
+          ...(await convertToModelMessages(
+            await withModelFiles(withSentTimes(prompt.messages, ctx.settings.timezone), {
+              store: { get: getFile, read: readFileBytes },
+              workspace: ctx.sandbox !== null,
+              readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),
+            }),
+            { tools, ignoreIncompleteToolCalls: true },
+          )),
+        ],
+        tools,
+        toolApproval: approvalPolicy(ctx, mcpSources),
+        experimental_sandbox: ctx.sandbox ?? undefined,
+        experimental_toolApprovalSecret: approvalSecret(),
+        // In this order, so the first that holds explains the stop.
+        stopWhen: [budgetReached, loopDetected, stepLimitReached, killed],
+        // Notices about the run go before anything that shortens the prompt (see step-preparation.ts).
+        prepareStep: prepareSteps([loop.nudge, compactor.midRun(prompt)]),
+        abortSignal: signal,
+        timeout: { totalMs: limits.timeoutMs },
+        // The worker's abort is a cancel; the total timeout fails the run.
+        onAbort: ({ reason }) => {
+          if (!signal.aborted && isTimeout(reason)) {
+            stopWith(t("errors.run.timedOut", { minutes: Math.round(limits.timeoutMs / 60_000) }), "timeout");
+          }
+        },
+        maxRetries: 0,
+        onStepEnd: async (step) => {
+          steps += 1;
+          const served = model.lastServed;
+          const usage = {
+            inputTokens: step.usage.inputTokens ?? 0,
+            outputTokens: step.usage.outputTokens ?? 0,
+            cachedInputTokens: step.usage.inputTokenDetails?.cacheReadTokens ?? 0,
+            cacheWriteTokens: step.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
+          };
+          const stepCost = await estimateCost(served.provider, served.model, usage, ttl);
+          cost += stepCost;
+          inputTokens += usage.inputTokens;
+          outputTokens += usage.outputTokens;
+          await logRunEvent(runId, "step", {
+            step: step.stepNumber,
+            provider: served.provider,
+            model: served.model,
+            reasoningEffort: model.lastEffort,
+            finishReason: step.finishReason,
+            text: step.text,
+            reasoning: step.reasoningText,
+            toolCalls: step.toolCalls.map((c) => ({ id: c.toolCallId, name: c.toolName, input: c.input })),
+            toolResults: step.toolResults.map((r) => ({ id: r.toolCallId, name: r.toolName, output: r.output })),
+            usage,
+            costUsd: stepCost,
+          });
+          await updateProgress(runId, {
+            provider: served.provider,
+            model: served.model,
+            steps,
+            inputTokens,
+            outputTokens,
+            costUsd: cost,
+          });
+        },
+      });
+
+      const uiStream = responseMessageStream({
+        runId,
+        stream: result.stream,
+        tools,
+        // The messages after the summary: the answer's id comes from the last one.
+        originalMessages: prompt.messages.map((m) => m.message),
+        // The first error is the cause: the message stream reports it again as a plain error with its text.
+        onError: (error) => {
+          streamError ??= { reason: errorText(error), kind: failureKindOf(error) };
+          return streamError.reason;
+        },
+        // Saved after every step, so a worker that dies mid-run leaves the finished steps in the chat.
+        // Reasoning is saved with the answer, since the next turn replays it to the model.
+        save: (message) => saveMessage(conversationId, message, startedAt),
+        onEnd: async ({ responseMessage, isAborted }) => {
+          const message =
+            isAborted || signal.aborted ? closeOpenToolCalls(responseMessage, abortReason()) : responseMessage;
+          if (message.parts.length) await saveMessage(conversationId, message, startedAt);
+        },
+      });
+      return { result, uiStream };
+    };
+
+    let { result, uiStream } = await startStream(history);
+    // A first model call that overflows gets one more try on a compacted prompt. Until a step starts,
+    // the chunks wait, so the chat does not show the error of a call that is tried again.
+    for (let restarted = false; ; restarted = true) {
+      const held: UIMessageChunk[] = [];
+      let stepStarted = restarted;
+      const reader = uiStream.getReader();
+      for (let next = await reader.read(); !next.done; next = await reader.read()) {
+        const chunk = next.value;
+        // Chats show answers, not the model thinking aloud; the reasoning stays in the run trace.
+        if (chunk.type.startsWith("reasoning-")) continue;
+        stepStarted ||= chunk.type === "start-step";
+        if (!stepStarted) {
+          held.push(chunk);
+          continue;
+        }
+        for (const waiting of held.splice(0)) await writer.write(waiting);
+        await writer.write(chunk);
+      }
+      if (!restarted && overflowedBeforeFirstStep()) {
+        // Reloaded: approved calls that ran before the overflow are saved with their results, so they do not run again.
+        const compacted = await compactor.onOverflow(await loadConversation(conversationId));
+        if (compacted) {
+          history = compacted;
+          streamError = null;
+          ({ result, uiStream } = await startStream(history));
+          continue;
+        }
+      }
+      for (const waiting of held) await writer.write(waiting);
+      break;
     }
 
-    if (signal.aborted) return await cancel(abortReason());
+    if (signal.aborted) return await cancel(abortReason(), abortKind(signal.reason));
+    const failed = runFailure();
+    if (failed) return await fail(failed.reason, failed.kind);
 
     const content = await result.content;
     const pending = content.filter((p) => p.type === "tool-approval-request" && !p.isAutomatic);
@@ -420,10 +457,12 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
       return result;
     }
 
-    return await finish("succeeded", output, stopReason);
+    // A run a budget or the kill switch stopped keeps what it answered so far, with the reason.
+    return await finish("succeeded", output, stopReason());
   } catch (error) {
-    if (signal.aborted) return await cancel(abortReason());
-    return await fail(streamError ?? errorText(error));
+    if (signal.aborted) return await cancel(abortReason(), abortKind(signal.reason));
+    const failed = runFailure() ?? { reason: errorText(error), kind: failureKindOf(error) };
+    return await fail(failed.reason, failed.kind);
   } finally {
     // Each step runs even when an earlier one fails.
     const cleanup = await Promise.allSettled([writer.end(), mcp?.close(), ctx.sandbox?.close()]);

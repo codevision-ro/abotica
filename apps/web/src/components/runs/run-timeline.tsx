@@ -1,4 +1,16 @@
-import { AlertTriangle, Box, Brain, ChevronRight, CircleAlert, Plug, Repeat2, Wrench } from "lucide-react";
+import {
+  AlertTriangle,
+  Box,
+  Brain,
+  ChevronRight,
+  CircleAlert,
+  FoldVertical,
+  IterationCcw,
+  Plug,
+  Repeat2,
+  RotateCw,
+  Wrench,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ChatMarkdown } from "@/components/chat/chat-parts";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +41,9 @@ type TimelineEvent = { id: number; type: string; data: Record<string, unknown>; 
 type Tone = "default" | "warning" | "destructive";
 
 const modelName = (m: ModelRef) => (m ? [m.provider, m.model].filter(Boolean).join("/") : "");
+
+/** Seconds with one decimal, for the waits of retry and fallback events. */
+const seconds = (ms: unknown) => Math.round(Number(ms ?? 0) / 100) / 10;
 
 /** Round marker on the rail, centered on the first line of its event. */
 function Marker({ tone, children }: { tone: Tone; children: React.ReactNode }) {
@@ -187,7 +202,7 @@ function NoticeRow({
   title,
   children,
 }: {
-  tone: "warning" | "destructive";
+  tone: Tone;
   icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
@@ -196,6 +211,7 @@ function NoticeRow({
     <div
       className={cn(
         "min-w-0 space-y-1 rounded-xl border px-3.5 py-3 text-sm sm:px-4 [&_svg]:size-4 [&_svg]:shrink-0",
+        tone === "default" && "border-border/70 bg-background/60 dark:bg-background/30",
         tone === "warning" && "border-warning/30 bg-warning/8",
         tone === "destructive" && "border-destructive/25 bg-destructive/6",
       )}
@@ -203,6 +219,7 @@ function NoticeRow({
       <div
         className={cn(
           "flex items-center gap-2 font-medium",
+          tone === "default" && "text-foreground [&_svg]:text-muted-foreground",
           tone === "warning" && "text-[color-mix(in_oklch,var(--warning),black_35%)] dark:text-warning",
           tone === "destructive" && "text-destructive",
         )}
@@ -221,6 +238,8 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
   const title = t.has(typeKey) ? t(typeKey) : event.type;
   const code = (chunks: React.ReactNode) => <span className="font-mono text-foreground">{chunks}</span>;
   const d = event.data;
+  const kindKey = `errorKind.${String(d.kind)}` as Parameters<typeof t>[0];
+  const kind = t.has(kindKey) ? t(kindKey) : null;
   switch (event.type) {
     case "step":
       return <StepEvent data={d as StepData} fmt={fmt} />;
@@ -228,13 +247,86 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
       const from = modelName(d.from as ModelRef);
       const to = modelName(d.to as ModelRef);
       const error = String(d.error ?? "");
+      const retries = Number(d.retries ?? 0);
       return (
         <NoticeRow tone="warning" icon={<Repeat2 />} title={title}>
           {to ? t.rich("fallbackSwitched", { from, to, code }) : t.rich("fallbackExhausted", { from, code })}
           {error && `: ${error}`}
+          {kind && (
+            <span className="mt-1 block text-xs">
+              {retries > 0 ? t("fallbackRetried", { kind, retries, seconds: seconds(d.waitedMs) }) : kind}
+            </span>
+          )}
         </NoticeRow>
       );
     }
+    case "retry": {
+      const error = String(d.error ?? "");
+      return (
+        <NoticeRow tone="warning" icon={<RotateCw />} title={title}>
+          {t.rich("retry", {
+            kind: kind ?? String(d.kind ?? ""),
+            model: modelName(d.model as ModelRef),
+            seconds: seconds(d.delayMs),
+            attempt: Number(d.attempt ?? 0),
+            max: Number(d.maxRetries ?? 0),
+            code,
+          })}
+          {error && `: ${error}`}
+        </NoticeRow>
+      );
+    }
+    case "loop-nudge": {
+      const tools = Array.isArray(d.tools) ? d.tools.map(String).join(", ") : "";
+      return (
+        <NoticeRow tone="warning" icon={<IterationCcw />} title={title}>
+          {t("loopNudge", { tools, steps: Number(d.steps ?? 0) })}
+          <span className="mt-1 block text-xs">{String(d.text ?? "")}</span>
+        </NoticeRow>
+      );
+    }
+    case "compaction": {
+      const reasonKey = `compactionReason.${String(d.reason)}` as Parameters<typeof t>[0];
+      const flushed = Array.isArray(d.flushedMemoryIds) ? d.flushedMemoryIds.length : 0;
+      const summary = String(d.summary ?? "");
+      return (
+        <NoticeRow tone="default" icon={<FoldVertical />} title={title}>
+          {t.rich("compaction", {
+            before: fmt.tokens(Number(d.before ?? 0)),
+            after: fmt.tokens(Number(d.after ?? 0)),
+            model: modelName(d.model as ModelRef),
+            cost: fmt.usd(Number(d.costUsd ?? 0)),
+            code,
+          })}
+          <span className="mt-1 block text-xs">
+            {[
+              t.has(reasonKey) ? t(reasonKey) : String(d.reason ?? ""),
+              d.midRun ? t("compactionMidRun") : null,
+              flushed ? t("compactionFlushed", { count: flushed }) : null,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          </span>
+          {summary && (
+            <Collapsible className="mt-2 overflow-hidden rounded-lg border border-border/70 bg-card">
+              <CollapsibleTrigger className={ROW_TRIGGER}>
+                <Chevron />
+                <span className="font-medium text-foreground">{t("compactionSummary")}</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ChatMarkdown className="px-3 pt-1 pb-3 text-sm leading-6 sm:pl-9">{summary}</ChatMarkdown>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </NoticeRow>
+      );
+    }
+    case "compaction-error":
+      return (
+        <NoticeRow tone="destructive" icon={<FoldVertical />} title={title}>
+          {String(d.error ?? d.message ?? JSON.stringify(d))}
+        </NoticeRow>
+      );
     case "mcp-error":
       return (
         <NoticeRow tone="destructive" icon={<Plug />} title={title}>
@@ -262,16 +354,26 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
   }
 }
 
+function EventIcon({ type }: { type: string }) {
+  if (type === "fallback") return <Repeat2 />;
+  if (type === "retry") return <RotateCw />;
+  if (type === "loop-nudge") return <IterationCcw />;
+  if (type === "compaction" || type === "compaction-error") return <FoldVertical />;
+  return <CircleAlert />;
+}
+
 export async function RunTimeline({ events }: { events: TimelineEvent[] }) {
   const fmt = await getFormat();
   return (
     <ol className="relative ml-3 min-w-0 space-y-4 border-l border-border/70 pl-6 sm:pl-7">
       {events.map((event) => {
-        const tone: Tone = event.type === "fallback" ? "warning" : event.type === "step" ? "default" : "destructive";
+        const warning = event.type === "fallback" || event.type === "retry" || event.type === "loop-nudge";
+        const neutral = event.type === "step" || event.type === "compaction";
+        const tone: Tone = warning ? "warning" : neutral ? "default" : "destructive";
         const step = event.type === "step" ? (event.data as StepData).step : undefined;
         return (
           <li key={event.id} className="relative">
-            <Marker tone={tone}>{step ?? (event.type === "fallback" ? <Repeat2 /> : <CircleAlert />)}</Marker>
+            <Marker tone={tone}>{step ?? <EventIcon type={event.type} />}</Marker>
             <EventBody event={event} fmt={fmt} />
           </li>
         );

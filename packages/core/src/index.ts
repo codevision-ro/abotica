@@ -26,6 +26,7 @@ export * from "./infra/queues";
 export * from "./infra/redis";
 export * from "./projects/repo-url";
 export * from "./projects/repos";
+export * from "./runs/run-failures";
 export * from "./runs/runs";
 export * from "./sandbox/sandbox";
 export * from "./sandbox/sandbox-policy";

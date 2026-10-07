@@ -123,6 +123,11 @@
     "files": "Files",
     "withheld": "Not given to the agent: the AI providers allowed in these tasks' projects include none of its models. Review the tasks and decide on them yourself."
   },
+  "compaction": {
+    "marker": "Earlier messages summarized",
+    "show": "Show the summary",
+    "hint": "The agent works from this summary instead of the messages above."
+  },
   "skillTest": {
     "label": "Skill test: <link>{name}</link>",
     "hint": "In this conversation the agent has this skill, even if it is not assigned or the skill is off."

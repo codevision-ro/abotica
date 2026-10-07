@@ -173,7 +173,10 @@
       "title": "Runs",
       "deletedAgent": "Deleted agent",
       "empty": "No runs yet."
-    }
+    },
+    "circuitOpen": "Stopped after {failures, plural, one {# failed run} other {# failed runs}}",
+    "circuitOpenHint": "Delegations and finished dependencies no longer start it, since it would fail the same way. Fix the cause, then start it again.",
+    "startAnyway": "Start anyway"
   },
   "validation": {
     "titleRequired": "Title is required",
@@ -187,6 +190,7 @@
     "circularDependency": "Circular dependency",
     "runNotStarted": "The run did not start",
     "dependencyNotFound": "A task it depends on does not exist",
-    "alreadyRunning": "The task already has an active run"
+    "alreadyRunning": "The task already has an active run",
+    "circuitOpen": "{failures, plural, one {The last run} other {The last # runs}} of this task failed ({reason}), so it does not start again on its own. Start it yourself once the cause is fixed."
   }
 }

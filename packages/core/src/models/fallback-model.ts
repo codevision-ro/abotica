@@ -6,27 +6,59 @@ import type {
   LanguageModelV4StreamResult,
   SharedV4ProviderMetadata,
 } from "@ai-sdk/provider";
-import { APICallError } from "ai";
 import type { ModelRef } from "@abotica/db";
 import { UserError } from "@abotica/i18n";
 import { type CatalogModel, getCatalog } from "./catalog";
 import { acceptedFilesOnly, fileModality } from "./input-modalities";
+import {
+  classifyProviderError,
+  ContextOverflowError,
+  MAX_RETRIES,
+  type ProviderErrorKind,
+  retryDelay,
+} from "./provider-errors";
 import { languageModel, ProviderNotConfiguredError } from "./providers";
 import { type ReasoningEffort, resolveEffort } from "./reasoning";
 import { mergeProviderOptions, ORIGIN_KEY, ownReasoningOnly, reasoningRequest } from "./reasoning-request";
 
-type FallbackEvent = { from: ModelRef; to: ModelRef | null; error: string };
+type FallbackEvent = {
+  from: ModelRef;
+  to: ModelRef | null;
+  error: string;
+  kind: ProviderErrorKind;
+  /** Calls of `from` after its first one, and the time waited before them. */
+  retries: number;
+  waitedMs: number;
+};
+
+/** A wait before calling the same model again. */
+type RetryEvent = {
+  model: ModelRef;
+  kind: ProviderErrorKind;
+  error: string;
+  /** 1 for the first retry. */
+  attempt: number;
+  maxRetries: number;
+  delayMs: number;
+};
 
 type FallbackOptions = {
   /** The effort asked for; each model in the chain gets its nearest supported level. */
   effort?: ReasoningEffort;
   onFallback?: (event: FallbackEvent) => void;
+  onRetry?: (event: RetryEvent) => void;
 };
+
+type Failure = { model: ModelRef; kind: ProviderErrorKind; error: string };
+
+/** Errors after which the next model gets the call. Any other error ends it, as it would on every model. */
+const FALLBACK_KINDS = new Set<ProviderErrorKind>(["rate_limited", "usage_limit", "auth", "not_found", "transient"]);
 
 /**
  * A language model that walks a chain of provider/model pairs. Each call (each agent step)
  * starts at the first model and moves down the chain on rate limits, outages or missing keys,
- * so the conversation continues on another provider with the same context.
+ * so the conversation continues on another provider with the same context. A short rate limit or
+ * a transient error is first retried on the same model (see `withBackoff`).
  */
 export class FallbackModel implements LanguageModelV4 {
   readonly specificationVersion = "v4" as const;
@@ -37,6 +69,7 @@ export class FallbackModel implements LanguageModelV4 {
   lastEffort: ReasoningEffort;
   private readonly effort: ReasoningEffort;
   private readonly onFallback?: (event: FallbackEvent) => void;
+  private readonly onRetry?: (event: RetryEvent) => void;
   /** Catalog entries of the chain's models, keyed "provider/model"; loaded once, on first use. */
   private catalog?: Promise<Map<string, CatalogModel>>;
 
@@ -53,6 +86,7 @@ export class FallbackModel implements LanguageModelV4 {
     this.effort = options.effort ?? "default";
     this.lastEffort = this.effort;
     this.onFallback = options.onFallback;
+    this.onRetry = options.onRetry;
   }
 
   get provider() {
@@ -121,20 +155,43 @@ export class FallbackModel implements LanguageModelV4 {
     options: LanguageModelV4CallOptions,
     call: (model: LanguageModelV4, options: LanguageModelV4CallOptions, ref: ModelRef) => PromiseLike<T>,
   ): Promise<T> {
-    const failures: string[] = [];
+    const signal = options.abortSignal;
+    const failures: Failure[] = [];
     for (let i = 0; i < this.chain.length; i++) {
       const ref = this.chain[i]!;
+      let retries = 0;
+      let waitedMs = 0;
       try {
         const model = await languageModel(ref.provider, ref.model);
         const { options: opts, effort } = await this.optionsFor(ref, options);
-        const result = await withRetry(() => call(model, opts, ref));
+        const result = await withBackoff(
+          () => call(model, opts, ref),
+          signal,
+          ({ kind, error, delayMs }) => {
+            retries += 1;
+            waitedMs += delayMs;
+            this.onRetry?.({
+              model: ref,
+              kind,
+              error: errorMessage(error),
+              attempt: retries,
+              maxRetries: MAX_RETRIES,
+              delayMs,
+            });
+          },
+        );
         this.lastServed = ref;
         this.lastEffort = effort;
         return result;
       } catch (error) {
-        if (!shouldFallback(error)) throw error;
-        failures.push(`${ref.provider}/${ref.model}: ${errorMessage(error)}`);
-        this.onFallback?.({ from: ref, to: this.chain[i + 1] ?? null, error: errorMessage(error) });
+        // A cancelled or timed-out run is not the model's failure: no other model gets the call.
+        if (signal?.aborted) throw error;
+        const kind = error instanceof ProviderNotConfiguredError ? "auth" : classifyProviderError(error);
+        if (kind === "context_overflow") throw new ContextOverflowError({ cause: error });
+        if (!FALLBACK_KINDS.has(kind) && !(error instanceof EarlyStreamError)) throw error;
+        const message = errorMessage(error);
+        failures.push({ model: ref, kind, error: message });
+        this.onFallback?.({ from: ref, to: this.chain[i + 1] ?? null, error: message, kind, retries, waitedMs });
       }
     }
     throw new AllProvidersFailedError(failures);
@@ -167,37 +224,61 @@ function stampReasoningStream(provider: string) {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  // Stream errors are often plain objects ({ message, type, code }).
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === "string" ? message : String(error);
 }
 
-function shouldFallback(error: unknown): boolean {
-  if (error instanceof ProviderNotConfiguredError) return true;
-  if (error instanceof EarlyStreamError) return true;
-  if (APICallError.isInstance(error)) {
-    const status = error.statusCode ?? 0;
-    return error.isRetryable || status === 401 || status === 403 || status === 404 || status === 429 || status >= 500;
+/**
+ * Calls a model, and calls it again after a wait while it is rate limited or fails transiently, up
+ * to MAX_RETRIES times (see `retryDelay`). Any other error, or a Retry-After over the cap, goes to
+ * the chain at once. The wait ends with the run's abort signal, rejecting with its reason.
+ */
+async function withBackoff<T>(
+  fn: () => PromiseLike<T>,
+  signal: AbortSignal | undefined,
+  onWait: (wait: { kind: ProviderErrorKind; error: unknown; delayMs: number }) => void,
+): Promise<T> {
+  for (let retries = 0; ; retries++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      const kind = classifyProviderError(error);
+      const delayMs = retryDelay(error, kind, retries);
+      if (delayMs === undefined) throw error;
+      onWait({ kind, error, delayMs });
+      await sleep(delayMs, signal);
+    }
   }
-  // Network failures (ECONNREFUSED, fetch failed) for e.g. a stopped Ollama.
-  return error instanceof TypeError || (error as { code?: string })?.code === "ECONNREFUSED";
 }
 
-/** One quick retry for transient errors before giving up on a model. */
-async function withRetry<T>(fn: () => PromiseLike<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    const retryable = APICallError.isInstance(error) && error.isRetryable && error.statusCode !== 429;
-    if (!retryable) throw error;
-    await new Promise((r) => setTimeout(r, 1_500));
-    return fn();
-  }
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal!.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
+/** An error the provider sent inside the stream; the original stays as `cause`, so it can be classified. */
 class EarlyStreamError extends Error {}
 
-class AllProvidersFailedError extends UserError {
-  constructor(readonly failures: string[]) {
-    super("errors.allProvidersFailed", { failures: failures.map((f) => `- ${f}`).join("\n") });
+/** Every model of the chain failed; `failures` says how each one did. */
+export class AllProvidersFailedError extends UserError {
+  constructor(readonly failures: Failure[]) {
+    const lines = failures.map((f) => `- ${f.model.provider}/${f.model.model}: ${f.error}`).join("\n");
+    // Rate limits on every model, retries included: the run says so rather than only "failed".
+    const rateLimited = failures.every((f) => f.kind === "rate_limited");
+    super(rateLimited ? "errors.allProvidersRateLimited" : "errors.allProvidersFailed", { failures: lines });
   }
 }
 
@@ -213,7 +294,7 @@ async function peekForEarlyError(result: LanguageModelV4StreamResult): Promise<L
     if (done) break;
     if (value.type === "error") {
       reader.releaseLock();
-      throw new EarlyStreamError(errorMessage(value.error));
+      throw new EarlyStreamError(errorMessage(value.error), { cause: value.error });
     }
     buffered.push(value);
     if (value.type !== "stream-start" && value.type !== "response-metadata") break;

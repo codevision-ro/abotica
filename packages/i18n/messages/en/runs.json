@@ -121,14 +121,118 @@
       "fallback": "Model fallback",
       "mcp-error": "MCP server error",
       "error": "Error",
-      "sandbox-error": "Sandbox error"
+      "sandbox-error": "Sandbox error",
+      "retry": "Retry",
+      "loop-nudge": "Loop warning",
+      "compaction": "Context compacted",
+      "compaction-error": "Compaction failed"
     },
     "fallbackSwitched": "<code>{from}</code> failed, switched to <code>{to}</code>",
-    "fallbackExhausted": "<code>{from}</code> failed and there is no other model in the chain"
+    "fallbackExhausted": "<code>{from}</code> failed and there is no other model in the chain",
+    "fallbackRetried": "{kind}, retried {retries, plural, one {once} other {# times}} over {seconds} s",
+    "retry": "{kind}: <code>{model}</code> is called again in {seconds} s (retry {attempt} of {max})",
+    "errorKind": {
+      "rate_limited": "Rate limited",
+      "usage_limit": "Usage limit reached",
+      "auth": "Not connected or not authorized",
+      "not_found": "Model not found",
+      "transient": "Temporary error",
+      "other": "Error"
+    },
+    "loopNudge": "The agent repeated the same calls to {tools} over {steps} steps and was told to change approach:",
+    "compaction": "A prompt of about {before} tokens became {after}, summarized by <code>{model}</code> for {cost}",
+    "compactionReason": {
+      "soft": "The prompt passed 60% of the context window after its cache expired.",
+      "hard": "The prompt passed 90% of the context window.",
+      "overflow": "The model rejected the prompt as too long."
+    },
+    "compactionMidRun": "Compacted during the run.",
+    "compactionFlushed": "{count, plural, one {# fact saved to memory.} other {# facts saved to memory.}}",
+    "compactionSummary": "Summary"
   },
   "lifecycle": {
     "taskCancelled": "The run was cancelled: {reason}",
     "unqueued": "The run never started: its job is no longer in the queue",
-    "overdue": "The run went past its time limit and was stopped"
+    "overdue": "The run went past its time limit and was stopped",
+    "interrupted": "The run was interrupted: {reason}",
+    "toolInterrupted": "Interrupted: the worker stopped while this tool was running. It may or may not have taken effect; check before repeating it."
+  },
+  "failure": {
+    "kill_switch": {
+      "label": "Kill switch",
+      "hint": "The kill switch stopped it. Turn the kill switch off to run agents again."
+    },
+    "agent_disabled": {
+      "label": "Agent disabled",
+      "hint": "Enable the agent in its settings, then run it again."
+    },
+    "budget": {
+      "label": "Budget reached",
+      "hint": "Raise the budget (the agent's limits, the project, or Settings > General), or wait for next month."
+    },
+    "no_model": {
+      "label": "No model",
+      "hint": "Pick a model for the agent, or set the default model in Settings > AI providers."
+    },
+    "provider_not_allowed": {
+      "label": "Provider not allowed",
+      "hint": "The project restricts its AI providers. Give the agent a model from an allowed provider, or change the project's restriction."
+    },
+    "no_conversation": {
+      "label": "No conversation",
+      "hint": "The run's conversation was deleted. Start the task or the chat again."
+    },
+    "provider_auth": {
+      "label": "Provider rejected the key",
+      "hint": "Check the API key or the connection in Settings > AI providers."
+    },
+    "rate_limited": {
+      "label": "Rate limited",
+      "hint": "The provider is limiting requests. Try again in a few minutes, or add another provider to the agent's models."
+    },
+    "usage_limit": {
+      "label": "Usage limit reached",
+      "hint": "The plan's usage limit or the account's credit ran out. Wait for it to reset, add credit, or use another provider."
+    },
+    "providers_unavailable": {
+      "label": "Providers unavailable",
+      "hint": "No model of the agent answered. Check the providers in Settings > AI providers and the agent's models, then try again."
+    },
+    "context_overflow": {
+      "label": "Context full",
+      "hint": "The conversation no longer fits in the model's context window. Its next run summarizes the earlier messages first; you can also start a new conversation or use a model with a larger context."
+    },
+    "timeout": {
+      "label": "Time limit",
+      "hint": "Raise the agent's time limit, or split the work into smaller tasks."
+    },
+    "step_limit": {
+      "label": "Step limit",
+      "hint": "The agent was still working when it used up its steps. Raise its step limit, or split the work into smaller tasks."
+    },
+    "loop": {
+      "label": "Loop",
+      "hint": "The agent kept repeating the same calls. The timeline shows which; make the task clearer, then run it again."
+    },
+    "worker_restarted": {
+      "label": "Worker restarted",
+      "hint": "The worker restarted during the run. Check what was already done, then run it again."
+    },
+    "unqueued": {
+      "label": "Never started",
+      "hint": "The run's job was lost from the queue. Run it again."
+    },
+    "overdue": {
+      "label": "Stuck past its time limit",
+      "hint": "The run stopped responding past its time limit. Check the worker's logs, then run it again."
+    },
+    "cancelled_by_user": {
+      "label": "Cancelled by you",
+      "hint": "Run it again when you want it to continue."
+    },
+    "other": {
+      "label": "Error",
+      "hint": "The error above and the timeline say what went wrong."
+    }
   }
 }

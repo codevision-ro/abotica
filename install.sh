@@ -69,6 +69,7 @@ main() {
   local fresh=false
   if [ -f .env ]; then
     # With the compose file still the installed one, so its services are the ones running.
+    check_active_runs "$interactive"
     backup_before_update "$(sed -n 's/^ABOTICA_VERSION=//p' .env)"
   fi
   mv "$tmp" docker-compose.yml
@@ -191,6 +192,50 @@ backup_before_update() {
   say "Backing up the database to backups/$name"
   dc exec -T backup pg_dump -h postgres -U abotica -Fc abotica -f "/backups/$name" \
     || fail "The backup before the update failed, so nothing was changed. Check: docker compose logs postgres"
+}
+
+# Agent runs executing now: the update restarts the worker, which gives them a short while to finish,
+# then stops the rest and saves what they did so far. Interactive: wait for them, continue or abort.
+# With --yes: a warning. A count that cannot be read never blocks the update.
+check_active_runs() {
+  local interactive="$1" count choice i
+  dc ps --status running --services 2>/dev/null | grep -qx worker || return 0
+  if ! count="$(running_runs)"; then
+    warn "Could not check for agent runs in progress; continuing."
+    return 0
+  fi
+  while [ "$count" -gt 0 ]; do
+    if [ "$interactive" = false ]; then
+      warn "$count agent run(s) in progress: the update stops them and saves what they did so far."
+      return 0
+    fi
+    echo
+    echo "$count agent run(s) in progress. The update restarts the worker: runs still going after a"
+    echo "short wait are stopped, and what they did so far is saved."
+    ask choice "Wait for them (up to 10 minutes), continue now or abort the update? [W/c/a]"
+    case "$choice" in
+      [cC]*) return 0 ;;
+      [aA]*) fail "Update aborted, nothing was changed." ;;
+    esac
+    say "Waiting for the runs in progress to finish (Ctrl+C aborts the update)"
+    for i in $(seq 1 120); do
+      sleep 5
+      if ! count="$(running_runs)"; then
+        warn "Could not check for agent runs in progress; continuing."
+        return 0
+      fi
+      [ "$count" -gt 0 ] || break
+    done
+  done
+}
+
+running_runs() {
+  local count
+  count="$(dc exec -T postgres psql -U abotica -d abotica -tAc "select count(*) from runs where status = 'running'" 2>/dev/null)" \
+    || return 1
+  count="${count//[[:space:]]/}"
+  case "$count" in '' | *[!0-9]*) return 1 ;; esac
+  printf '%s' "$count"
 }
 
 version_ge() {

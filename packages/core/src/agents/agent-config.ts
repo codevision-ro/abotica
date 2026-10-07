@@ -205,7 +205,7 @@ export async function deleteAgent(id: string, opts: { actor?: string } = {}): Pr
       .where(and(eq(runs.agentId, id), inArray(runs.status, ["queued", "running", "waiting_approval"])));
     // cancelRun works outside this transaction and writes nothing that references the agent, so it never
     // waits on the lock held here.
-    for (const run of unfinished) await cancelRun(run.id, reason);
+    for (const run of unfinished) await cancelRun(run.id, reason, "other");
     await tx.delete(agents).where(eq(agents.id, id));
     return agent;
   });

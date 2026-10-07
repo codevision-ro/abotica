@@ -1,0 +1,2 @@
+CREATE TYPE "public"."run_failure_kind" AS ENUM('kill_switch', 'agent_disabled', 'budget', 'no_model', 'provider_not_allowed', 'no_conversation', 'provider_auth', 'rate_limited', 'usage_limit', 'providers_unavailable', 'context_overflow', 'timeout', 'step_limit', 'loop', 'worker_restarted', 'unqueued', 'overdue', 'cancelled_by_user', 'other');--> statement-breakpoint
+ALTER TABLE "runs" ADD COLUMN "failure_kind" "run_failure_kind";

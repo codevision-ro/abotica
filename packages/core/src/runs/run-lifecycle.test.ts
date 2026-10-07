@@ -1,12 +1,84 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { staleRunReason as StaleRunReason } from "./run-lifecycle";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { enqueueRun, runJobState } from "../infra/queues";
+import { publish } from "../infra/events";
+import {
+  cancelClaimedRun,
+  cancelPendingRun,
+  cancelQueuedRuns,
+  failRun,
+  recoverRuns,
+  staleRunReason,
+} from "./run-lifecycle";
+import { interruptRunMessage } from "./run-messages";
 
-let staleRunReason: typeof StaleRunReason;
+type Run = {
+  id: string;
+  status: string;
+  conversationId: string | null;
+  taskId: null;
+  createdAt: Date;
+  startedAt: Date | null;
+};
+type Update = { table: string; patch: Record<string, unknown>; where: { column: string; value: unknown }[] };
 
-beforeAll(async () => {
-  vi.stubEnv("DATABASE_URL", "postgres://test@localhost/test");
-  ({ staleRunReason } = await import("./run-lifecycle"));
+// Records the writes; a run update returns the run unless another path ended it first (`taken`).
+const { active, taken, updates, inserts } = vi.hoisted(() => ({
+  active: [] as { run: Run; limits: null }[],
+  taken: new Set<string>(),
+  updates: [] as Update[],
+  inserts: [] as Record<string, unknown>[],
+}));
+
+vi.mock("@abotica/db/orm", () => ({
+  eq: (column: string, value: unknown) => [{ column, value }],
+  and: (...conditions: unknown[][]) => conditions.flat(),
+  inArray: (column: string, values: unknown[]) => [{ column, value: values }],
+}));
+
+vi.mock("@abotica/db", () => {
+  const table = (name: string, ...columns: string[]) =>
+    Object.fromEntries([["name", name], ...columns.map((c) => [c, `${name}.${c}`])]) as Record<string, string>;
+  const runs = table("runs", "id", "status", "agentId");
+  return {
+    DEFAULT_AGENT_LIMITS: { maxSteps: 20, timeoutMs: 10 * 60_000, budgetUsd: 1 },
+    runs,
+    agents: table("agents", "id", "limits"),
+    approvals: table("approvals", "runId", "status"),
+    runEvents: table("runEvents"),
+    tasks: table("tasks", "id", "status"),
+    db: {
+      select: () => ({ from: () => ({ leftJoin: () => ({ where: async () => active }) }) }),
+      insert: () => ({ values: async (row: Record<string, unknown>) => void inserts.push(row) }),
+      update: (t: Record<string, string>) => ({
+        set: (patch: Record<string, unknown>) => ({
+          where: (where: Update["where"]) => {
+            updates.push({ table: t.name!, patch, where });
+            const id = where.find((c) => c.column === "runs.id")?.value;
+            const status = where.find((c) => c.column === "runs.status")?.value;
+            // By id (one run), or every run in a status (the kill switch's queued runs).
+            const matched = active
+              .map((a) => a.run)
+              .filter((r) => (id ? r.id === id : r.status === status) && !taken.has(r.id));
+            const returned = t === runs ? matched.map((r) => ({ ...r, ...patch })) : [];
+            return Object.assign(Promise.resolve(), { returning: async () => returned });
+          },
+        }),
+      }),
+    },
+  };
 });
+
+vi.mock("../infra/queues", () => ({
+  enqueueDelegationReport: vi.fn(async () => {}),
+  enqueueRun: vi.fn(async () => {}),
+  notify: vi.fn(async () => {}),
+  runJobState: vi.fn(async () => "unknown"),
+}));
+vi.mock("../infra/events", () => ({ publish: vi.fn(async () => {}) }));
+vi.mock("../infra/redis", () => ({ redis: () => ({}) }));
+vi.mock("../platform/settings", () => ({ getSettings: async () => ({}), settingsLocale: () => "en" }));
+vi.mock("../tasks/tasks", () => ({ addTaskComment: vi.fn(), awaitsDelegatedWork: vi.fn(), updateTask: vi.fn() }));
+vi.mock("./run-messages", () => ({ interruptRunMessage: vi.fn(async () => {}) }));
 
 const NOW = new Date("2026-10-07T12:00:00Z");
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
@@ -60,5 +132,156 @@ describe("staleRunReason", () => {
         staleRunReason({ status, createdAt: ago(60 * MINUTE), startedAt: ago(60 * MINUTE) }, "unknown", TIMEOUT, NOW),
       ).toBe(null);
     }
+  });
+});
+
+const run = (id: string, status: "queued" | "running", startedMsAgo: number): Run => ({
+  id,
+  status,
+  conversationId: "c1",
+  taskId: null,
+  createdAt: ago(startedMsAgo),
+  startedAt: status === "running" ? ago(startedMsAgo) : null,
+});
+
+const expiredApprovals = () =>
+  updates.filter((u) => u.table === "approvals").map((u) => [u.patch.status, u.where.map((c) => c.value)]);
+
+describe("recoverRuns", () => {
+  beforeEach(() => {
+    active.length = 0;
+    updates.length = 0;
+    taken.clear();
+    vi.clearAllMocks();
+  });
+
+  it("fails a run its worker left, expires its approvals and closes its answer", async () => {
+    const orphaned = run("r1", "running", MINUTE);
+    active.push({ run: orphaned, limits: null });
+
+    expect(await recoverRuns(NOW)).toBe(1);
+
+    const runUpdates = updates.filter((u) => u.table === "runs");
+    expect(runUpdates.map((u) => u.patch)).toEqual([
+      {
+        status: "failed",
+        error: "The worker restarted during the run",
+        failureKind: "worker_restarted",
+        finishedAt: expect.any(Date),
+      },
+    ]);
+    expect(expiredApprovals()).toEqual([["expired", ["r1", "pending"]]]);
+    expect(interruptRunMessage).toHaveBeenCalledExactlyOnceWith(orphaned, {
+      toolError:
+        "Interrupted: the worker stopped while this tool was running. It may or may not have taken effect; check before repeating it.",
+      note: "The run was interrupted: The worker restarted during the run",
+    });
+    expect(publish).toHaveBeenCalledWith({
+      type: "run.cancel",
+      runId: "r1",
+      reason: "The worker restarted during the run",
+      kind: "worker_restarted",
+    });
+    // Nothing runs it again: a retry is the user's call.
+    expect(enqueueRun).not.toHaveBeenCalled();
+  });
+
+  it("closes the answer of an overdue run with that reason", async () => {
+    const overdue = run("r1", "running", TIMEOUT + 16 * MINUTE);
+    active.push({ run: overdue, limits: null });
+    vi.mocked(runJobState).mockResolvedValueOnce("active");
+
+    expect(await recoverRuns(NOW)).toBe(1);
+    expect(updates.find((u) => u.table === "runs")?.patch).toMatchObject({ status: "failed", failureKind: "overdue" });
+    expect(interruptRunMessage).toHaveBeenCalledExactlyOnceWith(overdue, {
+      toolError: expect.any(String),
+      note: "The run was interrupted: The run went past its time limit and was stopped",
+    });
+  });
+
+  it("has no answer to close for a run that never started", async () => {
+    active.push({ run: run("r1", "queued", 2 * MINUTE), limits: null });
+
+    expect(await recoverRuns(NOW)).toBe(1);
+    expect(updates.find((u) => u.table === "runs")?.patch).toMatchObject({ status: "failed", failureKind: "unqueued" });
+    expect(interruptRunMessage).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalledWith(expect.objectContaining({ type: "run.cancel" }));
+  });
+
+  it("leaves a run another path ended meanwhile to that path", async () => {
+    active.push({ run: run("r1", "running", MINUTE), limits: null });
+    taken.add("r1");
+
+    expect(await recoverRuns(NOW)).toBe(0);
+    expect(expiredApprovals()).toEqual([]);
+    expect(interruptRunMessage).not.toHaveBeenCalled();
+  });
+
+  it("still asks the worker to abort when closing the answer fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    active.push({ run: run("r1", "running", MINUTE), limits: null });
+    vi.mocked(interruptRunMessage).mockRejectedValueOnce(new Error("database down"));
+
+    expect(await recoverRuns(NOW)).toBe(1);
+    expect(error).toHaveBeenCalledWith("[runs] closing its answer for run r1 failed:", expect.any(Error));
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: "run.cancel", runId: "r1" }));
+    error.mockRestore();
+  });
+});
+
+describe("ending a run records its failure kind", () => {
+  beforeEach(() => {
+    active.length = 0;
+    updates.length = 0;
+    inserts.length = 0;
+    taken.clear();
+    vi.clearAllMocks();
+  });
+
+  const runPatches = () => updates.filter((u) => u.table === "runs").map((u) => u.patch);
+
+  it("failRun stores the kind with the error and logs both", async () => {
+    const failing = run("r1", "running", MINUTE);
+    active.push({ run: failing, limits: null });
+
+    expect(await failRun(failing as never, "Loop", "loop")).toMatchObject({ status: "failed", failureKind: "loop" });
+    expect(runPatches()).toEqual([{ status: "failed", error: "Loop", failureKind: "loop", finishedAt: expect.any(Date) }]);
+    expect(inserts).toContainEqual({ runId: "r1", type: "error", data: { message: "Loop", kind: "loop" } });
+  });
+
+  it("cancelPendingRun stores the kind and expires the run's pending approvals", async () => {
+    active.push({ run: run("r1", "queued", MINUTE), limits: null });
+
+    expect(await cancelPendingRun("r1", "Stopped", "cancelled_by_user")).toMatchObject({
+      id: "r1",
+      status: "cancelled",
+      failureKind: "cancelled_by_user",
+    });
+    expect(expiredApprovals()).toEqual([["expired", ["r1", "pending"]]]);
+  });
+
+  it("cancelClaimedRun stores the kind the abort carried", async () => {
+    const running = run("r1", "running", MINUTE);
+    active.push({ run: running, limits: null });
+
+    await cancelClaimedRun(running as never, "Stopped because the worker is restarting", "worker_restarted");
+    expect(runPatches()).toEqual([
+      {
+        status: "cancelled",
+        error: "Stopped because the worker is restarting",
+        failureKind: "worker_restarted",
+        finishedAt: expect.any(Date),
+      },
+    ]);
+  });
+
+  it("cancelQueuedRuns stores the kind on every queued run", async () => {
+    active.push({ run: run("r1", "queued", MINUTE), limits: null }, { run: run("r2", "queued", MINUTE), limits: null });
+
+    const cancelled = await cancelQueuedRuns("Stopped by the kill switch", "kill_switch");
+    expect(cancelled.map((r) => [r.id, r.failureKind])).toEqual([
+      ["r1", "kill_switch"],
+      ["r2", "kill_switch"],
+    ]);
   });
 });

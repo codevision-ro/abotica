@@ -43,6 +43,8 @@ irm https://raw.githubusercontent.com/codevision-ro/abotica/main/install.ps1 | i
 
 **Update:** run the same command again. It backs up the database into `backups/pre-update-<old version>-<date>.dump`, keeps `.env`, moves `ABOTICA_VERSION` to the latest release, downloads that release's compose file and restarts what changed. Migrations run on every start. **Settings > Updates** shows when a new release is out (a notice also goes to Telegram), with its release notes and this command.
 
+**Runs in progress** when you update (or restart the worker): before changing anything, the installer counts the agent runs executing and asks whether to wait for them (up to 10 minutes), continue or abort; with `--yes` (`ABOTICA_YES=1` on Windows) it warns and continues. Settings > Updates shows the same count. When the worker stops, it takes no new runs and gives the ones in progress `WORKER_SHUTDOWN_DRAIN_MS` (default 30 seconds) to finish. The rest are stopped: each ends as cancelled with "Stopped because the worker is restarting", its conversation keeps the answer and steps so far (an interrupted tool call shows as stopped), a Telegram chat is told why it stopped, and its task, if it has one, is blocked with that reason and reported to whoever delegated it. Nothing resumes on its own after the restart: continue the conversation or the task when you want. Queued runs and runs waiting for approval are not touched; the new worker picks them up. Compose gives the worker 60 seconds to stop (`stop_grace_period`), so keep `WORKER_SHUTDOWN_DRAIN_MS` well below that.
+
 **Roll back** to the version you had, with the dump taken before the update (migrations only move forward, so the database goes back with it):
 
 ```bash
@@ -215,6 +217,8 @@ pnpm build
 pnpm db:migrate
 sudo systemctl restart abotica-web abotica-worker
 ```
+
+Runs in progress get `WORKER_SHUTDOWN_DRAIN_MS` (default 30 seconds) to finish, then they are stopped with their work so far saved, as with Docker. `deploy/abotica-worker.service` gives the worker 60 seconds to stop (`TimeoutStopSec`); keep the drain below it.
 
 ### Backup
 

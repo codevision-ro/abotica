@@ -9,6 +9,7 @@ import {
   listFiles,
   resolveModelChain,
 } from "@abotica/core";
+import { placeCompactions } from "@abotica/core/compaction-record";
 import type { ReasoningSupport } from "@abotica/core/models/reasoning";
 import {
   agents,
@@ -237,7 +238,7 @@ export const getConversationMessages = query(async (conversationId: string) => {
   // Reasoning is saved for the model's next turn (OpenAI's is an encrypted blob); the chat never shows it.
   const visible = (parts: unknown[]) => (parts as UIMessage["parts"]).filter((p) => p.type !== "reasoning");
   return {
-    messages: rows.map(
+    messages: placeCompactions(rows).map(
       (m) => ({ id: m.id, role: m.role, parts: visible(m.parts), metadata: m.metadata ?? undefined }) as UIMessage,
     ),
     timestamps: Object.fromEntries(rows.map((m) => [m.id, m.createdAt.toISOString()])),

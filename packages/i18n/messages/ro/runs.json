@@ -121,14 +121,118 @@
       "fallback": "Fallback de model",
       "mcp-error": "Eroare server MCP",
       "error": "Eroare",
-      "sandbox-error": "Eroare sandbox"
+      "sandbox-error": "Eroare sandbox",
+      "retry": "Reîncercare",
+      "loop-nudge": "Avertisment de buclă",
+      "compaction": "Context compactat",
+      "compaction-error": "Compactare eșuată"
     },
     "fallbackSwitched": "<code>{from}</code> a eșuat, s-a trecut la <code>{to}</code>",
-    "fallbackExhausted": "<code>{from}</code> a eșuat și nu mai există alt model în lanț"
+    "fallbackExhausted": "<code>{from}</code> a eșuat și nu mai există alt model în lanț",
+    "fallbackRetried": "{kind}, reîncercat {retries, plural, one {o dată} few {de # ori} other {de # de ori}} în {seconds} s",
+    "retry": "{kind}: <code>{model}</code> este apelat din nou peste {seconds} s (reîncercarea {attempt} din {max})",
+    "errorKind": {
+      "rate_limited": "Limită de cereri atinsă",
+      "usage_limit": "Limită de utilizare atinsă",
+      "auth": "Neconectat sau neautorizat",
+      "not_found": "Model inexistent",
+      "transient": "Eroare temporară",
+      "other": "Eroare"
+    },
+    "loopNudge": "Agentul a repetat aceleași apeluri la {tools} timp de {steps} pași și i s-a cerut să schimbe abordarea:",
+    "compaction": "Un prompt de aproximativ {before} tokeni a devenit {after}, rezumat de <code>{model}</code> pentru {cost}",
+    "compactionReason": {
+      "soft": "Promptul a depășit 60% din fereastra de context după ce cache-ul lui a expirat.",
+      "hard": "Promptul a depășit 90% din fereastra de context.",
+      "overflow": "Modelul a respins promptul ca prea lung."
+    },
+    "compactionMidRun": "Compactat în timpul rulării.",
+    "compactionFlushed": "{count, plural, one {# fapt salvat în memorie.} few {# fapte salvate în memorie.} other {# de fapte salvate în memorie.}}",
+    "compactionSummary": "Rezumat"
   },
   "lifecycle": {
     "taskCancelled": "Rularea a fost anulată: {reason}",
     "unqueued": "Rularea nu a pornit: jobul ei nu mai este în coadă",
-    "overdue": "Rularea și-a depășit limita de timp și a fost oprită"
+    "overdue": "Rularea și-a depășit limita de timp și a fost oprită",
+    "interrupted": "Rularea a fost întreruptă: {reason}",
+    "toolInterrupted": "Întrerupt: worker-ul s-a oprit în timp ce acest tool rula. Este posibil să fi avut efect sau nu; verifică înainte să îl repeți."
+  },
+  "failure": {
+    "kill_switch": {
+      "label": "Kill switch",
+      "hint": "Kill switch-ul a oprit-o. Dezactivează kill switch-ul ca agenții să poată rula din nou."
+    },
+    "agent_disabled": {
+      "label": "Agent dezactivat",
+      "hint": "Activează agentul din setările lui, apoi rulează din nou."
+    },
+    "budget": {
+      "label": "Buget atins",
+      "hint": "Mărește bugetul (limitele agentului, proiectul sau Setări > General) sau așteaptă luna următoare."
+    },
+    "no_model": {
+      "label": "Niciun model",
+      "hint": "Alege un model pentru agent sau setează modelul implicit în Setări > Provideri AI."
+    },
+    "provider_not_allowed": {
+      "label": "Provider nepermis",
+      "hint": "Proiectul restricționează providerii AI. Dă-i agentului un model de la un provider permis sau schimbă restricția proiectului."
+    },
+    "no_conversation": {
+      "label": "Fără conversație",
+      "hint": "Conversația rulării a fost ștearsă. Pornește din nou task-ul sau chat-ul."
+    },
+    "provider_auth": {
+      "label": "Providerul a respins cheia",
+      "hint": "Verifică cheia API sau conexiunea în Setări > Provideri AI."
+    },
+    "rate_limited": {
+      "label": "Limită de cereri",
+      "hint": "Providerul limitează cererile. Încearcă din nou peste câteva minute sau adaugă alt provider la modelele agentului."
+    },
+    "usage_limit": {
+      "label": "Limită de utilizare atinsă",
+      "hint": "Limita de utilizare a planului sau creditul contului s-a epuizat. Așteaptă resetarea, adaugă credit sau folosește alt provider."
+    },
+    "providers_unavailable": {
+      "label": "Provideri indisponibili",
+      "hint": "Niciun model al agentului nu a răspuns. Verifică providerii în Setări > Provideri AI și modelele agentului, apoi încearcă din nou."
+    },
+    "context_overflow": {
+      "label": "Context plin",
+      "hint": "Conversația nu mai încape în fereastra de context a modelului. Următoarea rulare rezumă mai întâi mesajele anterioare; poți și să începi o conversație nouă sau să folosești un model cu context mai mare."
+    },
+    "timeout": {
+      "label": "Limită de timp",
+      "hint": "Mărește limita de timp a agentului sau împarte munca în task-uri mai mici."
+    },
+    "step_limit": {
+      "label": "Limită de pași",
+      "hint": "Agentul încă lucra când și-a consumat pașii. Mărește-i limita de pași sau împarte munca în task-uri mai mici."
+    },
+    "loop": {
+      "label": "Buclă",
+      "hint": "Agentul a repetat aceleași apeluri. Cronologia arată care; clarifică task-ul, apoi rulează din nou."
+    },
+    "worker_restarted": {
+      "label": "Worker repornit",
+      "hint": "Worker-ul a repornit în timpul rulării. Verifică ce s-a făcut deja, apoi rulează din nou."
+    },
+    "unqueued": {
+      "label": "Nu a pornit",
+      "hint": "Job-ul rulării s-a pierdut din coadă. Rulează din nou."
+    },
+    "overdue": {
+      "label": "Blocată peste limita de timp",
+      "hint": "Rularea nu a mai răspuns după limita de timp. Verifică log-urile worker-ului, apoi rulează din nou."
+    },
+    "cancelled_by_user": {
+      "label": "Anulată de tine",
+      "hint": "Rulează din nou când vrei să continue."
+    },
+    "other": {
+      "label": "Eroare",
+      "hint": "Eroarea de mai sus și cronologia arată ce nu a mers."
+    }
   }
 }

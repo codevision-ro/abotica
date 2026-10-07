@@ -4,6 +4,7 @@ import { UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { enqueueTaskEvent } from "../infra/queues";
 import { claimFiles, fileIdsOwnedBy, removeFileBytes, type StoredFile } from "../files/files";
+import type { RunFailureKind } from "../runs/run-failures";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskStatus = Task["status"];
@@ -166,6 +167,87 @@ export async function activeTaskRun(taskId: string): Promise<{ id: string } | un
 export class TaskBusyError extends UserError {
   constructor(readonly taskId: string) {
     super("tasks.errors.alreadyRunning");
+  }
+}
+
+/** Counted failed runs in a row after which a task's runs no longer start on their own. */
+export const CIRCUIT_BREAKER_FAILURES = 3;
+/** Failures of the setup (key, provider, model): the next run fails the same way, so one is enough. */
+const SETUP_FAILURES = new Set<RunFailureKind>(["provider_auth", "provider_not_allowed", "no_model"]);
+/** Failures that say nothing about the task or its setup: passing, or the user's own stop. */
+const UNCOUNTED_FAILURES = new Set<RunFailureKind>([
+  "rate_limited",
+  "worker_restarted",
+  "unqueued",
+  "overdue",
+  "cancelled_by_user",
+  "kill_switch",
+]);
+/** Recent runs the breaker looks at; an open breaker is never more than a few runs back. */
+const STREAK_WINDOW = 20;
+
+type RunOutcome = Pick<typeof runs.$inferSelect, "agentId" | "status" | "failureKind" | "error">;
+
+/** A task's recent failed runs: `open` while its runs must not start on their own. */
+export type FailureStreak = { failures: number; reason: string | null; open: boolean };
+
+type Streak = FailureStreak & { setup: boolean };
+const NO_FAILURES: Streak = { failures: 0, reason: null, open: false, setup: false };
+
+/** One run's effect on the streak before it: null when it changes nothing. */
+function nextStreak(streak: Streak, run: RunOutcome): Streak | null {
+  if (run.status === "succeeded") return NO_FAILURES;
+  // A cancel is someone's decision (the user's or a manager's), not a failure of the task.
+  if (run.status !== "failed") return null;
+  if (!run.failureKind || UNCOUNTED_FAILURES.has(run.failureKind)) return null;
+  const failures = streak.failures + 1;
+  const setup = SETUP_FAILURES.has(run.failureKind);
+  return { failures, reason: run.error, setup, open: setup || failures >= CIRCUIT_BREAKER_FAILURES };
+}
+
+/**
+ * The circuit breaker of a task, from its runs oldest first. Failed runs of the current assignee count
+ * in a row; a success resets them, while transient failures, the user's stops and runs from before
+ * failure kinds were recorded are skipped. The breaker also resets when the assignee changes (only the
+ * current one's runs count) and when a run starts while it is open, which only the user does.
+ */
+export function failureStreak(history: RunOutcome[], assigneeAgentId: string | null): FailureStreak {
+  let streak = NO_FAILURES;
+  for (const run of history) {
+    if (run.agentId !== assigneeAgentId) {
+      streak = NO_FAILURES;
+      continue;
+    }
+    // A run started while the breaker was open was forced: it begins a new streak.
+    if (streak.open) streak = NO_FAILURES;
+    streak = nextStreak(streak, run) ?? streak;
+  }
+  return { failures: streak.failures, reason: streak.reason, open: streak.open };
+}
+
+/** The task's circuit breaker now (see failureStreak); closed for a task that does not exist. */
+export async function taskFailureStreak(taskId: string): Promise<FailureStreak> {
+  const [task] = await db.select({ assigneeAgentId: tasks.assigneeAgentId }).from(tasks).where(eq(tasks.id, taskId));
+  if (!task) return { failures: 0, reason: null, open: false };
+  const recent = await db
+    .select({ agentId: runs.agentId, status: runs.status, failureKind: runs.failureKind, error: runs.error })
+    .from(runs)
+    .where(eq(runs.taskId, taskId))
+    .orderBy(desc(runs.createdAt))
+    .limit(STREAK_WINDOW);
+  return failureStreak(recent.reverse(), task.assigneeAgentId);
+}
+
+/**
+ * Raised by startTaskRun when the task's circuit breaker is open: its runs keep failing, so delegations
+ * and dependents no longer start it. The user still can.
+ */
+export class TaskCircuitOpenError extends UserError {
+  constructor(
+    readonly taskId: string,
+    readonly streak: FailureStreak,
+  ) {
+    super("tasks.errors.circuitOpen", { failures: streak.failures, reason: streak.reason ?? "-" });
   }
 }
 

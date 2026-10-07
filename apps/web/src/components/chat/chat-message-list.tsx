@@ -1,6 +1,7 @@
 "use client";
 
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
+import { isCompaction } from "@abotica/core/compaction-record";
 import { isDelegationReport } from "@abotica/core/delegation-report";
 import { fileIdFromUrl } from "@abotica/core/file-types";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChatFileCard, sharedFile } from "./chat-file-card";
 import { CHAT_COLUMN, ChatApproval, ChatMarkdown, ChatToolCall, ChatToolGroup, MessageTime } from "./chat-parts";
+import { CompactionDivider } from "./compaction-divider";
 import { DelegationNotice } from "./delegation-notice";
 
 type Part = UIMessage["parts"][number];
@@ -95,6 +97,9 @@ export function ChatMessageList({
           // Delivered to the agent as a user message, or to the user only (withheld) as a system one.
           if (isDelegationReport(message.metadata)) {
             return <DelegationNotice key={message.id} report={message.metadata} date={timestamps[message.id]} />;
+          }
+          if (isCompaction(message.metadata)) {
+            return <CompactionDivider key={message.id} compaction={message.metadata} date={timestamps[message.id]} />;
           }
           if (message.role === "user") {
             const files = message.parts.filter((p) => p.type === "file");

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, CopyIcon, ShieldCheck, SquareTerminal } from "lucide-react";
+import { CheckIcon, CopyIcon, ShieldCheck, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -45,8 +45,11 @@ function CommandBlock({ label, command }: { label: string; command: string }) {
   );
 }
 
-/** Settings > Updates, when a newer release exists: the command to run, and what happens to the data. */
-export function UpdateCommand({ repo }: { repo: string }) {
+/**
+ * Settings > Updates, when a newer release exists: the command to run, and what happens to the data
+ * and to the runs in progress (`runningRuns`), which the restart stops.
+ */
+export function UpdateCommand({ repo, runningRuns }: { repo: string; runningRuns: number }) {
   const t = useTranslations("settings.updates");
   const options = commands(repo);
   return (
@@ -66,6 +69,15 @@ export function UpdateCommand({ repo }: { repo: string }) {
             </TabsContent>
           ))}
         </Tabs>
+        {runningRuns > 0 && (
+          <p className="flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-pretty">
+            <TriangleAlert
+              className="mt-0.5 size-4 shrink-0 text-[color-mix(in_oklch,var(--warning),black_20%)] dark:text-warning"
+              aria-hidden
+            />
+            <span>{t("activeRuns", { count: runningRuns })}</span>
+          </p>
+        )}
         <p className="flex gap-2 text-sm text-pretty text-muted-foreground">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
           <span>

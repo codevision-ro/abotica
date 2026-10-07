@@ -10,8 +10,9 @@ User=abotica
 WorkingDirectory=/srv/abotica
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/env pnpm start:worker
-# On stop the worker aborts running agents and marks them; give it time to finish.
-TimeoutStopSec=30
+# On stop the worker gives the runs in progress WORKER_SHUTDOWN_DRAIN_MS (default 30 s) to finish,
+# then stops the rest and saves what they did so far; keep this longer than the drain.
+TimeoutStopSec=60
 Restart=always
 RestartSec=5
 

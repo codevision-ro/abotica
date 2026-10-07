@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function UpdatesSettingsPage() {
-  const [{ status, repo }, t] = await Promise.all([getUpdatesPage(), getTranslations("settings.updates")]);
+  const [{ status, repo, runningRuns }, t] = await Promise.all([getUpdatesPage(), getTranslations("settings.updates")]);
   return (
     <>
       <SectionHeader title={t("title")} description={t("description")} actions={<UpdateCheckButton />} />
@@ -22,7 +22,7 @@ export default async function UpdatesSettingsPage() {
       {status.available && status.latest && (
         <>
           <UpdateNotes release={status.latest} />
-          <UpdateCommand repo={repo} />
+          <UpdateCommand repo={repo} runningRuns={runningRuns} />
         </>
       )}
       <UpdateChecksToggle initial={status.enabled} />

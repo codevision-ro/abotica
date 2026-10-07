@@ -50,6 +50,13 @@
       "when": 1791363424445,
       "tag": "0006_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791411848939,
+      "tag": "0007_run_failure_kind",
+      "breakpoints": true
     }
   ]
 }

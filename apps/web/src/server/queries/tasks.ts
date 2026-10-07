@@ -1,5 +1,5 @@
 import "server-only";
-import { listFiles, TASK_PRIORITIES, type TaskPriority } from "@abotica/core";
+import { listFiles, TASK_PRIORITIES, taskFailureStreak, type TaskPriority } from "@abotica/core";
 import { agents, db, projects, runs, tasks } from "@abotica/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, or, sql, type SQL } from "@abotica/db/orm";
 import { isUuid } from "@/lib/uuid";
@@ -107,7 +107,7 @@ export const getTaskDetail = query(async (id: string) => {
   });
   if (!task) return null;
 
-  const [taskRuns, taskFiles] = await Promise.all([
+  const [taskRuns, taskFiles, failures] = await Promise.all([
     db
       .select({
         id: runs.id,
@@ -124,6 +124,8 @@ export const getTaskDetail = query(async (id: string) => {
       .orderBy(desc(runs.createdAt))
       .limit(50),
     listFiles({ taskId: id }),
+    // Open when its runs keep failing: delegations and dependencies no longer start it, the user can.
+    taskFailureStreak(id),
   ]);
   // Who added each file: the user, or the agent that produced it.
   const agentIds = [...new Set(taskFiles.flatMap((f) => (f.agentId ? [f.agentId] : [])))];
@@ -141,5 +143,5 @@ export const getTaskDetail = query(async (id: string) => {
     createdAt: f.createdAt,
   }));
 
-  return { ...task, runs: taskRuns, files };
+  return { ...task, runs: taskRuns, files, failures };
 });

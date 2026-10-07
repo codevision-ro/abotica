@@ -1,4 +1,4 @@
-import { createRedis, QUEUE, type RunJob, startFollowUpIfQueued } from "@abotica/core";
+import { createRedis, QUEUE, RunAbort, type RunFailureKind, type RunJob, startFollowUpIfQueued } from "@abotica/core";
 import { executeRun } from "@abotica/core/agents/runner";
 import { conversations, db, runs } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
@@ -6,15 +6,44 @@ import { Worker } from "bullmq";
 import { deliverTelegramReply, showTelegramTyping } from "./telegram/delivery";
 
 const controllers = new Map<string, AbortController>();
+/** Called once no run is executing here any more (see whenRunsIdle). */
+const idleListeners = new Set<() => void>();
 
-/** Aborts one run if this worker is executing it. */
-export function abortRun(runId: string, reason: string) {
-  controllers.get(runId)?.abort(new Error(reason));
+/** Runs executing in this worker. */
+export function activeRunCount() {
+  return controllers.size;
+}
+
+/** Resolves once no run is executing in this worker; a run ends after its Telegram reply and follow-up. */
+function whenRunsIdle(): Promise<void> {
+  if (!controllers.size) return Promise.resolve();
+  return new Promise((resolve) => idleListeners.add(resolve));
+}
+
+/**
+ * Shutdown: the runs executing here get `drainMs` to finish on their own; the ones still going are
+ * then aborted with `reason()` and take the cancel path, which saves their partial answer. Resolves
+ * once every run has ended, with how many were aborted.
+ */
+export async function drainRuns(drainMs: number, reason: () => Promise<string>): Promise<number> {
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([whenRunsIdle(), new Promise((resolve) => (timer = setTimeout(resolve, drainMs)))]);
+  clearTimeout(timer);
+  const aborted = controllers.size;
+  if (!aborted) return 0;
+  abortAllRuns(await reason(), "worker_restarted");
+  await whenRunsIdle();
+  return aborted;
+}
+
+/** Aborts one run if this worker is executing it; it ends cancelled with `reason` and `kind`. */
+export function abortRun(runId: string, reason: string, kind: RunFailureKind) {
+  controllers.get(runId)?.abort(new RunAbort(reason, kind));
 }
 
 /** Aborts every run executing in this worker; queued runs are cancelled by setKillSwitch. */
-export function abortAllRuns(reason: string) {
-  for (const c of controllers.values()) c.abort(new Error(reason));
+export function abortAllRuns(reason: string, kind: RunFailureKind) {
+  for (const c of controllers.values()) c.abort(new RunAbort(reason, kind));
 }
 
 export function startRunsWorker(concurrency: number) {
@@ -42,6 +71,10 @@ export function startRunsWorker(concurrency: number) {
         }
       } finally {
         controllers.delete(job.data.runId);
+        if (!controllers.size) {
+          for (const resolve of idleListeners) resolve();
+          idleListeners.clear();
+        }
       }
     },
     { connection: createRedis(), concurrency, lockDuration: 60_000 },

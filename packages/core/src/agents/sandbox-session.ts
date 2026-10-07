@@ -5,7 +5,7 @@
  */
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { db, files, knowledgeItems, messages, runEvents, skillFiles, tasks } from "@abotica/db";
+import { db, files, knowledgeItems, messages, runEvents, runs, skillFiles, tasks } from "@abotica/db";
 import { and, asc, eq, inArray } from "@abotica/db/orm";
 import {
   type Bundle,
@@ -24,12 +24,15 @@ import { currentSandboxBackend } from "../sandbox/sandbox-runtime";
 import { egressFor, setupEgressFor } from "../sandbox/sandbox-policy";
 import type { RunContext } from "./context";
 import { prepareRepos, repoGitEnv, repoHosts } from "./repo-workspace";
+import { expiredToolOutputs } from "./tool-output";
 import { workspaceToolsOf } from "./tools/workspace";
 import { workspaceDescription } from "./workspace-description";
-import { INPUTS_DIR, inputPath, KNOWLEDGE_DIR, knowledgePath } from "./workspace-paths";
+import { INPUTS_DIR, inputPath, KNOWLEDGE_DIR, knowledgePath, TOOL_OUTPUT_DIR } from "./workspace-paths";
 
 /** One marker file per copied input file, named by its id. */
 const COPIED_DIR = ".abotica/inputs-copied";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -184,6 +187,20 @@ async function syncKnowledge(projectId: string, workspace: Workspace, signal: Ab
   }
 }
 
+/**
+ * Removes the tool-output folders of runs that ended more than the retention period ago or no
+ * longer exist. Folders not named by a run id are not Abotica's, so they stay.
+ */
+async function pruneToolOutputs(workspace: Workspace, signal: AbortSignal) {
+  const folders = await listing(workspace, `if [ -d ${TOOL_OUTPUT_DIR} ]; then ls -1A ${TOOL_OUTPUT_DIR}; fi`, signal);
+  const runIds = folders.filter((name) => UUID_RE.test(name));
+  if (!runIds.length) return;
+  const rows = await db.select({ id: runs.id, finishedAt: runs.finishedAt }).from(runs).where(inArray(runs.id, runIds));
+  const expired = expiredToolOutputs(runIds, rows, new Date());
+  if (!expired.length || signal.aborted) return;
+  await listing(workspace, `rm -rf -- ${expired.map((id) => shellQuote(`${TOOL_OUTPUT_DIR}/${id}`)).join(" ")}`, signal);
+}
+
 /** Of the given task ids, the tasks that are done or no longer exist. */
 async function finishedTasks(taskIds: string[]): Promise<Set<string>> {
   const open = await db.select({ id: tasks.id, status: tasks.status }).from(tasks).where(inArray(tasks.id, taskIds));
@@ -235,6 +252,9 @@ export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Prom
       await touchWorkspace(key).catch(() => {});
       await copyInputs(ctx, workspace, signal).catch((error: unknown) =>
         console.error(`[sandbox] preparing inputs of ${key} failed:`, error),
+      );
+      await pruneToolOutputs(workspace, signal).catch((error: unknown) =>
+        console.error(`[sandbox] pruning the tool output of ${key} failed:`, error),
       );
       if (ctx.project) {
         await syncKnowledge(ctx.project.id, workspace, signal).catch((error: unknown) =>

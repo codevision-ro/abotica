@@ -7,12 +7,15 @@ import { inputPath } from "../agents/workspace-paths";
 import { publish } from "../infra/events";
 import { listFiles } from "../files/files";
 import { enqueueRun } from "../infra/queues";
+import type { RunFailureKind } from "./run-failures";
 import { cancelPendingRun, failRun, publishRunUpdate, requestResume, takeResumeRequest } from "./run-lifecycle";
 import {
   activeTaskRun,
   assertTaskDependenciesDone,
   isActiveTaskRunConflict,
   TaskBusyError,
+  TaskCircuitOpenError,
+  taskFailureStreak,
   updateTask,
 } from "../tasks/tasks";
 
@@ -116,7 +119,7 @@ export async function startRun(input: {
     await enqueueRun(run!.id);
   } catch (error) {
     // A queued run no job will execute would hold the conversation's active run slot forever.
-    await failRun(run!, error instanceof Error ? error.message : String(error), ["queued"]);
+    await failRun(run!, error instanceof Error ? error.message : String(error), "unqueued", ["queued"]);
     throw error;
   }
   await publishRunUpdate(run!);
@@ -186,15 +189,23 @@ async function taskBrief(taskId: string): Promise<string> {
 
 /**
  * Starts the run of a task's assignee. Refuses a task that is missing, unassigned, waiting for its
- * dependencies or already has an active run (TaskBusyError).
+ * dependencies, already has an active run (TaskBusyError) or whose runs keep failing
+ * (TaskCircuitOpenError). `force` is the user's start: it goes past the circuit breaker, and resets it.
  */
-export async function startTaskRun(taskId: string, opts: { parentRunId?: string | null } = {}): Promise<Run> {
+export async function startTaskRun(
+  taskId: string,
+  opts: { parentRunId?: string | null; force?: boolean } = {},
+): Promise<Run> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) throw new UserError("tasks.errors.notFound");
   if (!task.assigneeAgentId) throw new UserError("tasks.errors.notAssigned");
   await assertTaskDependenciesDone(taskId);
   // Checked before the task changes; a run started at the same moment still fails on the unique index.
   if (await activeTaskRun(taskId)) throw new TaskBusyError(taskId);
+  if (!opts.force) {
+    const streak = await taskFailureStreak(taskId);
+    if (streak.open) throw new TaskCircuitOpenError(taskId, streak);
+  }
   await updateTask(taskId, { status: "in_progress" }, "system");
   return startRun({
     agentId: task.assigneeAgentId,
@@ -222,18 +233,18 @@ export const RUN_CANCELLED_BY_USER = "Cancelled by user";
 /**
  * Stops a run. Queued and waiting runs end right away (their pending approvals expire, their task
  * is blocked and reported to its delegator); a running one is aborted by the worker executing it,
- * which then does the same.
+ * which then does the same. `kind` says who stopped it (see RunFailureKind).
  * Returns null when the run does not exist or has already finished.
  */
-export async function cancelRun(id: string, reason: string): Promise<Run | null> {
-  const stopped = await cancelPendingRun(id, reason);
+export async function cancelRun(id: string, reason: string, kind: RunFailureKind): Promise<Run | null> {
+  const stopped = await cancelPendingRun(id, reason, kind);
   if (stopped) return stopped;
   const [running] = await db
     .select()
     .from(runs)
     .where(and(eq(runs.id, id), eq(runs.status, "running")));
   if (!running) return null;
-  await publish({ type: "run.cancel", runId: id, reason });
+  await publish({ type: "run.cancel", runId: id, reason, kind });
   return running;
 }
 
@@ -242,12 +253,12 @@ export async function cancelRun(id: string, reason: string): Promise<Run | null>
  * the cancel event and the worker aborts it, which stops its tools (their abort signal) and the
  * processes it started. Returns the runs it stopped.
  */
-export async function cancelConversationRuns(conversationId: string, reason: string): Promise<Run[]> {
+export async function cancelConversationRuns(conversationId: string, reason: string, kind: RunFailureKind): Promise<Run[]> {
   const active = await db
     .select({ id: runs.id })
     .from(runs)
     .where(and(eq(runs.conversationId, conversationId), inArray(runs.status, ["queued", "running", "waiting_approval"])));
-  const stopped = await Promise.all(active.map((r) => cancelRun(r.id, reason)));
+  const stopped = await Promise.all(active.map((r) => cancelRun(r.id, reason, kind)));
   return stopped.filter((r): r is Run => r !== null);
 }
 

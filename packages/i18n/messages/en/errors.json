@@ -4,6 +4,7 @@
   "noModel": "No model is set: pick one for the agent or set the default model in Settings → AI providers",
   "conversationBusy": "The agent is still working in this conversation; your message is queued",
   "allProvidersFailed": "All providers failed:\n{failures}",
+  "allProvidersRateLimited": "Every model in the chain is rate limited, retries included; try again later:\n{failures}",
   "noOrchestrator": "There is no active super agent. Run pnpm db:seed.",
   "run": {
     "agentDisabled": "Agent {agent} is disabled",
@@ -16,6 +17,11 @@
     "stoppedFromTelegram": "Stopped from Telegram",
     "cancelled": "Cancelled",
     "workerRestarted": "The worker restarted during the run",
-    "taskComment": "The run failed: {error}"
+    "workerRestarting": "Stopped because the worker is restarting",
+    "taskComment": "The run failed: {error}",
+    "contextOverflow": "The conversation no longer fits in the model's context window",
+    "stepLimitReached": "The run used up its {steps} steps while still working",
+    "loopDetected": "Stopped: the agent kept repeating the same calls ({tool}) after it was told to change approach",
+    "timedOut": "The run went past its time limit ({minutes} min)"
   }
 }

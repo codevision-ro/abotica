@@ -49,6 +49,9 @@ services:
       SANDBOX_DOCKER_HOST: tcp://docker-proxy:2375
       SANDBOX_DOCKER_NETWORK: abotica-sandbox
       SANDBOX_IMAGE: abotica-sandbox:latest
+      # tsx watch gives the worker 5 s to exit on a reload: a short wait for the runs in progress,
+      # then the rest are stopped with their partial answers saved.
+      WORKER_SHUTDOWN_DRAIN_MS: 3000
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Previews: http://<code>.preview.localhost:3100 (browsers send *.localhost to this machine).

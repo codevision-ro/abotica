@@ -171,6 +171,47 @@ function Backup-BeforeUpdate([string]$OldVersion) {
   if ($LASTEXITCODE -ne 0) { Fail "The backup before the update failed, so nothing was changed. Check: docker compose logs postgres" }
 }
 
+# The number of agent runs executing now, or $null when it cannot be read.
+function Get-RunningRuns {
+  $raw = & docker compose exec -T postgres psql -U abotica -d abotica -tAc "select count(*) from runs where status = 'running'" 2>$null
+  if ($LASTEXITCODE -ne 0) { return $null }
+  $count = 0
+  if (-not [int]::TryParse("$raw".Trim(), [ref]$count)) { return $null }
+  return $count
+}
+
+# Agent runs executing now: the update restarts the worker, which gives them a short while to finish,
+# then stops the rest and saves what they did so far. Asks to wait for them, continue or abort; with
+# ABOTICA_YES=1, a warning. A count that cannot be read never blocks the update.
+function Confirm-ActiveRuns {
+  $running = @(& docker compose ps --status running --services 2>$null)
+  if ($running -notcontains "worker") { return }
+  $count = Get-RunningRuns
+  while ($true) {
+    if ($null -eq $count) {
+      Write-Warning "Could not check for agent runs in progress; continuing."
+      return
+    }
+    if ($count -eq 0) { return }
+    if ($Yes) {
+      Write-Warning "$count agent run(s) in progress: the update stops them and saves what they did so far."
+      return
+    }
+    Write-Host ""
+    Write-Host "$count agent run(s) in progress. The update restarts the worker: runs still going after a"
+    Write-Host "short wait are stopped, and what they did so far is saved."
+    $answer = Read-Host "Wait for them (up to 10 minutes), continue now or abort the update? [W/c/a]"
+    if ($answer -match "^[Cc]") { return }
+    if ($answer -match "^[Aa]") { Fail "Update aborted, nothing was changed." }
+    Say "Waiting for the runs in progress to finish (Ctrl+C aborts the update)"
+    for ($i = 0; $i -lt 120; $i++) {
+      Start-Sleep -Seconds 5
+      $count = Get-RunningRuns
+      if ($null -eq $count -or $count -eq 0) { break }
+    }
+  }
+}
+
 function Wait-Healthy {
   $port = Read-EnvValue "WEB_PORT"
   if (-not $port) { $port = "3000" }
@@ -205,7 +246,10 @@ function Install-Abotica {
     Fail "Release v$Version has no docker-compose.prod.yml."
   }
   # With the compose file still the installed one, so its services are the ones running.
-  if (Test-Path .env) { Backup-BeforeUpdate (Read-EnvValue "ABOTICA_VERSION") }
+  if (Test-Path .env) {
+    Confirm-ActiveRuns
+    Backup-BeforeUpdate (Read-EnvValue "ABOTICA_VERSION")
+  }
   Move-Item -Force $download (Join-Path $Dir "docker-compose.yml")
 
   $fresh = $false

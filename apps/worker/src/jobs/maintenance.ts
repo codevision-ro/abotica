@@ -181,9 +181,13 @@ async function sendDigest(period: "daily" | "weekly") {
     .from(tasks)
     .where(inArray(tasks.status, ["blocked", "review"]));
   const failed = await db
-    .select({ id: runs.id })
+    .select({ kind: runs.failureKind })
     .from(runs)
     .where(and(eq(runs.status, "failed"), gte(runs.createdAt, start)));
+  // By kind, so the digest tells a rejected key from a passing rate limit.
+  const failedByKind = new Map<string, number>();
+  for (const { kind } of failed) failedByKind.set(kind ?? "other", (failedByKind.get(kind ?? "other") ?? 0) + 1);
+  const failedKinds = [...failedByKind].map(([kind, count]) => `${kind} ${count}`).join(", ");
 
   // Content of a project whose restriction the digest's models do not satisfy never reaches them:
   // its tasks are left out and its journals follow the digest as they were written.
@@ -202,7 +206,7 @@ async function sendDigest(period: "daily" | "weekly") {
       `Total cost: $${spend.toFixed(4)}`,
       `Tasks done: ${doneTitles.join("; ") || "none"}`,
       `Tasks blocked or in review: ${waitingTitles.join("; ") || "none"}`,
-      `Failed runs: ${failed.length}`,
+      `Failed runs: ${failed.length}${failed.length ? ` (by kind: ${failedKinds})` : ""}`,
       "",
       "# Agent journals",
       ...journalsBy.open.map((j) => `${journalHeading(j)}\n${j.summary}`),

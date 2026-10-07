@@ -53,24 +53,51 @@ describe("decodeText", () => {
 });
 
 describe("HeadTailText", () => {
+  const notice = (omitted: number) => `[${omitted} cut]`;
+
   it("keeps short output whole", () => {
     const out = new HeadTailText(5, 5);
     out.push("hello");
     out.push(" you");
-    expect(out.text()).toBe("hello you");
+    expect(out.text(notice)).toBe("hello you");
+    expect(out.cut()).toBeNull();
   });
 
   it("keeps the start and the end of long output", () => {
     const out = new HeadTailText(4, 4);
     for (const chunk of ["abcd", "efgh", "ijkl", "mnop"]) out.push(chunk);
-    expect(out.text()).toBe("abcd\n...[8 characters omitted]...\nmnop");
+    expect(out.text(notice)).toBe("abcd\n[8 cut]\nmnop");
+    expect(out.cut()).toEqual({ totalChars: 16, keptHead: 4, keptTail: 4 });
+  });
+
+  it("keeps a text exactly at the limit whole", () => {
+    const out = new HeadTailText(2, 2);
+    out.push("abcd");
+    expect(out.text(notice)).toBe("abcd");
+    expect(out.cut()).toBeNull();
   });
 });
 
 describe("stream helpers", () => {
   it("collects text across split multi-byte characters", async () => {
     const bytes = new TextEncoder().encode("ș");
-    expect(await collectText(streamOf(bytes.slice(0, 1), bytes.slice(1), "!"), 100)).toBe("ș!");
+    const collected = await collectText(streamOf(bytes.slice(0, 1), bytes.slice(1), "!"), 100, 100);
+    expect(collected.view.text(String)).toBe("ș!");
+    expect(collected.full()).toBe("ș!");
+    expect(collected.complete).toBe(true);
+  });
+
+  it("keeps the full text up to a byte limit next to the head and tail view", async () => {
+    const collected = await collectText(streamOf("abcd", "efgh", "ijkl"), 4, 6);
+    expect(collected.view.text((n) => `[${n}]`)).toBe("ab\n[8]\nkl");
+    expect(collected.full()).toBe("abcdef");
+    expect(collected.complete).toBe(false);
+  });
+
+  it("is complete when the stream ends exactly at the byte limit", async () => {
+    const collected = await collectText(streamOf("abc", "def"), 100, 6);
+    expect(collected.full()).toBe("abcdef");
+    expect(collected.complete).toBe(true);
   });
 
   it("reads up to a byte limit", async () => {

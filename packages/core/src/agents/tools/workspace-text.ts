@@ -1,5 +1,8 @@
 /** Pure helpers of the workspace tools: output capture, text decoding, line ranges and edits. */
 
+/** What a HeadTailText dropped: the text's full length and the characters kept at each end. */
+export type TextCut = { totalChars: number; keptHead: number; keptTail: number };
+
 /**
  * Collects a stream's text keeping the beginning and the end, so a long build log still shows how
  * it started and how it failed. Memory stays bounded however much the command prints.
@@ -25,19 +28,52 @@ export class HeadTailText {
     if (rest) this.tail = (this.tail + rest).slice(-this.tailMax);
   }
 
-  text(): string {
+  /** What was dropped from the middle, or null when the whole text was kept. */
+  cut(): TextCut | null {
+    const keptHead = this.head.length;
+    const keptTail = this.tail.length;
+    return this.total > keptHead + keptTail ? { totalChars: this.total, keptHead, keptTail } : null;
+  }
+
+  /** The kept text; when the middle was dropped, `notice` (given its length) stands on a line in its place. */
+  text(notice: (omitted: number) => string): string {
     const omitted = this.total - this.head.length - this.tail.length;
-    return omitted > 0 ? `${this.head}\n...[${omitted} characters omitted]...\n${this.tail}` : this.head + this.tail;
+    return omitted > 0 ? `${this.head}\n${notice(omitted)}\n${this.tail}` : this.head + this.tail;
   }
 }
 
-/** Reads a whole stream as text into a HeadTailText. */
-export async function collectText(stream: ReadableStream<Uint8Array>, max: number): Promise<string> {
-  const out = new HeadTailText(Math.floor(max / 2), Math.ceil(max / 2));
+/** A stream's text: the head and tail view, and the full text up to a byte limit. */
+export type CollectedText = {
+  view: HeadTailText;
+  /** The text from the start, at most the byte limit of collectText. */
+  full: () => string;
+  /** False when the stream went on past the byte limit. */
+  complete: boolean;
+};
+
+/**
+ * Reads a whole stream as text into a HeadTailText of `max` characters, keeping its first
+ * `fullMaxBytes` bytes as well, so the full text can be saved when the view is cut.
+ */
+export async function collectText(
+  stream: ReadableStream<Uint8Array>,
+  max: number,
+  fullMaxBytes: number,
+): Promise<CollectedText> {
+  const view = new HeadTailText(Math.floor(max / 2), Math.ceil(max / 2));
   const decoder = new TextDecoder();
-  for await (const chunk of stream) out.push(decoder.decode(chunk, { stream: true }));
-  out.push(decoder.decode());
-  return out.text();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  let complete = true;
+  for await (const chunk of stream) {
+    view.push(decoder.decode(chunk, { stream: true }));
+    const kept = chunk.subarray(0, fullMaxBytes - size);
+    if (kept.byteLength < chunk.byteLength) complete = false;
+    if (kept.byteLength) chunks.push(kept);
+    size += kept.byteLength;
+  }
+  view.push(decoder.decode());
+  return { view, full: () => new TextDecoder().decode(Buffer.concat(chunks)), complete };
 }
 
 /** Reads at most `max` bytes; null when the stream has more (the rest is cancelled). */

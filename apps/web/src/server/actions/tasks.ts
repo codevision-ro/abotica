@@ -136,8 +136,9 @@ export const deleteTask = action(z.object({ id: z.uuid() }), async ({ id }) => {
   revalidatePath("/tasks");
 });
 
+/** The user's start goes past the task's circuit breaker: they decide whether to try again. */
 export const startTaskRun = action(z.object({ id: z.uuid() }), async ({ id }) => {
-  const run = await enqueueTaskRun(id);
+  const run = await enqueueTaskRun(id, { force: true });
   revalidateTask(id);
   return { runId: run.id };
 });

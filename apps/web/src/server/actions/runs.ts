@@ -9,7 +9,7 @@ import { z } from "zod";
 import { action } from "../action";
 
 export const cancelRun = action(z.object({ id: z.string().uuid() }), async ({ id }) => {
-  const run = await stopRun(id, RUN_CANCELLED_BY_USER);
+  const run = await stopRun(id, RUN_CANCELLED_BY_USER, "cancelled_by_user");
   if (!run) throw new UserError("runs.errors.notActive");
   await audit({ actor: "user", action: "run.cancelled", entityType: "run", entityId: id });
   revalidatePath(`/runs/${id}`);
@@ -21,7 +21,7 @@ export const cancelRun = action(z.object({ id: z.string().uuid() }), async ({ id
  * not only the stream in the browser. Returns how many runs it stopped.
  */
 export const stopConversation = action(z.object({ id: z.uuid() }), async ({ id }) => {
-  const stopped = await cancelConversationRuns(id, RUN_CANCELLED_BY_USER);
+  const stopped = await cancelConversationRuns(id, RUN_CANCELLED_BY_USER, "cancelled_by_user");
   for (const run of stopped) {
     await audit({ actor: "user", action: "run.cancelled", entityType: "run", entityId: run.id });
   }

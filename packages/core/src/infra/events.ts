@@ -1,10 +1,11 @@
+import type { RunFailureKind } from "../runs/run-failures";
 import { createRedis, redis } from "./redis";
 
 /** Live events pushed from the worker to the web UI over Redis pub/sub. */
 export type AppEvent =
   | { type: "run.updated"; runId: string; agentId: string | null; conversationId: string | null; status: string }
-  /** Asks the worker executing the run to abort it. */
-  | { type: "run.cancel"; runId: string; reason: string }
+  /** Asks the worker executing the run to abort it; the run ends cancelled with `reason` and `kind`. */
+  | { type: "run.cancel"; runId: string; reason: string; kind: RunFailureKind }
   | { type: "task.updated"; taskId: string; projectId: string | null }
   /** A message was added to the conversation outside a run (a delegation report delivered to the user). */
   | { type: "conversation.updated"; conversationId: string }

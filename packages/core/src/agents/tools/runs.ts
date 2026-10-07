@@ -11,9 +11,12 @@ import { cancelRun, startTaskRun } from "../../runs/runs";
 import {
   activeTaskRun,
   createTask,
+  type FailureStreak,
   isActiveTaskRunConflict,
   pendingDependencies,
   type Task,
+  TaskCircuitOpenError,
+  taskFailureStreak,
   TASK_PRIORITIES,
   updateTask,
 } from "../../tasks/tasks";
@@ -100,6 +103,11 @@ async function storeHandover(ctx: RunContext, taskId: string, plan: { save: Hand
   for (const id of plan.replace) await deleteFile(id);
 }
 
+/** The task's runs keep failing: the delegator reports it instead of trying again (see failureStreak). */
+const circuitOpen = (taskId: string, streak: FailureStreak) => ({
+  error: `Task ${taskId} is stopped: its last ${streak.failures} run(s) failed (${streak.reason ?? "no reason recorded"}). Starting it again would fail the same way. Tell the user what failed; only they can start it again, from the task page, once the cause is fixed.`,
+});
+
 const DELEGATE_BASE =
   "Hand a task to an agent and start it right away (or once its dependencies are done). Write a complete description: the agent does not see your conversation or your workspace, so pass the files it needs in files. To retry or reassign an existing task (e.g. a blocked one), send its taskId instead of a title and description. When the work finishes you get its result here automatically, with the files it produced: do not poll for it.";
 
@@ -169,6 +177,11 @@ export const runTools: Record<string, ToolFactory> = {
           const active = await activeTaskRun(task.id);
           if (active)
             return { error: `Task ${task.id} already has an active run (${active.id}). Use run_get or run_cancel.` };
+          // Before anything changes; handing the task to another agent starts its count again.
+          if (task.assigneeAgentId === agent.id) {
+            const streak = await taskFailureStreak(task.id);
+            if (streak.open) return circuitOpen(task.id, streak);
+          }
           // A retry counts as the user's only in a turn that answers them, never in one answering a notice.
           const userAsked = input.userAsked && (await answersUser(ctx.run.conversationId));
           if (!userAsked && task.redelegations >= MAX_REDELEGATIONS) {
@@ -234,6 +247,7 @@ export const runTools: Record<string, ToolFactory> = {
           if (isActiveTaskRunConflict(error)) {
             return { error: `Task ${taskId} already has an active run. Use run_get or run_cancel.` };
           }
+          if (error instanceof TaskCircuitOpenError) return circuitOpen(taskId, error.streak);
           throw error;
         }
       },
@@ -346,7 +360,7 @@ export const runTools: Record<string, ToolFactory> = {
       inputSchema: z.object({ runId: z.string().uuid(), reason: z.string().min(3) }),
       execute: async ({ runId, reason }) => {
         if (runId === ctx.run.id) return { error: "This is your own run; finish your answer instead" };
-        const run = await cancelRun(runId, `Stopped by ${ctx.agent.slug}: ${reason}`);
+        const run = await cancelRun(runId, `Stopped by ${ctx.agent.slug}: ${reason}`, "other");
         if (!run) return { error: `Run ${runId} does not exist or has already finished` };
         await audit({ actor: actorOf(ctx), action: "run.cancelled", entityType: "run", entityId: runId, data: { reason } });
         return { runId, stopped: run.status === "cancelled" ? "now" : "stopping" };

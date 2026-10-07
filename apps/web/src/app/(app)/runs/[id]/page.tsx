@@ -1,13 +1,10 @@
-import { RUN_CANCELLED_BY_USER } from "@abotica/core";
 import {
   ArrowUpRight,
   ChevronDown,
-  CircleAlert,
   GitBranch,
   Info,
   ListTree,
   MessageSquareText,
-  OctagonX,
   ShieldCheck,
   TextCursorInput,
 } from "lucide-react";
@@ -31,9 +28,9 @@ import { ToolName } from "@/components/approvals/approval-card";
 import { ApprovalActions } from "@/components/approvals/approval-actions";
 import { ApprovalStatusBadge } from "@/components/approvals/approval-status-badge";
 import { RunActions } from "@/components/runs/run-actions";
+import { RunFailureAlert } from "@/components/runs/run-failure-alert";
 import { RunsBackLink } from "@/components/runs/runs-back-link";
 import { RunTimeline } from "@/components/runs/run-timeline";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getFormat } from "@/server/format";
 import { getRunDetail } from "@/server/queries/runs";
@@ -112,21 +109,8 @@ export default async function RunDetailPage(props: PageProps<"/runs/[id]">) {
         }
       />
 
-      {run.status === "failed" && run.error && (
-        <Alert variant="destructive" className="border-destructive/25 bg-destructive/5">
-          <CircleAlert />
-          <AlertTitle>{t("failedTitle")}</AlertTitle>
-          <AlertDescription className="wrap-anywhere">{run.error}</AlertDescription>
-        </Alert>
-      )}
-      {run.status === "cancelled" && run.error && (
-        <Alert>
-          <OctagonX />
-          <AlertTitle>{t("cancelledTitle")}</AlertTitle>
-          <AlertDescription className="wrap-anywhere">
-            {run.error === RUN_CANCELLED_BY_USER ? t("cancelledByUser") : run.error}
-          </AlertDescription>
-        </Alert>
+      {(run.status === "failed" || run.status === "cancelled") && (
+        <RunFailureAlert status={run.status} error={run.error} failureKind={run.failureKind} />
       )}
 
       {/* Mobile order: details, approvals, the run itself, child runs. */}

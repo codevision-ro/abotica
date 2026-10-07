@@ -2,6 +2,7 @@
 
 import { FILE_MAX_BYTES } from "@abotica/core/limits";
 import {
+  CircleAlertIcon,
   CornerLeftUpIcon,
   ExternalLinkIcon,
   FileCheckIcon,
@@ -35,6 +36,7 @@ import { heroFieldVariants } from "@/components/app/hero-fields";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionCard, SectionEmpty, SectionList } from "@/components/app/section-card";
 import { PRIORITIES, RunStatusBadge, TASK_STATUSES, TaskStatusBadge, useStatusLabels } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -153,7 +155,12 @@ export function TaskDetail({
           )}
           <EditableTitle value={task.title} onSave={(title) => save({ title })} />
           <div className="flex flex-wrap items-center gap-2">
-            <RunButton reason={runBlockedReason} pending={running || deleting} onRun={run} />
+            <RunButton
+              label={task.failures.open ? t("startAnyway") : t("runNow")}
+              reason={runBlockedReason}
+              pending={running || deleting}
+              onRun={run}
+            />
             {mode === "sheet" && (
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/tasks/${task.id}`}>
@@ -181,6 +188,7 @@ export function TaskDetail({
               onConfirm={remove}
             />
           </div>
+          {task.failures.open && <FailingRunsNotice failures={task.failures.failures} reason={task.failures.reason} />}
         </header>
 
         <div className="grid items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_20rem] @3xl:grid-rows-[auto_auto_1fr]">
@@ -214,12 +222,21 @@ export function TaskDetail({
   );
 }
 
-function RunButton({ reason, pending, onRun }: { reason: string | null; pending: boolean; onRun: () => void }) {
-  const t = useTranslations("tasks.detail");
+function RunButton({
+  label,
+  reason,
+  pending,
+  onRun,
+}: {
+  label: string;
+  reason: string | null;
+  pending: boolean;
+  onRun: () => void;
+}) {
   const button = (
     <Button size="sm" onClick={onRun} disabled={!!reason || pending}>
       {pending ? <Spinner /> : <PlayIcon />}
-      {t("runNow")}
+      {label}
     </Button>
   );
   if (!reason) return button;
@@ -232,6 +249,21 @@ function RunButton({ reason, pending, onRun }: { reason: string | null; pending:
       </TooltipTrigger>
       <TooltipContent>{reason}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** The task's runs keep failing, so only the user starts it now (the run button says Start anyway). */
+function FailingRunsNotice({ failures, reason }: { failures: number; reason: string | null }) {
+  const t = useTranslations("tasks.detail");
+  return (
+    <Alert variant="destructive" className="border-destructive/25 bg-destructive/5">
+      <CircleAlertIcon />
+      <AlertTitle>{t("circuitOpen", { failures })}</AlertTitle>
+      <AlertDescription className="space-y-1 wrap-anywhere [&_p:not(:last-child)]:mb-0">
+        {reason && <p>{reason}</p>}
+        <p className="text-muted-foreground">{t("circuitOpenHint")}</p>
+      </AlertDescription>
+    </Alert>
   );
 }
 

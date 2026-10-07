@@ -100,6 +100,22 @@ export async function resolveSecret(name: string, scope: SecretScope): Promise<s
   return decrypt(row.value);
 }
 
+/**
+ * The values of the secrets visible in `scope`, to keep them out of text that leaves the platform (a
+ * conversation summary). A value that does not open (another VAULT_KEY) is skipped.
+ */
+export async function secretValues(scope: SecretScope): Promise<string[]> {
+  const rows = await db.select({ value: secrets.value, projectId: secrets.projectId }).from(secrets);
+  return rows.flatMap((row) => {
+    if (!secretVisibleIn(row.projectId, scope)) return [];
+    try {
+      return [decrypt(row.value)];
+    } catch {
+      return [];
+    }
+  });
+}
+
 /** A secret name already bound to another project; the name is unique across the vault. */
 class SecretOwnedByProjectError extends UserError {
   constructor(

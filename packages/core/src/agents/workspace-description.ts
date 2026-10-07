@@ -2,7 +2,7 @@
 import type { WorkspacePaths } from "@abotica/sandbox";
 import type { RepoProvider } from "../projects/repo-url";
 import type { NetworkPolicy, SandboxPackages } from "../sandbox/sandbox-policy";
-import { INPUTS_DIR, KNOWLEDGE_DIR, repoPath, taskBranch, taskWorktreePath } from "./workspace-paths";
+import { INPUTS_DIR, KNOWLEDGE_DIR, repoPath, taskBranch, taskWorktreePath, TOOL_OUTPUT_DIR } from "./workspace-paths";
 
 export type DescribedRepo = {
   name: string;
@@ -108,6 +108,7 @@ export function workspaceDescription(input: WorkspaceDescriptionInput): string {
       : null,
     reposText(input.repos, input.taskId),
     `- A command stops after ${input.commandTimeoutSec} seconds; split long jobs into smaller steps.`,
+    `- Long tool output is cut in the middle, and the full text is kept under ${paths.workspace}/${TOOL_OUTPUT_DIR} for 7 days: the cut names the file, read it with file_read line ranges or grep.`,
     "- To show the user a page, a mockup or a document, publish it with preview_publish; for an app you started, use preview_open. They return a link to give the user.",
     "- The user sees no workspace file until you share it. To give them a file, including one another agent produced, call file_share with its workspace path; they get a download link. Do not paste long file contents into your answer.",
   ]

@@ -15,7 +15,7 @@ import { sql } from "drizzle-orm";
 import { createdAt, id } from "./_shared";
 import { agents } from "./agents";
 import { conversations } from "./conversations";
-import { approvalStatus, runStatus, runTrigger } from "./enums";
+import { approvalStatus, runFailureKind, runStatus, runTrigger } from "./enums";
 import { projects } from "./projects";
 import { tasks } from "./tasks";
 
@@ -34,6 +34,8 @@ export const runs = pgTable(
     input: text().notNull().default(""),
     output: text(),
     error: text(),
+    /** Set on every run that ended failed or cancelled; `error` keeps the text for the user. */
+    failureKind: runFailureKind(),
     provider: text(),
     model: text(),
     steps: integer().notNull().default(0),

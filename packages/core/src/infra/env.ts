@@ -26,6 +26,11 @@ const schema = z.object({
   UPLOADS_DIR: z.string().optional(),
   /** Runs one worker executes at the same time. */
   RUN_CONCURRENCY: z.coerce.number().int().positive().default(4),
+  /**
+   * On shutdown (restart, update), how long the runs in progress get to finish on their own before
+   * they are stopped and their partial answers saved. Keep it below the compose stop_grace_period.
+   */
+  WORKER_SHUTDOWN_DRAIN_MS: z.coerce.number().int().nonnegative().default(30_000),
   /** Docker Engine API for sandbox containers (e.g. tcp://docker-proxy:2375); unset disables the Docker backend. */
   SANDBOX_DOCKER_HOST: z.string().optional(),
   /** Internal network the sandbox containers and the worker share. */

@@ -3,7 +3,8 @@ import type { ExecOptions, SandboxProcess, Workspace } from "@abotica/sandbox";
 import { describe, expect, it, vi } from "vitest";
 import type { McpServer } from "./context";
 import { GLOBAL_SECRETS } from "../platform/vault";
-import { loadMcpTools } from "./mcp-runtime";
+import { loadMcpTools, type McpRunOptions } from "./mcp-runtime";
+import { TOOL_TEXT_MAX_CHARS } from "./tool-output";
 
 // The runtime only touches the database after a successful connection (the tool cache).
 vi.mock("@abotica/db", () => ({ db: {} }));
@@ -74,11 +75,13 @@ describe("loadMcpTools", () => {
   });
 });
 
+type ContentPart = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
 /**
  * A stdio MCP server process that answers the handshake and the tool list, and returns `reply` as
- * the text of every tool call.
+ * the text (or the content parts) of every tool call.
  */
-function fakeServerProcess(reply: string): SandboxProcess {
+function fakeServerProcess(reply: string | ContentPart[]): SandboxProcess {
   const stdout = new TransformStream<Uint8Array, Uint8Array>();
   const out = stdout.writable.getWriter();
   const send = (message: object) => out.write(new TextEncoder().encode(`${JSON.stringify(message)}\n`));
@@ -100,7 +103,7 @@ function fakeServerProcess(reply: string): SandboxProcess {
               }
             : request.method === "tools/list"
               ? { tools: cached }
-              : { content: [{ type: "text", text: reply }] };
+              : { content: typeof reply === "string" ? [{ type: "text", text: reply }] : reply };
         void send({ jsonrpc: "2.0", id: request.id, result });
       }
     },
@@ -126,7 +129,7 @@ describe("loadMcpTools in a run's workspace", () => {
     workspace: "run",
   });
 
-  async function call(reply: string) {
+  async function call(reply: string | ContentPart[], options: Partial<McpRunOptions> = {}) {
     const execs: ExecOptions[] = [];
     const workspace: Workspace = {
       key: "project-x",
@@ -141,13 +144,17 @@ describe("loadMcpTools in a run's workspace", () => {
         return fakeServerProcess(reply);
       },
     };
-    const mcp = await loadMcpTools([stdio()], { secrets: GLOBAL_SECRETS, runWorkspace: async () => workspace });
+    const mcp = await loadMcpTools([stdio()], {
+      secrets: GLOBAL_SECRETS,
+      runWorkspace: async () => workspace,
+      ...options,
+    });
     const output = await mcp.tools["search_test__web_search"]!.execute!({ query: "x" }, {
       toolCallId: "1",
       messages: [],
     } as never);
     await mcp.close();
-    return { execs, output: output as { content: { type: string; text: string }[] } };
+    return { execs, output: output as { content: ContentPart[] } };
   }
 
   it("starts the server as the MCP user in its own folder outside the workspace volume", async () => {
@@ -163,11 +170,67 @@ describe("loadMcpTools in a run's workspace", () => {
   it("tells the agent where the files it names relative to its folder are", async () => {
     const { output } = await call("- [Screenshot of viewport](./page.png)");
     expect(output.content).toHaveLength(2);
-    expect(output.content[1]!.text).toContain("/opt/abotica/mcp/out/search-test/<name>");
+    expect(output.content[1]).toMatchObject({ text: expect.stringContaining("/opt/abotica/mcp/out/search-test/<name>") });
   });
 
   it("leaves results that name no relative path as they are", async () => {
     const { output } = await call("Page title: Example Domain");
     expect(output.content).toEqual([{ type: "text", text: "Page title: Example Domain" }]);
+  });
+
+  describe("long results", () => {
+    const RUN_ID = "0b6f3c1e-1111-4222-8333-444455556666";
+    const image: ContentPart = { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" };
+
+    function runWorkspace() {
+      const written = new Map<string, string>();
+      const sandbox = {
+        writeTextFile: async ({ path, content }: { path: string; content: string }) => {
+          written.set(path, content);
+        },
+      };
+      return { written, toolOutput: { sandbox, runId: RUN_ID } };
+    }
+
+    it("returns results within the limit byte for byte", async () => {
+      const parts: ContentPart[] = [
+        { type: "text", text: "a".repeat(TOOL_TEXT_MAX_CHARS - 10) },
+        image,
+        { type: "text", text: "b".repeat(10) },
+      ];
+      const { toolOutput, written } = runWorkspace();
+      const capped = await call(parts, { toolOutput });
+      const plain = await call(parts);
+      expect(JSON.stringify(capped.output)).toBe(JSON.stringify(plain.output));
+      expect(capped.output.content).toEqual(parts);
+      expect(written.size).toBe(0);
+    });
+
+    it("cuts the text parts together and keeps the full text in the run's workspace", async () => {
+      const parts: ContentPart[] = [
+        { type: "text", text: "h".repeat(100_000) },
+        image,
+        { type: "text", text: "t".repeat(100_000) },
+      ];
+      const { toolOutput, written } = runWorkspace();
+      const { output } = await call(parts, { toolOutput });
+      const file = `tool-output/${RUN_ID}/1.txt`;
+      expect(written.get(file)).toBe(`${"h".repeat(100_000)}\n${"t".repeat(100_000)}`);
+      expect(output.content.map((part) => part.type)).toEqual(["text", "image"]);
+      const text = (output.content[0] as { text: string }).text;
+      expect(text.length).toBeLessThan(TOOL_TEXT_MAX_CHARS + 200);
+      expect(text).toBe(
+        `${"h".repeat(15_000)}\n[... 170001 characters cut. Full output in your workspace: ${file} ...]\n${"t".repeat(15_000)}`,
+      );
+      expect(output.content[1]).toEqual(image);
+    });
+
+    it("cuts without keeping the middle when the run has no workspace", async () => {
+      const { output } = await call("x".repeat(200_000));
+      expect(output.content).toHaveLength(1);
+      const text = (output.content[0] as { text: string }).text;
+      expect(text).toContain("[... 170000 characters cut and not kept.");
+      expect(text.length).toBeLessThan(TOOL_TEXT_MAX_CHARS + 200);
+    });
   });
 });

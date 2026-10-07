@@ -427,6 +427,7 @@
     "copied": "Copied",
     "copyFailed": "Could not copy",
     "safe": "Settings and data stay. The installer first backs up the database to backups/ in the install folder; rolling back is in <link>DEPLOY.md</link>.",
+    "activeRuns": "{count, plural, one {One run is} other {# runs are}} in progress: updating stops what has not finished and saves the work done so far.",
     "autoTitle": "Automatic checks",
     "autoDescription": "Check for new releases every few hours; a notice also goes to Telegram.",
     "autoNote": "Each check is one request to GitHub's API.",

@@ -58,6 +58,12 @@ describe("workspaceDescription", () => {
     expect(text).toContain("/workspace/knowledge holds the project's knowledge files, read-only");
   });
 
+  it("says where the full text of cut tool output is", () => {
+    const text = workspaceDescription(base);
+    expect(text).toContain("cut in the middle");
+    expect(text).toContain("/workspace/tool-output for 7 days");
+  });
+
   it("explains the database servers and background processes", () => {
     const text = workspaceDescription(base);
     expect(text).toContain("`services start mysql`");

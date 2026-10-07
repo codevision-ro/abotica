@@ -22,6 +22,32 @@ export const runStatus = pgEnum("run_status", [
   "cancelled",
 ]);
 
+/**
+ * Why a run ended failed or cancelled, so the platform can act on it (the task's circuit breaker, a hint
+ * in the UI) without parsing `runs.error`, which holds the translated text shown to the user.
+ */
+export const runFailureKind = pgEnum("run_failure_kind", [
+  "kill_switch",
+  "agent_disabled",
+  "budget",
+  "no_model",
+  "provider_not_allowed",
+  "no_conversation",
+  "provider_auth",
+  "rate_limited",
+  "usage_limit",
+  "providers_unavailable",
+  "context_overflow",
+  "timeout",
+  "step_limit",
+  "loop",
+  "worker_restarted",
+  "unqueued",
+  "overdue",
+  "cancelled_by_user",
+  "other",
+]);
+
 export const runTrigger = pgEnum("run_trigger", [
   "chat",
   "telegram",

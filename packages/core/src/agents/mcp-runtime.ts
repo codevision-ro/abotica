@@ -34,6 +34,13 @@ import {
   sameToolDefinitions,
 } from "./mcp";
 import { SandboxMcpTransport } from "./mcp-sandbox-transport";
+import {
+  capToolText,
+  type FullOutputTarget,
+  fullOutputTarget,
+  TOOL_TEXT_MAX_CHARS,
+  type ToolOutputWorkspace,
+} from "./tool-output";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
 
 export type McpConnection = {
@@ -52,6 +59,11 @@ export type McpRunOptions = McpConnectOptions & {
   runWorkspace?: (() => Promise<Workspace>) | null;
   /** A server that could not start on its first tool call; the call itself fails with the error. */
   onLazyError?: (server: string, error: unknown) => void;
+  /**
+   * The run's sandbox and id: a result cut for the model keeps its full text in the workspace. Null
+   * or missing when the run has none, and the cut middle is not kept.
+   */
+  toolOutput?: ToolOutputWorkspace | null;
 };
 
 /** The only host variables an unsandboxed stdio server gets; the worker's secrets stay out. */
@@ -177,6 +189,23 @@ function toModelOutput({ output }: { output: unknown }) {
   };
 }
 
+/**
+ * Caps the text parts of a result together at TOOL_TEXT_MAX_CHARS. Over it, they become one part in
+ * place of the first, cut in the middle, so its lines match the saved full text; other parts keep
+ * their order. A result within the limit comes back as it is.
+ */
+async function capResult(result: McpCallResult, target: FullOutputTarget | null): Promise<McpCallResult> {
+  if (!("content" in result) || !Array.isArray(result.content)) return result;
+  const texts = result.content.flatMap((part) => (part.type === "text" ? [part.text] : []));
+  if (texts.reduce((sum, text) => sum + text.length, 0) <= TOOL_TEXT_MAX_CHARS) return result;
+  const { text } = await capToolText(texts.join("\n"), target);
+  const first = result.content.findIndex((part) => part.type === "text");
+  const content = result.content.flatMap((part, i) =>
+    part.type !== "text" ? [part] : i === first ? [{ ...part, text }] : [],
+  );
+  return { ...result, content };
+}
+
 /** A relative path such as `./page.png`, which is how Playwright links the files it saves. */
 const RELATIVE_PATH = /(?:^|[\s(["'`])\.\.?\//m;
 
@@ -194,7 +223,11 @@ function withFolderNote(result: McpCallResult, folder: string): McpCallResult {
 }
 
 /** One server's tools, built from its definitions; the server is only connected on a call. */
-function serverTools(definitions: McpToolInfo[], connect: () => Promise<McpConnected>): Record<string, Tool> {
+function serverTools(
+  definitions: McpToolInfo[],
+  connect: () => Promise<McpConnected>,
+  toolOutput: ToolOutputWorkspace | null | undefined,
+): Record<string, Tool> {
   const tools: Record<string, Tool> = {};
   for (const definition of definitions) {
     // As `@ai-sdk/mcp` builds it: no extra keys, and an object even when the server lists no properties.
@@ -211,7 +244,8 @@ function serverTools(definitions: McpToolInfo[], connect: () => Promise<McpConne
           arguments: args as Record<string, unknown>,
           options: { signal: options?.abortSignal },
         });
-        return folder ? withFolderNote(result, folder) : result;
+        const capped = await capResult(result, fullOutputTarget(toolOutput, options));
+        return folder ? withFolderNote(capped, folder) : capped;
       },
       toModelOutput,
     });
@@ -256,7 +290,8 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
 
   const listings = await Promise.all(
     servers.map(async (server) => {
-      if (isComplete(server.tools)) return { server, tools: serverTools(server.tools, lazyClient(server)) };
+      if (isComplete(server.tools))
+        return { server, tools: serverTools(server.tools, lazyClient(server), opts.toolOutput) };
       // No usable cache yet: connect now, list the tools and remember them for the next runs.
       try {
         const connected = await connectMcp(server, opts);
@@ -264,7 +299,7 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
         const definitions = await listToolDefinitions(connected.client);
         // The cache only feeds the agent form and later runs; a failed write must never fail this one.
         if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
-        return { server, tools: serverTools(definitions, async () => connected) };
+        return { server, tools: serverTools(definitions, async () => connected, opts.toolOutput) };
       } catch (error) {
         errors.push({ server: server.slug, error });
         return null;

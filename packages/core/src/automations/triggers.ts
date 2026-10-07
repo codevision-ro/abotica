@@ -7,7 +7,7 @@ import { loadDelegationProject } from "../tasks/delegation";
 import { env } from "../infra/env";
 import type { TaskEventJob } from "../infra/queues";
 import { type Run, startRun, startTaskRun } from "../runs/runs";
-import { unblockedDependents } from "../tasks/tasks";
+import { TaskCircuitOpenError, unblockedDependents } from "../tasks/tasks";
 import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-rules";
 import { usesWebhook } from "./trigger-events";
 import { encrypt } from "../platform/vault";
@@ -217,7 +217,11 @@ export async function handleTaskEvent(taskId: string, event: TaskEventJob["event
       try {
         await startTaskRun(next.id);
       } catch (error) {
-        console.error(`[triggers] starting task ${next.id} after ${task.id} failed:`, error);
+        if (error instanceof TaskCircuitOpenError) {
+          console.warn(`[triggers] task ${next.id} not started after ${task.id}: its runs keep failing`);
+        } else {
+          console.error(`[triggers] starting task ${next.id} after ${task.id} failed:`, error);
+        }
       }
     }
   }

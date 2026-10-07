@@ -11,7 +11,7 @@ import { startNotificationsWorker } from "./jobs/notifications";
 import { describeSandbox, startSandboxWorker } from "./jobs/sandbox";
 import { startSchedulesWorker } from "./jobs/schedules";
 import { startTaskEventsWorker } from "./jobs/task-events";
-import { abortAllRuns, abortRun, startRunsWorker } from "./runtime";
+import { abortAllRuns, abortRun, activeRunCount, drainRuns, startRunsWorker } from "./runtime";
 import { botTranslator, getBot } from "./telegram/bot";
 import { registerHandlers } from "./telegram/handlers";
 
@@ -19,16 +19,17 @@ import { registerHandlers } from "./telegram/handlers";
 setDefaultUploadsRoot(path.resolve(process.cwd(), "../web/.data/uploads"));
 
 /** Set once the worker is up; a crash before that just exits. */
-let shutdown: ((code: number) => Promise<void>) | null = null;
+let shutdown: ((code: number, drainMs: number) => Promise<void>) | null = null;
 
 // A rejection nobody handled is logged: it must not take down the runs in flight with it.
 process.on("unhandledRejection", (reason) => console.error("[worker] unhandled rejection:", reason));
 process.on("uncaughtException", (error) => {
   console.error("[worker] uncaught exception:", error);
   if (!shutdown) process.exit(1);
-  // Closing waits for the runs in progress; the process is in an unknown state, so not for long.
+  // The process is in an unknown state: the runs in progress are stopped at once, saving what they
+  // did so far, and closing gets 30 seconds at most.
   setTimeout(() => process.exit(1), 30_000).unref();
-  void shutdown(1);
+  void shutdown(1, 0);
 });
 
 async function main() {
@@ -72,10 +73,10 @@ async function main() {
   // The kill switch stops everything running here; a cancel stops one run, wherever it is executing.
   const unsubscribe = subscribe((event) => {
     if (event.type === "kill-switch" && event.active) {
-      if (event.reason) abortAllRuns(event.reason);
-      else void botTranslator().then((t) => abortAllRuns(t("errors.run.stoppedByKillSwitch")));
+      if (event.reason) abortAllRuns(event.reason, "kill_switch");
+      else void botTranslator().then((t) => abortAllRuns(t("errors.run.stoppedByKillSwitch"), "kill_switch"));
     }
-    if (event.type === "run.cancel") abortRun(event.runId, event.reason);
+    if (event.type === "run.cancel") abortRun(event.runId, event.reason, event.kind);
   });
 
   const bot = getBot();
@@ -99,14 +100,22 @@ async function main() {
   console.log(`[worker] started (concurrency ${concurrency})`);
 
   let stopping = false;
-  const stop = async (code: number) => {
+  const stop = async (code: number, drainMs: number) => {
     if (stopping) return;
     stopping = true;
     console.log("[worker] shutting down...");
     try {
+      // No new work: polling stops (bot.api keeps working, so stopped runs still deliver their
+      // Telegram reply) and the workers fetch no more jobs; each close() resolves once its jobs end.
+      const botStopped = bot?.stop().catch((error: unknown) => console.error("[telegram] stopping:", error));
+      const closed = workers.map((w) => w.close());
+      const running = activeRunCount();
+      if (running) console.log(`[worker] waiting up to ${drainMs / 1000}s for ${running} run(s) to finish`);
+      // Still subscribed meanwhile, so a cancel or the kill switch keeps working while runs drain.
+      const aborted = await drainRuns(drainMs, shutdownReason);
+      if (aborted) console.log(`[worker] stopped ${aborted} run(s), their partial answers saved`);
       unsubscribe();
-      await bot?.stop();
-      await Promise.all([...workers.map((w) => w.close()), previews.close()]);
+      await Promise.all([...closed, previews.close(), botStopped]);
       await closeSandbox().catch((error: unknown) => console.error("[sandbox] shutdown:", error));
     } catch (error) {
       console.error("[worker] shutdown failed:", error);
@@ -115,8 +124,14 @@ async function main() {
     process.exit(code);
   };
   shutdown = stop;
-  process.on("SIGINT", () => void stop(0));
-  process.on("SIGTERM", () => void stop(0));
+  process.on("SIGINT", () => void stop(0, env().WORKER_SHUTDOWN_DRAIN_MS));
+  process.on("SIGTERM", () => void stop(0, env().WORKER_SHUTDOWN_DRAIN_MS));
+}
+
+/** Why runs still going at shutdown were stopped, in the language from Settings (English if that cannot be read). */
+async function shutdownReason(): Promise<string> {
+  const t = await botTranslator().catch(() => getTranslator(defaultLocale));
+  return t("errors.run.workerRestarting");
 }
 
 main().catch((error) => {

@@ -6,12 +6,13 @@ import { type FileOwner, saveFile } from "../../files/files";
 import { FILE_MAX_BYTES } from "../../platform/limits";
 import type { Agent, RunContext } from "../context";
 import { builtinPermission } from "../permissions";
+import { capStreamText, fullOutputTarget, TOOL_TEXT_MAX_CHARS } from "../tool-output";
 import { blankToUndefined, clip, errorResult, type ToolFactory } from "./shared";
 import { TOOL_CATALOG } from "./tool-catalog";
 import { applyEdit, collectText, decodeText, readAtMost, sliceLines } from "./workspace-text";
 
-/** Characters of stdout and of stderr returned to the model. */
-const OUTPUT_CHARS = 30_000;
+/** Bytes of stdout and of stderr kept to save in full when the model's view is cut, as runCommand keeps. */
+const FULL_OUTPUT_BYTES = 1024 * 1024;
 /** Characters of file content returned by one file_read. */
 const READ_CHARS = 30_000;
 /** Largest file file_read and file_edit load. */
@@ -97,13 +98,17 @@ const shellInput = (ctx: RunContext) =>
     ),
   });
 
-/** Runs a shell command in the run's workspace and collects its output, cut to OUTPUT_CHARS per stream. */
+/**
+ * Runs a shell command in the run's workspace and collects its output, cut to TOOL_TEXT_MAX_CHARS
+ * per stream; a cut stream is saved in full (up to FULL_OUTPUT_BYTES) and its file named.
+ */
 function runShell(
   ctx: RunContext,
   { command, timeoutSeconds }: { command: string; timeoutSeconds?: number },
   user: "sandbox" | "root",
-  abortSignal: AbortSignal | undefined,
+  call: { toolCallId: string; abortSignal?: AbortSignal },
 ) {
+  const { abortSignal } = call;
   return guarded(abortSignal, async () => {
     const sandbox = ctx.sandbox;
     if (!sandbox) return NO_SANDBOX;
@@ -115,16 +120,25 @@ function runShell(
       timedOut = true;
       void proc.kill();
     }, seconds * 1000);
-    try {
-      const [stdout, stderr, { exitCode }] = await Promise.all([
-        collectText(proc.stdout, OUTPUT_CHARS),
-        collectText(proc.stderr, OUTPUT_CHARS),
-        proc.wait(),
-      ]);
-      return { exitCode, stdout, stderr, timedOut };
-    } finally {
-      clearTimeout(timer);
-    }
+    // Saving the output happens after the timer: the command is over, so it cannot count as timed out.
+    const [stdout, stderr, { exitCode }] = await Promise.all([
+      collectText(proc.stdout, TOOL_TEXT_MAX_CHARS, FULL_OUTPUT_BYTES),
+      collectText(proc.stderr, TOOL_TEXT_MAX_CHARS, FULL_OUTPUT_BYTES),
+      proc.wait(),
+    ]).finally(() => clearTimeout(timer));
+    const workspace = { sandbox, runId: ctx.run.id };
+    const [out, err] = await Promise.all([
+      capStreamText(stdout, fullOutputTarget(workspace, call, "stdout")),
+      capStreamText(stderr, fullOutputTarget(workspace, call, "stderr")),
+    ]);
+    return {
+      exitCode,
+      stdout: out.text,
+      stderr: err.text,
+      timedOut,
+      ...(out.file && { stdoutFile: out.file }),
+      ...(err.file && { stderrFile: err.file }),
+    };
   });
 }
 
@@ -134,7 +148,7 @@ export const workspaceTools: Record<string, ToolFactory> = {
       description:
         "Run a bash command in your workspace. Returns the exit code, stdout and stderr (long output keeps its start and end). Every call starts a fresh shell in the workspace: files persist, cd and variables do not.",
       inputSchema: shellInput(ctx),
-      execute: (input, { abortSignal }) => runShell(ctx, input, "sandbox", abortSignal),
+      execute: (input, call) => runShell(ctx, input, "sandbox", call),
     }),
 
   shell_run_root: (ctx) =>
@@ -142,7 +156,7 @@ export const workspaceTools: Record<string, ToolFactory> = {
       description:
         "Run a bash command as root in your workspace, to install system packages (apt-get update && apt-get install -y <package>). It reaches the package registries whatever the network setting. Files it leaves in the workspace go back to you afterwards. Use shell_run for everything else.",
       inputSchema: shellInput(ctx),
-      execute: (input, { abortSignal }) => runShell(ctx, input, "root", abortSignal),
+      execute: (input, call) => runShell(ctx, input, "root", call),
     }),
 
   file_read: () =>

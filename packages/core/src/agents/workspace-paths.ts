@@ -28,9 +28,16 @@ export const REPOS_DIR = "repos";
 /** Worktrees of tasks, one folder per task. */
 export const WORK_DIR = "work";
 
+/** Full text of tool results that were cut for the model, one folder per run. */
+export const TOOL_OUTPUT_DIR = "tool-output";
+
 export const repoPath = (repoName: string) => `${REPOS_DIR}/${repoName}`;
 
 export const taskWorktreePath = (taskId: string, repoName: string) => `${WORK_DIR}/${taskId}/${repoName}`;
+
+/** The file with the full output of one tool call; a shell command has one per stream. */
+export const toolOutputPath = (runId: string, toolCallId: string, stream?: "stdout" | "stderr") =>
+  `${TOOL_OUTPUT_DIR}/${runId}/${safeFileName(toolCallId, "call")}${stream ? `.${stream}` : ""}.txt`;
 
 /**
  * A task's branch, the same in every repository and run. It comes from the task id alone, so a
