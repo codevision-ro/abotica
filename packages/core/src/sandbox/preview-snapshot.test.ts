@@ -8,9 +8,14 @@ import { readSnapshotTar, safeSnapshotPath, SnapshotTooLargeError } from "./prev
 let root: string;
 const longName = `${"nested-folder/".repeat(8)}page.html`;
 
+/** GNU tar (Linux) calls the GNU format `gnu`; bsdtar (macOS) calls it `gnutar`. */
+const gnuTar = execFileSync("tar", ["--version"]).toString().includes("GNU tar");
+
 /** An archive of `dir` written by the system's tar, in the given format. */
-const archive = (dir: string, format: string) =>
-  new Uint8Array(execFileSync("tar", [`--format=${format}`, "-cf", "-", "-C", dir, "."], { maxBuffer: 64 << 20 }));
+const archive = (dir: string, format: string) => {
+  const name = format === "gnutar" && gnuTar ? "gnu" : format;
+  return new Uint8Array(execFileSync("tar", [`--format=${name}`, "-cf", "-", "-C", dir, "."], { maxBuffer: 64 << 20 }));
+};
 
 /** A one-file archive with a hand-written ustar header, for names tar itself would not write. */
 function rawArchive(name: string, content: string, type = "0"): Uint8Array {
