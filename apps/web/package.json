@@ -8,7 +8,7 @@
     "build": "next build && cp -r .next/static .next/standalone/apps/web/.next/ && cp -r public .next/standalone/apps/web/",
     "start": "node --env-file-if-exists=../../.env .next/standalone/apps/web/server.js",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@abotica/core": "workspace:*",
