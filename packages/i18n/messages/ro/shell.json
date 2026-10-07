@@ -8,7 +8,9 @@
     "themeDark": "Întunecată",
     "themeSystem": "Sistem",
     "security": "Securitate",
-    "signOut": "Ieșire"
+    "signOut": "Ieșire",
+    "updateAvailable": "Actualizare disponibilă",
+    "updateTooltip": "Abotica {version} e disponibilă"
   },
   "header": {
     "agentsStopped": "Agenții sunt opriți"

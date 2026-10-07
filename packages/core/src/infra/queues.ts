@@ -33,7 +33,9 @@ export type MaintenanceJob =
   /** Removes expired previews and copies whose preview is gone. */
   | { kind: "previews-sweep" }
   /** Fails runs nothing is going to end any more (see recoverRuns). */
-  | { kind: "runs-reap" };
+  | { kind: "runs-reap" }
+  /** Looks for a newer Abotica release and tells the user once per version (platform/updates.ts). */
+  | { kind: "updates-check" };
 
 /** A task was created or finished; the worker fires its triggers and starts unblocked dependents. */
 export type TaskEventJob = { taskId: string; event: "created" | "done" };

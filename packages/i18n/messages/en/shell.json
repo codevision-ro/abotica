@@ -8,7 +8,9 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "security": "Security",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "updateAvailable": "Update available",
+    "updateTooltip": "Abotica {version} is available"
   },
   "header": {
     "agentsStopped": "Agents are stopped"

@@ -21,8 +21,10 @@ FROM source AS web-build
 # Placeholders: modules read these lazily, nothing connects during the build.
 RUN DATABASE_URL=postgres://build:build@localhost:5432/build pnpm --filter @abotica/web build
 
+# The release, from the tag (release.yml); Settings > Updates compares it with the latest one.
 FROM base AS web
-ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+ARG ABOTICA_VERSION=""
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 ABOTICA_VERSION=$ABOTICA_VERSION
 # The build script already copies static assets and public/ into the standalone folder.
 COPY --from=web-build /app/apps/web/.next/standalone ./
 # Runs as the base image's `node` user (uid 1000); the code stays root-owned and read-only to it.
@@ -51,7 +53,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm --filter @abotica/worker 
 # The worker runs from source with tsx (a production dependency of @abotica/worker).
 # As the `node` user: it writes only to the uploads folder and /tmp, and reaches docker-proxy over TCP.
 FROM base AS worker
-ENV NODE_ENV=production
+ARG ABOTICA_VERSION=""
+ENV NODE_ENV=production ABOTICA_VERSION=$ABOTICA_VERSION
 COPY --from=worker-build /deploy ./
 RUN mkdir -p /data/uploads && chown node:node /data/uploads
 USER node

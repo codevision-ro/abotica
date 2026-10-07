@@ -9,14 +9,16 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { cn } from "@/lib/utils";
 import { getPendingApprovalCount } from "@/server/queries/dashboard";
 import { getKillSwitchState } from "@/server/queries/settings";
+import { getAvailableUpdate } from "@/server/queries/updates";
 import { requireUser } from "@/server/session";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const [t, killed, pending, cookieStore] = await Promise.all([
+  const [t, killed, pending, update, cookieStore] = await Promise.all([
     getTranslations("shell.header"),
     getKillSwitchState(),
     getPendingApprovalCount(),
+    getAvailableUpdate(),
     cookies(),
   ]);
   // Keep the desktop sidebar collapsed across reloads (the sidebar writes this cookie when toggled).
@@ -25,7 +27,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <LiveUpdates>
       <SidebarProvider defaultOpen={sidebarOpen}>
-        <AppSidebar user={{ name: user.name, email: user.email }} badges={{ "/approvals": pending }} />
+        <AppSidebar user={{ name: user.name, email: user.email }} badges={{ "/approvals": pending }} update={update} />
         <SidebarInset className="min-w-0 md:border md:border-border/60">
           {/* The kill switch state lives in the header (fixed height), so full-height pages like chat keep fitting. */}
           <header

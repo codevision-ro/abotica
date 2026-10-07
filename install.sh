@@ -65,9 +65,14 @@ main() {
   tmp="$(mktemp)"
   curl -fsSL "https://raw.githubusercontent.com/$REPO/v$version/docker-compose.prod.yml" -o "$tmp" \
     || fail "Release v$version has no docker-compose.prod.yml."
-  mv "$tmp" docker-compose.yml
 
   local fresh=false
+  if [ -f .env ]; then
+    # With the compose file still the installed one, so its services are the ones running.
+    backup_before_update "$(sed -n 's/^ABOTICA_VERSION=//p' .env)"
+  fi
+  mv "$tmp" docker-compose.yml
+
   if [ -f .env ]; then
     say "Keeping the existing .env (update)"
     set_env ABOTICA_VERSION "$version"
@@ -172,6 +177,20 @@ ensure_docker() {
   if ! version_ge "$compose" "$MIN_COMPOSE"; then
     fail "Docker Compose $compose is too old: $MIN_COMPOSE or newer is needed. Update Docker, then run this installer again."
   fi
+}
+
+# A pg_dump into backups/ before the images change, written by the backup service (it has pg_dump,
+# the password and backups/ mounted). Migrations only move forward, so this dump is the way back.
+backup_before_update() {
+  local old="${1:-unknown}" name
+  if ! dc ps --status running --services 2>/dev/null | grep -qx backup; then
+    warn "The backup service is not running, so there is no backup before this update."
+    return 0
+  fi
+  name="pre-update-$old-$(date +%Y%m%d-%H%M%S).dump"
+  say "Backing up the database to backups/$name"
+  dc exec -T backup pg_dump -h postgres -U abotica -Fc abotica -f "/backups/$name" \
+    || fail "The backup before the update failed, so nothing was changed. Check: docker compose logs postgres"
 }
 
 version_ge() {

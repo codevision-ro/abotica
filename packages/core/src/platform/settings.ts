@@ -24,6 +24,8 @@ export type AppSettings = {
   ollamaEnabled: boolean;
   /** Interface and notification language. Null follows the browser (web) and falls back to English elsewhere. */
   locale: Locale | null;
+  /** Look for new Abotica releases on GitHub every few hours and say so in the app and on Telegram. */
+  updateChecks: boolean;
   sandbox: SandboxSettings;
 };
 
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   monthlyBudgetUsd: null,
   ollamaEnabled: false,
   locale: null,
+  updateChecks: true,
   sandbox: DEFAULT_SANDBOX_SETTINGS,
 };
 

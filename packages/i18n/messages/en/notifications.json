@@ -30,5 +30,8 @@
       "warning": "⚠️ Project **{project}** is at {threshold}% of its monthly budget: {spent} of {budget} USD.",
       "reached": "🛑 Project **{project}** has reached its monthly budget: {spent} of {budget} USD spent this month. Its runs stop until next month or until you raise the budget in the project's settings."
     }
+  },
+  "update": {
+    "available": "🆕 Abotica {version} is available (you run {current}). What changed: {url}\nTo update, run the install command again; your settings and data stay."
   }
 }

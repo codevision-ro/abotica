@@ -41,7 +41,17 @@ irm https://raw.githubusercontent.com/codevision-ro/abotica/main/install.ps1 | i
 
 `install.ps1` does the same as `install.sh`: it offers to install Docker Desktop with winget when it is missing, starts it when it is not running, installs into `%USERPROFILE%\abotica`, writes `.env` on the first run, starts everything and opens the sign-up link. Options are environment variables set before the command, for example `$env:ABOTICA_DOMAIN = "abotica.example.com"`; `ABOTICA_DIR`, `ABOTICA_VERSION` and `ABOTICA_YES=1` work as well. Docker Desktop runs its containers in WSL2, which it sets up itself; the sandbox works the same as on Linux.
 
-**Update:** run the same command again. It keeps `.env`, moves `ABOTICA_VERSION` to the latest release, downloads that release's compose file and restarts what changed. Migrations run on every start.
+**Update:** run the same command again. It backs up the database into `backups/pre-update-<old version>-<date>.dump`, keeps `.env`, moves `ABOTICA_VERSION` to the latest release, downloads that release's compose file and restarts what changed. Migrations run on every start. **Settings > Updates** shows when a new release is out (a notice also goes to Telegram), with its release notes and this command.
+
+**Roll back** to the version you had, with the dump taken before the update (migrations only move forward, so the database goes back with it):
+
+```bash
+docker compose stop web worker
+docker compose exec -T backup pg_restore -h postgres -U abotica -d abotica --clean --if-exists /backups/pre-update-0.1.0-YYYYMMDD-HHMMSS.dump
+curl -fsSL https://raw.githubusercontent.com/codevision-ro/abotica/main/install.sh | ABOTICA_VERSION=0.1.0 bash
+```
+
+On Windows the first two commands are the same in PowerShell, and the last one is `$env:ABOTICA_VERSION = "0.1.0"; irm https://raw.githubusercontent.com/codevision-ro/abotica/main/install.ps1 | iex`.
 
 `VAULT_KEY` encrypts the keys and repository tokens saved from the UI. If you lose it or change it, the keys in the vault can no longer be read: keep a copy of `.env`.
 

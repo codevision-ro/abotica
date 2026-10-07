@@ -32,6 +32,7 @@ export * from "./sandbox/sandbox-policy";
 export * from "./automations/schedules";
 export * from "./platform/settings";
 export * from "./platform/settings-schedules";
+export * from "./platform/updates";
 export * from "./skills/skill-md";
 export * from "./skills/skill-sources";
 export * from "./skills/skills";

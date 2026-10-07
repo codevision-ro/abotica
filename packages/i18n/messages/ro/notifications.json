@@ -30,5 +30,8 @@
       "warning": "⚠️ Proiectul **{project}** a ajuns la {threshold}% din bugetul lunar: {spent} din {budget} USD.",
       "reached": "🛑 Proiectul **{project}** și-a atins bugetul lunar: {spent} din {budget} USD cheltuiți luna aceasta. Rulările lui se opresc până luna viitoare sau până mărești bugetul din setările proiectului."
     }
+  },
+  "update": {
+    "available": "🆕 Abotica {version} e disponibilă (rulezi {current}). Ce s-a schimbat: {url}\nPentru update, rulează din nou comanda de instalare; setările și datele rămân."
   }
 }

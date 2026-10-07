@@ -156,6 +156,21 @@ function New-EnvFile([string]$Version, [string]$Domain) {
   Write-EnvFile (Join-Path (Get-Location) ".env") $lines
 }
 
+# A pg_dump into backups\ before the images change, written by the backup service (it has pg_dump,
+# the password and backups\ mounted). Migrations only move forward, so this dump is the way back.
+function Backup-BeforeUpdate([string]$OldVersion) {
+  if (-not $OldVersion) { $OldVersion = "unknown" }
+  $running = @(& docker compose ps --status running --services 2>$null)
+  if ($running -notcontains "backup") {
+    Write-Warning "The backup service is not running, so there is no backup before this update."
+    return
+  }
+  $name = "pre-update-$OldVersion-$(Get-Date -Format 'yyyyMMdd-HHmmss').dump"
+  Say "Backing up the database to backups\$name"
+  & docker compose exec -T backup pg_dump -h postgres -U abotica -Fc abotica -f "/backups/$name"
+  if ($LASTEXITCODE -ne 0) { Fail "The backup before the update failed, so nothing was changed. Check: docker compose logs postgres" }
+}
+
 function Wait-Healthy {
   $port = Read-EnvValue "WEB_PORT"
   if (-not $port) { $port = "3000" }
@@ -182,12 +197,16 @@ function Install-Abotica {
   $Version = $Version -replace "^v", ""
 
   Say "Downloading Abotica $Version into $Dir"
+  $download = Join-Path $Dir "docker-compose.yml.new"
   try {
-    Invoke-WebRequest -UseBasicParsing -OutFile docker-compose.yml `
+    Invoke-WebRequest -UseBasicParsing -OutFile $download `
       -Uri "https://raw.githubusercontent.com/$Repo/v$Version/docker-compose.prod.yml"
   } catch {
     Fail "Release v$Version has no docker-compose.prod.yml."
   }
+  # With the compose file still the installed one, so its services are the ones running.
+  if (Test-Path .env) { Backup-BeforeUpdate (Read-EnvValue "ABOTICA_VERSION") }
+  Move-Item -Force $download (Join-Path $Dir "docker-compose.yml")
 
   $fresh = $false
   if (Test-Path .env) {

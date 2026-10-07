@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Cpu, KeyRound, ScrollText, Send, Shield, SlidersHorizontal } from "lucide-react";
+import { Boxes, CircleArrowUp, Cpu, KeyRound, ScrollText, Send, Shield, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -15,6 +15,7 @@ const ITEMS = [
   { href: "/settings/security", label: "security", icon: Shield },
   { href: "/settings/audit", label: "audit", icon: ScrollText },
   { href: "/settings/telegram", label: "telegram", icon: Send },
+  { href: "/settings/updates", label: "updates", icon: CircleArrowUp },
 ] as const;
 
 /** Vertical list on desktop, horizontally scrollable pills on mobile. */

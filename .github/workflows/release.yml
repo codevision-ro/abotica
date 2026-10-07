@@ -58,6 +58,8 @@ jobs:
           target: ${{ matrix.target }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Baked into web and worker, so the app knows which release it runs.
+          build-args: ABOTICA_VERSION=${{ github.ref_name }}
           outputs: type=image,name=${{ env.IMAGE_PREFIX }}-${{ matrix.target }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.arch }}

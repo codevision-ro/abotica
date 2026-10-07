@@ -1,4 +1,5 @@
 import {
+  checkForUpdates,
   costSince,
   dayBounds,
   embedText,
@@ -7,6 +8,7 @@ import {
   type MaintenanceJob,
   maintenanceQueue,
   NoAllowedProviderError,
+  notifyUpdateAvailable,
   projectProviderPolicy,
   projectsClosedTo,
   QUEUE,
@@ -270,6 +272,13 @@ export async function registerMaintenanceSchedules() {
     { every: 3600_000 },
     { name: "previews-sweep", data: { kind: "previews-sweep" } },
   );
+  // Every 6 hours, and once now so a fresh install or an update knows where it stands.
+  await q.upsertJobScheduler(
+    "updates-check",
+    { every: 6 * 3600_000 },
+    { name: "updates-check", data: { kind: "updates-check" } },
+  );
+  await q.add("updates-check", { kind: "updates-check" }, { removeOnComplete: true, removeOnFail: true });
 }
 
 export function startMaintenanceWorker() {
@@ -299,6 +308,8 @@ export function startMaintenanceWorker() {
           return sweepExpiredPreviews();
         case "runs-reap":
           return reapRuns();
+        case "updates-check":
+          return void (await notifyUpdateAvailable(await checkForUpdates()));
       }
     },
     { connection: createRedis(), concurrency: 1 },

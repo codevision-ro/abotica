@@ -6,7 +6,8 @@
     "security": "Securitate",
     "audit": "Jurnal audit",
     "telegram": "Telegram",
-    "sandbox": "Sandbox"
+    "sandbox": "Sandbox",
+    "updates": "Actualizări"
   },
   "layout": {
     "title": "Setări",
@@ -20,6 +21,7 @@
     "security": "Securitate",
     "audit": "Jurnal audit",
     "telegram": "Telegram",
+    "updates": "Actualizări",
     "sandbox": "Sandbox"
   },
   "secretInput": {
@@ -348,6 +350,7 @@
       "triggerSigningSecretCreated": "Secret de semnare webhook creat",
       "triggerSigningSecretRotated": "Secret de semnare webhook înlocuit",
       "triggerSigningSecretDeleted": "Secret de semnare webhook șters",
+      "updatesChecked": "Verificare actualizări",
       "webhookReceived": "Webhook primit",
       "webhookRefused": "Webhook refuzat"
     }
@@ -381,6 +384,54 @@
     "step5": "Pentru un topic per proiect: creează un grup cu Topics (forum) activat, adaugă botul ca administrator, setează ID-ul grupului în <mono>TELEGRAM_NOTIFY_CHAT_ID</mono>, creează câte un topic pentru fiecare proiect și salvează ID-ul topic-ului (message_thread_id, ultimul număr din linkul unui mesaj din topic) în setările proiectului.",
     "transcriptionTitle": "Transcriere",
     "transcriptionDescription": "Mesajele vocale sunt transcrise cu OpenAI, deci au nevoie de cheia OpenAI."
+  },
+  "updates": {
+    "title": "Actualizări",
+    "description": "Versiunea care rulează aici, ce e nou și cum actualizezi.",
+    "checkNow": "Verifică acum",
+    "result": {
+      "available": "Abotica {version} e disponibilă",
+      "upToDate": "Rulezi cea mai nouă versiune ({version})",
+      "source": "Cea mai nouă versiune este {version}",
+      "none": "Nicio versiune găsită",
+      "failed": "Verificarea a eșuat"
+    },
+    "status": {
+      "upToDate": "La zi",
+      "available": "Actualizare disponibilă",
+      "source": "Rulează din sursă",
+      "failed": "Verificare eșuată",
+      "unchecked": "Neverificat încă"
+    },
+    "versionTitle": "Versiune",
+    "versionDescription": "Această instanță și cea mai nouă versiune de pe GitHub.",
+    "running": "Rulează aici",
+    "fromSource": "Sursă",
+    "latest": "Cea mai nouă versiune",
+    "unknown": "Necunoscută",
+    "published": "Publicată <time></time>",
+    "checked": "Ultima verificare: <time></time>",
+    "sourceNote": "Această instanță rulează din sursă, deci nu există o versiune instalată cu care să compari. Versiunile se instalează și se actualizează cu install.sh sau install.ps1.",
+    "notesTitle": "Ce e nou în {version}",
+    "notesDescription": "Notele versiunii, de pe GitHub.",
+    "releasePage": "Pagina versiunii",
+    "notesEmpty": "Versiunea aceasta nu are note.",
+    "howToTitle": "Cum actualizezi",
+    "howToDescription": "Rulează din nou instalatorul pe mașina unde e instalat Abotica, cu același utilizator.",
+    "platformLabel": "Sistem de operare",
+    "unix": "Linux / macOS",
+    "windows": "Windows",
+    "terminal": "Terminal",
+    "powershell": "PowerShell",
+    "copy": "Copiază",
+    "copied": "Copiat",
+    "copyFailed": "Nu s-a putut copia",
+    "safe": "Setările și datele rămân. Instalatorul face întâi o copie de rezervă a bazei de date în backups/, în folderul de instalare; revenirea la versiunea anterioară e descrisă în <link>DEPLOY.md</link>.",
+    "autoTitle": "Verificare automată",
+    "autoDescription": "Caută versiuni noi la câteva ore; primești și o notificare pe Telegram.",
+    "autoNote": "Fiecare verificare este o cerere către API-ul GitHub.",
+    "autoOn": "Verificarea automată este pornită",
+    "autoOff": "Verificarea automată este oprită"
   },
   "errors": {
     "noApiKey": "Acest provider nu folosește cheie API",

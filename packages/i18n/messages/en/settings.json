@@ -6,7 +6,8 @@
     "security": "Security",
     "audit": "Audit log",
     "telegram": "Telegram",
-    "sandbox": "Sandbox"
+    "sandbox": "Sandbox",
+    "updates": "Updates"
   },
   "layout": {
     "title": "Settings",
@@ -20,6 +21,7 @@
     "security": "Security",
     "audit": "Audit log",
     "telegram": "Telegram",
+    "updates": "Updates",
     "sandbox": "Sandbox"
   },
   "secretInput": {
@@ -348,6 +350,7 @@
       "triggerSigningSecretCreated": "Webhook signing secret created",
       "triggerSigningSecretRotated": "Webhook signing secret rotated",
       "triggerSigningSecretDeleted": "Webhook signing secret removed",
+      "updatesChecked": "Checked for updates",
       "webhookReceived": "Webhook received",
       "webhookRefused": "Webhook refused"
     }
@@ -381,6 +384,54 @@
     "step5": "For one topic per project: create a group with Topics (forum) enabled, add the bot as an administrator, set the group ID in <mono>TELEGRAM_NOTIFY_CHAT_ID</mono>, create a topic for each project and save the topic ID (message_thread_id, the last number in the link of a message from the topic) in the project settings.",
     "transcriptionTitle": "Transcription",
     "transcriptionDescription": "Voice messages are transcribed with OpenAI, so they need the OpenAI key."
+  },
+  "updates": {
+    "title": "Updates",
+    "description": "The version running here, what is new and how to update.",
+    "checkNow": "Check now",
+    "result": {
+      "available": "Abotica {version} is available",
+      "upToDate": "You are on the latest release ({version})",
+      "source": "The latest release is {version}",
+      "none": "No release found",
+      "failed": "The check failed"
+    },
+    "status": {
+      "upToDate": "Up to date",
+      "available": "Update available",
+      "source": "Running from source",
+      "failed": "Check failed",
+      "unchecked": "Not checked yet"
+    },
+    "versionTitle": "Version",
+    "versionDescription": "This instance and the newest release on GitHub.",
+    "running": "Running here",
+    "fromSource": "Source",
+    "latest": "Latest release",
+    "unknown": "Unknown",
+    "published": "Published <time></time>",
+    "checked": "Last checked <time></time>",
+    "sourceNote": "This instance runs from source, so there is no installed release to compare. Releases are installed and updated with install.sh or install.ps1.",
+    "notesTitle": "What's new in {version}",
+    "notesDescription": "Release notes from GitHub.",
+    "releasePage": "Release page",
+    "notesEmpty": "This release has no notes.",
+    "howToTitle": "How to update",
+    "howToDescription": "Run the installer again on the machine where Abotica is installed, as the same user.",
+    "platformLabel": "Operating system",
+    "unix": "Linux / macOS",
+    "windows": "Windows",
+    "terminal": "Terminal",
+    "powershell": "PowerShell",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy",
+    "safe": "Settings and data stay. The installer first backs up the database to backups/ in the install folder; rolling back is in <link>DEPLOY.md</link>.",
+    "autoTitle": "Automatic checks",
+    "autoDescription": "Check for new releases every few hours; a notice also goes to Telegram.",
+    "autoNote": "Each check is one request to GitHub's API.",
+    "autoOn": "Automatic checks are on",
+    "autoOff": "Automatic checks are off"
   },
   "errors": {
     "noApiKey": "This provider does not use an API key",

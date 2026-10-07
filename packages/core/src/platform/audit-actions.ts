@@ -85,6 +85,7 @@ export const AUDIT_ACTIONS = [
   "trigger.signing-secret-created",
   "trigger.signing-secret-rotated",
   "trigger.signing-secret-deleted",
+  "updates.checked",
   "webhook.received",
   "webhook.refused",
 ] as const;
