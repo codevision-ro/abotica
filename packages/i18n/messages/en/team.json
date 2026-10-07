@@ -1,0 +1,59 @@
+{
+  "errors": {
+    "agentNotFound": "The agent does not exist.",
+    "templateNotFound": "The agent template does not exist.",
+    "notAssignable": "{name} cannot join a project.",
+    "managerCannotLeave": "{name} manages this project. Choose another manager first.",
+    "noManager": "{project} has no manager yet. Choose one in the project's Team tab.",
+    "agentNotInProject": "{agent} is not on the {project} team."
+  },
+  "manager": "Manager",
+  "managerTitle": "Project manager",
+  "managerDescription": "Answers in the project's conversations and Telegram topic and splits the work among the team.",
+  "changeManager": "Change manager",
+  "chooseManager": "Choose the manager",
+  "noSpecialistsToLead": "Add a specialist to the team first.",
+  "noManagerTitle": "No manager yet",
+  "noManagerDescription": "Conversations in this project start with the manager. Create one from the Project manager template, or choose someone already on the team.",
+  "createManager": "Create manager",
+  "chooseFromTeam": "Choose from team",
+  "specialistsTitle": "Specialists",
+  "specialistsDescription": "Each brings the same profession to every project it works on. What it learns here stays with this project.",
+  "noSpecialists": "No specialists yet. Add an agent you already have or hire one from a template.",
+  "noRole": "No role",
+  "memberActions": "Actions for {name}",
+  "makeManager": "Make manager",
+  "remove": "Remove from team",
+  "removeTitle": "Remove {name} from the team?",
+  "removeDescription": "{name} stops working on this project. What it learned here stays in the project memory, and its other projects are not affected.",
+  "removeConfirm": "Remove",
+  "toasts": {
+    "managerChanged": "{name} now manages the project",
+    "managerCreated": "Manager created",
+    "removed": "{name} left the team"
+  },
+  "activity": {
+    "memories": "{count, plural, one {# memory} other {# memories}}",
+    "journalDays": "{count, plural, one {# journal day} other {# journal days}}",
+    "openTasks": "{count, plural, one {# open task} other {# open tasks}}",
+    "lastActive": "Active <time></time>",
+    "neverActive": "No runs here yet"
+  },
+  "add": {
+    "trigger": "Add to team",
+    "title": "Add to the team",
+    "description": "Bring in agents you already have, or hire a new one from a template.",
+    "existingTab": "Existing agents",
+    "hireTab": "Hire from template",
+    "noCandidates": "Every agent is already on this team. <link>Hire a new one</link> from a template.",
+    "noTemplates": "No templates to hire from.",
+    "nameLabel": "Name",
+    "nameHint": "Optional. Leave it empty to use the template's name.",
+    "addCount": "{count, plural, one {Add # agent} other {Add # agents}}",
+    "addNone": "Add agents",
+    "hireNamed": "Hire {name}",
+    "hireNone": "Hire",
+    "added": "{count, plural, one {# agent joined the team} other {# agents joined the team}}",
+    "hired": "{name} joined the team"
+  }
+}

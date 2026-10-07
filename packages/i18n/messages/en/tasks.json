@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "title": "Tasks",
+    "fallbackTitle": "Task"
+  },
+  "page": {
+    "title": "Tasks",
+    "description": "What the agents have to do and what you have to do.",
+    "noMatches": "No tasks match the filters.",
+    "empty": "No tasks yet. <link>Create the first one</link> and assign it to yourself or an agent.",
+    "back": "Tasks"
+  },
+  "newTask": "New task",
+  "assignee": {
+    "you": "You",
+    "unassigned": "Unassigned",
+    "nobody": "Nobody"
+  },
+  "card": {
+    "activeRun": "Active run",
+    "subtasksDone": "Completed subtasks",
+    "comments": "Comments"
+  },
+  "list": {
+    "columns": {
+      "title": "Title",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "project": "Project",
+      "deadline": "Deadline",
+      "subtasks": "Subtasks"
+    },
+    "subtaskCount": "{done}/{total} subtasks"
+  },
+  "toolbar": {
+    "searchPlaceholder": "Search by title",
+    "searchLabel": "Search tasks by title",
+    "projectFilter": "Filter by project",
+    "allProjects": "All projects",
+    "agentFilter": "Filter by agent",
+    "allAgents": "All agents",
+    "priorityFilter": "Filter by priority",
+    "allPriorities": "All priorities",
+    "reset": "Reset",
+    "viewMode": "View mode",
+    "board": "Board",
+    "list": "List"
+  },
+  "board": {
+    "recentDoneOnly": "Only the last 14 days. Show all",
+    "addToColumn": "Add task to {status}",
+    "dropHere": "Drag a task here",
+    "moveFailed": "Could not move the task: {error}",
+    "quickAddPlaceholder": "Task title, Enter to save",
+    "quickAddLabel": "New task title",
+    "created": "Task created"
+  },
+  "picker": {
+    "search": "Search tasks",
+    "empty": "No open tasks."
+  },
+  "new": {
+    "title": "New task",
+    "description": "Create a task for yourself or for an agent.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "What needs to be done?",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Details, context, acceptance criteria (markdown)",
+    "projectLabel": "Project",
+    "noProject": "No project",
+    "assigneeLabel": "Assignee",
+    "priorityLabel": "Priority",
+    "deadlineLabel": "Deadline",
+    "dependsOnLabel": "Depends on",
+    "dependsOnSelected": "{count, plural, one {# task selected} other {# tasks selected}}",
+    "removeDependency": "Remove dependency",
+    "parentLabel": "Parent",
+    "noParent": "None (top-level task)",
+    "startNow": "Start right away",
+    "submit": "Create task",
+    "created": "Task created",
+    "createdAndStarted": "Task created and started",
+    "runNotStarted": "Task created, but the run did not start: {error}",
+    "startsAfterDependencies": "it starts on its own once these tasks are done: {titles}"
+  },
+  "detail": {
+    "sheetDescription": "Task details",
+    "subtaskOf": "Subtask of: {title}",
+    "openPage": "Open page",
+    "deleteTitle": "Delete this task?",
+    "deleteDescription": "Its subtasks, comments, history and attachments are deleted too. This cannot be undone.",
+    "deleted": "Task deleted",
+    "runNow": "Run now",
+    "runStarted": "Run started",
+    "viewRun": "View run",
+    "runNeedsAgent": "Assign the task to an agent to run it.",
+    "runPendingDeps": "Unfinished dependencies: {titles}",
+    "description": "Description",
+    "noDescription": "No description.",
+    "descriptionPlaceholder": "Description in markdown",
+    "output": "Output",
+    "noOutput": "No output yet.",
+    "outputPlaceholder": "Task result (markdown)",
+    "titleLabel": "Title",
+    "clickToEdit": "Click to edit",
+    "error": "Something went wrong",
+    "details": "Details",
+    "activity": "Activity",
+    "fields": {
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "project": "Project",
+      "deadline": "Deadline",
+      "created": "Created",
+      "completed": "Completed"
+    },
+    "subtasks": {
+      "title": "Subtasks",
+      "progress": "{done} of {total} done",
+      "placeholder": "Subtask title, Enter to save",
+      "label": "Subtask title",
+      "empty": "No subtasks."
+    },
+    "dependencies": {
+      "title": "Dependencies",
+      "remove": "Remove dependency",
+      "empty": "Doesn't depend on other tasks."
+    },
+    "attachments": {
+      "title": "Attachments",
+      "chooseFiles": "Choose files",
+      "upload": "Upload",
+      "uploaded": "{count, plural, one {File uploaded} other {# files uploaded}}",
+      "delete": "Delete {name}",
+      "empty": "No files. Max {max} MB per file.",
+      "uploading": "Uploading {percent}%",
+      "addedByYou": "Added by you",
+      "addedByAgent": "Added by {name}",
+      "addedByAnAgent": "Added by an agent"
+    },
+    "comments": {
+      "placeholder": "Write a comment (Ctrl+Enter to send)",
+      "label": "New comment",
+      "submit": "Comment",
+      "system": "System",
+      "deletedAgent": "Deleted agent"
+    },
+    "history": {
+      "system": "System",
+      "created": "Created the task",
+      "changes": {
+        "title": "Title changed from {from} to {to}",
+        "status": "Status changed from {from} to {to}",
+        "priority": "Priority changed from {from} to {to}",
+        "deadline": "Deadline changed from {from} to {to}",
+        "assignee": "Agent changed from {from} to {to}",
+        "project": "Project changed from {from} to {to}",
+        "assignedToYou": "Assigned to you",
+        "unassignedFromYou": "No longer assigned to you",
+        "description": "Description edited",
+        "output": "Output edited",
+        "unknown": "Other details changed"
+      },
+      "values": {
+        "empty": "empty",
+        "nobody": "nobody",
+        "noProject": "no project"
+      }
+    },
+    "runs": {
+      "title": "Runs",
+      "deletedAgent": "Deleted agent",
+      "empty": "No runs yet."
+    }
+  },
+  "validation": {
+    "titleRequired": "Title is required",
+    "commentEmpty": "The comment is empty"
+  },
+  "errors": {
+    "notFound": "Task not found",
+    "notAssigned": "The task is not assigned to an agent",
+    "pendingDependencies": "Unfinished dependencies: {titles}",
+    "selfDependency": "A task cannot depend on itself",
+    "circularDependency": "Circular dependency",
+    "runNotStarted": "The run did not start",
+    "dependencyNotFound": "A task it depends on does not exist",
+    "alreadyRunning": "The task already has an active run"
+  }
+}

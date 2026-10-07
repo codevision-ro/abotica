@@ -1,0 +1,110 @@
+import { describe, expect, it } from "vitest";
+import { workspaceDescription, type WorkspaceDescriptionInput } from "./workspace-description";
+
+const base: WorkspaceDescriptionInput = {
+  paths: { workspace: "/workspace", bundles: "/opt/abotica/bundles", home: "/workspace/.home" },
+  scope: "conversation",
+  network: { mode: "packages", domains: [] },
+  packages: { python: [], node: [] },
+  skills: [],
+  commandTimeoutSec: 300,
+  repos: [],
+  taskId: null,
+  root: false,
+};
+
+const repo = {
+  name: "site",
+  provider: "github" as const,
+  webUrl: "https://github.com/acme/site",
+  defaultBranch: "main",
+};
+
+describe("workspaceDescription", () => {
+  it("names the paths, the timeout and how to share files", () => {
+    const text = workspaceDescription(base);
+    expect(text).toContain("Working directory: /workspace.");
+    expect(text).toContain("/workspace/inputs");
+    expect(text).toContain("other agents");
+    expect(text).toContain("HOME is /workspace/.home");
+    expect(text).toContain("300 seconds");
+    expect(text).toContain("file_share");
+    expect(text).not.toContain("skills are available");
+    expect(text).not.toContain("/workspace/knowledge");
+  });
+
+  it("describes each network mode in words", () => {
+    const of = (network: WorkspaceDescriptionInput["network"]) => workspaceDescription({ ...base, network });
+    expect(of({ mode: "off", domains: ["ignored.com"] })).toContain("Network: none");
+    expect(of({ mode: "packages", domains: [] })).toContain("only the package registries");
+    expect(of({ mode: "packages", domains: [] })).toContain("HTTP 403");
+    const custom = of({ mode: "custom", domains: ["api.example.com", "*.github.com"] });
+    expect(custom).toContain("api.example.com, *.github.com");
+    expect(custom).toContain("HTTP 403");
+    expect(of({ mode: "full", domains: [] })).toContain("any public internet host");
+  });
+
+  it("lists skills, preinstalled packages and the project scope", () => {
+    const text = workspaceDescription({
+      ...base,
+      scope: "project",
+      skills: ["pdf", "xlsx"],
+      packages: { python: ["pandas==2.2.3"], node: ["sharp"] },
+    });
+    expect(text).toContain("/opt/abotica/bundles/<skill>: pdf, xlsx");
+    expect(text).toContain("pandas==2.2.3");
+    expect(text).toContain("sharp");
+    expect(text).toContain("every conversation of this project");
+    expect(text).toContain("/workspace/knowledge holds the project's knowledge files, read-only");
+  });
+
+  it("explains the database servers and background processes", () => {
+    const text = workspaceDescription(base);
+    expect(text).toContain("`services start mysql`");
+    expect(text).toContain("nohup");
+  });
+
+  it("mentions root commands only to agents that may run them", () => {
+    expect(workspaceDescription(base)).not.toContain("shell_run_root");
+    const text = workspaceDescription({ ...base, root: true });
+    expect(text).toContain("shell_run_root runs a command as root");
+    expect(text).toContain("apt-get install");
+  });
+
+  it("names every registry the packages mode allows", () => {
+    const text = workspaceDescription(base);
+    for (const name of ["PyPI", "npm", "Packagist", "Debian"]) expect(text).toContain(name);
+  });
+
+  it("says nothing about git without repositories", () => {
+    expect(workspaceDescription(base)).not.toContain("repos/");
+  });
+
+  it("lists the repositories and how to push outside a task", () => {
+    const text = workspaceDescription({ ...base, scope: "project", repos: [repo] });
+    expect(text).toContain("repos/site: https://github.com/acme/site (GitHub, default branch main)");
+    expect(text).toContain("Never push to a default branch");
+    expect(text).toContain("repo_open_pr");
+    expect(text).toContain("git switch -c");
+    expect(text).not.toContain("worktree");
+  });
+
+  it("points a task at its worktrees and branch", () => {
+    const taskId = "1a2b3c4d-0000-4000-8000-000000000000";
+    const text = workspaceDescription({
+      ...base,
+      scope: "project",
+      repos: [repo, { ...repo, name: "api", provider: "gitlab", webUrl: "https://gitlab.com/acme/api" }],
+      taskId,
+    });
+    expect(text).toContain(`work/${taskId}/site, work/${taskId}/api`);
+    expect(text).toContain("branch abotica/task-1a2b3c4d");
+    expect(text).toContain("pull (merge) request");
+  });
+
+  it("uses no em or en dashes", () => {
+    const full = { ...base, skills: ["a"], packages: { python: ["x"], node: ["y"] }, repos: [repo], root: true };
+    expect(workspaceDescription(full)).not.toMatch(/[\u2013\u2014]/);
+    expect(workspaceDescription({ ...full, taskId: "1a2b3c4d-0000-4000-8000-000000000000" })).not.toMatch(/[\u2013\u2014]/);
+  });
+});

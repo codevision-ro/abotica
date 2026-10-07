@@ -1,0 +1,53 @@
+{
+  "tagline": "AI agents, projects, tasks and memory, coordinated by a super agent.",
+  "sidebar": {
+    "subtitle": "AI agents",
+    "badgeTooltip": "{title} ({count})",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "security": "Security",
+    "signOut": "Sign out"
+  },
+  "header": {
+    "agentsStopped": "Agents are stopped"
+  },
+  "killSwitch": {
+    "stop": "Stop",
+    "stopAll": "Stop all agents",
+    "resume": "Restart agents",
+    "resumeShort": "Restart",
+    "confirmTitle": "Stop all agents?",
+    "confirmDescription": "Active runs stop right away and queued runs are cancelled. No new run starts until you restart the agents.",
+    "confirm": "Stop everything",
+    "stopped": "All agents have been stopped",
+    "resumed": "Agents can run again"
+  },
+  "commandMenu": {
+    "trigger": "Search...",
+    "title": "Search",
+    "description": "Search for a page or an action",
+    "placeholder": "Where to?",
+    "empty": "Nothing found.",
+    "actions": "Actions",
+    "newTask": "New task",
+    "newProject": "New project",
+    "newAgent": "New agent",
+    "newChat": "New conversation with the super agent",
+    "hintNavigate": "to move",
+    "hintOpen": "to open",
+    "hintClose": "to close"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "It was deleted or the link is no longer valid.",
+    "back": "Back to dashboard"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "description": "This page could not be loaded. Try again, or go back to the dashboard.",
+    "retry": "Try again",
+    "reference": "Reference: {digest}"
+  }
+}

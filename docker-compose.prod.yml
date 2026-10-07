@@ -1,0 +1,261 @@
+# Abotica on one machine, from the published images. install.sh downloads this file as
+# docker-compose.yml next to its .env; by hand: put both in a folder and run `docker compose up -d`
+# there (DEPLOY.md). ABOTICA_VERSION in .env picks the release.
+# Optional services: COMPOSE_PROFILES in .env, comma separated: https (Caddy in front of the app,
+# for ABOTICA_DOMAIN), ollama (local embeddings).
+name: abotica-prod
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgres://abotica:${POSTGRES_PASSWORD:-abotica}@postgres:5432/abotica
+  REDIS_URL: redis://redis:6379
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  UPLOADS_DIR: /data/uploads
+
+x-app-env: &app-env
+  env_file: .env
+  environment: *app-environment
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: abotica
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-abotica}
+      POSTGRES_DB: abotica
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U abotica"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      retries: 20
+
+  # The web app and the worker run as uid 1000. Uploads volumes created while they ran as root hold
+  # root-owned files: this hands them over, touching only what is not owned yet, and exits.
+  uploads-owner:
+    image: pgvector/pgvector:pg17
+    restart: "no"
+    network_mode: none
+    volumes:
+      - uploads:/data/uploads
+    entrypoint:
+      - sh
+      - -c
+      - find /data/uploads \( ! -user 1000 -o ! -group 1000 \) -exec chown -h 1000:1000 {} +
+
+  migrate:
+    <<: *app-env
+    image: ghcr.io/codevision-ro/abotica-migrate:${ABOTICA_VERSION:-latest}
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    <<: *app-env
+    image: ghcr.io/codevision-ro/abotica-web:${ABOTICA_VERSION:-latest}
+    # For a reverse proxy on this machine (the caddy service, or your own); published ports bypass
+    # the host firewall, so this one is never reachable from outside.
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    volumes:
+      - uploads:/data/uploads
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      uploads-owner: { condition: service_completed_successfully }
+
+  worker:
+    <<: *app-env
+    image: ghcr.io/codevision-ro/abotica-worker:${ABOTICA_VERSION:-latest}
+    environment:
+      <<: *app-environment
+      # Sandbox containers are managed through docker-proxy, never the raw socket.
+      SANDBOX_DOCKER_HOST: tcp://docker-proxy:2375
+      SANDBOX_DOCKER_NETWORK: abotica-sandbox
+      SANDBOX_IMAGE: abotica-sandbox:latest
+    # Previews, for a reverse proxy on this machine (the caddy service, or your own); never published
+    # to the outside.
+    ports:
+      - "127.0.0.1:3100:3100"
+    # default: Postgres, Redis, providers. sandbox: the egress proxy (port 3128) for sandbox containers.
+    # docker-api: the only way to docker-proxy.
+    networks: [default, sandbox, docker-api]
+    # Agents delete tasks, and with them their attachments.
+    volumes:
+      - uploads:/data/uploads
+    # The preview server answers it once the worker is up and reaches Postgres and Redis.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3100/__abotica/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      uploads-owner: { condition: service_completed_successfully }
+      docker-proxy: { condition: service_started }
+      sandbox-image: { condition: service_completed_successfully }
+
+  # Access to the Docker socket is root on the host, so the worker gets a filtered view of the
+  # Engine API instead: containers, exec, images (inspect), networks, volumes and info. Build,
+  # swarm, secrets, plugins, auth and the rest stay closed (Dockerfile target `docker-proxy`). Only
+  # the worker can reach it. The filter is by endpoint, not by request body: whoever controls the
+  # worker can still create a privileged container, so this limits mistakes and exposure, not a
+  # compromised worker.
+  docker-proxy:
+    image: ghcr.io/codevision-ro/abotica-docker-proxy:${ABOTICA_VERSION:-latest}
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-api]
+
+  # Builds the image of the sandbox containers on top of the published base and exits; the worker
+  # starts after it. Same steps as the Dockerfile's `sandbox` target: extra Debian packages
+  # (SANDBOX_APT_PACKAGES="pkg1 pkg2" in .env), then Chrome for Testing, downloaded here from
+  # Google rather than shipped in the published image.
+  sandbox-image:
+    build:
+      dockerfile_inline: |
+        FROM ghcr.io/codevision-ro/abotica-sandbox-base:${ABOTICA_VERSION:-latest}
+        ARG SANDBOX_APT_PACKAGES=""
+        USER root
+        RUN if [ -n "$$SANDBOX_APT_PACKAGES" ]; then \
+            apt-get update && apt-get install -y --no-install-recommends $$SANDBOX_APT_PACKAGES \
+            && rm -rf /var/lib/apt/lists/*; \
+          fi \
+          && HOME=/root /opt/scrapling/bin/python -m playwright install --no-shell chromium \
+          && rm -rf /tmp/* /root/.cache
+        USER sandbox
+      args:
+        SANDBOX_APT_PACKAGES: ${SANDBOX_APT_PACKAGES:-}
+    image: abotica-sandbox:latest
+    pull_policy: build
+    command: ["true"]
+    network_mode: none
+    restart: "no"
+
+  # HTTPS for ABOTICA_DOMAIN and its previews (profile https). Caddy obtains the certificates
+  # itself and needs ports 80 and 443. Previews (PREVIEW_URL=https://preview.<domain>) need a
+  # wildcard DNS record *.preview.<domain>; each gets its certificate on its first visit, only for
+  # previews that exist (Caddy asks the worker first).
+  caddy:
+    profiles: [https]
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web: { condition: service_started }
+      worker: { condition: service_started }
+
+  # Local embeddings: set OLLAMA_BASE_URL=http://ollama:11434 and EMBEDDING_PROVIDER=ollama,
+  # then pull the model once: docker compose -f docker-compose.prod.yml exec ollama ollama pull nomic-embed-text
+  ollama:
+    profiles: [ollama]
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  # Daily backup into ./backups, 14 days kept: pg_dump of the database (memory, journals and
+  # everything else) and a tar of the uploads volume (the stored files, one per database row).
+  backup:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-abotica}
+    volumes:
+      - ./backups:/backups
+      - uploads:/data/uploads:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          stamp=$$(date +%Y%m%d-%H%M)
+          pg_dump -h postgres -U abotica -Fc abotica > /backups/abotica-$$stamp.dump
+          tar -czf /backups/uploads-$$stamp.tar.gz -C /data uploads
+          find /backups \( -name 'abotica-*.dump' -o -name 'uploads-*.tar.gz' \) -mtime +14 -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres: { condition: service_healthy }
+
+configs:
+  caddyfile:
+    content: |
+      {
+        on_demand_tls {
+          ask http://worker:3100/__abotica/tls
+        }
+      }
+
+      ${ABOTICA_DOMAIN:-localhost} {
+        reverse_proxy web:3000
+      }
+
+      *.preview.${ABOTICA_DOMAIN:-localhost} {
+        tls {
+          on_demand
+        }
+        reverse_proxy worker:3100
+      }
+
+networks:
+  # Sandbox containers live here with the worker and nothing else. Internal: no route out, so all
+  # traffic goes through the worker's egress proxy. No address on the bridge: no path to the host.
+  sandbox:
+    name: abotica-sandbox
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.inhibit_ipv4: "true"
+  docker-api:
+    internal: true
+
+volumes:
+  postgres:
+  redis:
+  uploads:
+  ollama:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,195 @@
+{
+  "meta": {
+    "title": "Memory",
+    "transcriptTitle": "Conversation transcript"
+  },
+  "page": {
+    "title": "Memory",
+    "description": "What agents know long term, by level: global, project and agent.",
+    "tabs": {
+      "pending": "Pending",
+      "conversations": "Conversation history"
+    }
+  },
+  "scopes": {
+    "global": "Global",
+    "project": "Project",
+    "agent": "Agent"
+  },
+  "sources": {
+    "manual": "manual",
+    "agent": "agent",
+    "consolidation": "consolidation"
+  },
+  "search": {
+    "label": "Search memory",
+    "placeholder": "Search all memories",
+    "resultsAria": "Search results",
+    "resultsFor": "Results for \"{query}\"",
+    "semantic": "semantic search",
+    "text": "text search (embeddings unavailable)",
+    "clear": "Clear search",
+    "empty": "No results. Try other words or add the missing memory."
+  },
+  "filters": {
+    "byProject": "Filter by project",
+    "allProjects": "All projects",
+    "byAgent": "Filter by agent",
+    "allAgents": "All agents"
+  },
+  "empty": "No memories here yet. <add>Add a fact</add> or let agents write memory as they work.",
+  "list": {
+    "pending": "pending",
+    "similarity": "{percent}% similar",
+    "deletedProject": "Deleted project",
+    "deletedAgent": "Deleted agent",
+    "allAgents": "All agents",
+    "delete": "Delete memory",
+    "deleteTitle": "Delete memory?",
+    "deleteDescription": "Agents will no longer read it. This cannot be undone.",
+    "deleted": "Memory deleted",
+    "edit": "Edit memory",
+    "content": "Memory content",
+    "updated": "Memory updated",
+    "approved": "Memory approved",
+    "rejected": "Memory rejected",
+    "writtenBy": "Written by {name}",
+    "writtenByYou": "Written by you",
+    "you": "You"
+  },
+  "pending": {
+    "empty": "Nothing to approve. Memories written by agents wait here when <settings>approval is required</settings>.",
+    "selectAll": "Select all",
+    "selected": "{count} selected",
+    "reject": "Reject",
+    "approveSelected": "Approve selected",
+    "approveAll": "Approve all",
+    "approved": "Approved: {count}",
+    "rejected": "Rejected and deleted: {count}",
+    "selectMemory": "Select memory",
+    "rejectMemory": "Reject memory",
+    "approveMemory": "Approve memory",
+    "rejectTitle": "{count, plural, one {Reject # memory?} other {Reject # memories?}}",
+    "rejectDescription": "Rejected memories are deleted and agents will not read them. This cannot be undone."
+  },
+  "owned": {
+    "addLabel": "New memory",
+    "added": "Memory added",
+    "pendingNotice": "{count, plural, one {<b>#</b> memory is waiting} other {<b>#</b> memories are waiting}} for your approval before agents can use them.",
+    "agent": {
+      "title": "Agent memory",
+      "description": "Lasting facts the agent remembers between runs.",
+      "placeholder": "A lasting fact the agent should know...",
+      "empty": "No agent memories yet."
+    },
+    "project": {
+      "title": "Project memory",
+      "description": "Facts, preferences and decisions agents get automatically when they work on the project. They take priority over global memories.",
+      "placeholder": "A fact agents need to know in this project, e.g. The client prefers a formal tone.",
+      "empty": "No project memories yet."
+    }
+  },
+  "dialog": {
+    "add": "Add",
+    "createTitle": "New memory",
+    "createDescription": "A durable fact agents read on every run.",
+    "scope": "Level",
+    "scopeHelp": {
+      "global": "Read by all agents, in any project.",
+      "project": "Read by the agents working in the selected project.",
+      "agent": "Read only by the selected agent, in any project."
+    },
+    "project": "Project",
+    "chooseProject": "Choose a project",
+    "noProjects": "No projects",
+    "agent": "Agent",
+    "chooseAgent": "Choose an agent",
+    "content": "Content",
+    "contentPlaceholder": "E.g. The client prefers short reports with the key numbers first.",
+    "created": "Memory saved"
+  },
+  "priority": {
+    "title": "How memory applies",
+    "order": "Priority on conflict, highest first",
+    "description": "The more specific level wins on conflict. At the same level, newer information beats older information.",
+    "levels": {
+      "global": {
+        "name": "Global",
+        "what": "Facts that hold everywhere",
+        "who": "All agents"
+      },
+      "project": {
+        "name": "Project",
+        "what": "Project context and decisions",
+        "who": "The project's agents"
+      },
+      "agent": {
+        "name": "Agent",
+        "what": "What the agent learned, long term",
+        "who": "The agent"
+      },
+      "journal": {
+        "name": "Daily journal",
+        "what": "What the agent did each day",
+        "who": "The agent and the super agent"
+      },
+      "raw": {
+        "name": "Raw history",
+        "what": "Everything, unfiltered (debug and audit)",
+        "who": "Only you, from the UI"
+      }
+    }
+  },
+  "conversations": {
+    "alertTitle": "Conversation history is separate from memory",
+    "alertDescription": "Agents do not read old conversations as memory. They stay here for audit and debugging; what needs to be remembered goes into memory or the daily journal.",
+    "pageLabel": "{total, plural, one {# conversation} other {# conversations}} · page {page} of {pageCount}",
+    "messageCount": "{count, plural, one {# message} other {# messages}}",
+    "empty": "No conversations yet. Conversations from chat, Telegram and internal runs show up here.",
+    "columns": {
+      "conversation": "Conversation",
+      "agent": "Agent",
+      "channel": "Channel",
+      "messages": "Messages",
+      "updated": "Updated"
+    },
+    "channels": {
+      "web": "Web",
+      "telegram": "Telegram",
+      "internal": "Internal"
+    },
+    "back": "Conversation history",
+    "started": "Started {date}",
+    "readOnly": "Read only",
+    "noMessages": "This conversation has no messages"
+  },
+  "transcript": {
+    "roles": {
+      "user": "User",
+      "system": "System"
+    },
+    "reasoning": "Reasoning",
+    "file": "file",
+    "input": "Input",
+    "output": "Output",
+    "error": "Error",
+    "data": "Data"
+  },
+  "pagination": {
+    "aria": "Pagination",
+    "page": "Page {page}",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "validation": {
+    "contentRequired": "Content is required",
+    "chooseProject": "Choose a project",
+    "chooseAgent": "Choose an agent",
+    "contentTooLong": "Content is too long"
+  },
+  "errors": {
+    "blockedAddress": "Could not download the page: {host} is a private or internal address",
+    "credentialsInUrl": "Links with a user name or password are not allowed",
+    "tooManyRedirects": "Could not download the page: too many redirects"
+  }
+}

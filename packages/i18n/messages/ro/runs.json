@@ -1,0 +1,134 @@
+{
+  "meta": {
+    "title": "Rulări",
+    "detailTitle": "Rulare {id}"
+  },
+  "list": {
+    "title": "Rulări",
+    "description": "Fiecare execuție a unui agent, cu pașii, uneltele și costul ei.",
+    "empty": "Nicio rulare încă. Apar când vorbești cu un agent sau pornește un task ori o programare. <link>Deschide chatul</link>",
+    "emptyFiltered": "Nicio rulare pentru filtrele alese. <link>Resetează filtrele</link>",
+    "range": "{from}-{to} din {total}",
+    "previousPage": "Pagina anterioară",
+    "nextPage": "Pagina următoare"
+  },
+  "filters": {
+    "status": "Status",
+    "agent": "Agent",
+    "trigger": "Declanșator",
+    "project": "Proiect",
+    "all": "{label}: toate",
+    "reset": "Resetează"
+  },
+  "table": {
+    "agent": "Agent",
+    "trigger": "Declanșator",
+    "status": "Status",
+    "model": "Model",
+    "steps": "Pași",
+    "tokens": "Tokeni in/out",
+    "cost": "Cost",
+    "duration": "Durată",
+    "started": "Pornită"
+  },
+  "agentChip": {
+    "deleted": "Agent șters"
+  },
+  "json": {
+    "empty": "(gol)"
+  },
+  "actions": {
+    "rerun": "Rulează din nou",
+    "cancelled": "Rularea a fost anulată",
+    "restarted": "Rularea a pornit din nou",
+    "cancel": "Anulează rularea",
+    "cancelTitle": "Anulezi rularea?",
+    "cancelDescription": "Rularea se oprește acum și nu mai continuă. Acțiunea nu poate fi anulată.",
+    "keep": "Păstrează rularea"
+  },
+  "errors": {
+    "notFound": "Rularea nu există",
+    "onlyFailedRerun": "Doar rulările eșuate pot fi reluate",
+    "noConversation": "Rularea nu are o conversație de continuat",
+    "notActive": "Rularea s-a terminat deja",
+    "agentDeleted": "Agentul acestui run a fost șters"
+  },
+  "detail": {
+    "createdAgo": "creată {time}",
+    "stats": {
+      "model": "Model",
+      "steps": "Pași",
+      "tokens": "Tokeni in / out",
+      "cost": "Cost",
+      "duration": "Durată",
+      "started": "Pornită"
+    },
+    "failedTitle": "Rularea a eșuat",
+    "cancelledTitle": "Rulare anulată",
+    "cancelledByUser": "Anulată de utilizator",
+    "input": {
+      "title": "Input",
+      "characters": "{count, plural, one {# caracter} few {# caractere} other {# de caractere}}",
+      "noPrompt": "continuă conversația, fără prompt nou",
+      "fromConversation": "Rularea a pornit din conversația existentă (mesaj din chat sau continuare după o aprobare)."
+    },
+    "output": {
+      "title": "Output",
+      "working": "Agentul încă lucrează.",
+      "none": "Rularea nu a produs un răspuns."
+    },
+    "timeline": {
+      "title": "Cronologie",
+      "emptyActive": "Pașii apar aici pe măsură ce agentul lucrează.",
+      "emptyDone": "Rularea nu a înregistrat pași, fallback-uri sau erori."
+    },
+    "links": {
+      "agent": "Agent",
+      "project": "Proiect",
+      "task": "Task",
+      "conversation": "Conversație",
+      "untitled": "Fără titlu",
+      "parent": "Rulare părinte",
+      "none": "Rularea nu e legată de un task sau o conversație."
+    },
+    "children": "Rulări copil",
+    "approvals": "Aprobări",
+    "approvalDecided": "decisă {time}",
+    "approvalRequested": "cerută {time}",
+    "back": "Rulări",
+    "details": {
+      "title": "Detalii"
+    }
+  },
+  "timeline": {
+    "step": "Pasul {step}",
+    "usage": "{input} in · {output} out · {cost}",
+    "usageCached": "{input} in ({cached} cache) · {output} out · {cost}",
+    "reasoning": "Raționament",
+    "emptyStep": "Pas fără text sau unelte.",
+    "toolNoResult": "fără rezultat",
+    "toolInput": "Input",
+    "toolResult": "Rezultat",
+    "finishReason": {
+      "stop": "terminat",
+      "tool-calls": "apel unelte",
+      "length": "limită tokeni",
+      "content-filter": "filtru conținut",
+      "error": "eroare",
+      "other": "altul"
+    },
+    "eventType": {
+      "fallback": "Fallback de model",
+      "mcp-error": "Eroare server MCP",
+      "error": "Eroare",
+      "sandbox-error": "Eroare sandbox"
+    },
+    "fallbackSwitched": "<code>{from}</code> a eșuat, s-a trecut la <code>{to}</code>",
+    "fallbackExhausted": "<code>{from}</code> a eșuat și nu mai există alt model în lanț"
+  },
+  "lifecycle": {
+    "taskCancelled": "Rularea a fost anulată: {reason}",
+    "unqueued": "Rularea nu a pornit: jobul ei nu mai este în coadă",
+    "overdue": "Rularea și-a depășit limita de timp și a fost oprită"
+  }
+}

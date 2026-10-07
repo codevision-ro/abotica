@@ -1,0 +1,21 @@
+{
+  "unknown": "Something went wrong",
+  "providerNotConfigured": "Provider not connected (connect it in Settings → AI providers)",
+  "noModel": "No model is set: pick one for the agent or set the default model in Settings → AI providers",
+  "conversationBusy": "The agent is still working in this conversation; your message is queued",
+  "allProvidersFailed": "All providers failed:\n{failures}",
+  "noOrchestrator": "There is no active super agent. Run pnpm db:seed.",
+  "run": {
+    "agentDisabled": "Agent {agent} is disabled",
+    "projectBudgetReached": "The monthly budget of project {project} has been reached",
+    "globalBudgetReached": "The global monthly budget ({budget} USD) has been reached",
+    "noAllowedProvider": "None of this agent's AI providers is allowed here: its project, or the projects whose results this conversation holds, restrict the providers",
+    "runBudgetReached": "The per-run budget ({budget} USD) has been reached",
+    "killSwitchActive": "Kill switch active",
+    "stoppedByKillSwitch": "Stopped by the kill switch",
+    "stoppedFromTelegram": "Stopped from Telegram",
+    "cancelled": "Cancelled",
+    "workerRestarted": "The worker restarted during the run",
+    "taskComment": "The run failed: {error}"
+  }
+}

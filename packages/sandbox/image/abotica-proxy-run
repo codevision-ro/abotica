@@ -1,0 +1,139 @@
+#!/usr/bin/env node
+// Runs a command behind a local forwarding proxy. The sandbox egress proxy authenticates each exec
+// with a token sent as the proxy username, and browsers cannot send proxy credentials from a URL.
+// This listens on 127.0.0.1, adds the credentials from HTTPS_PROXY to every request and passes it
+// on. In the arguments, {proxy} becomes the local address (e.g. --proxy-server={proxy}); the child
+// gets the local address as HTTP(S)_PROXY too. Without HTTPS_PROXY the command runs unchanged
+// ({proxy} becomes empty).
+//
+// The local proxy spends this process's egress grant, and every process in the container can reach
+// 127.0.0.1. So it serves only connections opened by our own uid: MCP servers run as their own
+// user, so agent commands in the same workspace do not get through (other MCP servers of the
+// workspace share that user and do).
+//
+//   abotica-proxy-run <command> [args...]
+"use strict";
+const { spawn } = require("node:child_process");
+const { readFileSync } = require("node:fs");
+const http = require("node:http");
+const net = require("node:net");
+const { constants, endianness } = require("node:os");
+
+const [command, ...args] = process.argv.slice(2);
+if (!command) {
+  process.stderr.write("usage: abotica-proxy-run <command> [args...]\n");
+  process.exit(2);
+}
+
+const upstreamUrl = process.env.HTTPS_PROXY || process.env.https_proxy || "";
+
+function run(local) {
+  const env = { ...process.env };
+  if (local) {
+    for (const name of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"])
+      env[name] = local;
+  }
+  const argv = args.map((a) => a.replaceAll("{proxy}", local ?? ""));
+  const child = spawn(command, argv, { env, stdio: "inherit" });
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(signal, () => child.kill(signal));
+  child.on("error", (error) => {
+    process.stderr.write(`abotica-proxy-run: ${error.message}\n`);
+    process.exit(127);
+  });
+  // A child killed by a signal exits like a shell reports it: 128 + the signal number.
+  child.on("exit", (code, signal) => process.exit(code ?? 128 + (constants.signals[signal] ?? 0)));
+}
+
+// An IPv4 endpoint as /proc/net/tcp prints it: the address as a native-endian word, then the port.
+function procEndpoint(address, port) {
+  const bytes = Buffer.from(address.split(".").map(Number));
+  const word = endianness() === "LE" ? bytes.readUInt32LE(0) : bytes.readUInt32BE(0);
+  const hex = (n, width) => n.toString(16).toUpperCase().padStart(width, "0");
+  return `${hex(word, 8)}:${hex(port, 4)}`;
+}
+
+// Whether a connection accepted on 127.0.0.1 comes from a socket owned by our uid: the client's
+// side is the /proc/net/tcp entry whose local end is the peer and whose remote end is us. Unknown
+// counts as foreign.
+function fromOwnUid(socket) {
+  if (!net.isIPv4(socket.remoteAddress ?? "")) return false;
+  const client = procEndpoint(socket.remoteAddress, socket.remotePort);
+  const server = procEndpoint(socket.localAddress, socket.localPort);
+  let table;
+  try {
+    table = readFileSync("/proc/net/tcp", "utf8");
+  } catch {
+    return false;
+  }
+  for (const line of table.split("\n").slice(1)) {
+    // sl local_address rem_address st tx_queue:rx_queue tr:tm->when retrnsmt uid ...
+    const fields = line.trim().split(/\s+/);
+    if (fields[1] === client && fields[2] === server) return Number(fields[7]) === process.getuid();
+  }
+  return false;
+}
+
+if (!upstreamUrl) run(null);
+else {
+  const upstream = new URL(upstreamUrl);
+  const upstreamPort = Number(upstream.port || 80);
+  const auth = upstream.username
+    ? `Basic ${Buffer.from(`${decodeURIComponent(upstream.username)}:${decodeURIComponent(upstream.password)}`).toString("base64")}`
+    : null;
+  // Its own agent: the sandbox sets NODE_USE_ENV_PROXY, which would send the default agent's
+  // requests through HTTP(S)_PROXY again instead of straight to the upstream proxy.
+  const agent = new http.Agent();
+
+  const server = http.createServer((req, res) => {
+    // Plain HTTP: absolute-URI requests, sent on to the upstream proxy as they are.
+    const headers = { ...req.headers };
+    if (auth) headers["proxy-authorization"] = auth;
+    let out;
+    try {
+      out = http.request(
+        { host: upstream.hostname, port: upstreamPort, method: req.method, path: req.url, headers, agent },
+        (up) => {
+          res.writeHead(up.statusCode ?? 502, up.statusMessage, up.headers);
+          up.pipe(res);
+        },
+      );
+    } catch {
+      // A request Node refuses to send (e.g. a malformed target) fails alone, not the whole server.
+      res.writeHead(502);
+      return res.end();
+    }
+    out.on("error", () => {
+      if (!res.headersSent) res.writeHead(502);
+      res.end();
+    });
+    req.pipe(out);
+  });
+
+  // HTTPS and other tunnels: the CONNECT request goes upstream with the credentials, then both sides
+  // are joined byte for byte, the upstream's answer included.
+  server.on("connect", (req, client, head) => {
+    const up = net.connect(upstreamPort, upstream.hostname, () => {
+      const lines = [`CONNECT ${req.url} HTTP/1.1`, `Host: ${req.url}`];
+      if (auth) lines.push(`Proxy-Authorization: ${auth}`);
+      up.write(`${lines.join("\r\n")}\r\n\r\n`);
+      if (head.length) up.write(head);
+      up.pipe(client);
+      client.pipe(up);
+    });
+    const close = () => {
+      up.destroy();
+      client.destroy();
+    };
+    up.on("error", close);
+    client.on("error", close);
+  });
+
+  server.on("connection", (socket) => {
+    if (!fromOwnUid(socket)) socket.destroy();
+  });
+
+  server.listen(0, "127.0.0.1", () => {
+    const { port } = server.address();
+    run(`http://127.0.0.1:${port}`);
+  });
+}

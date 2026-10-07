@@ -1,0 +1,75 @@
+{
+  "title": "Repositories",
+  "intro": "Git repositories the project's agents work on. Each one is cloned in repos/<name> of the project's workspace, where git signs in with its token.",
+  "empty": "No repository yet. Add one and the project's agents can work on its code.",
+  "providers": {
+    "github": "GitHub",
+    "gitlab": "GitLab"
+  },
+  "row": {
+    "defaultBranch": "default branch {branch}",
+    "token": "token ••••{hint}",
+    "checked": "checked"
+  },
+  "protection": {
+    "protected": "{branch} protected",
+    "protectedHint": "{provider} has protection rules on {branch}.",
+    "unprotected": "{branch} not protected",
+    "unprotectedHint": "Nothing on {provider} stops an agent from pushing straight to {branch}. The agents are told to open pull requests, but only a protection rule enforces it.",
+    "unknown": "Protection unknown",
+    "unknownHint": "The token cannot read the protection settings of {branch}.",
+    "fix": "Protect {branch} on {provider}"
+  },
+  "add": {
+    "button": "Add repository",
+    "title": "Add a repository",
+    "description": "Abotica checks with GitHub or GitLab that the token reaches the repository and can push to it.",
+    "urlLabel": "Repository address",
+    "urlPlaceholder": "https://github.com/acme/site",
+    "urlHint": "The address from the browser, or the clone address (HTTPS or SSH).",
+    "providerLabel": "Server",
+    "providerHint": "{host} is a self-hosted server: choose what it runs.",
+    "nameLabel": "Folder in the workspace",
+    "nameHint": "The agents find the clone in repos/{name}.",
+    "tokenLabel": "Access token",
+    "submit": "Check and add",
+    "added": "{name} added. The agents get it on their next run.",
+    "addedUnprotected": "{name} added, but {branch} is not protected on {provider}."
+  },
+  "token": {
+    "githubHint": "A fine-grained token with access to this repository only, and Contents and Pull requests set to Read and write.",
+    "githubCreate": "Create the token on GitHub",
+    "gitlabHint": "A project access token with the Developer role and the api and write_repository scopes. On GitLab.com without Premium, a personal access token with the same scopes.",
+    "gitlabCreate": "Create the token on GitLab",
+    "shared": "Every agent of the project can use the token inside the sandbox. Limit it to this repository."
+  },
+  "recheck": "Check again",
+  "rechecked": "{name} checked",
+  "replaceToken": {
+    "button": "Replace token",
+    "title": "Replace the token of {name}",
+    "description": "The new token is checked before it replaces the current one.",
+    "submit": "Check and replace",
+    "replaced": "Token of {name} replaced"
+  },
+  "delete": {
+    "description": "The agents lose access to {repo}. Its clone stays in the project's workspace, without credentials, until you reset the workspace.",
+    "deleted": "{name} removed"
+  },
+  "validation": {
+    "tokenRequired": "Enter the access token."
+  },
+  "errors": {
+    "invalidUrl": "This is not a repository address. Paste the address from the browser, such as https://github.com/acme/site.",
+    "providerRequired": "Choose whether the server runs GitHub or GitLab.",
+    "invalidName": "The folder name may use lowercase letters, digits, dots, hyphens and underscores, and must start with a letter or digit.",
+    "alreadyAdded": "This repository is already in the project.",
+    "nameTaken": "Another repository of the project already uses the folder {name}.",
+    "tokenRejected": "The token was rejected. Check that you copied all of it and that it has not expired.",
+    "notFound": "The token cannot see {repo}. Check the address and that the token has access to this repository.",
+    "noPushAccess": "The token can read the repository but not push to it.",
+    "checkFailed": "The check failed: {detail}",
+    "unreachable": "{host} cannot be reached. Try again in a moment.",
+    "repoNotFound": "The repository no longer exists."
+  }
+}

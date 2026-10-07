@@ -1,0 +1,59 @@
+{
+  "errors": {
+    "agentNotFound": "Agentul nu există.",
+    "templateNotFound": "Șablonul de agent nu există.",
+    "notAssignable": "{name} nu poate face parte dintr-un proiect.",
+    "managerCannotLeave": "{name} conduce acest proiect. Alege mai întâi alt manager.",
+    "noManager": "{project} nu are încă manager. Alege unul în tabul Echipă al proiectului.",
+    "agentNotInProject": "{agent} nu face parte din echipa {project}."
+  },
+  "manager": "Manager",
+  "managerTitle": "Manager de proiect",
+  "managerDescription": "Răspunde în conversațiile proiectului și în topicul Telegram și împarte munca în echipă.",
+  "changeManager": "Schimbă managerul",
+  "chooseManager": "Alege managerul",
+  "noSpecialistsToLead": "Adaugă mai întâi un specialist în echipă.",
+  "noManagerTitle": "Niciun manager încă",
+  "noManagerDescription": "Conversațiile din acest proiect încep cu managerul. Creează unul din șablonul Manager de proiect sau alege pe cineva care e deja în echipă.",
+  "createManager": "Creează manager",
+  "chooseFromTeam": "Alege din echipă",
+  "specialistsTitle": "Specialiști",
+  "specialistsDescription": "Fiecare aduce aceeași profesie în toate proiectele la care lucrează. Ce învață aici rămâne la acest proiect.",
+  "noSpecialists": "Niciun specialist încă. Adaugă un agent pe care îl ai deja sau angajează unul dintr-un șablon.",
+  "noRole": "Fără rol",
+  "memberActions": "Acțiuni pentru {name}",
+  "makeManager": "Fă-l manager",
+  "remove": "Scoate din echipă",
+  "removeTitle": "Scoți {name} din echipă?",
+  "removeDescription": "{name} nu mai lucrează la acest proiect. Ce a învățat aici rămâne în memoria proiectului, iar celelalte proiecte ale lui nu sunt afectate.",
+  "removeConfirm": "Scoate",
+  "toasts": {
+    "managerChanged": "{name} conduce acum proiectul",
+    "managerCreated": "Manager creat",
+    "removed": "{name} a ieșit din echipă"
+  },
+  "activity": {
+    "memories": "{count, plural, one {# amintire} few {# amintiri} other {# de amintiri}}",
+    "journalDays": "{count, plural, one {# zi de jurnal} few {# zile de jurnal} other {# de zile de jurnal}}",
+    "openTasks": "{count, plural, one {# task deschis} few {# task-uri deschise} other {# de task-uri deschise}}",
+    "lastActive": "Activ <time></time>",
+    "neverActive": "Nicio rulare aici încă"
+  },
+  "add": {
+    "trigger": "Adaugă în echipă",
+    "title": "Adaugă în echipă",
+    "description": "Adu agenți pe care îi ai deja sau angajează unul nou dintr-un șablon.",
+    "existingTab": "Agenți existenți",
+    "hireTab": "Angajează din șablon",
+    "noCandidates": "Toți agenții sunt deja în această echipă. <link>Angajează unul nou</link> dintr-un șablon.",
+    "noTemplates": "Niciun șablon din care să angajezi.",
+    "nameLabel": "Nume",
+    "nameHint": "Opțional. Lasă gol ca să folosești numele șablonului.",
+    "addCount": "{count, plural, one {Adaugă # agent} few {Adaugă # agenți} other {Adaugă # de agenți}}",
+    "addNone": "Adaugă agenți",
+    "hireNamed": "Angajează {name}",
+    "hireNone": "Angajează",
+    "added": "{count, plural, one {# agent a intrat în echipă} few {# agenți au intrat în echipă} other {# de agenți au intrat în echipă}}",
+    "hired": "{name} a intrat în echipă"
+  }
+}

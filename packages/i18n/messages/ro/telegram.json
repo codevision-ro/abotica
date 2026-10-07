@@ -1,0 +1,54 @@
+{
+  "accessDenied": "Acces interzis. ID-ul tău Telegram: {id}",
+  "start": "Salut! Scrie-mi ce ai nevoie, sau trimite un mesaj vocal. În topicul unui proiect răspunde managerul proiectului.\n\n/status - ce se întâmplă acum\n/tasks - task-uri deschise\n/new - conversație nouă\n/stop - oprește toți agenții\n/resume - dezactivează kill switch-ul",
+  "commands": {
+    "status": "Ce se întâmplă acum",
+    "tasks": "Task-uri deschise",
+    "new": "Conversație nouă",
+    "stop": "Oprește toți agenții",
+    "resume": "Dezactivează kill switch-ul"
+  },
+  "newConversation": "Conversație nouă pornită.",
+  "conversationTitle": "Telegram",
+  "noManager": "{project} nu are încă manager. Alege unul în tabul Echipă al proiectului, apoi scrie din nou aici.",
+  "killSwitchOn": "🛑 Kill switch activ. {count, plural, one {# rulare oprită} few {# rulări oprite} other {# de rulări oprite}}. Agenții nu mai pornesc până la /resume.",
+  "killSwitchOff": "✅ Kill switch dezactivat. Agenții pot rula din nou.",
+  "status": {
+    "title": "*Status*",
+    "noActiveAgents": "• Niciun agent activ",
+    "tasks": "Task-uri: {inProgress} în lucru · {blocked} blocate · {review} în review",
+    "costToday": "Cost azi: {cost}"
+  },
+  "tasks": {
+    "empty": "Nu există task-uri deschise."
+  },
+  "approval": {
+    "approved": "Aprobat",
+    "rejected": "Respins",
+    "alreadyDecided": "Deja decis",
+    "verdictApproved": "✅ Aprobat",
+    "verdictRejected": "❌ Respins"
+  },
+  "voiceNotUnderstood": "Nu am înțeles mesajul vocal.",
+  "voiceNotAllowed": "Mesajele vocale nu sunt disponibile în acest proiect: sunt transcrise de OpenAI, care nu se află printre providerii AI permiși ai proiectului. Trimite mesajul ca text.",
+  "fileTooLarge": "{name} depășește {max} MB, limita pe care Telegram o permite boților la descărcare.",
+  "photoDefaultName": "fotografie",
+  "fileDefaultName": "fisier",
+  "error": "⚠️ Eroare: {message}",
+  "progress": {
+    "skill": "Încarcă un skill...",
+    "toolSearch": "Încarcă unelte...",
+    "tool": "Folosește {tool}...",
+    "mcpTool": "{tool} ({server})..."
+  },
+  "reply": {
+    "failed": "⚠️ {error}",
+    "failedUnknown": "⚠️ Rularea a eșuat",
+    "stopped": "🛑 Oprit",
+    "stoppedReason": "🛑 Oprit: {reason}",
+    "empty": "(fără răspuns)"
+  },
+  "digest": {
+    "restrictedJournals": "Jurnale din proiecte ai căror provideri AI permiși le țin în afara acestui rezumat"
+  }
+}

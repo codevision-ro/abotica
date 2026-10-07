@@ -1,0 +1,194 @@
+{
+  "groups": {
+    "workspace": "Workspace",
+    "memory": "Memorie",
+    "tasks": "Task-uri",
+    "web": "Web",
+    "orchestration": "Orchestrare"
+  },
+  "memory_search": {
+    "label": "Caută în memorie",
+    "description": "Căutare semantică în memoria globală, de proiect și proprie",
+    "running": "Caută în memorie"
+  },
+  "memory_save": {
+    "label": "Salvează în memorie",
+    "description": "Scrie fapte durabile în memorie",
+    "running": "Salvează în memorie"
+  },
+  "memory_update": {
+    "label": "Editează memoria",
+    "description": "Corectează intrări din memoria pe care o poate citi",
+    "running": "Editează memoria"
+  },
+  "memory_delete": {
+    "label": "Șterge din memorie",
+    "description": "Șterge intrări greșite sau depășite din memorie",
+    "running": "Șterge din memorie"
+  },
+  "journal_search": {
+    "label": "Caută în jurnale",
+    "description": "Caută în jurnalele zilnice",
+    "running": "Caută în jurnale"
+  },
+  "knowledge_search": {
+    "label": "Knowledge base",
+    "description": "Caută în documentele proiectelor",
+    "running": "Caută în knowledge base"
+  },
+  "knowledge_add": {
+    "label": "Adaugă în knowledge base",
+    "description": "Salvează documente și pagini web în knowledge base-ul unui proiect",
+    "running": "Adaugă în knowledge base"
+  },
+  "task_list": {
+    "label": "Listează task-uri",
+    "description": "Vede task-urile din proiectele sale",
+    "running": "Listează task-urile"
+  },
+  "task_get": {
+    "label": "Citește task-uri",
+    "description": "Citește un task complet: rezultat, comentarii, sub-task-uri, rulări",
+    "running": "Citește un task"
+  },
+  "task_create": {
+    "label": "Creează task-uri",
+    "description": "Creează task-uri și sub-task-uri",
+    "running": "Creează un task"
+  },
+  "task_update": {
+    "label": "Actualizează task-uri",
+    "description": "Schimbă status, output, prioritate, deadline",
+    "running": "Actualizează un task"
+  },
+  "task_delete": {
+    "label": "Șterge task-uri",
+    "description": "Șterge un task cu sub-task-urile lui, după aprobare",
+    "running": "Șterge un task"
+  },
+  "task_comment": {
+    "label": "Comentează",
+    "description": "Adaugă comentarii pe task-uri",
+    "running": "Adaugă un comentariu"
+  },
+  "web_fetch": {
+    "label": "Citește pagini web",
+    "description": "Descarcă și citește conținutul unui URL",
+    "running": "Citește o pagină web"
+  },
+  "project_list": {
+    "label": "Listează proiecte",
+    "description": "Vede toate proiectele",
+    "running": "Listează proiectele"
+  },
+  "project_create": {
+    "label": "Creează proiecte",
+    "description": "Creează proiecte noi",
+    "running": "Creează un proiect"
+  },
+  "project_update": {
+    "label": "Editează proiecte",
+    "description": "Schimbă detaliile, statusul și agenții unui proiect",
+    "running": "Editează un proiect"
+  },
+  "agent_list": {
+    "label": "Listează agenți",
+    "description": "Vede agenții și rolurile lor",
+    "running": "Listează agenții"
+  },
+  "agent_create": {
+    "label": "Creează agenți",
+    "description": "Creează agenți noi",
+    "running": "Creează un agent"
+  },
+  "agent_update": {
+    "label": "Editează agenți",
+    "description": "Schimbă promptul, rolul sau modelul unui agent",
+    "running": "Editează un agent"
+  },
+  "registry_list": {
+    "label": "Listează skill-uri și MCP",
+    "description": "Vede skill-urile și serverele MCP și unde sunt asignate",
+    "running": "Listează skill-urile și serverele MCP"
+  },
+  "registry_assign": {
+    "label": "Asignează skill-uri și MCP",
+    "description": "Dă și ia skill-uri și servere MCP agenților și proiectelor",
+    "running": "Asignează un skill sau un server MCP"
+  },
+  "delegate_task": {
+    "label": "Deleagă",
+    "description": "Creează un task pentru un agent și îl pornește",
+    "running": "Deleagă un task"
+  },
+  "run_list": {
+    "label": "Vede rulări",
+    "description": "Starea rulărilor recente și costuri",
+    "running": "Verifică rulările"
+  },
+  "run_get": {
+    "label": "Citește rulări",
+    "description": "Citește rezultatul, eroarea și ultimii pași ai unei rulări",
+    "running": "Citește o rulare"
+  },
+  "run_cancel": {
+    "label": "Oprește rulări",
+    "description": "Oprește rulări din coadă, în curs sau în așteptare",
+    "running": "Oprește o rulare"
+  },
+  "schedule_manage": {
+    "label": "Programări",
+    "description": "Creează, listează, modifică și șterge programări",
+    "running": "Gestionează programările"
+  },
+  "trigger_manage": {
+    "label": "Triggere",
+    "description": "Creează, listează, modifică și șterge triggere și webhook-uri",
+    "running": "Gestionează triggerele"
+  },
+  "shell_run": {
+    "label": "Rulează comenzi",
+    "description": "Rulează comenzi shell în workspace-ul din sandbox",
+    "running": "Rulează o comandă"
+  },
+  "shell_run_root": {
+    "label": "Rulează comenzi ca root",
+    "description": "Instalează pachete de sistem ca root în workspace-ul lui",
+    "running": "Rulează ca root"
+  },
+  "file_read": {
+    "label": "Citește fișiere",
+    "description": "Citește fișiere text din workspace",
+    "running": "Citește un fișier"
+  },
+  "file_write": {
+    "label": "Scrie fișiere",
+    "description": "Creează sau suprascrie fișiere în workspace",
+    "running": "Scrie un fișier"
+  },
+  "file_edit": {
+    "label": "Editează fișiere",
+    "description": "Înlocuiește text în fișierele din workspace",
+    "running": "Editează un fișier"
+  },
+  "file_share": {
+    "label": "Trimite fișiere",
+    "description": "Îți trimite fișiere din workspace pentru descărcare",
+    "running": "Trimite un fișier"
+  },
+  "preview_publish": {
+    "label": "Publică preview-uri",
+    "description": "Publică fișiere din workspace (mockup-uri, documente) ca link de preview",
+    "running": "Publică un preview"
+  },
+  "preview_open": {
+    "label": "Deschide preview-uri live",
+    "description": "Dă un link către o aplicație pornită în workspace",
+    "running": "Deschide un preview"
+  },
+  "repo_open_pr": {
+    "label": "Deschide pull request-uri",
+    "description": "Deschide un pull request (GitHub) sau merge request (GitLab) pentru o ramură împinsă de el",
+    "running": "Deschide un pull request"
+  }
+}

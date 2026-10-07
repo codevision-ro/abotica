@@ -1,0 +1,54 @@
+Third-party software bundled with Abotica
+
+Abotica itself is licensed under the GNU Affero General Public License v3.0 (see LICENSE). The
+sandbox image (Dockerfile, target `sandbox`, built as abotica-sandbox:latest) bundles the software
+below, each under its own license. The license files that ship with each package stay in the image,
+at the paths given.
+
+Base image and system packages
+------------------------------
+
+- Debian 13 (trixie) and the Debian packages installed in the image, including the libraries
+  Chromium needs. Licenses: one per package, in /usr/share/doc/<package>/copyright.
+- Node.js 24 (official node:24-trixie-slim image). License: MIT, with the licenses of its
+  bundled dependencies at https://github.com/nodejs/node/blob/main/LICENSE (the official image
+  does not include that file).
+- uv and uvx (Astral), Composer, yq (Mike Farah): copied in as binaries. Licenses: uv is
+  MIT OR Apache-2.0; Composer is MIT; yq is MIT.
+
+Bundled MCP servers
+-------------------
+
+- Playwright MCP (@playwright/mcp 0.0.80, Microsoft), with playwright and playwright-core
+  1.63.0-alpha-2026-08-31. License: Apache-2.0.
+  /usr/local/lib/node_modules/@playwright/mcp/LICENSE and node_modules/playwright*/LICENSE.
+
+- Scrapling 0.4.15 (Karim Shoair), installed with its "ai" extra in /opt/scrapling.
+  License: BSD-3-Clause.
+  /opt/scrapling/lib/python3.13/site-packages/scrapling-0.4.15.dist-info/licenses/LICENSE.
+
+  Its Python dependencies, each with its license in its *.dist-info folder under
+  /opt/scrapling/lib/python3.13/site-packages:
+    Apache-2.0: patchright 1.63.0, playwright 1.63.0 (each with a Node.js driver, LICENSE in
+      <package>/driver), browserforge, apify-fingerprint-datapoints, opentelemetry-api,
+      python-multipart
+    BSD-3-Clause: click, cssselect, httpcore2, httpx2, idna, lxml, msgspec, protego, pycparser,
+      sse-starlette, starlette, uvicorn, w3lib
+    MIT: annotated-types, anyio, attrs, beautifulsoup4, curl_cffi, h11, jsonschema,
+      jsonschema-specifications, markdownify, mcp, mcp-types, pydantic, pydantic-core, pyee,
+      pyjwt, referencing, rpds-py, six, soupsieve, truststore
+    Other: cffi (MIT-0), certifi (MPL-2.0), cryptography (Apache-2.0 OR BSD-3-Clause),
+      greenlet (MIT AND PSF-2.0), orjson (MPL-2.0 AND (Apache-2.0 OR MIT)),
+      tld (MPL-1.1 OR GPL-2.0-only OR LGPL-2.1-or-later), typing-extensions (PSF-2.0),
+      typing-inspection (MIT)
+
+Browser
+-------
+
+- Chrome for Testing 153.0.8010.12 (Playwright chromium revision 1243), downloaded by Playwright
+  into /opt/ms-playwright/chromium-1243. Built from the Chromium open source project
+  (BSD-3-Clause, https://chromium.googlesource.com/chromium/src/+/main/LICENSE); the licenses of
+  its third-party components are listed at chrome://credits in the browser. Its ABOUT file, in the
+  same folder, refers to Google's terms of service at chrome://terms.
+- FFmpeg (Playwright build 1011), used by Playwright for video, in /opt/ms-playwright/ffmpeg-1011.
+  License: LGPL-2.1, COPYING.LGPLv2.1 in that folder.

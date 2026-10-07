@@ -1,0 +1,18 @@
+# Example only. Copy to /etc/systemd/system/, adjust User and WorkingDirectory, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now abotica-web
+[Unit]
+Description=Abotica web
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+User=abotica
+WorkingDirectory=/srv/abotica
+# Listen only locally; Caddy (or another reverse proxy) serves HTTPS in front.
+Environment=HOSTNAME=127.0.0.1 PORT=3000 NODE_ENV=production
+ExecStart=/usr/bin/env pnpm start:web
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

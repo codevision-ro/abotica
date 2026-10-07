@@ -1,0 +1,148 @@
+{
+  "newConversationTitle": "New conversation",
+  "empty": {
+    "title": "Talk to {name}",
+    "description": "Say what you need. The agent can delegate, create tasks and search memory."
+  },
+  "suggestions": {
+    "status": "What's going on in my projects right now?",
+    "plan": "Make me a plan for this week",
+    "blocked": "Which tasks are blocked, and why?"
+  },
+  "thinking": "Thinking...",
+  "message": {
+    "copyReply": "Copy reply",
+    "scrollToBottom": "Scroll to the latest message"
+  },
+  "attachments": {
+    "remove": "Remove file",
+    "fallbackName": "file",
+    "attach": "Attach",
+    "attachFiles": "Attach files",
+    "uploading": "Uploading files: {percent}%"
+  },
+  "queue": {
+    "files": "{count, plural, one {# file} other {# files}}",
+    "queued": "Queued",
+    "remove": "Remove from queue",
+    "summary": "{count} queued, sent after the reply",
+    "enqueue": "Add to queue"
+  },
+  "input": {
+    "placeholder": "Message {name}...",
+    "send": "Send",
+    "stop": "Stop",
+    "uploadFiles": "Upload files",
+    "errors": {
+      "accept": "None of these file types are supported.",
+      "maxFileSize": "Files can be at most {max} MB.",
+      "maxFiles": "Too many files. Some were not added."
+    }
+  },
+  "tool": {
+    "parameters": "Parameters",
+    "result": "Result",
+    "error": "Error",
+    "skillRead": "Load skill",
+    "toolSearch": "Load tools",
+    "states": {
+      "inputStreaming": "Preparing",
+      "inputAvailable": "Running",
+      "approvalRequested": "Awaiting approval",
+      "approvalResponded": "Decided",
+      "outputError": "Error",
+      "outputDenied": "Rejected"
+    }
+  },
+  "approval": {
+    "title": "Approval required",
+    "description": "The agent wants to use <b>{tool}</b>. Check the parameters before you decide.",
+    "descriptionWithServer": "The agent wants to use <b>{tool}</b> ({server}). Check the parameters before you decide.",
+    "approved": "Approved by you",
+    "rejected": "Rejected by you"
+  },
+  "list": {
+    "title": "Conversations",
+    "new": "New",
+    "empty": "No conversations yet.",
+    "delete": "Delete conversation",
+    "deleteTitle": "Delete \"{title}\"?",
+    "deleteDescription": "All messages in this conversation will be deleted. This cannot be undone.",
+    "deleted": "Conversation deleted",
+    "filterLabel": "Filter by project",
+    "filterAll": "All conversations",
+    "filterNoProject": "Outside projects",
+    "emptyFiltered": "No conversations here.",
+    "inProject": "In project {project}"
+  },
+  "errors": {
+    "approvalNotFound": "This approval does not exist",
+    "approvalAlreadyDecided": "This approval has already been decided",
+    "invalidRequest": "Invalid request",
+    "conversationNotFound": "Conversation not found"
+  },
+  "model": {
+    "trigger": "Model for this conversation: {model}",
+    "title": "Model for this conversation",
+    "description": "Applies only here. New conversations start with the agent's model.",
+    "search": "Search models...",
+    "empty": "No model matches.",
+    "agentModel": "Agent's model",
+    "fromSettings": "default from settings",
+    "noAgentModel": "No model set",
+    "agentTag": "Agent",
+    "overridden": "Changed for this conversation",
+    "reasoning": "Reasoning",
+    "context": "{size} context",
+    "price": "{input} / {output} per 1M",
+    "unknownPrice": "unknown price",
+    "reset": "Reset to agent's model",
+    "busyHint": "The agent is answering. The change applies from the next message.",
+    "close": "Close",
+    "effort": {
+      "cacheHint": "Changing the effort mid-conversation resets the prompt cache, so the next reply costs more.",
+      "options": {
+        "default": "Default",
+        "none": "Off",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Max"
+      }
+    },
+    "errors": {
+      "unknownProvider": "Unknown provider",
+      "pickModel": "Pick a model",
+      "providerNotConfigured": "{provider} is not connected"
+    }
+  },
+  "delegation": {
+    "title": "{count, plural, one {Delegated task finished} other {Delegated tasks finished}}",
+    "files": "Files",
+    "withheld": "Not given to the agent: the AI providers allowed in these tasks' projects include none of its models. Review the tasks and decide on them yourself."
+  },
+  "skillTest": {
+    "label": "Skill test: <link>{name}</link>",
+    "hint": "In this conversation the agent has this skill, even if it is not assigned or the skill is off."
+  },
+  "projectBadge": "Project: {project}",
+  "newConversation": {
+    "title": "New conversation",
+    "description": "Choose where the conversation happens and who you talk to.",
+    "projectLabel": "Project",
+    "noProject": "No project",
+    "projectHint": "The agent works with this project's files, memory and knowledge. Only its team is listed.",
+    "noProjectHint": "A global conversation, with any agent, including the super agent.",
+    "agentLabel": "Talk to",
+    "superAgent": "Super agent",
+    "noTeam": "Nobody on this project's team can answer yet. <link>Set up the team</link>",
+    "start": "Start conversation"
+  },
+  "projectEmpty": {
+    "title": "No conversations in {project} yet",
+    "description": "Start one with the project's manager. It works with the project's files, memory and knowledge.",
+    "start": "Chat with the manager"
+  }
+}

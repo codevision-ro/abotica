@@ -1,0 +1,134 @@
+{
+  "meta": {
+    "title": "Runs",
+    "detailTitle": "Run {id}"
+  },
+  "list": {
+    "title": "Runs",
+    "description": "Every agent run, with its steps, tools and cost.",
+    "empty": "No runs yet. They show up when you talk to an agent or a task or schedule starts. <link>Open chat</link>",
+    "emptyFiltered": "No runs match these filters. <link>Reset filters</link>",
+    "range": "{from}-{to} of {total}",
+    "previousPage": "Previous page",
+    "nextPage": "Next page"
+  },
+  "filters": {
+    "status": "Status",
+    "agent": "Agent",
+    "trigger": "Trigger",
+    "project": "Project",
+    "all": "{label}: all",
+    "reset": "Reset"
+  },
+  "table": {
+    "agent": "Agent",
+    "trigger": "Trigger",
+    "status": "Status",
+    "model": "Model",
+    "steps": "Steps",
+    "tokens": "Tokens in/out",
+    "cost": "Cost",
+    "duration": "Duration",
+    "started": "Started"
+  },
+  "agentChip": {
+    "deleted": "Deleted agent"
+  },
+  "json": {
+    "empty": "(empty)"
+  },
+  "actions": {
+    "rerun": "Run again",
+    "cancelled": "Run cancelled",
+    "restarted": "Run started again",
+    "cancel": "Cancel run",
+    "cancelTitle": "Cancel this run?",
+    "cancelDescription": "The run stops now and does not continue. This cannot be undone.",
+    "keep": "Keep run"
+  },
+  "errors": {
+    "notFound": "Run not found",
+    "onlyFailedRerun": "Only failed runs can be run again",
+    "noConversation": "This run has no conversation to continue",
+    "notActive": "This run has already finished",
+    "agentDeleted": "The agent of this run was deleted"
+  },
+  "detail": {
+    "createdAgo": "created {time}",
+    "stats": {
+      "model": "Model",
+      "steps": "Steps",
+      "tokens": "Tokens in / out",
+      "cost": "Cost",
+      "duration": "Duration",
+      "started": "Started"
+    },
+    "failedTitle": "Run failed",
+    "cancelledTitle": "Run cancelled",
+    "cancelledByUser": "Cancelled by user",
+    "input": {
+      "title": "Input",
+      "characters": "{count, plural, one {# character} other {# characters}}",
+      "noPrompt": "continues the conversation, no new prompt",
+      "fromConversation": "The run started from the existing conversation (a chat message or a continuation after an approval)."
+    },
+    "output": {
+      "title": "Output",
+      "working": "The agent is still working.",
+      "none": "The run produced no response."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "emptyActive": "Steps show up here as the agent works.",
+      "emptyDone": "The run recorded no steps, fallbacks or errors."
+    },
+    "links": {
+      "agent": "Agent",
+      "project": "Project",
+      "task": "Task",
+      "conversation": "Conversation",
+      "untitled": "Untitled",
+      "parent": "Parent run",
+      "none": "This run is not linked to a task or conversation."
+    },
+    "children": "Child runs",
+    "approvals": "Approvals",
+    "approvalDecided": "decided {time}",
+    "approvalRequested": "requested {time}",
+    "back": "Runs",
+    "details": {
+      "title": "Details"
+    }
+  },
+  "timeline": {
+    "step": "Step {step}",
+    "usage": "{input} in · {output} out · {cost}",
+    "usageCached": "{input} in ({cached} cache) · {output} out · {cost}",
+    "reasoning": "Reasoning",
+    "emptyStep": "Step with no text or tools.",
+    "toolNoResult": "no result",
+    "toolInput": "Input",
+    "toolResult": "Result",
+    "finishReason": {
+      "stop": "finished",
+      "tool-calls": "tool calls",
+      "length": "token limit",
+      "content-filter": "content filter",
+      "error": "error",
+      "other": "other"
+    },
+    "eventType": {
+      "fallback": "Model fallback",
+      "mcp-error": "MCP server error",
+      "error": "Error",
+      "sandbox-error": "Sandbox error"
+    },
+    "fallbackSwitched": "<code>{from}</code> failed, switched to <code>{to}</code>",
+    "fallbackExhausted": "<code>{from}</code> failed and there is no other model in the chain"
+  },
+  "lifecycle": {
+    "taskCancelled": "The run was cancelled: {reason}",
+    "unqueued": "The run never started: its job is no longer in the queue",
+    "overdue": "The run went past its time limit and was stopped"
+  }
+}

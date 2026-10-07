@@ -1,0 +1,148 @@
+{
+  "newConversationTitle": "Conversație nouă",
+  "empty": {
+    "title": "Vorbește cu {name}",
+    "description": "Scrie ce ai nevoie. Agentul poate delega, crea task-uri și căuta în memorie."
+  },
+  "suggestions": {
+    "status": "Ce se întâmplă acum în proiecte?",
+    "plan": "Fă-mi un plan pentru săptămâna asta",
+    "blocked": "Ce task-uri sunt blocate și de ce?"
+  },
+  "thinking": "Se gândește...",
+  "message": {
+    "copyReply": "Copiază răspunsul",
+    "scrollToBottom": "Mergi la ultimul mesaj"
+  },
+  "attachments": {
+    "remove": "Elimină fișierul",
+    "fallbackName": "fișier",
+    "attach": "Atașează",
+    "attachFiles": "Atașează fișiere",
+    "uploading": "Se încarcă fișierele: {percent}%"
+  },
+  "queue": {
+    "files": "{count, plural, one {# fișier} few {# fișiere} other {# de fișiere}}",
+    "queued": "În coadă",
+    "remove": "Scoate din coadă",
+    "summary": "{count} în coadă, se trimit după răspuns",
+    "enqueue": "Pune în coadă"
+  },
+  "input": {
+    "placeholder": "Scrie-i lui {name}...",
+    "send": "Trimite",
+    "stop": "Oprește",
+    "uploadFiles": "Încarcă fișiere",
+    "errors": {
+      "accept": "Niciunul dintre fișiere nu are un tip acceptat.",
+      "maxFileSize": "Fișierele pot avea cel mult {max} MB.",
+      "maxFiles": "Prea multe fișiere. Unele nu au fost adăugate."
+    }
+  },
+  "tool": {
+    "parameters": "Parametri",
+    "result": "Rezultat",
+    "error": "Eroare",
+    "skillRead": "Încarcă skill",
+    "toolSearch": "Încarcă unelte",
+    "states": {
+      "inputStreaming": "Se pregătește",
+      "inputAvailable": "Rulează",
+      "approvalRequested": "Așteaptă aprobare",
+      "approvalResponded": "Decis",
+      "outputError": "Eroare",
+      "outputDenied": "Respins"
+    }
+  },
+  "approval": {
+    "title": "Aprobare necesară",
+    "description": "Agentul vrea să folosească <b>{tool}</b>. Verifică parametrii înainte să decizi.",
+    "descriptionWithServer": "Agentul vrea să folosească <b>{tool}</b> ({server}). Verifică parametrii înainte să decizi.",
+    "approved": "Aprobat de tine",
+    "rejected": "Respins de tine"
+  },
+  "list": {
+    "title": "Conversații",
+    "new": "Nouă",
+    "empty": "Nicio conversație încă.",
+    "delete": "Șterge conversația",
+    "deleteTitle": "Ștergi \"{title}\"?",
+    "deleteDescription": "Toate mesajele din conversație vor fi șterse. Acțiunea nu poate fi anulată.",
+    "deleted": "Conversație ștearsă",
+    "filterLabel": "Filtrează după proiect",
+    "filterAll": "Toate conversațiile",
+    "filterNoProject": "În afara proiectelor",
+    "emptyFiltered": "Nicio conversație aici.",
+    "inProject": "În proiectul {project}"
+  },
+  "errors": {
+    "approvalNotFound": "Aprobarea nu există",
+    "approvalAlreadyDecided": "Aprobarea a fost deja decisă",
+    "invalidRequest": "Cerere invalidă",
+    "conversationNotFound": "Conversația nu există"
+  },
+  "model": {
+    "trigger": "Modelul pentru această conversație: {model}",
+    "title": "Modelul pentru această conversație",
+    "description": "Se aplică doar aici. Conversațiile noi pornesc cu modelul agentului.",
+    "search": "Caută modele...",
+    "empty": "Niciun model găsit.",
+    "agentModel": "Modelul agentului",
+    "fromSettings": "implicit din setări",
+    "noAgentModel": "Niciun model setat",
+    "agentTag": "Agent",
+    "overridden": "Schimbat pentru această conversație",
+    "reasoning": "Raționament",
+    "context": "{size} context",
+    "price": "{input} / {output} per 1M",
+    "unknownPrice": "preț necunoscut",
+    "reset": "Revino la modelul agentului",
+    "busyHint": "Agentul răspunde acum. Schimbarea se aplică de la următorul mesaj.",
+    "close": "Închide",
+    "effort": {
+      "cacheHint": "Schimbarea efortului în mijlocul conversației resetează cache-ul promptului, așa că următorul răspuns costă mai mult.",
+      "options": {
+        "default": "Implicit",
+        "none": "Oprit",
+        "minimal": "Minim",
+        "low": "Redus",
+        "medium": "Mediu",
+        "high": "Ridicat",
+        "xhigh": "Foarte ridicat",
+        "max": "Maxim"
+      }
+    },
+    "errors": {
+      "unknownProvider": "Provider necunoscut",
+      "pickModel": "Alege un model",
+      "providerNotConfigured": "{provider} nu este conectat"
+    }
+  },
+  "delegation": {
+    "title": "{count, plural, one {Task delegat terminat} other {Task-uri delegate terminate}}",
+    "files": "Fișiere",
+    "withheld": "Nu au fost date agentului: providerii AI permiși în proiectele acestor task-uri nu includ niciunul dintre modelele lui. Verifică task-urile și decide tu asupra lor."
+  },
+  "skillTest": {
+    "label": "Test de skill: <link>{name}</link>",
+    "hint": "În această conversație agentul are skill-ul, chiar dacă nu îi este atribuit sau skill-ul este oprit."
+  },
+  "projectBadge": "Proiect: {project}",
+  "newConversation": {
+    "title": "Conversație nouă",
+    "description": "Alege unde are loc conversația și cu cine vorbești.",
+    "projectLabel": "Proiect",
+    "noProject": "Fără proiect",
+    "projectHint": "Agentul lucrează cu fișierele, memoria și knowledge base-ul acestui proiect. Apare doar echipa lui.",
+    "noProjectHint": "O conversație globală, cu orice agent, inclusiv super agentul.",
+    "agentLabel": "Vorbește cu",
+    "superAgent": "Super agent",
+    "noTeam": "Nimeni din echipa acestui proiect nu poate răspunde încă. <link>Organizează echipa</link>",
+    "start": "Începe conversația"
+  },
+  "projectEmpty": {
+    "title": "Nicio conversație în {project} încă",
+    "description": "Începe una cu managerul proiectului. El lucrează cu fișierele, memoria și knowledge base-ul proiectului.",
+    "start": "Discută cu managerul"
+  }
+}

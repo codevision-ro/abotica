@@ -1,0 +1,118 @@
+#!/bin/bash
+# Database servers of a workspace: MySQL (MariaDB), PostgreSQL and Redis, run as the sandbox user
+# with their data under /workspace/.services and listening on 127.0.0.1 only. The container stops
+# when it is idle and takes the servers with it, so start a server before you use it; starting one
+# that runs already does nothing.
+#
+#   services start <mysql|postgres|redis>   initializes it on first use, starts it, prints how to connect
+#   services stop <mysql|postgres|redis>
+#   services status
+set -euo pipefail
+
+ROOT=/workspace/.services
+NAMES=(mysql postgres redis)
+PG_BIN=$(find /usr/lib/postgresql -maxdepth 2 -type d -name bin | sort -V | tail -n 1)
+
+usage() {
+  echo "usage: services start <mysql|postgres|redis> | services stop <mysql|postgres|redis> | services status" >&2
+  exit 2
+}
+
+connection() {
+  case "$1" in
+    mysql) echo "mysql: 127.0.0.1:3306, user root, no password" ;;
+    postgres) echo "postgres: 127.0.0.1:5432, user postgres, no password" ;;
+    redis) echo "redis: 127.0.0.1:6379" ;;
+  esac
+}
+
+running() {
+  case "$1" in
+    mysql) mariadb-admin --no-defaults --socket="$ROOT/mysql/run/mysqld.sock" --user=root ping >/dev/null 2>&1 ;;
+    postgres) [ -f "$ROOT/postgres/data/PG_VERSION" ] && "$PG_BIN/pg_ctl" -D "$ROOT/postgres/data" status >/dev/null 2>&1 ;;
+    redis) redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1 ;;
+  esac
+}
+
+# Waits up to 30 seconds for a server that was just started.
+await() {
+  for _ in $(seq 60); do
+    running "$1" && return 0
+    sleep 0.5
+  done
+  echo "$1 did not start; its log is in $ROOT/$1" >&2
+  exit 1
+}
+
+start_mysql() {
+  local dir=$ROOT/mysql fresh=
+  mkdir -p "$dir/data" "$dir/run"
+  if [ ! -d "$dir/data/mysql" ]; then
+    mariadb-install-db --no-defaults --datadir="$dir/data" --auth-root-authentication-method=normal \
+      --skip-test-db >"$dir/install.log" 2>&1 || { cat "$dir/install.log" >&2; exit 1; }
+    fresh=1
+  fi
+  # Detached, with no pipe left open: the command that starts it must be able to finish.
+  setsid mariadbd --no-defaults --datadir="$dir/data" --socket="$dir/run/mysqld.sock" \
+    --pid-file="$dir/run/mysqld.pid" --port=3306 --bind-address=127.0.0.1 \
+    --log-error="$dir/error.log" </dev/null >/dev/null 2>&1 &
+  await mysql
+  if [ -n "$fresh" ]; then
+    # root@localhost covers the socket only; apps connect over TCP to 127.0.0.1.
+    mariadb --no-defaults --socket="$dir/run/mysqld.sock" --user=root -e "
+      CREATE USER IF NOT EXISTS 'root'@'127.0.0.1';
+      GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;"
+  fi
+}
+
+start_postgres() {
+  local dir=$ROOT/postgres
+  mkdir -p "$dir/run"
+  if [ ! -f "$dir/data/PG_VERSION" ]; then
+    "$PG_BIN/initdb" -D "$dir/data" -U postgres --auth=trust -E UTF8 --locale=C.UTF-8 \
+      >"$dir/initdb.log" 2>&1 || { cat "$dir/initdb.log" >&2; exit 1; }
+  fi
+  "$PG_BIN/pg_ctl" -D "$dir/data" -l "$dir/server.log" -w -t 30 \
+    -o "-c listen_addresses=127.0.0.1 -c port=5432 -c unix_socket_directories=$dir/run" start </dev/null >/dev/null
+}
+
+start_redis() {
+  local dir=$ROOT/redis
+  mkdir -p "$dir/data" "$dir/run"
+  redis-server --daemonize yes --bind 127.0.0.1 --port 6379 --dir "$dir/data" \
+    --pidfile "$dir/run/redis.pid" --logfile "$dir/redis.log" </dev/null >/dev/null
+  await redis
+}
+
+stop() {
+  case "$1" in
+    mysql) mariadb-admin --no-defaults --socket="$ROOT/mysql/run/mysqld.sock" --user=root shutdown ;;
+    postgres) "$PG_BIN/pg_ctl" -D "$ROOT/postgres/data" -m fast -w stop >/dev/null ;;
+    redis) redis-cli -h 127.0.0.1 -p 6379 shutdown ;;
+  esac
+}
+
+known() {
+  local name
+  for name in "${NAMES[@]}"; do [ "$name" = "${1:-}" ] && return 0; done
+  return 1
+}
+
+case "${1:-}" in
+  start)
+    known "${2:-}" || usage
+    running "$2" || "start_$2"
+    connection "$2"
+    ;;
+  stop)
+    known "${2:-}" || usage
+    if running "$2"; then stop "$2"; fi
+    echo "$2: stopped"
+    ;;
+  status)
+    for name in "${NAMES[@]}"; do
+      if running "$name"; then echo "$(connection "$name") (running)"; else echo "$name: stopped"; fi
+    done
+    ;;
+  *) usage ;;
+esac

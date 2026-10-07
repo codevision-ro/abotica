@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "title": "Task-uri",
+    "fallbackTitle": "Task"
+  },
+  "page": {
+    "title": "Task-uri",
+    "description": "Ce au de făcut agenții și ce ai de făcut tu.",
+    "noMatches": "Niciun task nu corespunde filtrelor.",
+    "empty": "Niciun task încă. <link>Creează primul</link> și asignează-l ție sau unui agent.",
+    "back": "Task-uri"
+  },
+  "newTask": "Task nou",
+  "assignee": {
+    "you": "Tu",
+    "unassigned": "Neasignat",
+    "nobody": "Nimeni"
+  },
+  "card": {
+    "activeRun": "Rulare activă",
+    "subtasksDone": "Sub-task-uri finalizate",
+    "comments": "Comentarii"
+  },
+  "list": {
+    "columns": {
+      "title": "Titlu",
+      "status": "Status",
+      "priority": "Prioritate",
+      "assignee": "Asignat",
+      "project": "Proiect",
+      "deadline": "Deadline",
+      "subtasks": "Sub-task-uri"
+    },
+    "subtaskCount": "{done}/{total} sub-task-uri"
+  },
+  "toolbar": {
+    "searchPlaceholder": "Caută după titlu",
+    "searchLabel": "Caută task-uri după titlu",
+    "projectFilter": "Filtrează după proiect",
+    "allProjects": "Toate proiectele",
+    "agentFilter": "Filtrează după agent",
+    "allAgents": "Toți agenții",
+    "priorityFilter": "Filtrează după prioritate",
+    "allPriorities": "Toate prioritățile",
+    "reset": "Resetează",
+    "viewMode": "Mod de afișare",
+    "board": "Kanban",
+    "list": "Listă"
+  },
+  "board": {
+    "recentDoneOnly": "Doar ultimele 14 zile. Vezi toate",
+    "addToColumn": "Adaugă task în {status}",
+    "dropHere": "Trage un task aici",
+    "moveFailed": "Nu am putut muta task-ul: {error}",
+    "quickAddPlaceholder": "Titlu task, Enter pentru salvare",
+    "quickAddLabel": "Titlu task nou",
+    "created": "Task creat"
+  },
+  "picker": {
+    "search": "Caută task",
+    "empty": "Niciun task deschis."
+  },
+  "new": {
+    "title": "Task nou",
+    "description": "Creează un task pentru tine sau pentru un agent.",
+    "titleLabel": "Titlu",
+    "titlePlaceholder": "Ce trebuie făcut?",
+    "descriptionLabel": "Descriere",
+    "descriptionPlaceholder": "Detalii, context, criterii de acceptare (markdown)",
+    "projectLabel": "Proiect",
+    "noProject": "Fără proiect",
+    "assigneeLabel": "Asignat",
+    "priorityLabel": "Prioritate",
+    "deadlineLabel": "Deadline",
+    "dependsOnLabel": "Depinde de",
+    "dependsOnSelected": "{count, plural, one {# task selectat} few {# task-uri selectate} other {# de task-uri selectate}}",
+    "removeDependency": "Elimină dependența",
+    "parentLabel": "Părinte",
+    "noParent": "Niciunul (task principal)",
+    "startNow": "Pornește imediat",
+    "submit": "Creează task",
+    "created": "Task creat",
+    "createdAndStarted": "Task creat și pornit",
+    "runNotStarted": "Task creat, dar rularea nu a pornit: {error}",
+    "startsAfterDependencies": "pornește singur după ce se termină aceste task-uri: {titles}"
+  },
+  "detail": {
+    "sheetDescription": "Detaliile task-ului",
+    "subtaskOf": "Sub-task al: {title}",
+    "openPage": "Deschide pagina",
+    "deleteTitle": "Ștergi task-ul?",
+    "deleteDescription": "Se șterg și sub-task-urile, comentariile, istoricul și atașamentele. Acțiunea nu poate fi anulată.",
+    "deleted": "Task șters",
+    "runNow": "Rulează acum",
+    "runStarted": "Rulare pornită",
+    "viewRun": "Vezi rularea",
+    "runNeedsAgent": "Asignează task-ul unui agent ca să-l poți rula.",
+    "runPendingDeps": "Dependențe nefinalizate: {titles}",
+    "description": "Descriere",
+    "noDescription": "Fără descriere.",
+    "descriptionPlaceholder": "Descriere în markdown",
+    "output": "Output",
+    "noOutput": "Încă nu există output.",
+    "outputPlaceholder": "Rezultatul task-ului (markdown)",
+    "titleLabel": "Titlu",
+    "clickToEdit": "Click pentru editare",
+    "error": "Eroare",
+    "details": "Detalii",
+    "activity": "Activitate",
+    "fields": {
+      "status": "Status",
+      "priority": "Prioritate",
+      "assignee": "Asignat",
+      "project": "Proiect",
+      "deadline": "Deadline",
+      "created": "Creat",
+      "completed": "Finalizat"
+    },
+    "subtasks": {
+      "title": "Sub-task-uri",
+      "progress": "{done} din {total} finalizate",
+      "placeholder": "Titlu sub-task, Enter pentru salvare",
+      "label": "Titlu sub-task",
+      "empty": "Niciun sub-task."
+    },
+    "dependencies": {
+      "title": "Dependențe",
+      "remove": "Elimină dependența",
+      "empty": "Nu depinde de alte task-uri."
+    },
+    "attachments": {
+      "title": "Atașamente",
+      "chooseFiles": "Alege fișiere",
+      "upload": "Încarcă",
+      "uploaded": "{count, plural, one {Fișier încărcat} few {# fișiere încărcate} other {# de fișiere încărcate}}",
+      "delete": "Șterge {name}",
+      "empty": "Niciun fișier. Maxim {max} MB per fișier.",
+      "uploading": "Se încarcă {percent}%",
+      "addedByYou": "Adăugat de tine",
+      "addedByAgent": "Adăugat de {name}",
+      "addedByAnAgent": "Adăugat de un agent"
+    },
+    "comments": {
+      "placeholder": "Scrie un comentariu (Ctrl+Enter pentru trimitere)",
+      "label": "Comentariu nou",
+      "submit": "Comentează",
+      "system": "Sistem",
+      "deletedAgent": "Agent șters"
+    },
+    "history": {
+      "system": "Sistem",
+      "created": "A creat task-ul",
+      "changes": {
+        "title": "Titlu: {from} -> {to}",
+        "status": "Status: {from} -> {to}",
+        "priority": "Prioritate: {from} -> {to}",
+        "deadline": "Deadline: {from} -> {to}",
+        "assignee": "Agent: {from} -> {to}",
+        "project": "Proiect: {from} -> {to}",
+        "assignedToYou": "Asignat ție",
+        "unassignedFromYou": "Nu mai este asignat ție",
+        "description": "Descriere modificată",
+        "output": "Output modificat",
+        "unknown": "Alte detalii modificate"
+      },
+      "values": {
+        "empty": "gol",
+        "nobody": "nimeni",
+        "noProject": "fără proiect"
+      }
+    },
+    "runs": {
+      "title": "Rulări",
+      "deletedAgent": "Agent șters",
+      "empty": "Nicio rulare încă."
+    }
+  },
+  "validation": {
+    "titleRequired": "Titlul este obligatoriu",
+    "commentEmpty": "Comentariul este gol"
+  },
+  "errors": {
+    "notFound": "Task-ul nu există",
+    "notAssigned": "Task-ul nu este asignat unui agent",
+    "pendingDependencies": "Dependențe nefinalizate: {titles}",
+    "selfDependency": "Un task nu poate depinde de el însuși",
+    "circularDependency": "Dependență circulară",
+    "runNotStarted": "Rularea nu a pornit",
+    "dependencyNotFound": "Un task de care depinde nu există",
+    "alreadyRunning": "Task-ul are deja o rulare activă"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "approval": {
+    "title": "🔐 Approval needed",
+    "request": "{agent} wants to use {tool}",
+    "reason": "Reason: {reason}",
+    "approve": "✅ Approve",
+    "reject": "❌ Reject"
+  },
+  "runFailed": {
+    "task": "❌ **{agent}**: task \"{task}\" failed.",
+    "schedule": "❌ **{agent}**: the scheduled run failed.",
+    "run": "❌ **{agent}**: the run failed."
+  },
+  "runSucceeded": {
+    "task": "✅ **{agent}** finished task \"{task}\".",
+    "schedule": "✅ **{agent}** finished the scheduled run.",
+    "run": "✅ **{agent}** finished the run."
+  },
+  "delegationWithheld": {
+    "title": "📋 {count, plural, one {A delegated task finished} other {# delegated tasks finished}}, but {agent} did not get the results: the AI providers allowed in their projects include none of the models {agent} works with. Review the tasks and decide on them yourself:",
+    "task": "- [{title}]({url}): {status}",
+    "ownTaskBlocked": "Blocked: the results of {tasks} were not given to {agent}, because the AI providers allowed in their projects include none of its models. The user decides on those tasks; this task can continue once they have."
+  },
+  "budget": {
+    "global": {
+      "warning": "⚠️ This month's spend is at {threshold}% of the global monthly budget: {spent} of {budget} USD.",
+      "reached": "🛑 The global monthly budget has been reached: {spent} of {budget} USD spent this month. Runs stop until next month or until you raise the budget in Settings → General."
+    },
+    "project": {
+      "warning": "⚠️ Project **{project}** is at {threshold}% of its monthly budget: {spent} of {budget} USD.",
+      "reached": "🛑 Project **{project}** has reached its monthly budget: {spent} of {budget} USD spent this month. Its runs stop until next month or until you raise the budget in the project's settings."
+    }
+  }
+}

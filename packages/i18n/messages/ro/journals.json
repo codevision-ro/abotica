@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "title": "Jurnale"
+  },
+  "page": {
+    "title": "Jurnale",
+    "description": "Rezumatul zilnic al fiecărui agent: ce a făcut, ce a decis, ce a rămas deschis, ce a învățat."
+  },
+  "search": {
+    "label": "Caută în jurnale",
+    "placeholder": "Caută în jurnale (ex: \"ce a făcut marțea trecută\")",
+    "resultsAria": "Rezultate căutare",
+    "resultsFor": "Rezultate pentru \"{query}\"",
+    "empty": "Niciun rezultat. Încearcă alte cuvinte sau scoate filtrul de agent."
+  },
+  "filters": {
+    "byAgent": "Filtrează după agent",
+    "allAgents": "Toți agenții"
+  },
+  "dateRange": {
+    "label": "Interval de date",
+    "from": "De la",
+    "to": "până la",
+    "reset": "Resetează"
+  },
+  "entry": {
+    "consolidated": "consolidat",
+    "deletedAgent": "Agent șters"
+  },
+  "empty": {
+    "none": "Niciun jurnal încă. Jurnalele se generează automat la finalul fiecărei zile, pentru agenții care au lucrat în acea zi.",
+    "filtered": "Niciun jurnal pentru filtrele alese."
+  }
+}

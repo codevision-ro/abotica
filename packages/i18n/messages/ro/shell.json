@@ -1,0 +1,53 @@
+{
+  "tagline": "Agenți AI, proiecte, task-uri și memorie, coordonate de un super agent.",
+  "sidebar": {
+    "subtitle": "Agenți AI",
+    "badgeTooltip": "{title} ({count})",
+    "theme": "Temă",
+    "themeLight": "Luminoasă",
+    "themeDark": "Întunecată",
+    "themeSystem": "Sistem",
+    "security": "Securitate",
+    "signOut": "Ieșire"
+  },
+  "header": {
+    "agentsStopped": "Agenții sunt opriți"
+  },
+  "killSwitch": {
+    "stop": "Stop",
+    "stopAll": "Oprește toți agenții",
+    "resume": "Repornește agenții",
+    "resumeShort": "Repornește",
+    "confirmTitle": "Oprești toți agenții?",
+    "confirmDescription": "Rulările în curs se opresc imediat, iar cele din coadă sunt anulate. Nicio rulare nouă nu pornește până repornești agenții.",
+    "confirm": "Oprește tot",
+    "stopped": "Toți agenții au fost opriți",
+    "resumed": "Agenții pot rula din nou"
+  },
+  "commandMenu": {
+    "trigger": "Caută...",
+    "title": "Căutare",
+    "description": "Caută o pagină sau o acțiune",
+    "placeholder": "Unde mergi?",
+    "empty": "Nimic găsit.",
+    "actions": "Acțiuni",
+    "newTask": "Task nou",
+    "newProject": "Proiect nou",
+    "newAgent": "Agent nou",
+    "newChat": "Conversație nouă cu super agentul",
+    "hintNavigate": "pentru a naviga",
+    "hintOpen": "pentru a deschide",
+    "hintClose": "pentru a închide"
+  },
+  "notFound": {
+    "title": "Nu am găsit pagina",
+    "description": "A fost ștearsă sau link-ul nu mai e valid.",
+    "back": "Înapoi la dashboard"
+  },
+  "error": {
+    "title": "Ceva nu a mers",
+    "description": "Pagina nu a putut fi încărcată. Încearcă din nou sau întoarce-te la dashboard.",
+    "retry": "Încearcă din nou",
+    "reference": "Referință: {digest}"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "title": "Previews",
+  "intro": "Links to what agents made: mockups, documents and apps they started. A private preview opens only for you, a public one for anyone with the link. Each expires on its own.",
+  "empty": "No previews yet. Ask an agent to publish a mockup or a document, or to start an app, and its link shows up here.",
+  "kinds": {
+    "static": "Files",
+    "live": "Live app"
+  },
+  "visibility": {
+    "public": "Public",
+    "private": "Private"
+  },
+  "chat": "Chat",
+  "expires": "expires",
+  "actions": {
+    "open": "Open",
+    "copy": "Copy link",
+    "makePublic": "Make public",
+    "makePrivate": "Make private",
+    "extend": "Extend",
+    "takeDown": "Take down"
+  },
+  "toasts": {
+    "copied": "Link copied",
+    "public": "{title} is public: anyone with the link can open it.",
+    "private": "{title} is private again.",
+    "extended": "{title} was extended.",
+    "takenDown": "{title} was taken down."
+  },
+  "confirmPublic": {
+    "title": "Make {title} public?",
+    "description": "Anyone with the link can open it without signing in, until it expires or you take it down."
+  },
+  "confirmTakeDown": {
+    "title": "Take down {title}?",
+    "description": "The link stops working at once, and a copy of files is deleted. The agent can publish it again."
+  },
+  "page": {
+    "notFound": {
+      "title": "Preview not found",
+      "body": "This link does not exist or has expired."
+    },
+    "notRunning": {
+      "title": "The app is not running",
+      "body": "The app behind this preview has stopped. Ask the agent to start it again."
+    },
+    "denied": {
+      "title": "Access denied",
+      "body": "This access link is no longer valid. Open the preview again from Abotica."
+    }
+  },
+  "errors": {
+    "notFound": "This preview no longer exists or has expired."
+  }
+}

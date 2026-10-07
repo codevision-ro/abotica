@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "title": "Journals"
+  },
+  "page": {
+    "title": "Journals",
+    "description": "Each agent's daily summary: what it did, what it decided, what is still open, what it learned."
+  },
+  "search": {
+    "label": "Search journals",
+    "placeholder": "Search journals (e.g. \"what did it do last Tuesday\")",
+    "resultsAria": "Search results",
+    "resultsFor": "Results for \"{query}\"",
+    "empty": "No results. Try other words or remove the agent filter."
+  },
+  "filters": {
+    "byAgent": "Filter by agent",
+    "allAgents": "All agents"
+  },
+  "dateRange": {
+    "label": "Date range",
+    "from": "From",
+    "to": "to",
+    "reset": "Reset"
+  },
+  "entry": {
+    "consolidated": "consolidated",
+    "deletedAgent": "Deleted agent"
+  },
+  "empty": {
+    "none": "No journals yet. Journals are generated automatically at the end of each day, for the agents that worked that day.",
+    "filtered": "No journals for the selected filters."
+  }
+}

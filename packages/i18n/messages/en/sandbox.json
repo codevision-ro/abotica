@@ -1,0 +1,154 @@
+{
+  "errors": {
+    "invalidPolicy": "This sandbox policy is not valid.",
+    "invalidDomain": "\"{domain}\" is not a host name. Use a form like example.com or *.example.com.",
+    "tooManyDomains": "At most {max} domains.",
+    "invalidPackage": "\"{name}\" is not a valid package name.",
+    "tooManyPackages": "At most {max} packages per language.",
+    "mcpNeedsSandbox": "Stdio MCP servers run in the sandbox, and no sandbox is available. Enable it in Settings > Sandbox, or turn off sandboxing for this server.",
+    "fileTooLarge": "The file is larger than {max} MB.",
+    "mcpTestTimeout": "The MCP server did not answer within {seconds} seconds. Check that the worker is running."
+  },
+  "add": "Add",
+  "remove": "Remove {value}",
+  "network": {
+    "label": "Network access",
+    "description": "What the sandboxed process can reach. Local and private addresses are always blocked.",
+    "modes": {
+      "off": {
+        "title": "Off",
+        "description": "No network. Package installs still reach the registries."
+      },
+      "packages": {
+        "title": "Package registries",
+        "description": "Only the package registries: PyPI, npm, Packagist (with its GitHub downloads) and Debian."
+      },
+      "custom": {
+        "title": "Registries + domains",
+        "description": "Package registries plus the domains you list."
+      },
+      "full": {
+        "title": "Any public host",
+        "description": "The whole internet, without local or private addresses."
+      }
+    },
+    "customSummary": "{count, plural, =0 {Registries only} one {Registries + # domain} other {Registries + # domains}}",
+    "domains": "Allowed domains",
+    "domainsHint": "Paste host names or URLs. *.example.com covers subdomains; add :port for ports other than 80 and 443.",
+    "domainPlaceholder": "api.example.com"
+  },
+  "packages": {
+    "count": "{count, plural, =0 {no packages} one {# package} other {# packages}}",
+    "python": "Python packages",
+    "pythonHint": "Installed with pip before the first command.",
+    "pythonPlaceholder": "pandas or requests==2.32.3",
+    "node": "Node packages",
+    "nodeHint": "Installed with npm before the first command.",
+    "nodePlaceholder": "sharp or zod@4"
+  },
+  "settings": {
+    "title": "Sandbox",
+    "description": "Where agents run commands, install packages and create files.",
+    "status": {
+      "title": "Status",
+      "description": "Checked by the worker at startup and after every save here.",
+      "checkAgain": "Check again",
+      "checkFailed": "Could not ask the worker to check",
+      "checked": "Checked <time></time>",
+      "none": "No status yet: the worker has not checked the sandbox. Start the worker, then check again.",
+      "ready": "Ready",
+      "unavailable": "Not available",
+      "off": "Off",
+      "isolation": {
+        "gvisor": "gVisor: every container gets its own kernel.",
+        "runc": "Standard containers: namespaces, seccomp, no capabilities."
+      },
+      "offHint": "Turned off. Agents get no workspace tools and local MCP servers do not start.",
+      "unavailableHint": "Agents get no workspace tools and local MCP servers do not start until this is fixed.",
+      "fixTitle": "How to fix",
+      "fix": {
+        "dockerUnreachable": "Docker socket proxy not reachable: check that it runs and that SANDBOX_DOCKER_HOST points to it.",
+        "dockerNotConfigured": "The worker is not connected to Docker. Run it with docker compose, which sets SANDBOX_DOCKER_HOST and attaches it to the sandbox network (see DEPLOY.md)."
+      },
+      "details": "Details",
+      "tools": "Tools found",
+      "noTools": "No tools found in the sandbox.",
+      "running": "Docker containers"
+    },
+    "enabled": {
+      "title": "Sandbox",
+      "description": "A Docker container per workspace, where agents run commands and keep their files.",
+      "options": {
+        "on": {
+          "title": "On",
+          "description": "Agents get workspace tools and local MCP servers run."
+        },
+        "off": {
+          "title": "Off",
+          "description": "No workspace tools and no local MCP servers."
+        }
+      }
+    },
+    "defaults": {
+      "title": "Default policy",
+      "description": "For chats without a project and projects that follow the default."
+    },
+    "limits": {
+      "title": "Limits",
+      "description": "How long one command may run.",
+      "commandTimeout": "Command timeout",
+      "commandTimeoutHint": "Seconds, from {min} to {max}.",
+      "seconds": "s"
+    },
+    "docker": {
+      "title": "Containers",
+      "description": "Resources and runtime of each workspace container.",
+      "memory": "Memory",
+      "memoryHint": "MB per container, from {min} to {max}.",
+      "cpus": "CPUs",
+      "cpusHint": "Per container, from {min} to {max}.",
+      "runtime": "Runtime",
+      "runtimes": {
+        "auto": {
+          "title": "Automatic",
+          "description": "gVisor when installed, otherwise runc."
+        },
+        "runc": {
+          "title": "runc",
+          "description": "The standard Docker runtime."
+        },
+        "runsc": {
+          "title": "gVisor",
+          "description": "A separate kernel per container. Needs runsc on the host."
+        }
+      },
+      "gvisorMissing": "gVisor is not installed on this Docker host."
+    },
+    "saved": "Sandbox settings saved. The worker checks them again."
+  },
+  "project": {
+    "title": "Sandbox",
+    "description": "Network access and packages of this project's workspace.",
+    "followDefault": "Use the default",
+    "custom": "Custom policy",
+    "customDescription": "Own network access and packages for this project.",
+    "defaultHint": "Change the default in <link>Settings > Sandbox</link>.",
+    "summaryDefault": "Default · {policy}",
+    "summaryCustom": "Custom · {policy}",
+    "resetTitle": "Reset workspace",
+    "resetDescription": "Deletes the files, installed packages and caches of this project's workspace. The next run starts empty.",
+    "reset": "Reset",
+    "resetConfirmTitle": "Reset the workspace of {name}?",
+    "resetConfirmDescription": "Every file in the workspace is deleted. Files already shared in chats stay downloadable.",
+    "resetConfirm": "Reset workspace",
+    "resetDone": "Workspace reset"
+  },
+  "mcp": {
+    "title": "Sandbox",
+    "description": "Where the server process runs and what it can reach.",
+    "sandboxed": "Run in the sandbox",
+    "sandboxedHint": "Isolated from the worker's files, with the network access set below.",
+    "unsandboxedWarning": "The process runs directly in the worker, with the worker user's files and network. Only for trusted servers that need host state, such as a browser cache.",
+    "outside": "Outside the sandbox"
+  }
+}

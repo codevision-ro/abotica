@@ -1,0 +1,25 @@
+{
+  "name": "@abotica/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./locales": "./src/locales.ts",
+    "./messages/*": "./messages/*"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "check": "tsx scripts/check.ts",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "use-intl": "^4.14.9"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

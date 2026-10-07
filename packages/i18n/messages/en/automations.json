@@ -1,0 +1,188 @@
+{
+  "meta": {
+    "title": "Automations"
+  },
+  "page": {
+    "title": "Automations",
+    "description": "Schedules start agents at set times, triggers start them when something happens.",
+    "tabs": {
+      "schedules": "Schedules",
+      "triggers": "Triggers"
+    }
+  },
+  "fields": {
+    "name": "Name",
+    "agent": "Agent",
+    "projectOptional": "Project (optional)",
+    "prompt": "Prompt",
+    "active": "Active",
+    "chooseAgent": "Choose an agent",
+    "noProject": "No project"
+  },
+  "schedules": {
+    "new": "New schedule",
+    "empty": "No schedules yet. E.g. a report every morning at 9 or a check every hour.",
+    "once": "Once, {date}",
+    "noDate": "No date",
+    "enable": "Enable schedule",
+    "disable": "Disable schedule",
+    "runNow": "Run now",
+    "runStarted": "Run started",
+    "viewRun": "View",
+    "edit": "Edit schedule",
+    "delete": "Delete schedule",
+    "deleteTitle": "Delete schedule?",
+    "deleteDescription": "\"{name}\" will stop running. Past runs stay in the history.",
+    "deleted": "Schedule deleted",
+    "lastRunAgo": "Last run <time></time>",
+    "notRunYet": "Not run yet",
+    "nextRun": "Next <time></time>",
+    "paused": "Paused"
+  },
+  "scheduleDialog": {
+    "createTitle": "New schedule",
+    "editTitle": "Edit schedule",
+    "description": "The agent gets the prompt as a message and runs at the set time.",
+    "namePlaceholder": "E.g. Daily sales report",
+    "kindAria": "Schedule type",
+    "kindCron": "Recurring",
+    "kindOnce": "One time",
+    "cron": "Cron expression",
+    "cronInvalid": "The expression needs 5 fields: minute, hour, day of month, month, day of week.",
+    "runAt": "Date and time",
+    "timezone": "Time zone",
+    "timezoneInvalid": "Invalid IANA time zone (e.g. Europe/Bucharest).",
+    "promptPlaceholder": "E.g. Summarize the tasks finished yesterday and send it to me on Telegram.",
+    "enabled": "Active",
+    "created": "Schedule created",
+    "updated": "Schedule updated",
+    "when": "When",
+    "presets": "Common schedules",
+    "nextRun": "Next run: {date}",
+    "create": "Create schedule"
+  },
+  "cron": {
+    "presets": {
+      "daily9": "Every day at 9",
+      "weekdays9": "Weekdays at 9",
+      "monday9": "Mondays at 9",
+      "hourly": "Every hour"
+    },
+    "everyMinute": "Every minute",
+    "everyNMinutes": "{n, plural, one {Every minute} other {Every # minutes}}",
+    "hourlyOnTheHour": "Every hour on the hour",
+    "hourlyAtMinute": "Every hour at minute {min}",
+    "everyNHours": "{n, plural, one {Every hour at minute {min}} other {Every # hours at minute {min}}}",
+    "daily": "Daily at {time}",
+    "weekdays": "Weekdays at {time}",
+    "weekend": "Weekends at {time}",
+    "everyDay": "Every {day} at {time}",
+    "days": "{days} at {time}",
+    "monthly": "Monthly on day {day} at {time}"
+  },
+  "triggers": {
+    "new": "New trigger",
+    "empty": "No triggers yet. E.g. a webhook from your online store that asks the agent to process every new order.",
+    "enable": "Enable trigger",
+    "disable": "Disable trigger",
+    "url": "Webhook URL",
+    "edit": "Edit trigger",
+    "delete": "Delete trigger",
+    "deleteTitle": "Delete trigger?",
+    "deleteDescriptionWebhook": "\"{name}\" and its webhook URL will stop working.",
+    "deleteDescription": "\"{name}\" will no longer start runs.",
+    "deleted": "Trigger deleted"
+  },
+  "events": {
+    "webhook": "Webhook",
+    "taskCreated": "Task created",
+    "taskDone": "Task done",
+    "emailReceived": "Email received"
+  },
+  "eventHints": {
+    "webhook": "An external system sends a POST request",
+    "taskCreated": "A task is added",
+    "taskDone": "A task is marked done",
+    "emailReceived": "Your email provider forwards each email"
+  },
+  "triggerDialog": {
+    "createTitle": "New trigger",
+    "editTitle": "Edit trigger",
+    "description": "An external or internal event starts an agent run.",
+    "namePlaceholder": "E.g. New store orders",
+    "event": "Event",
+    "webhookHint": "After saving you get a unique webhook URL.",
+    "webhookHintKeep": "After saving you get a unique webhook URL (the existing token is kept).",
+    "promptPlaceholder": "E.g. A new order came in. Check it and create a delivery task.\n\n{payload}",
+    "payloadHelp": {
+      "webhook": "{payload} becomes the POST request body (formatted JSON or text).",
+      "emailReceived": "{payload} becomes what the email provider sends (sender, subject, content).",
+      "taskCreated": "{payload} becomes the JSON of the created task (id, title, status, output).",
+      "taskDone": "{payload} becomes the JSON of the finished task (id, title, status, output)."
+    },
+    "payloadAppended": "If the prompt does not contain {payload}, the data is appended at the end.",
+    "projectFilter": "With a project selected, it only fires for that project's tasks. Without one, it fires for tasks outside projects and for those of projects whose team the agent is on.",
+    "created": "Trigger created",
+    "updated": "Trigger updated",
+    "create": "Create trigger"
+  },
+  "webhook": {
+    "title": "Webhook: {name}",
+    "descriptionEmail": "Set up your email provider (e.g. inbound parse) to POST every received email to this URL.",
+    "description": "Any external system can start the agent by sending a POST to this URL.",
+    "url": "URL",
+    "copyFailed": "Could not copy to clipboard",
+    "urlHint": "The URL contains a secret token: anyone who has it can start runs. The request body (max 1 MB) becomes <code>{payload}</code> in the prompt; valid JSON is formatted automatically.",
+    "urlHintSigned": "The URL contains a secret token, but it is not enough on its own: only requests signed with the signing secret start runs. The request body (max 1 MB) becomes <code>{payload}</code> in the prompt; valid JSON is formatted automatically.",
+    "curlExample": "curl example",
+    "response": "Response: <code>{example}</code>. It returns 401 when a required signature is missing or wrong, 429 after {limit} requests in a minute (wait as long as <code>Retry-After</code> says) and 503 while the kill switch is on.",
+    "regenerate": "Regenerate token",
+    "regenerateTitle": "Regenerate the token?",
+    "regenerateDescription": "The old URL will stop working. You will need to update the systems that use it.",
+    "regenerateConfirm": "Regenerate",
+    "regenerated": "Token regenerated",
+    "signing": {
+      "title": "Request signing",
+      "off": "Optional. With a signing secret, only requests signed with it start runs; the URL alone is no longer enough.",
+      "on": "On. Requests without a valid signature are refused with 401.",
+      "enable": "Require signatures",
+      "enableTitle": "Require signed requests?",
+      "enableDescription": "From now on, requests without a valid signature are refused. The secret is shown only once: add it to the sender right away.",
+      "enableConfirm": "Create secret",
+      "rotate": "Rotate secret",
+      "rotateTitle": "Rotate the signing secret?",
+      "rotateDescription": "The current secret stops working at once. Requests signed with it are refused until the sender uses the new one.",
+      "rotateConfirm": "Rotate",
+      "remove": "Stop requiring",
+      "removeTitle": "Stop requiring signatures?",
+      "removeDescription": "The secret is deleted and the URL alone is enough to start runs again.",
+      "removeConfirm": "Stop requiring",
+      "secret": "Signing secret",
+      "secretOnce": "Copy it now: it is not shown again. If you lose it, rotate it.",
+      "created": "Signing secret created",
+      "rotated": "Signing secret rotated",
+      "removed": "Signatures are no longer required",
+      "standardWebhooks": "<strong>Standard Webhooks</strong>: give the secret as it is to the sender's Standard Webhooks library. It sends <code>webhook-id</code>, <code>webhook-timestamp</code> and <code>webhook-signature</code>; requests older than {minutes} minutes and repeated ids are refused.",
+      "github": "<strong>GitHub</strong>: paste the secret into the webhook's Secret field. GitHub signs each request in <code>X-Hub-Signature-256</code>."
+    },
+    "noToken": "This trigger has no token. Save it with a webhook event.",
+    "done": "Done"
+  },
+  "errors": {
+    "agentNotFound": "The agent does not exist",
+    "templateCannotRun": "A template cannot run automations",
+    "scheduleNotFound": "The schedule does not exist",
+    "triggerNotFound": "The trigger does not exist",
+    "triggerNotWebhook": "The trigger does not use a webhook",
+    "agentNotOnTeam": "The agent is no longer on the project's team, so the automation did not run"
+  },
+  "validation": {
+    "nameRequired": "Name is required",
+    "chooseAgent": "Choose an agent",
+    "invalidDate": "Invalid date",
+    "invalidTimezone": "Invalid time zone",
+    "promptRequired": "Prompt is required",
+    "invalidCron": "Invalid cron expression (5 fields)",
+    "chooseDateTime": "Choose the date and time"
+  }
+}

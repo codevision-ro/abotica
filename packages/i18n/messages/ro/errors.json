@@ -1,0 +1,21 @@
+{
+  "unknown": "Ceva n-a mers",
+  "providerNotConfigured": "Provider neconectat (conectează-l în Setări → Provideri AI)",
+  "noModel": "Nu există niciun model setat: alege unul pentru agent sau setează modelul implicit în Setări → Provideri AI",
+  "conversationBusy": "Agentul încă lucrează în această conversație; mesajul a intrat în coadă",
+  "allProvidersFailed": "Toți providerii au eșuat:\n{failures}",
+  "noOrchestrator": "Nu există niciun super agent activ. Rulează pnpm db:seed.",
+  "run": {
+    "agentDisabled": "Agentul {agent} este dezactivat",
+    "projectBudgetReached": "Bugetul lunar al proiectului {project} a fost atins",
+    "globalBudgetReached": "Bugetul lunar global ({budget} USD) a fost atins",
+    "noAllowedProvider": "Niciun provider AI al acestui agent nu este permis aici: proiectul lui sau proiectele ale căror rezultate le conține conversația restricționează providerii",
+    "runBudgetReached": "Bugetul pe rulare ({budget} USD) a fost atins",
+    "killSwitchActive": "Kill switch activ",
+    "stoppedByKillSwitch": "Oprit din kill switch",
+    "stoppedFromTelegram": "Oprit din Telegram",
+    "cancelled": "Anulat",
+    "workerRestarted": "Worker-ul a fost repornit în timpul rulării",
+    "taskComment": "Rularea a eșuat: {error}"
+  }
+}

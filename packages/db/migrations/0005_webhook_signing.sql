@@ -1,0 +1,1 @@
+ALTER TABLE "triggers" ADD COLUMN "signing_secret" text;

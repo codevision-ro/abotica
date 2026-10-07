@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Versions shared by several packages: reference them as "catalog:".
+catalog:
+  "@types/node": ^24.19.1
+  ai: ^7.0.127
+  bullmq: ^6.3.11
+  tsx: ^4.23.15
+  typescript: ^5.9.3
+  zod: ^4.6.5
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  msgpackr-extract: true
+  "@parcel/watcher": false
+  "@swc/core": false
+  # Optional native addons of dockerode's ssh transport; Abotica talks to Docker over a socket or TCP.
+  cpu-features: false
+  ssh2: false
+  protobufjs: false

@@ -1,0 +1,245 @@
+{
+  "meta": {
+    "title": "Proiecte",
+    "newTitle": "Proiect nou",
+    "settingsTitle": "Setări proiect",
+    "fallbackTitle": "Proiect"
+  },
+  "list": {
+    "title": "Proiecte",
+    "description": "Fiecare proiect are echipa, task-urile, memoria și knowledge base-ul lui.",
+    "newProject": "Proiect nou",
+    "filters": {
+      "active": "Active",
+      "all": "Toate",
+      "archived": "Arhivate"
+    },
+    "empty": {
+      "active": "Niciun proiect activ. <link>Creează un proiect</link> ca să grupezi agenți, task-uri, memorie și documentație în jurul unui obiectiv.",
+      "all": "Niciun proiect încă. <link>Creează un proiect</link> ca să grupezi agenți, task-uri, memorie și documentație în jurul unui obiectiv.",
+      "archived": "Niciun proiect arhivat."
+    }
+  },
+  "status": {
+    "active": "Activ",
+    "paused": "Pauză",
+    "archived": "Arhivat",
+    "menuLabel": "Status proiect",
+    "changed": "Status: {status}",
+    "trigger": "Status"
+  },
+  "badges": {
+    "noAgents": "Niciun agent"
+  },
+  "card": {
+    "goals": "Obiective",
+    "monthSpend": "Cheltuieli luna aceasta",
+    "spendOfBudget": "<b>{spend}</b> din {budget}",
+    "spendNoBudget": "<b>{spend}</b>, fără buget",
+    "openTasks": "<b>{count}</b> deschise",
+    "doneTasks": "<b>{count}</b> gata"
+  },
+  "new": {
+    "title": "Proiect nou",
+    "back": "Proiecte"
+  },
+  "settings": {
+    "title": "Setări proiect",
+    "back": "Înapoi la proiect"
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Prezentare",
+      "tasks": "Task-uri",
+      "memory": "Memorie",
+      "knowledge": "Knowledge base",
+      "repos": "Repository-uri",
+      "previews": "Preview-uri",
+      "secrets": "Credențiale",
+      "team": "Echipă"
+    },
+    "chat": "Discută cu managerul",
+    "back": "Proiecte",
+    "chooseManager": "Alege un manager"
+  },
+  "overview": {
+    "tasks": "Task-uri",
+    "tasksDone": "{count} gata",
+    "monthSpend": "Cheltuieli luna aceasta",
+    "ofBudget": "din {budget}",
+    "noBudget": "fără buget",
+    "runsWeek": "Rulări (7 zile)",
+    "byStatus": "Task-uri pe status",
+    "goals": "Obiective",
+    "noGoals": "Niciun obiectiv încă. <link>Adaugă obiective</link>",
+    "recentRuns": "Rulări recente",
+    "noRuns": "Nicio rulare încă. Discută cu managerul ca să începi.",
+    "noRole": "Fără rol",
+    "config": {
+      "title": "Configurare",
+      "providers": "Provideri",
+      "allProviders": "Toți",
+      "monthlyBudget": "Buget lunar",
+      "unlimited": "Nelimitat",
+      "telegramTopic": "Topic Telegram",
+      "notSet": "Nesetat"
+    },
+    "team": "Echipă",
+    "manageTeam": "Gestionează echipa",
+    "noManager": "Niciun manager încă. <link>Organizează echipa</link>"
+  },
+  "form": {
+    "identityTitle": "Nume și descriere",
+    "nameLabel": "Nume",
+    "namePlaceholder": "Numele proiectului",
+    "descriptionLabel": "Descriere",
+    "descriptionPlaceholder": "Despre ce este proiectul, context util pentru agenți",
+    "untitled": "Proiect fără nume",
+    "noDescription": "Fără descriere încă",
+    "nameMissing": "Adaugă un nume",
+    "goalsTitle": "Obiective",
+    "goalsDescription": "Agenții le primesc în context la fiecare rulare din proiect.",
+    "goalsPlaceholder": "- Creștere vânzări cu 20%\n- Un articol de blog pe săptămână",
+    "goalsMissing": "Nesetate încă",
+    "limitsTitle": "Buget și provideri",
+    "budgetLabel": "Buget lunar (USD)",
+    "budgetPlaceholder": "Nelimitat",
+    "budgetSummary": "{budget} USD/lună",
+    "noBudget": "Fără limită de buget",
+    "providersLabel": "Provideri permiși",
+    "providersHint": "Niciunul selectat înseamnă toți providerii.",
+    "allProviders": "Toți providerii",
+    "telegramTitle": "Telegram",
+    "topicLabel": "Topic id",
+    "topicPlaceholder": "ex: 42",
+    "topicHint": "Un topic dintr-un grup Telegram de tip forum: mesajele din el intră în contextul proiectului, iar notificările proiectului ajung acolo.",
+    "topicSummary": "Topic {topic}",
+    "topicNotSet": "Niciun topic legat",
+    "summaryLabel": "Rezumatul proiectului",
+    "complete": "complet",
+    "incomplete": "incomplet",
+    "invalidBudget": "Buget invalid",
+    "invalidTopic": "Topic id trebuie să fie un număr întreg",
+    "saved": "Proiect salvat",
+    "created": "Proiect creat",
+    "submitCreate": "Creează proiectul",
+    "teamTitle": "Echipă",
+    "teamDescription": "Cine lucrează la proiect.",
+    "managerAuto": "Un manager de proiect este creat automat din șablonul Manager de proiect. El răspunde în conversațiile proiectului, iar rolul îl poți da mai târziu altui membru al echipei.",
+    "teamManagerSummary": "Manager (creat automat)",
+    "specialistsTitle": "Specialiști (opțional)",
+    "specialistsDescription": "Agenții cu care începe echipa. Poți adăuga alții sau angaja unii noi din tabul Echipă al proiectului.",
+    "noSpecialists": "Niciun agent de adăugat încă. Poți angaja specialiști din șabloane în tabul Echipă al proiectului."
+  },
+  "dangerZone": {
+    "title": "Zonă periculoasă",
+    "archiveTitle": "Arhivează proiectul",
+    "archiveDescription": "Proiectul dispare din lista activă, dar datele rămân. Îl poți reactiva oricând.",
+    "archive": "Arhivează",
+    "archived": "Proiect arhivat",
+    "restoreTitle": "Reactivează proiectul",
+    "restoreDescription": "Proiectul revine în lista de proiecte active.",
+    "restore": "Reactivează",
+    "restored": "Proiect reactivat",
+    "deleteTitle": "Șterge proiectul",
+    "deleteDescription": "Șterge definitiv proiectul împreună cu task-urile, memoriile, knowledge base-ul și credențialele lui.",
+    "confirmTitle": "Ștergi proiectul {name}?",
+    "confirmDescription": "Acțiunea nu poate fi anulată. Se șterg și toate task-urile, memoriile, documentele din knowledge base, credențialele, programările și triggerele proiectului. Rulările rămân în istoric, fără legătura cu proiectul.",
+    "confirm": "Șterge definitiv",
+    "deleted": "Proiect șters"
+  },
+  "knowledge": {
+    "intro": "Documente, linkuri și fișiere pe care agenții proiectului le pot căuta. Conținutul este împărțit în fragmente și indexat pentru căutare semantică (fără cheie OpenAI se folosește căutarea text).",
+    "kinds": {
+      "document": "Document",
+      "link": "Link",
+      "file": "Fișier"
+    },
+    "chars": "{count, plural, one {# caracter} few {# caractere} other {# de caractere}}",
+    "charsThousands": "{value}k caractere",
+    "chunks": "{count, plural, one {# fragment} few {# fragmente} other {# de fragmente}}",
+    "reindex": "Reindexează",
+    "reindexed": "Reindexat: {count, plural, one {# fragment} few {# fragmente} other {# de fragmente}}",
+    "deleted": "Element șters",
+    "empty": "Nimic aici încă. Adaugă documentație, pagini web sau fișiere relevante pentru proiect.",
+    "add": {
+      "title": "Adaugă în knowledge base",
+      "description": "Conținutul text este indexat automat, ca agenții să îl poată căuta.",
+      "titleLabel": "Titlu",
+      "titlePlaceholder": "ex: Ghid de brand",
+      "contentLabel": "Conținut",
+      "contentPlaceholder": "Text sau markdown",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://exemplu.ro/pagina",
+      "urlHint": "Pagina este descărcată pe server (max 20s), convertită în text (max 200.000 caractere), iar titlul este preluat din pagină.",
+      "fileLabel": "Fișier",
+      "fileHint": "Orice fișier de până la {max} MB. Fișierele text (.txt, .md, .csv, .json, .html și altele) sunt indexate pentru căutare; celelalte sunt păstrate pentru descărcare.",
+      "fileRequired": "Alege un fișier",
+      "fetchAndAdd": "Descarcă și adaugă",
+      "added": "Adăugat și indexat în {count, plural, one {# fragment} few {# fragmente} other {# de fragmente}}",
+      "storedOnly": "Fișier adăugat. Este păstrat, dar nu poate fi căutat: doar fișierele text sunt indexate.",
+      "uploading": "Se încarcă {percent}%"
+    },
+    "search": {
+      "title": "Testează căutarea",
+      "description": "Vezi ce fragmente ar primi un agent pentru o întrebare.",
+      "label": "Căutare în knowledge base",
+      "placeholder": "ex: care este politica de retur?",
+      "empty": "Niciun fragment găsit."
+    },
+    "deleteDescription": "Agenții nu vor mai găsi acest conținut când caută în knowledge base. Acțiunea nu poate fi anulată.",
+    "title": "Knowledge base",
+    "notSearchable": "păstrat, nu poate fi căutat"
+  },
+  "secrets": {
+    "nameExample": "NUME",
+    "intro": "Chei API și tokenuri folosite doar în acest proiect, criptate în vault. Valorile nu sunt afișate niciodată. Agenții le folosesc în configurația serverelor MCP ca <code>{example}</code>.",
+    "empty": "Nicio credențială de proiect încă. Adaugă chei specifice proiectului, ex: <code>{example}</code>.",
+    "updatedAt": "actualizat {date}",
+    "deleted": "Credențială ștearsă",
+    "deleteDescription": "Configurațiile MCP care folosesc {reference} nu vor mai găsi valoarea în vault.",
+    "editLabel": "Editează {name}",
+    "add": "Adaugă credențială",
+    "editTitle": "Actualizează {name}",
+    "newTitle": "Credențială nouă",
+    "dialogDescription": "Valoarea este criptată și nu mai poate fi văzută după salvare.",
+    "nameLabel": "Nume",
+    "nameHint": "Doar litere mari, cifre și _. Numele este unic în toată platforma, de aceea recomandăm prefixul <code>{prefix}</code>.",
+    "valueLabel": "Valoare",
+    "valueKeepPlaceholder": "Lasă gol ca să păstrezi valoarea actuală",
+    "descriptionLabel": "Descriere",
+    "descriptionPlaceholder": "ex: cheie API Shopify pentru magazin",
+    "saved": "Credențială salvată",
+    "updated": "Credențială actualizată",
+    "title": "Credențiale"
+  },
+  "tasks": {
+    "newTask": "Task nou",
+    "empty": "Niciun task în proiect încă. Creează unul sau cere-i managerului de proiect să planifice munca.",
+    "title": "Task-uri",
+    "description": "Grupate pe status. <link>Deschide kanban-ul</link>"
+  },
+  "validation": {
+    "nameMin": "Numele trebuie să aibă minim 2 caractere",
+    "titleRequired": "Titlul este obligatoriu",
+    "contentEmpty": "Conținutul este gol",
+    "invalidUrl": "URL invalid",
+    "searchRequired": "Scrie o căutare",
+    "secretNameFormat": "Numele poate conține doar litere mari, cifre și _"
+  },
+  "errors": {
+    "notFound": "Proiectul nu există",
+    "memoryNotFound": "Memoria nu există",
+    "httpOnly": "Doar linkuri http sau https",
+    "fetchTimeout": "Nu am putut descărca pagina: timeout după 20s",
+    "fetchFailed": "Nu am putut descărca pagina: {reason}",
+    "httpStatus": "Pagina a răspuns cu {status}",
+    "unsupportedContentType": "Tip de conținut nesuportat: {type}",
+    "unknownContentType": "Tip de conținut nesuportat: necunoscut",
+    "emptyPage": "Pagina nu conține text",
+    "secretNameTaken": "Numele {name} este deja folosit de alt secret. Alege alt nume.",
+    "secretValueRequired": "Valoarea este obligatorie",
+    "secretNotSet": "Secretul {name} nu este setat în vault",
+    "secretOtherProject": "Secretul {name} aparține altui proiect și nu poate fi folosit aici"
+  }
+}

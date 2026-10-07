@@ -1,0 +1,66 @@
+{
+  "greeting": {
+    "night": "Bună seara",
+    "morning": "Bună dimineața",
+    "afternoon": "Bună ziua",
+    "evening": "Bună seara",
+    "withName": "{greeting}, {name}"
+  },
+  "kpi": {
+    "activeAgents": "Agenți activi acum",
+    "activeRuns": "{count, plural, one {# rulare în curs sau în coadă} few {# rulări în curs sau în coadă} other {# de rulări în curs sau în coadă}}",
+    "idle": "Niciun agent nu lucrează acum",
+    "openTasks": "Task-uri deschise",
+    "inProgress": "În lucru",
+    "blocked": "Blocate",
+    "review": "Review",
+    "pendingApprovals": "Aprobări în așteptare",
+    "awaitingDecision": "Agenții așteaptă decizia ta",
+    "nothingToApprove": "Nimic de aprobat",
+    "monthCost": "Cost luna curentă",
+    "lastMonth": "Luna trecută: {amount}",
+    "vsLastMonth": "<highlight>{delta}</highlight> față de luna trecută ({amount})"
+  },
+  "dailyCost": {
+    "title": "Cost pe zile",
+    "description": "Ultimele 30 de zile, pe provideri",
+    "empty": "Niciun cost încă. Graficul se umple după primele rulări cu un provider configurat."
+  },
+  "onboarding": {
+    "title": "Primii pași",
+    "progress": "{done} din {total} gata. Termină configurarea ca agenții să poată lucra.",
+    "done": "Gata",
+    "keys": {
+      "title": "Adaugă chei API",
+      "description": "Cel puțin un provider (Anthropic, OpenAI, DeepSeek sau Kimi) ca agenții să poată rula.",
+      "cta": "Setări"
+    },
+    "telegram": {
+      "title": "Configurează Telegram",
+      "description": "Setează <code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_ALLOWED_USER_IDS</code> și <code>TELEGRAM_NOTIFY_CHAT_ID</code> în fișierul .env, apoi repornește worker-ul."
+    },
+    "agent": {
+      "title": "Creează primul agent",
+      "description": "Un specialist cu rol, model și unelte proprii, pe care super agentul îl poate delega.",
+      "cta": "Agent nou"
+    },
+    "project": {
+      "title": "Creează un proiect",
+      "description": "Grupează task-uri, agenți, memorie și buget sub un singur obiectiv.",
+      "cta": "Proiect nou"
+    }
+  },
+  "pendingApprovals": {
+    "title": "Aprobări în așteptare",
+    "empty": "Totul e decis. Acțiunile sensibile ale agenților așteaptă aici aprobarea ta.",
+    "openRun": "Deschide rularea"
+  },
+  "recentRuns": {
+    "title": "Rulări recente",
+    "empty": "Nicio rulare încă. <link>Scrie-i super agentului</link> și prima rulare apare aici."
+  },
+  "attention": {
+    "title": "Task-uri care cer atenție",
+    "empty": "Nimic blocat sau în așteptarea review-ului tău."
+  }
+}

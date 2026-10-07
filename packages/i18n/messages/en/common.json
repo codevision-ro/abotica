@@ -1,0 +1,75 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "add": "Add",
+    "remove": "Remove",
+    "close": "Close",
+    "back": "Back",
+    "confirm": "Confirm",
+    "retry": "Try again",
+    "copy": "Copy",
+    "copied": "Copied",
+    "search": "Search",
+    "test": "Test",
+    "refresh": "Refresh",
+    "approve": "Approve",
+    "reject": "Reject",
+    "enable": "Enable",
+    "disable": "Disable",
+    "open": "Open",
+    "viewAll": "View all"
+  },
+  "states": {
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "none": "None",
+    "unknown": "Unknown"
+  },
+  "confirmDelete": {
+    "title": "Delete {name}?",
+    "description": "This cannot be undone."
+  },
+  "runStatus": {
+    "queued": "Queued",
+    "running": "Running",
+    "waiting_approval": "Awaiting approval",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "taskStatus": {
+    "backlog": "Backlog",
+    "in_progress": "In progress",
+    "blocked": "Blocked",
+    "review": "Review",
+    "done": "Done"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "trigger": {
+    "chat": "Web chat",
+    "telegram": "Telegram",
+    "task": "Task",
+    "schedule": "Schedule",
+    "webhook": "Webhook",
+    "event": "Event",
+    "delegation": "Delegation",
+    "system": "System"
+  },
+  "language": {
+    "label": "Language",
+    "description": "Interface, Telegram messages and the daily digest.",
+    "auto": "Browser language",
+    "changed": "Language changed"
+  }
+}

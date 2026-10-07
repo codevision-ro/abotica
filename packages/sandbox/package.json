@@ -1,0 +1,25 @@
+{
+  "name": "@abotica/sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./shell": "./src/shell.ts",
+    "./addresses": "./src/egress/addresses.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "ai": "catalog:",
+    "dockerode": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.1",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

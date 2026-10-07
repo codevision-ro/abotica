@@ -1,0 +1,34 @@
+{
+  "approval": {
+    "title": "🔐 Aprobare necesară",
+    "request": "{agent} vrea să folosească {tool}",
+    "reason": "Motiv: {reason}",
+    "approve": "✅ Aprob",
+    "reject": "❌ Resping"
+  },
+  "runFailed": {
+    "task": "❌ **{agent}**: task-ul \"{task}\" a eșuat.",
+    "schedule": "❌ **{agent}**: rularea programată a eșuat.",
+    "run": "❌ **{agent}**: rularea a eșuat."
+  },
+  "runSucceeded": {
+    "task": "✅ **{agent}** a terminat task-ul \"{task}\".",
+    "schedule": "✅ **{agent}** a terminat rularea programată.",
+    "run": "✅ **{agent}** a terminat rularea."
+  },
+  "delegationWithheld": {
+    "title": "📋 {count, plural, one {Un task delegat s-a terminat} few {# task-uri delegate s-au terminat} other {# de task-uri delegate s-au terminat}}, dar {agent} nu a primit rezultatele: providerii AI permiși în proiectele lor nu includ niciunul dintre modelele cu care lucrează {agent}. Verifică task-urile și decide tu asupra lor:",
+    "task": "- [{title}]({url}): {status}",
+    "ownTaskBlocked": "Blocat: rezultatele pentru {tasks} nu au fost date lui {agent}, pentru că providerii AI permiși în proiectele lor nu includ niciunul dintre modelele lui. Utilizatorul decide asupra acelor task-uri; acest task poate continua după aceea."
+  },
+  "budget": {
+    "global": {
+      "warning": "⚠️ Cheltuiala din această lună a ajuns la {threshold}% din bugetul lunar global: {spent} din {budget} USD.",
+      "reached": "🛑 Bugetul lunar global a fost atins: {spent} din {budget} USD cheltuiți luna aceasta. Rulările se opresc până luna viitoare sau până mărești bugetul din Setări → General."
+    },
+    "project": {
+      "warning": "⚠️ Proiectul **{project}** a ajuns la {threshold}% din bugetul lunar: {spent} din {budget} USD.",
+      "reached": "🛑 Proiectul **{project}** și-a atins bugetul lunar: {spent} din {budget} USD cheltuiți luna aceasta. Rulările lui se opresc până luna viitoare sau până mărești bugetul din setările proiectului."
+    }
+  }
+}

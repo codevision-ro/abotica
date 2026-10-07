@@ -1,0 +1,13 @@
+{
+  "download": "Download",
+  "downloadName": "Download {name}",
+  "errors": {
+    "tooLarge": "{name} is larger than {max} MB.",
+    "empty": "{name} is empty.",
+    "noFiles": "No file selected.",
+    "notFound": "The file does not exist.",
+    "notAttachable": "{name} cannot be attached here. Upload it again.",
+    "missingOnDisk": "The file is no longer stored on the server.",
+    "uploadFailed": "The upload failed. Check the connection and try again."
+  }
+}

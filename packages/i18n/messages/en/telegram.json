@@ -1,0 +1,54 @@
+{
+  "accessDenied": "Access denied. Your Telegram ID: {id}",
+  "start": "Hi! Tell me what you need, or send a voice message. In a project's topic, the project's manager answers.\n\n/status - what is happening now\n/tasks - open tasks\n/new - new conversation\n/stop - stop all agents\n/resume - turn off the kill switch",
+  "commands": {
+    "status": "What is happening now",
+    "tasks": "Open tasks",
+    "new": "New conversation",
+    "stop": "Stop all agents",
+    "resume": "Turn off the kill switch"
+  },
+  "newConversation": "New conversation started.",
+  "conversationTitle": "Telegram",
+  "noManager": "{project} has no manager yet. Choose one in the project's Team tab, then write here again.",
+  "killSwitchOn": "🛑 Kill switch active. {count, plural, one {# run stopped} other {# runs stopped}}. Agents will not start until /resume.",
+  "killSwitchOff": "✅ Kill switch off. Agents can run again.",
+  "status": {
+    "title": "*Status*",
+    "noActiveAgents": "• No active agents",
+    "tasks": "Tasks: {inProgress} in progress · {blocked} blocked · {review} in review",
+    "costToday": "Cost today: {cost}"
+  },
+  "tasks": {
+    "empty": "There are no open tasks."
+  },
+  "approval": {
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "alreadyDecided": "Already decided",
+    "verdictApproved": "✅ Approved",
+    "verdictRejected": "❌ Rejected"
+  },
+  "voiceNotUnderstood": "I could not understand the voice message.",
+  "voiceNotAllowed": "Voice messages are not available in this project: they are transcribed by OpenAI, which the project's allowed AI providers do not include. Send your message as text.",
+  "fileTooLarge": "{name} is larger than {max} MB, the most Telegram lets bots download.",
+  "photoDefaultName": "photo",
+  "fileDefaultName": "file",
+  "error": "⚠️ Error: {message}",
+  "progress": {
+    "skill": "Loading a skill...",
+    "toolSearch": "Loading tools...",
+    "tool": "Using {tool}...",
+    "mcpTool": "{tool} ({server})..."
+  },
+  "reply": {
+    "failed": "⚠️ {error}",
+    "failedUnknown": "⚠️ The run failed",
+    "stopped": "🛑 Stopped",
+    "stoppedReason": "🛑 Stopped: {reason}",
+    "empty": "(no reply)"
+  },
+  "digest": {
+    "restrictedJournals": "Journals of projects whose allowed AI providers keep them out of this summary"
+  }
+}

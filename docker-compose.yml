@@ -1,0 +1,75 @@
+# Development: Postgres, Redis and the worker with its sandbox. The web app runs on the host
+# (pnpm dev). Start or update everything with: pnpm infra:up
+# Published ports listen on 127.0.0.1 only: the services are for this machine, not the network.
+name: abotica
+
+include:
+  # docker-proxy, sandbox-image and the sandbox networks, shared with docker-compose.prod.yml.
+  - path: deploy/compose.sandbox.yml
+    project_directory: .
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: abotica
+      POSTGRES_PASSWORD: abotica
+      POSTGRES_DB: abotica
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U abotica"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:63799:6379"
+    volumes:
+      - redis:/data
+
+  # The worker runs here because the sandbox needs it on the sandbox network, where its egress
+  # proxy serves the workspace containers. The source is mounted and reloaded on change.
+  worker:
+    build: { context: ., target: worker-dev }
+    env_file: [{ path: .env, required: false }]
+    environment:
+      DATABASE_URL: postgres://abotica:abotica@postgres:5432/abotica
+      REDIS_URL: redis://redis:6379
+      # Ollama on this machine, if any.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # The web app's uploads folder, shared so both see the same stored files.
+      UPLOADS_DIR: /data/uploads
+      SANDBOX_DOCKER_HOST: tcp://docker-proxy:2375
+      SANDBOX_DOCKER_NETWORK: abotica-sandbox
+      SANDBOX_IMAGE: abotica-sandbox:latest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Previews: http://<code>.preview.localhost:3100 (browsers send *.localhost to this machine).
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./apps/worker/src:/app/apps/worker/src:ro
+      - ./packages/core/src:/app/packages/core/src:ro
+      - ./packages/db/src:/app/packages/db/src:ro
+      - ./packages/i18n/src:/app/packages/i18n/src:ro
+      - ./packages/i18n/messages:/app/packages/i18n/messages:ro
+      - ./packages/sandbox/src:/app/packages/sandbox/src:ro
+      - ./apps/web/.data/uploads:/data/uploads
+    networks: [default, sandbox, docker-api]
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      docker-proxy: { condition: service_started }
+      sandbox-image: { condition: service_completed_successfully }
+
+volumes:
+  postgres:
+  redis:

@@ -1,0 +1,19 @@
+# Example only. Copy to /etc/systemd/system/, adjust User and WorkingDirectory, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now abotica-worker
+[Unit]
+Description=Abotica worker (agent runs, Telegram, schedules)
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+User=abotica
+WorkingDirectory=/srv/abotica
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env pnpm start:worker
+# On stop the worker aborts running agents and marks them; give it time to finish.
+TimeoutStopSec=30
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

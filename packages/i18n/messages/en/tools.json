@@ -1,0 +1,194 @@
+{
+  "groups": {
+    "workspace": "Workspace",
+    "memory": "Memory",
+    "tasks": "Tasks",
+    "web": "Web",
+    "orchestration": "Orchestration"
+  },
+  "memory_search": {
+    "label": "Search memory",
+    "description": "Semantic search in global, project and own memory",
+    "running": "Searching memory"
+  },
+  "memory_save": {
+    "label": "Save to memory",
+    "description": "Writes lasting facts to memory",
+    "running": "Saving to memory"
+  },
+  "memory_update": {
+    "label": "Edit memory",
+    "description": "Corrects memory entries it can read",
+    "running": "Editing memory"
+  },
+  "memory_delete": {
+    "label": "Delete memory",
+    "description": "Removes wrong or outdated memory entries",
+    "running": "Deleting from memory"
+  },
+  "journal_search": {
+    "label": "Search journals",
+    "description": "Searches the daily journals",
+    "running": "Searching journals"
+  },
+  "knowledge_search": {
+    "label": "Knowledge base",
+    "description": "Searches project documents",
+    "running": "Searching the knowledge base"
+  },
+  "knowledge_add": {
+    "label": "Add to knowledge base",
+    "description": "Saves documents and web pages in a project's knowledge base",
+    "running": "Adding to the knowledge base"
+  },
+  "task_list": {
+    "label": "List tasks",
+    "description": "Sees the tasks in its projects",
+    "running": "Listing tasks"
+  },
+  "task_get": {
+    "label": "Read tasks",
+    "description": "Reads a task in full: result, comments, subtasks, runs",
+    "running": "Reading a task"
+  },
+  "task_create": {
+    "label": "Create tasks",
+    "description": "Creates tasks and subtasks",
+    "running": "Creating a task"
+  },
+  "task_update": {
+    "label": "Update tasks",
+    "description": "Changes status, output, priority, deadline",
+    "running": "Updating a task"
+  },
+  "task_delete": {
+    "label": "Delete tasks",
+    "description": "Deletes a task with its subtasks, after approval",
+    "running": "Deleting a task"
+  },
+  "task_comment": {
+    "label": "Comment",
+    "description": "Adds comments to tasks",
+    "running": "Adding a comment"
+  },
+  "web_fetch": {
+    "label": "Read web pages",
+    "description": "Downloads and reads the content of a URL",
+    "running": "Reading a web page"
+  },
+  "project_list": {
+    "label": "List projects",
+    "description": "Sees all projects",
+    "running": "Listing projects"
+  },
+  "project_create": {
+    "label": "Create projects",
+    "description": "Creates new projects",
+    "running": "Creating a project"
+  },
+  "project_update": {
+    "label": "Edit projects",
+    "description": "Changes a project's details, status and agents",
+    "running": "Editing a project"
+  },
+  "agent_list": {
+    "label": "List agents",
+    "description": "Sees the agents and their roles",
+    "running": "Listing agents"
+  },
+  "agent_create": {
+    "label": "Create agents",
+    "description": "Creates new agents",
+    "running": "Creating an agent"
+  },
+  "agent_update": {
+    "label": "Edit agents",
+    "description": "Changes an agent's prompt, role or model",
+    "running": "Editing an agent"
+  },
+  "registry_list": {
+    "label": "List skills and MCP",
+    "description": "Sees the skills and MCP servers and where they are assigned",
+    "running": "Listing skills and MCP servers"
+  },
+  "registry_assign": {
+    "label": "Assign skills and MCP",
+    "description": "Gives and takes skills and MCP servers from agents and projects",
+    "running": "Assigning a skill or MCP server"
+  },
+  "delegate_task": {
+    "label": "Delegate",
+    "description": "Creates a task for an agent and starts it",
+    "running": "Delegating a task"
+  },
+  "run_list": {
+    "label": "View runs",
+    "description": "Status and cost of recent runs",
+    "running": "Checking runs"
+  },
+  "run_get": {
+    "label": "Read runs",
+    "description": "Reads a run's result, error and last steps",
+    "running": "Reading a run"
+  },
+  "run_cancel": {
+    "label": "Stop runs",
+    "description": "Stops queued, running or waiting runs",
+    "running": "Stopping a run"
+  },
+  "schedule_manage": {
+    "label": "Schedules",
+    "description": "Creates, lists, changes and deletes schedules",
+    "running": "Managing schedules"
+  },
+  "trigger_manage": {
+    "label": "Triggers",
+    "description": "Creates, lists, changes and deletes triggers and webhooks",
+    "running": "Managing triggers"
+  },
+  "shell_run": {
+    "label": "Run commands",
+    "description": "Runs shell commands in its sandboxed workspace",
+    "running": "Running a command"
+  },
+  "shell_run_root": {
+    "label": "Run commands as root",
+    "description": "Installs system packages as root in its workspace",
+    "running": "Running as root"
+  },
+  "file_read": {
+    "label": "Read files",
+    "description": "Reads text files from its workspace",
+    "running": "Reading a file"
+  },
+  "file_write": {
+    "label": "Write files",
+    "description": "Creates or overwrites files in its workspace",
+    "running": "Writing a file"
+  },
+  "file_edit": {
+    "label": "Edit files",
+    "description": "Replaces text in files of its workspace",
+    "running": "Editing a file"
+  },
+  "file_share": {
+    "label": "Share files",
+    "description": "Sends you files from its workspace to download",
+    "running": "Sharing a file"
+  },
+  "preview_publish": {
+    "label": "Publish previews",
+    "description": "Publishes files of its workspace (mockups, documents) as a preview link",
+    "running": "Publishing a preview"
+  },
+  "preview_open": {
+    "label": "Open live previews",
+    "description": "Gives a link to an app it started in its workspace",
+    "running": "Opening a preview"
+  },
+  "repo_open_pr": {
+    "label": "Open pull requests",
+    "description": "Opens a pull request (GitHub) or merge request (GitLab) for a branch it pushed",
+    "running": "Opening a pull request"
+  }
+}

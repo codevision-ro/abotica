@@ -1,0 +1,245 @@
+{
+  "meta": {
+    "title": "Projects",
+    "newTitle": "New project",
+    "settingsTitle": "Project settings",
+    "fallbackTitle": "Project"
+  },
+  "list": {
+    "title": "Projects",
+    "description": "Each project has its own team, tasks, memory and knowledge base.",
+    "newProject": "New project",
+    "filters": {
+      "active": "Active",
+      "all": "All",
+      "archived": "Archived"
+    },
+    "empty": {
+      "active": "No active projects. <link>Create a project</link> to group agents, tasks, memory and docs around a goal.",
+      "all": "No projects yet. <link>Create a project</link> to group agents, tasks, memory and docs around a goal.",
+      "archived": "No archived projects."
+    }
+  },
+  "status": {
+    "active": "Active",
+    "paused": "Paused",
+    "archived": "Archived",
+    "menuLabel": "Project status",
+    "changed": "Status: {status}",
+    "trigger": "Status"
+  },
+  "badges": {
+    "noAgents": "No agents"
+  },
+  "card": {
+    "goals": "Goals",
+    "monthSpend": "Spend this month",
+    "spendOfBudget": "<b>{spend}</b> of {budget}",
+    "spendNoBudget": "<b>{spend}</b>, no budget",
+    "openTasks": "<b>{count}</b> open",
+    "doneTasks": "<b>{count}</b> done"
+  },
+  "new": {
+    "title": "New project",
+    "back": "Projects"
+  },
+  "settings": {
+    "title": "Project settings",
+    "back": "Back to project"
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Overview",
+      "tasks": "Tasks",
+      "memory": "Memory",
+      "knowledge": "Knowledge base",
+      "repos": "Repositories",
+      "previews": "Previews",
+      "secrets": "Secrets",
+      "team": "Team"
+    },
+    "chat": "Chat with the manager",
+    "back": "Projects",
+    "chooseManager": "Choose a manager"
+  },
+  "overview": {
+    "tasks": "Tasks",
+    "tasksDone": "{count} done",
+    "monthSpend": "Spend this month",
+    "ofBudget": "of {budget}",
+    "noBudget": "no budget",
+    "runsWeek": "Runs (7 days)",
+    "byStatus": "Tasks by status",
+    "goals": "Goals",
+    "noGoals": "No goals yet. <link>Add goals</link>",
+    "recentRuns": "Recent runs",
+    "noRuns": "No runs yet. Chat with the manager to get started.",
+    "noRole": "No role",
+    "config": {
+      "title": "Configuration",
+      "providers": "Providers",
+      "allProviders": "All",
+      "monthlyBudget": "Monthly budget",
+      "unlimited": "Unlimited",
+      "telegramTopic": "Telegram topic",
+      "notSet": "Not set"
+    },
+    "team": "Team",
+    "manageTeam": "Manage team",
+    "noManager": "No manager yet. <link>Set up the team</link>"
+  },
+  "form": {
+    "identityTitle": "Name and description",
+    "nameLabel": "Name",
+    "namePlaceholder": "Project name",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What the project is about, useful context for agents",
+    "untitled": "Untitled project",
+    "noDescription": "No description yet",
+    "nameMissing": "Add a name",
+    "goalsTitle": "Goals",
+    "goalsDescription": "Agents get them in their context on every run in this project.",
+    "goalsPlaceholder": "- Grow sales by 20%\n- One blog post a week",
+    "goalsMissing": "Not set yet",
+    "limitsTitle": "Budget and providers",
+    "budgetLabel": "Monthly budget (USD)",
+    "budgetPlaceholder": "Unlimited",
+    "budgetSummary": "{budget} USD/month",
+    "noBudget": "No budget limit",
+    "providersLabel": "Allowed providers",
+    "providersHint": "None selected means all providers.",
+    "allProviders": "All providers",
+    "telegramTitle": "Telegram",
+    "topicLabel": "Topic id",
+    "topicPlaceholder": "e.g. 42",
+    "topicHint": "A topic from a Telegram forum group: its messages go into the project context and project notifications are sent there.",
+    "topicSummary": "Topic {topic}",
+    "topicNotSet": "No linked topic",
+    "summaryLabel": "Project summary",
+    "complete": "complete",
+    "incomplete": "incomplete",
+    "invalidBudget": "Invalid budget",
+    "invalidTopic": "Topic id must be a whole number",
+    "saved": "Project saved",
+    "created": "Project created",
+    "submitCreate": "Create project",
+    "teamTitle": "Team",
+    "teamDescription": "Who works on the project.",
+    "managerAuto": "A project manager is created automatically from the Project manager template. It answers in the project's conversations, and you can hand the role to another team member later.",
+    "teamManagerSummary": "Manager (created automatically)",
+    "specialistsTitle": "Specialists (optional)",
+    "specialistsDescription": "Agents that start on the team. You can add more, or hire new ones, in the project's Team tab.",
+    "noSpecialists": "No agents to add yet. You can hire specialists from templates in the project's Team tab."
+  },
+  "dangerZone": {
+    "title": "Danger zone",
+    "archiveTitle": "Archive project",
+    "archiveDescription": "The project leaves the active list, but its data stays. You can reactivate it any time.",
+    "archive": "Archive",
+    "archived": "Project archived",
+    "restoreTitle": "Reactivate project",
+    "restoreDescription": "The project goes back to the active projects list.",
+    "restore": "Reactivate",
+    "restored": "Project reactivated",
+    "deleteTitle": "Delete project",
+    "deleteDescription": "Permanently deletes the project with its tasks, memories, knowledge base and secrets.",
+    "confirmTitle": "Delete project {name}?",
+    "confirmDescription": "This cannot be undone. All of the project's tasks, memories, knowledge base documents, secrets, schedules and triggers are deleted too. Runs stay in the history, without the link to the project.",
+    "confirm": "Delete permanently",
+    "deleted": "Project deleted"
+  },
+  "knowledge": {
+    "intro": "Documents, links and files that the project's agents can search. Content is split into chunks and indexed for semantic search (without an OpenAI key, text search is used).",
+    "kinds": {
+      "document": "Document",
+      "link": "Link",
+      "file": "File"
+    },
+    "chars": "{count, plural, one {# character} other {# characters}}",
+    "charsThousands": "{value}k characters",
+    "chunks": "{count, plural, one {# chunk} other {# chunks}}",
+    "reindex": "Reindex",
+    "reindexed": "Reindexed: {count, plural, one {# chunk} other {# chunks}}",
+    "deleted": "Item deleted",
+    "empty": "Nothing here yet. Add docs, web pages or files relevant to the project.",
+    "add": {
+      "title": "Add to knowledge base",
+      "description": "Text content is indexed automatically so agents can search it.",
+      "titleLabel": "Title",
+      "titlePlaceholder": "e.g. Brand guide",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Text or markdown",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://example.com/page",
+      "urlHint": "The page is downloaded on the server (max 20s) and converted to text (max 200,000 characters). The title is taken from the page.",
+      "fileLabel": "File",
+      "fileHint": "Any file up to {max} MB. Text files (.txt, .md, .csv, .json, .html and similar) are indexed for search; other files are stored for download.",
+      "fileRequired": "Choose a file",
+      "fetchAndAdd": "Download and add",
+      "added": "Added and indexed into {count, plural, one {# chunk} other {# chunks}}",
+      "storedOnly": "File added. It is stored but not searchable: only text files are indexed.",
+      "uploading": "Uploading {percent}%"
+    },
+    "search": {
+      "title": "Test search",
+      "description": "See which chunks an agent would get for a question.",
+      "label": "Search the knowledge base",
+      "placeholder": "e.g. what is the return policy?",
+      "empty": "No chunks found."
+    },
+    "deleteDescription": "Agents will no longer find this content when they search the knowledge base. This cannot be undone.",
+    "title": "Knowledge base",
+    "notSearchable": "stored, not searchable"
+  },
+  "secrets": {
+    "nameExample": "NAME",
+    "intro": "API keys and tokens used only in this project, encrypted in the vault. Values are never shown. Agents use them in MCP server config as <code>{example}</code>.",
+    "empty": "No project secrets yet. Add keys specific to this project, e.g. <code>{example}</code>.",
+    "updatedAt": "updated {date}",
+    "deleted": "Secret deleted",
+    "deleteDescription": "MCP configs that use {reference} will no longer find the value in the vault.",
+    "editLabel": "Edit {name}",
+    "add": "Add secret",
+    "editTitle": "Update {name}",
+    "newTitle": "New secret",
+    "dialogDescription": "The value is encrypted and cannot be viewed after saving.",
+    "nameLabel": "Name",
+    "nameHint": "Uppercase letters, digits and _ only. The name is unique across the platform, so we recommend the prefix <code>{prefix}</code>.",
+    "valueLabel": "Value",
+    "valueKeepPlaceholder": "Leave empty to keep the current value",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "e.g. Shopify API key for the store",
+    "saved": "Secret saved",
+    "updated": "Secret updated",
+    "title": "Secrets"
+  },
+  "tasks": {
+    "newTask": "New task",
+    "empty": "No tasks in this project yet. Create one or ask the project manager to plan the work.",
+    "title": "Tasks",
+    "description": "Grouped by status. <link>Open the board</link>"
+  },
+  "validation": {
+    "nameMin": "Name must be at least 2 characters",
+    "titleRequired": "Title is required",
+    "contentEmpty": "Content is empty",
+    "invalidUrl": "Invalid URL",
+    "searchRequired": "Type a search",
+    "secretNameFormat": "Name can only contain uppercase letters, digits and _"
+  },
+  "errors": {
+    "notFound": "Project not found",
+    "memoryNotFound": "Memory not found",
+    "httpOnly": "Only http or https links",
+    "fetchTimeout": "Could not download the page: timed out after 20s",
+    "fetchFailed": "Could not download the page: {reason}",
+    "httpStatus": "The page responded with {status}",
+    "unsupportedContentType": "Unsupported content type: {type}",
+    "unknownContentType": "Unsupported content type: unknown",
+    "emptyPage": "The page has no text",
+    "secretNameTaken": "The name {name} is already used by another secret. Pick another name.",
+    "secretValueRequired": "Value is required",
+    "secretNotSet": "Secret {name} is not set in the vault",
+    "secretOtherProject": "Secret {name} belongs to another project and cannot be used here"
+  }
+}

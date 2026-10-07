@@ -1,0 +1,21 @@
+# Example only. Replace the domains; Caddy obtains the HTTPS certificates automatically.
+{
+	# Previews get a certificate per subdomain on their first visit, only for previews that exist:
+	# Caddy asks the worker first (it answers for preview hosts it knows, 404 otherwise).
+	on_demand_tls {
+		ask http://127.0.0.1:3100/__abotica/tls
+	}
+}
+
+abotica.example.com {
+	reverse_proxy 127.0.0.1:3000
+}
+
+# Agents' previews (PREVIEW_URL=https://preview.abotica.example.com), served by the worker.
+# DNS: a wildcard record *.preview.abotica.example.com pointing to this server.
+*.preview.abotica.example.com {
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:3100
+}

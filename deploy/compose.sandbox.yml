@@ -1,0 +1,43 @@
+# The sandbox infrastructure of the development docker-compose.yml, built from this checkout
+# (project_directory "." so paths are relative to the repository root). docker-compose.prod.yml has
+# the same services from the published images. The worker joins the `sandbox` and `docker-api`
+# networks and points SANDBOX_DOCKER_HOST at docker-proxy.
+
+services:
+  # Access to the Docker socket is root on the host, so the worker gets a filtered view of the
+  # Engine API instead: containers, exec, images (inspect), networks, volumes and info. Build,
+  # swarm, secrets, plugins, auth and the rest stay closed (Dockerfile target `docker-proxy`). Only
+  # the worker can reach it. The filter is by endpoint, not by request body: whoever controls the
+  # worker can still create a privileged container, so this limits mistakes and exposure, not a
+  # compromised worker.
+  docker-proxy:
+    build: { context: ., target: docker-proxy }
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-api]
+
+  # Builds the image of the sandbox containers (Dockerfile target `sandbox`) and exits. The worker
+  # starts after it. Extra Debian packages: SANDBOX_APT_PACKAGES="pkg1 pkg2" in .env.
+  sandbox-image:
+    build:
+      context: .
+      target: sandbox
+      args:
+        SANDBOX_APT_PACKAGES: ${SANDBOX_APT_PACKAGES:-}
+    image: abotica-sandbox:latest
+    pull_policy: build
+    command: ["true"]
+    network_mode: none
+    restart: "no"
+
+networks:
+  # Sandbox containers live here with the worker and nothing else. Internal: no route out, so all
+  # traffic goes through the worker's egress proxy. No address on the bridge: no path to the host.
+  sandbox:
+    name: abotica-sandbox
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.inhibit_ipv4: "true"
+  docker-api:
+    internal: true

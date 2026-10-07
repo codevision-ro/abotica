@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "title": "Costuri"
+  },
+  "page": {
+    "title": "Costuri",
+    "description": "Cât cheltuiesc agenții, pe zile, agenți, proiecte și modele."
+  },
+  "period": {
+    "label": "Perioadă",
+    "days": "{days} zile"
+  },
+  "totals": {
+    "cost": "Cost total, ultimele {days} zile",
+    "runs": "Rulări",
+    "average": "{cost} în medie",
+    "inputTokens": "Tokeni input",
+    "outputTokens": "Tokeni output"
+  },
+  "daily": {
+    "title": "Cost pe zile",
+    "description": "Pe provideri, ultimele {days} zile",
+    "empty": "Niciun cost în această perioadă. Costurile apar după primele rulări cu un furnizor configurat."
+  },
+  "breakdown": {
+    "byAgent": "Pe agenți",
+    "byProject": "Pe proiecte",
+    "byModel": "Pe provider și model",
+    "agent": "Agent",
+    "project": "Proiect",
+    "model": "Model",
+    "runs": "Rulări",
+    "tokens": "Tokeni in / out",
+    "cost": "Cost",
+    "empty": "Nicio rulare în perioada aleasă.",
+    "systemJobs": "Joburi de sistem",
+    "noProject": "Fără proiect",
+    "noModel": "Fără model",
+    "noModelHint": "Rulări oprite înainte de primul pas"
+  },
+  "budgets": {
+    "title": "Bugete lunare",
+    "description": "Cheltuiala din luna curentă față de bugetul setat. La atingere, rulările se opresc.",
+    "empty": "Niciun proiect nu are buget. Setează unul din pagina proiectului ca să limitezi cheltuiala lunară.",
+    "progressLabel": "Buget {name}",
+    "global": "Toate proiectele (buget global)"
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "meta": {
+    "title": "Automatizări"
+  },
+  "page": {
+    "title": "Automatizări",
+    "description": "Programări care pornesc agenții la ore fixe și triggere care îi pornesc la evenimente.",
+    "tabs": {
+      "schedules": "Programări",
+      "triggers": "Triggere"
+    }
+  },
+  "fields": {
+    "name": "Nume",
+    "agent": "Agent",
+    "projectOptional": "Proiect (opțional)",
+    "prompt": "Prompt",
+    "active": "Activ",
+    "chooseAgent": "Alege agentul",
+    "noProject": "Fără proiect"
+  },
+  "schedules": {
+    "new": "Programare nouă",
+    "empty": "Nicio programare încă. Ex: un raport în fiecare dimineață la 9 sau o verificare la fiecare oră.",
+    "once": "O dată, {date}",
+    "noDate": "Fără dată",
+    "enable": "Activează programarea",
+    "disable": "Dezactivează programarea",
+    "runNow": "Rulează acum",
+    "runStarted": "Rulare pornită",
+    "viewRun": "Vezi",
+    "edit": "Editează programarea",
+    "delete": "Șterge programarea",
+    "deleteTitle": "Ștergi programarea?",
+    "deleteDescription": "\"{name}\" nu va mai rula. Rulările deja făcute rămân în istoric.",
+    "deleted": "Programare ștearsă",
+    "lastRunAgo": "Ultima rulare <time></time>",
+    "notRunYet": "Nu a rulat încă",
+    "nextRun": "Următoarea <time></time>",
+    "paused": "Oprită"
+  },
+  "scheduleDialog": {
+    "createTitle": "Programare nouă",
+    "editTitle": "Editează programarea",
+    "description": "Agentul primește promptul ca mesaj și rulează la ora stabilită.",
+    "namePlaceholder": "Ex: Raport zilnic de vânzări",
+    "kindAria": "Tip programare",
+    "kindCron": "Recurentă",
+    "kindOnce": "O singură dată",
+    "cron": "Expresie cron",
+    "cronInvalid": "Expresia trebuie să aibă 5 câmpuri: minut, oră, zi din lună, lună, zi din săptămână.",
+    "runAt": "Data și ora",
+    "timezone": "Fus orar",
+    "timezoneInvalid": "Fus orar IANA invalid (ex: Europe/Bucharest).",
+    "promptPlaceholder": "Ex: Fă un rezumat al task-urilor finalizate ieri și trimite-mi-l pe Telegram.",
+    "enabled": "Activă",
+    "created": "Programare creată",
+    "updated": "Programare actualizată",
+    "when": "Când",
+    "presets": "Programări uzuale",
+    "nextRun": "Următoarea rulare: {date}",
+    "create": "Creează programarea"
+  },
+  "cron": {
+    "presets": {
+      "daily9": "În fiecare zi la 9",
+      "weekdays9": "Zile lucrătoare la 9",
+      "monday9": "Luni la 9",
+      "hourly": "La fiecare oră"
+    },
+    "everyMinute": "În fiecare minut",
+    "everyNMinutes": "{n, plural, one {În fiecare minut} few {La fiecare # minute} other {La fiecare # de minute}}",
+    "hourlyOnTheHour": "La fiecare oră fix",
+    "hourlyAtMinute": "La fiecare oră, la minutul {min}",
+    "everyNHours": "{n, plural, one {La fiecare oră, la minutul {min}} few {La fiecare # ore, la minutul {min}} other {La fiecare # de ore, la minutul {min}}}",
+    "daily": "Zilnic la {time}",
+    "weekdays": "Zile lucrătoare la {time}",
+    "weekend": "În weekend la {time}",
+    "everyDay": "În fiecare {day} la {time}",
+    "days": "{days} la {time}",
+    "monthly": "Lunar, pe {day}, la {time}"
+  },
+  "triggers": {
+    "new": "Trigger nou",
+    "empty": "Niciun trigger încă. Ex: un webhook din magazinul online care cere agentului să proceseze fiecare comandă nouă.",
+    "enable": "Activează triggerul",
+    "disable": "Dezactivează triggerul",
+    "url": "URL webhook",
+    "edit": "Editează triggerul",
+    "delete": "Șterge triggerul",
+    "deleteTitle": "Ștergi triggerul?",
+    "deleteDescriptionWebhook": "\"{name}\" și URL-ul lui de webhook nu vor mai funcționa.",
+    "deleteDescription": "\"{name}\" nu va mai porni rulări.",
+    "deleted": "Trigger șters"
+  },
+  "events": {
+    "webhook": "Webhook",
+    "taskCreated": "Task creat",
+    "taskDone": "Task finalizat",
+    "emailReceived": "Email primit"
+  },
+  "eventHints": {
+    "webhook": "Un sistem extern trimite o cerere POST",
+    "taskCreated": "Se adaugă un task",
+    "taskDone": "Un task e marcat ca finalizat",
+    "emailReceived": "Providerul de email trimite fiecare email"
+  },
+  "triggerDialog": {
+    "createTitle": "Trigger nou",
+    "editTitle": "Editează triggerul",
+    "description": "Un eveniment extern sau intern pornește o rulare a agentului.",
+    "namePlaceholder": "Ex: Comenzi noi din magazin",
+    "event": "Eveniment",
+    "webhookHint": "După salvare primești un URL unic de webhook.",
+    "webhookHintKeep": "După salvare primești un URL unic de webhook (token-ul existent se păstrează).",
+    "promptPlaceholder": "Ex: A sosit o comandă nouă. Verific-o și creează un task pentru livrare.\n\n{payload}",
+    "payloadHelp": {
+      "webhook": "{payload} devine corpul cererii POST (JSON formatat sau text).",
+      "emailReceived": "{payload} devine ce trimite providerul de email (expeditor, subiect, conținut).",
+      "taskCreated": "{payload} devine JSON-ul task-ului creat (id, titlu, status, output).",
+      "taskDone": "{payload} devine JSON-ul task-ului finalizat (id, titlu, status, output)."
+    },
+    "payloadAppended": "Dacă promptul nu conține {payload}, datele se adaugă la final.",
+    "projectFilter": "Cu proiect ales, se declanșează doar pentru task-urile acelui proiect. Fără proiect, se declanșează pentru task-urile din afara proiectelor și pentru cele ale proiectelor din a căror echipă face parte agentul.",
+    "created": "Trigger creat",
+    "updated": "Trigger actualizat",
+    "create": "Creează triggerul"
+  },
+  "webhook": {
+    "title": "Webhook: {name}",
+    "descriptionEmail": "Configurează providerul de email (ex: inbound parse) să trimită fiecare email primit prin POST la acest URL.",
+    "description": "Orice sistem extern poate porni agentul trimițând un POST la acest URL.",
+    "url": "URL",
+    "copyFailed": "Nu am putut copia în clipboard",
+    "urlHint": "URL-ul conține un token secret: oricine îl are poate porni rulări. Corpul cererii (maxim 1 MB) devine <code>{payload}</code> în prompt; JSON-ul valid e formatat automat.",
+    "urlHintSigned": "URL-ul conține un token secret, dar singur nu ajunge: doar cererile semnate cu secretul de semnare pornesc rulări. Corpul cererii (maxim 1 MB) devine <code>{payload}</code> în prompt; JSON-ul valid e formatat automat.",
+    "curlExample": "Exemplu curl",
+    "response": "Răspuns: <code>{example}</code>. Răspunde 401 când semnătura cerută lipsește sau e greșită, 429 după {limit} cereri într-un minut (așteaptă cât indică <code>Retry-After</code>) și 503 cât timp kill switch-ul e activ.",
+    "regenerate": "Regenerează token-ul",
+    "regenerateTitle": "Regenerezi token-ul?",
+    "regenerateDescription": "URL-ul vechi nu va mai funcționa. Va trebui să actualizezi sistemele care îl folosesc.",
+    "regenerateConfirm": "Regenerează",
+    "regenerated": "Token regenerat",
+    "signing": {
+      "title": "Semnarea cererilor",
+      "off": "Opțional. Cu un secret de semnare, doar cererile semnate cu el pornesc rulări; URL-ul singur nu mai ajunge.",
+      "on": "Activă. Cererile fără o semnătură validă sunt refuzate cu 401.",
+      "enable": "Cere semnături",
+      "enableTitle": "Activezi semnarea cererilor?",
+      "enableDescription": "De acum, cererile fără o semnătură validă sunt refuzate. Secretul se afișează o singură dată: adaugă-l imediat în sistemul care trimite.",
+      "enableConfirm": "Creează secretul",
+      "rotate": "Înlocuiește secretul",
+      "rotateTitle": "Înlocuiești secretul de semnare?",
+      "rotateDescription": "Secretul actual nu mai funcționează din acest moment. Cererile semnate cu el sunt refuzate până când sistemul care trimite îl folosește pe cel nou.",
+      "rotateConfirm": "Înlocuiește",
+      "remove": "Nu mai cere",
+      "removeTitle": "Nu mai ceri semnături?",
+      "removeDescription": "Secretul se șterge, iar URL-ul singur ajunge din nou pentru a porni rulări.",
+      "removeConfirm": "Nu mai cere",
+      "secret": "Secret de semnare",
+      "secretOnce": "Copiază-l acum: nu se mai afișează. Dacă îl pierzi, înlocuiește-l.",
+      "created": "Secret de semnare creat",
+      "rotated": "Secret de semnare înlocuit",
+      "removed": "Semnăturile nu mai sunt cerute",
+      "standardWebhooks": "<strong>Standard Webhooks</strong>: dă secretul ca atare bibliotecii Standard Webhooks a sistemului care trimite. Aceasta trimite <code>webhook-id</code>, <code>webhook-timestamp</code> și <code>webhook-signature</code>; cererile mai vechi de {minutes} minute și id-urile repetate sunt refuzate.",
+      "github": "<strong>GitHub</strong>: lipește secretul în câmpul Secret al webhook-ului. GitHub semnează fiecare cerere în <code>X-Hub-Signature-256</code>."
+    },
+    "noToken": "Acest trigger nu are token. Salvează-l cu un eveniment webhook.",
+    "done": "Gata"
+  },
+  "errors": {
+    "agentNotFound": "Agentul nu există",
+    "templateCannotRun": "Un template nu poate rula automatizări",
+    "scheduleNotFound": "Programarea nu există",
+    "triggerNotFound": "Triggerul nu există",
+    "triggerNotWebhook": "Triggerul nu folosește webhook",
+    "agentNotOnTeam": "Agentul nu mai face parte din echipa proiectului, așa că automatizarea nu a rulat"
+  },
+  "validation": {
+    "nameRequired": "Numele e obligatoriu",
+    "chooseAgent": "Alege un agent",
+    "invalidDate": "Dată invalidă",
+    "invalidTimezone": "Fus orar invalid",
+    "promptRequired": "Promptul e obligatoriu",
+    "invalidCron": "Expresie cron invalidă (5 câmpuri)",
+    "chooseDateTime": "Alege data și ora"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "actions": {
+    "save": "Salvează",
+    "cancel": "Anulează",
+    "delete": "Șterge",
+    "edit": "Editează",
+    "create": "Creează",
+    "add": "Adaugă",
+    "remove": "Elimină",
+    "close": "Închide",
+    "back": "Înapoi",
+    "confirm": "Confirmă",
+    "retry": "Încearcă din nou",
+    "copy": "Copiază",
+    "copied": "Copiat",
+    "search": "Caută",
+    "test": "Testează",
+    "refresh": "Reîmprospătează",
+    "approve": "Aprob",
+    "reject": "Resping",
+    "enable": "Activează",
+    "disable": "Dezactivează",
+    "open": "Deschide",
+    "viewAll": "Vezi tot"
+  },
+  "states": {
+    "saved": "Salvat",
+    "deleted": "Șters",
+    "enabled": "Activat",
+    "disabled": "Dezactivat",
+    "none": "Niciunul",
+    "unknown": "Necunoscut"
+  },
+  "confirmDelete": {
+    "title": "Ștergi {name}?",
+    "description": "Acțiunea nu poate fi anulată."
+  },
+  "runStatus": {
+    "queued": "În coadă",
+    "running": "Rulează",
+    "waiting_approval": "Așteaptă aprobare",
+    "succeeded": "Reușită",
+    "failed": "Eșuată",
+    "cancelled": "Anulată"
+  },
+  "taskStatus": {
+    "backlog": "Backlog",
+    "in_progress": "În lucru",
+    "blocked": "Blocat",
+    "review": "Review",
+    "done": "Gata"
+  },
+  "priority": {
+    "low": "Scăzută",
+    "medium": "Medie",
+    "high": "Ridicată",
+    "urgent": "Urgentă"
+  },
+  "trigger": {
+    "chat": "Chat web",
+    "telegram": "Telegram",
+    "task": "Task",
+    "schedule": "Programare",
+    "webhook": "Webhook",
+    "event": "Eveniment",
+    "delegation": "Delegare",
+    "system": "Sistem"
+  },
+  "language": {
+    "label": "Limbă",
+    "description": "Interfața, mesajele de pe Telegram și digest-ul zilnic.",
+    "auto": "Limba browserului",
+    "changed": "Limba a fost schimbată"
+  }
+}

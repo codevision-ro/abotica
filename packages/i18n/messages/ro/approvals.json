@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "title": "Aprobări"
+  },
+  "page": {
+    "title": "Aprobări",
+    "description": "Acțiunile sensibile ale agenților așteaptă decizia ta înainte să ruleze."
+  },
+  "tabs": {
+    "pending": "În așteptare",
+    "history": "Istoric"
+  },
+  "pending": {
+    "empty": "Nimic de aprobat. Când un agent cere permisiunea pentru o acțiune sensibilă, cererea apare aici și pe Telegram."
+  },
+  "history": {
+    "decidedAt": "Decisă {time}",
+    "requestedAt": "Cerută {time}",
+    "empty": "Nicio decizie încă. Cererile aprobate și respinse apar aici.",
+    "openRun": "Deschide rularea"
+  },
+  "status": {
+    "pending": "În așteptare",
+    "approved": "Aprobată",
+    "rejected": "Respinsă",
+    "expired": "Expirată"
+  },
+  "card": {
+    "wantsToUse": "<muted>vrea să folosească</muted> <tool></tool>",
+    "viewRun": "Vezi rularea",
+    "arguments": "Argumente"
+  },
+  "actions": {
+    "reasonLabel": "Motiv (opțional)",
+    "reasonPlaceholder": "Spune-i agentului de ce ai respins",
+    "submitReject": "Respinge",
+    "approvedContinued": "Aprobat: agentul continuă rularea",
+    "approved": "Aprobat",
+    "rejectedNotified": "Respins: agentul a fost anunțat",
+    "rejected": "Respins"
+  },
+  "telegram": {
+    "inputTruncated": "Sunt afișate doar primele {shown} din {total} de caractere. Butonul Aprob aprobă cererea completă: citește-o mai întâi la {url}"
+  }
+}

@@ -1,0 +1,316 @@
+/**
+ * MCP connections of agent runs, worker only: stdio servers start processes (in the sandbox, or
+ * directly for servers the admin trusts), so this module is not exported from the package index.
+ *
+ * A server whose tool cache holds the full definitions is offered without connecting: its process
+ * starts (or its URL is called) on the first tool call of the run. Most runs never call most of the
+ * servers they could, and a browser server costs a process and hundreds of megabytes.
+ *
+ * Sandboxed stdio servers run as the sandbox's MCP user, never as the user of agent commands, and
+ * never start inside a workspace the agent writes; their own workspaces are keyed by server and
+ * secret scope (`mcpWorkspaceKeyFor`).
+ */
+import { type MCPClient, createMCPClient } from "@ai-sdk/mcp";
+import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
+import type { McpToolInfo } from "@abotica/db";
+import { isUserError, UserError } from "@abotica/i18n";
+import type { Workspace } from "@abotica/sandbox";
+import { shellQuote } from "@abotica/sandbox/shell";
+import { dynamicTool, type JSONSchema7, jsonSchema, type Tool, type ToolSet } from "ai";
+import { touchWorkspace } from "../sandbox/sandbox";
+import { DEFAULT_MCP_NETWORK, setupEgressFor } from "../sandbox/sandbox-policy";
+import { syncBuiltinMcpServers } from "../mcp/mcp-servers";
+import { currentSandboxBackend } from "../sandbox/sandbox-runtime";
+import { GLOBAL_SECRETS, interpolateSecrets, type SecretScope } from "../platform/vault";
+import type { McpServer } from "./context";
+import {
+  connectHttpMcp,
+  listToolDefinitions,
+  type McpConnectOptions,
+  type McpTestResult,
+  type McpToolSource,
+  probeMcp,
+  saveMcpToolCache,
+  sameToolDefinitions,
+} from "./mcp";
+import { SandboxMcpTransport } from "./mcp-sandbox-transport";
+import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
+
+export type McpConnection = {
+  tools: ToolSet;
+  /** Keyed by runtime tool name. */
+  sources: Record<string, McpToolSource>;
+  close: () => Promise<void>;
+  errors: { server: string; error: unknown }[];
+};
+
+export type McpRunOptions = McpConnectOptions & {
+  /**
+   * The run's own workspace, for servers set to run there; null or missing when the run has none,
+   * and those servers fall back to their own workspace.
+   */
+  runWorkspace?: (() => Promise<Workspace>) | null;
+  /** A server that could not start on its first tool call; the call itself fails with the error. */
+  onLazyError?: (server: string, error: unknown) => void;
+};
+
+/** The only host variables an unsandboxed stdio server gets; the worker's secrets stay out. */
+function hostBaseEnv(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const name of ["PATH", "HOME", "LANG"]) {
+    const value = process.env[name];
+    if (value) out[name] = value;
+  }
+  return out;
+}
+
+/** Adds what the server printed on stderr to a connection error; a bare "Connection closed" says nothing. */
+function withStderr(error: unknown, stderr: string): unknown {
+  if (!stderr || isUserError(error)) return error;
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${message}: ${stderr}`, { cause: error });
+}
+
+/**
+ * The folder a stdio server starts in and keeps its files in, in a run's workspace: outside the
+ * volume and written only by the MCP user, so the agent can read what the server saves there but
+ * cannot plant what npx, uvx or python -m would load from a working folder (.npmrc, pyproject.toml,
+ * node_modules, modules) nor swap the folder for a link into the MCP user's private home. Null for
+ * a backend without such folders: the server then starts where the backend puts it.
+ */
+const mcpOutputFolder = (workspace: Workspace, slug: string) =>
+  workspace.paths.mcpOutput ? `${workspace.paths.mcpOutput}/${slug}` : null;
+
+/** The workspace a stdio server runs in: the run's when it asks for it and the run has one, else its own. */
+async function stdioWorkspace(
+  server: McpServer,
+  opts: McpRunOptions,
+): Promise<{ workspace: Workspace; folder: string | null }> {
+  if (server.workspace === "run" && opts.runWorkspace) {
+    const workspace = await opts.runWorkspace();
+    return { workspace, folder: mcpOutputFolder(workspace, server.slug) };
+  }
+  const backend = currentSandboxBackend();
+  if (!backend) throw new UserError("sandbox.errors.mcpNeedsSandbox");
+  const key = mcpWorkspaceKeyFor(server.slug, opts.secrets);
+  const workspace = await backend.open({ key, owner: "mcp" });
+  await touchWorkspace(key).catch(() => {});
+  // Its own workspace belongs to the MCP user and no agent works there: it starts in the workspace.
+  return { workspace, folder: null };
+}
+
+/** A connected server, with the folder of its files the agent can read (null when it has none). */
+type McpConnected = { client: MCPClient; folder: string | null };
+
+/** A stdio server inside a sandbox workspace, as the MCP user, with the network its own policy allows. */
+async function connectSandboxedStdio(
+  server: McpServer,
+  env: Record<string, string>,
+  opts: McpRunOptions,
+): Promise<McpConnected> {
+  const { workspace, folder } = await stdioWorkspace(server, opts);
+  // `npx -y` and `uvx` download the server when it starts, so the registries are always reachable.
+  // The egress belongs to this process, so in a run's workspace it does not widen the agent's own.
+  const egress = setupEgressFor(server.network ?? DEFAULT_MCP_NETWORK);
+  // exec: the server replaces the shell, so killing the process stops the server itself. The folder
+  // is created by the MCP user, inside one only that user writes.
+  const start = `exec ${[server.command!, ...server.args].map(shellQuote).join(" ")}`;
+  const command = folder ? `mkdir -p -- ${shellQuote(folder)} && cd -- ${shellQuote(folder)} && ${start}` : start;
+  const transport = new SandboxMcpTransport(() =>
+    workspace.exec({ command, env, egress, stdin: "pipe", signal: opts.signal, user: "mcp" }),
+  );
+  try {
+    return { client: await createMCPClient({ transport, clientName: "abotica" }), folder };
+  } catch (error) {
+    await transport.close();
+    throw withStderr(error, transport.stderrTail());
+  }
+}
+
+/** A stdio server the admin chose to run directly in the worker (trusted command), with a clean env. */
+async function connectHostStdio(server: McpServer, env: Record<string, string>, opts: McpConnectOptions) {
+  const transport = new Experimental_StdioMCPTransport({
+    command: server.command!,
+    args: server.args,
+    env: { ...hostBaseEnv(), ...env },
+  });
+  opts.signal?.addEventListener("abort", () => void transport.close(), { once: true });
+  try {
+    return await createMCPClient({ transport, clientName: "abotica" });
+  } catch (error) {
+    await transport.close();
+    throw error;
+  }
+}
+
+async function connectMcp(server: McpServer, opts: McpRunOptions): Promise<McpConnected> {
+  if (server.transport === "http") return { client: await connectHttpMcp(server, opts), folder: null };
+  if (!server.command) throw new Error(`MCP ${server.slug}: command is missing`);
+  const env = await interpolateSecrets(server.env, opts.secrets);
+  // Rows serialized before the column existed (or drafts from the form) count as sandboxed.
+  if (server.sandboxed === false) return { client: await connectHostStdio(server, env, opts), folder: null };
+  return connectSandboxedStdio(server, env, opts);
+}
+
+/** Tool names are prefixed with the server slug so two servers never collide. */
+const prefix = (slug: string) => slug.replace(/[^a-zA-Z0-9]/g, "_");
+
+/** A cache the run can build every tool from without asking the server. */
+const isComplete = (tools: McpToolInfo[] | null): tools is McpToolInfo[] =>
+  tools !== null && tools.length > 0 && tools.every((t) => t.inputSchema);
+
+type McpCallResult = Awaited<ReturnType<MCPClient["callTool"]>>;
+
+/** What the model reads from a tool result: its text, and images as files (as `@ai-sdk/mcp` does). */
+function toModelOutput({ output }: { output: unknown }) {
+  const result = output as McpCallResult;
+  if (!("content" in result) || !Array.isArray(result.content)) return { type: "json" as const, value: result as never };
+  return {
+    type: "content" as const,
+    value: result.content.map((part) =>
+      part.type === "text"
+        ? { type: "text" as const, text: part.text }
+        : part.type === "image"
+          ? { type: "file" as const, mediaType: part.mimeType, data: { type: "data" as const, data: part.data } }
+          : { type: "text" as const, text: JSON.stringify(part) },
+    ),
+  };
+}
+
+/** A relative path such as `./page.png`, which is how Playwright links the files it saves. */
+const RELATIVE_PATH = /(?:^|[\s(["'`])\.\.?\//m;
+
+/**
+ * A server in a run's workspace names the files it saves relative to its own folder, not to the
+ * agent's working directory; a result that mentions such a path tells the agent where they are.
+ */
+function withFolderNote(result: McpCallResult, folder: string): McpCallResult {
+  if (!("content" in result) || !Array.isArray(result.content)) return result;
+  if (!result.content.some((part) => part.type === "text" && RELATIVE_PATH.test(part.text))) return result;
+  const note =
+    `Relative paths above are inside ${folder}, where this tool saves files. Read or share a file there ` +
+    `by its full path (${folder}/<name>); it is read-only for you, so copy it into your workspace to change it.`;
+  return { ...result, content: [...result.content, { type: "text", text: note }] };
+}
+
+/** One server's tools, built from its definitions; the server is only connected on a call. */
+function serverTools(definitions: McpToolInfo[], connect: () => Promise<McpConnected>): Record<string, Tool> {
+  const tools: Record<string, Tool> = {};
+  for (const definition of definitions) {
+    // As `@ai-sdk/mcp` builds it: no extra keys, and an object even when the server lists no properties.
+    const schema = (definition.inputSchema ?? { type: "object" }) as JSONSchema7;
+    tools[definition.name] = dynamicTool({
+      description: definition.description,
+      ...(definition.title && { title: definition.title }),
+      inputSchema: jsonSchema({ ...schema, properties: schema.properties ?? {}, additionalProperties: false }),
+      execute: async (args, options) => {
+        options?.abortSignal?.throwIfAborted();
+        const { client, folder } = await connect();
+        const result = await client.callTool({
+          name: definition.name,
+          arguments: args as Record<string, unknown>,
+          options: { signal: options?.abortSignal },
+        });
+        return folder ? withFolderNote(result, folder) : result;
+      },
+      toModelOutput,
+    });
+  }
+  return tools;
+}
+
+export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): Promise<McpConnection> {
+  const clients: MCPClient[] = [];
+  const errors: McpConnection["errors"] = [];
+  let closed = false;
+
+  /** Connects once; a failed start is retried on the next call rather than remembered. */
+  const lazyClient = (server: McpServer) => {
+    let pending: Promise<McpConnected> | null = null;
+    return () => {
+      pending ??= connectMcp(server, opts).then(
+        async (connected) => {
+          const { client } = connected;
+          // The run ended while the server was starting: nothing would close it later.
+          if (closed) {
+            await client.close().catch(() => {});
+            throw new Error("The run has ended");
+          }
+          clients.push(client);
+          // The server may have changed since the cache was written; the next run uses the new list.
+          const definitions = await listToolDefinitions(client).catch(() => null);
+          if (definitions && !sameToolDefinitions(server.tools, definitions)) {
+            await saveMcpToolCache(server.id, definitions).catch(() => {});
+          }
+          return connected;
+        },
+        (error: unknown) => {
+          pending = null;
+          opts.onLazyError?.(server.slug, error);
+          throw error;
+        },
+      );
+      return pending;
+    };
+  };
+
+  const listings = await Promise.all(
+    servers.map(async (server) => {
+      if (isComplete(server.tools)) return { server, tools: serverTools(server.tools, lazyClient(server)) };
+      // No usable cache yet: connect now, list the tools and remember them for the next runs.
+      try {
+        const connected = await connectMcp(server, opts);
+        clients.push(connected.client);
+        const definitions = await listToolDefinitions(connected.client);
+        // The cache only feeds the agent form and later runs; a failed write must never fail this one.
+        if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
+        return { server, tools: serverTools(definitions, async () => connected) };
+      } catch (error) {
+        errors.push({ server: server.slug, error });
+        return null;
+      }
+    }),
+  );
+
+  // In server order, not connection order: tools open the prompt, and a different order on the next
+  // run would miss the whole prompt cache.
+  const tools: ToolSet = {};
+  const sources: Record<string, McpToolSource> = {};
+  for (const listing of listings) {
+    if (!listing) continue;
+    for (const [name, t] of Object.entries(listing.tools)) {
+      const runtimeName = `${prefix(listing.server.slug)}__${name}`;
+      tools[runtimeName] = t;
+      sources[runtimeName] = { serverSlug: listing.server.slug, tool: name };
+    }
+  }
+  return {
+    tools,
+    sources,
+    errors,
+    close: async () => {
+      closed = true;
+      await Promise.allSettled(clients.map((c) => c.close()));
+    },
+  };
+}
+
+/** Connects once in the worker and lists the server's tools (the `mcp-test` job). */
+export function probeMcpServer(server: McpServer, secrets: SecretScope, timeoutMs?: number): Promise<McpTestResult> {
+  return probeMcp(server, secrets, async (s, o) => (await connectMcp(s, o)).client, timeoutMs);
+}
+
+/**
+ * At worker start: brings the bundled servers' rows in line with the catalog, then fills the tool
+ * cache of the enabled ones that have none, so runs can offer their tools without starting them.
+ */
+export async function prepareBuiltinMcpServers(): Promise<void> {
+  const rows = await syncBuiltinMcpServers();
+  for (const server of rows.filter((r) => r.enabled && !isComplete(r.tools))) {
+    if (server.transport === "stdio" && !currentSandboxBackend()) continue;
+    // Nobody asked for this listing: the server gets the global secrets only.
+    const result = await probeMcpServer(server, GLOBAL_SECRETS);
+    if (result.ok) await saveMcpToolCache(server.id, result.tools);
+    else console.error(`[mcp] listing the tools of ${server.slug} failed: ${result.error}`);
+  }
+}

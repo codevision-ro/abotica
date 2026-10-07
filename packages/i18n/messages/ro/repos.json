@@ -1,0 +1,75 @@
+{
+  "title": "Repository-uri",
+  "intro": "Repository-urile git pe care lucrează agenții proiectului. Fiecare e clonat în repos/<nume> din workspace-ul proiectului, unde git se autentifică cu token-ul lui.",
+  "empty": "Niciun repository încă. Adaugă unul și agenții proiectului pot lucra pe codul lui.",
+  "providers": {
+    "github": "GitHub",
+    "gitlab": "GitLab"
+  },
+  "row": {
+    "defaultBranch": "ramura implicită {branch}",
+    "token": "token ••••{hint}",
+    "checked": "verificat"
+  },
+  "protection": {
+    "protected": "{branch} protejat",
+    "protectedHint": "{provider} are reguli de protecție pe {branch}.",
+    "unprotected": "{branch} neprotejat",
+    "unprotectedHint": "Nimic pe {provider} nu oprește un agent să dea push direct pe {branch}. Agenții sunt instruiți să deschidă pull request-uri, dar doar o regulă de protecție o impune.",
+    "unknown": "Protecție necunoscută",
+    "unknownHint": "Token-ul nu poate citi setările de protecție ale {branch}.",
+    "fix": "Protejează {branch} pe {provider}"
+  },
+  "add": {
+    "button": "Adaugă repository",
+    "title": "Adaugă un repository",
+    "description": "Abotica verifică la GitHub sau GitLab că token-ul ajunge la repository și poate da push.",
+    "urlLabel": "Adresa repository-ului",
+    "urlPlaceholder": "https://github.com/acme/site",
+    "urlHint": "Adresa din browser sau adresa de clonare (HTTPS sau SSH).",
+    "providerLabel": "Server",
+    "providerHint": "{host} e un server propriu: alege ce rulează pe el.",
+    "nameLabel": "Folderul din workspace",
+    "nameHint": "Agenții găsesc clona în repos/{name}.",
+    "tokenLabel": "Token de acces",
+    "submit": "Verifică și adaugă",
+    "added": "{name} a fost adăugat. Agenții îl primesc la următoarea rulare.",
+    "addedUnprotected": "{name} a fost adăugat, dar {branch} nu e protejat pe {provider}."
+  },
+  "token": {
+    "githubHint": "Un token fine-grained cu acces doar la acest repository, cu Contents și Pull requests pe Read and write.",
+    "githubCreate": "Creează token-ul pe GitHub",
+    "gitlabHint": "Un project access token cu rolul Developer și scope-urile api și write_repository. Pe GitLab.com fără Premium, un personal access token cu aceleași scope-uri.",
+    "gitlabCreate": "Creează token-ul pe GitLab",
+    "shared": "Orice agent al proiectului poate folosi token-ul în sandbox. Limitează-l la acest repository."
+  },
+  "recheck": "Verifică din nou",
+  "rechecked": "{name} verificat",
+  "replaceToken": {
+    "button": "Înlocuiește token-ul",
+    "title": "Înlocuiește token-ul pentru {name}",
+    "description": "Token-ul nou e verificat înainte să-l înlocuiască pe cel actual.",
+    "submit": "Verifică și înlocuiește",
+    "replaced": "Token-ul pentru {name} a fost înlocuit"
+  },
+  "delete": {
+    "description": "Agenții pierd accesul la {repo}. Clona rămâne în workspace-ul proiectului, fără credențiale, până resetezi workspace-ul.",
+    "deleted": "{name} a fost eliminat"
+  },
+  "validation": {
+    "tokenRequired": "Introdu token-ul de acces."
+  },
+  "errors": {
+    "invalidUrl": "Nu e o adresă de repository. Lipește adresa din browser, de exemplu https://github.com/acme/site.",
+    "providerRequired": "Alege dacă serverul rulează GitHub sau GitLab.",
+    "invalidName": "Numele folderului poate conține litere mici, cifre, puncte, cratime și underscore și trebuie să înceapă cu o literă sau o cifră.",
+    "alreadyAdded": "Acest repository e deja în proiect.",
+    "nameTaken": "Alt repository al proiectului folosește deja folderul {name}.",
+    "tokenRejected": "Token-ul a fost respins. Verifică dacă l-ai copiat complet și dacă nu a expirat.",
+    "notFound": "Token-ul nu vede {repo}. Verifică adresa și dacă token-ul are acces la acest repository.",
+    "noPushAccess": "Token-ul poate citi repository-ul, dar nu poate da push.",
+    "checkFailed": "Verificarea a eșuat: {detail}",
+    "unreachable": "{host} nu poate fi accesat. Încearcă din nou peste puțin timp.",
+    "repoNotFound": "Repository-ul nu mai există."
+  }
+}

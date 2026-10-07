@@ -1,0 +1,13 @@
+{
+  "download": "Descarcă",
+  "downloadName": "Descarcă {name}",
+  "errors": {
+    "tooLarge": "{name} depășește {max} MB.",
+    "empty": "{name} este gol.",
+    "noFiles": "Niciun fișier selectat.",
+    "notFound": "Fișierul nu există.",
+    "notAttachable": "{name} nu poate fi atașat aici. Încarcă-l din nou.",
+    "missingOnDisk": "Fișierul nu mai este stocat pe server.",
+    "uploadFailed": "Încărcarea a eșuat. Verifică conexiunea și încearcă din nou."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "abotica",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @abotica/web dev",
+    "build": "pnpm -r build",
+    "start:web": "pnpm --filter @abotica/web start",
+    "start:worker": "pnpm --filter @abotica/worker start",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "infra:up": "docker compose up -d --build",
+    "infra:down": "docker compose down",
+    "logs:worker": "docker compose logs -f worker",
+    "db:generate": "pnpm --filter @abotica/db generate",
+    "db:migrate": "pnpm --filter @abotica/db migrate",
+    "db:seed": "pnpm --filter @abotica/db seed",
+    "db:studio": "pnpm --filter @abotica/db studio"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.3.8",
+    "prettier": "^3.9.9",
+    "typescript": "catalog:",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}

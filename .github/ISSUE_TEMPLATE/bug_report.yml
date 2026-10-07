@@ -1,0 +1,66 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security issues must not be reported here: see SECURITY.md.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web app
+        - Worker / agent runs
+        - Telegram bot
+        - Memory / journals
+        - Skills / MCP
+        - Deploy / Docker
+        - Translations
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation
+      options:
+        - Local development (pnpm dev)
+        - Docker (docker-compose.prod.yml)
+        - Without Docker (systemd or other)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`.
+  - type: input
+    id: provider
+    attributes:
+      label: AI provider and model
+      description: If the problem involves an agent run.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant web or worker logs. Remove API keys, tokens and personal data.
+      render: text

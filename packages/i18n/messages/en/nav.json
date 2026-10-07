@@ -1,0 +1,25 @@
+{
+  "groups": {
+    "main": "Main",
+    "memory": "Memory",
+    "operations": "Operations",
+    "configuration": "Configuration"
+  },
+  "items": {
+    "dashboard": "Dashboard",
+    "chat": "Chat",
+    "tasks": "Tasks",
+    "projects": "Projects",
+    "previews": "Previews",
+    "agents": "Agents",
+    "memory": "Memory",
+    "journals": "Journals",
+    "runs": "Runs",
+    "approvals": "Approvals",
+    "automations": "Automations",
+    "costs": "Costs",
+    "skills": "Skills",
+    "mcp": "MCP",
+    "settings": "Settings"
+  }
+}

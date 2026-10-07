@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "title": "Approvals"
+  },
+  "page": {
+    "title": "Approvals",
+    "description": "Sensitive agent actions wait for your decision before they run."
+  },
+  "tabs": {
+    "pending": "Pending",
+    "history": "History"
+  },
+  "pending": {
+    "empty": "Nothing to approve. When an agent asks permission for a sensitive action, it shows up here and on Telegram."
+  },
+  "history": {
+    "decidedAt": "Decided {time}",
+    "requestedAt": "Requested {time}",
+    "empty": "No decisions yet. Approved and rejected requests show up here.",
+    "openRun": "Open run"
+  },
+  "status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "expired": "Expired"
+  },
+  "card": {
+    "wantsToUse": "<muted>wants to use</muted> <tool></tool>",
+    "viewRun": "View run",
+    "arguments": "Arguments"
+  },
+  "actions": {
+    "reasonLabel": "Reason (optional)",
+    "reasonPlaceholder": "Tell the agent why you rejected it",
+    "submitReject": "Reject",
+    "approvedContinued": "Approved: the agent continues the run",
+    "approved": "Approved",
+    "rejectedNotified": "Rejected: the agent was notified",
+    "rejected": "Rejected"
+  },
+  "telegram": {
+    "inputTruncated": "Only the first {shown} of {total} characters are shown. The Approve button approves the full input: read it first at {url}"
+  }
+}

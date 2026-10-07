@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "title": "Costs"
+  },
+  "page": {
+    "title": "Costs",
+    "description": "What agents spend, by day, agent, project and model."
+  },
+  "period": {
+    "label": "Period",
+    "days": "{days} days"
+  },
+  "totals": {
+    "cost": "Total cost, last {days} days",
+    "runs": "Runs",
+    "average": "{cost} average",
+    "inputTokens": "Input tokens",
+    "outputTokens": "Output tokens"
+  },
+  "daily": {
+    "title": "Daily cost",
+    "description": "By provider, last {days} days",
+    "empty": "No costs in this period. They show up after the first runs with a configured provider."
+  },
+  "breakdown": {
+    "byAgent": "By agent",
+    "byProject": "By project",
+    "byModel": "By provider and model",
+    "agent": "Agent",
+    "project": "Project",
+    "model": "Model",
+    "runs": "Runs",
+    "tokens": "Tokens in / out",
+    "cost": "Cost",
+    "empty": "No runs in this period.",
+    "systemJobs": "System jobs",
+    "noProject": "No project",
+    "noModel": "No model",
+    "noModelHint": "Runs stopped before the first step"
+  },
+  "budgets": {
+    "title": "Monthly budgets",
+    "description": "This month's spend against the budget. Runs stop when it is reached.",
+    "empty": "No project has a budget. Set one on the project page to cap monthly spend.",
+    "progressLabel": "{name} budget",
+    "global": "All projects (global budget)"
+  }
+}

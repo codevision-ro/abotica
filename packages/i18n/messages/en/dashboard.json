@@ -1,0 +1,66 @@
+{
+  "greeting": {
+    "night": "Good evening",
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening",
+    "withName": "{greeting}, {name}"
+  },
+  "kpi": {
+    "activeAgents": "Active agents",
+    "activeRuns": "{count, plural, one {# run active or queued} other {# runs active or queued}}",
+    "idle": "No agent is working right now",
+    "openTasks": "Open tasks",
+    "inProgress": "In progress",
+    "blocked": "Blocked",
+    "review": "Review",
+    "pendingApprovals": "Pending approvals",
+    "awaitingDecision": "Agents are waiting for your decision",
+    "nothingToApprove": "Nothing to approve",
+    "monthCost": "Cost this month",
+    "lastMonth": "Last month: {amount}",
+    "vsLastMonth": "<highlight>{delta}</highlight> vs last month ({amount})"
+  },
+  "dailyCost": {
+    "title": "Daily cost",
+    "description": "Last 30 days, by provider",
+    "empty": "No costs yet. The chart fills in after the first runs with a configured provider."
+  },
+  "onboarding": {
+    "title": "Getting started",
+    "progress": "{done} of {total} done. Finish setup so your agents can work.",
+    "done": "Done",
+    "keys": {
+      "title": "Add API keys",
+      "description": "At least one provider (Anthropic, OpenAI, DeepSeek or Kimi) so agents can run.",
+      "cta": "Settings"
+    },
+    "telegram": {
+      "title": "Set up Telegram",
+      "description": "Set <code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_ALLOWED_USER_IDS</code> and <code>TELEGRAM_NOTIFY_CHAT_ID</code> in the .env file, then restart the worker."
+    },
+    "agent": {
+      "title": "Create your first agent",
+      "description": "A specialist with its own role, model and tools that the super agent can delegate to.",
+      "cta": "New agent"
+    },
+    "project": {
+      "title": "Create a project",
+      "description": "Group tasks, agents, memory and budget under one goal.",
+      "cta": "New project"
+    }
+  },
+  "pendingApprovals": {
+    "title": "Pending approvals",
+    "empty": "All caught up. Sensitive agent actions wait here for your approval.",
+    "openRun": "Open the run"
+  },
+  "recentRuns": {
+    "title": "Recent runs",
+    "empty": "No runs yet. <link>Message the super agent</link> and the first run shows up here."
+  },
+  "attention": {
+    "title": "Tasks that need attention",
+    "empty": "Nothing blocked or waiting for your review."
+  }
+}

@@ -1,0 +1,389 @@
+{
+  "meta": {
+    "title": "Agenți",
+    "new": "Agent nou",
+    "fallback": "Agent"
+  },
+  "list": {
+    "title": "Agenți",
+    "description": "Echipa ta de agenți: model, tool-uri, permisiuni și activitate.",
+    "newAgent": "Agent nou",
+    "empty": "Niciun agent încă. <link>Creează unul</link> de la zero sau pornește de la un template de mai jos.",
+    "templates": {
+      "title": "Template-uri",
+      "description": "Puncte de plecare pentru agenți noi.",
+      "empty": "Niciun template definit."
+    }
+  },
+  "card": {
+    "noRole": "Fără rol",
+    "runningNow": "Rulează acum",
+    "running": "Rulează",
+    "noProjects": "Niciun proiect atribuit",
+    "runs7d": "<b>{count}</b> {count, plural, one {rulare} few {rulări} other {de rulări}} în 7 zile",
+    "cost30d": "<b>{cost}</b> în 30 de zile",
+    "use": "Folosește",
+    "defaultModel": "Model implicit",
+    "orchestrator": "Orchestrator",
+    "template": "Template"
+  },
+  "new": {
+    "back": "Agenți",
+    "title": "Agent nou",
+    "startFrom": "Pornește de la",
+    "blank": "Gol"
+  },
+  "detail": {
+    "back": "Agenți",
+    "chat": "Chat",
+    "tabs": {
+      "config": "Configurare",
+      "versions": "Versiuni",
+      "journal": "Jurnal",
+      "memory": "Memorie",
+      "runs": "Rulări",
+      "schedules": "Programări",
+      "projects": "Proiecte"
+    },
+    "useTemplate": "Folosește template-ul",
+    "model": "Model",
+    "version": "Versiunea curentă"
+  },
+  "actions": {
+    "active": "Activ",
+    "disabled": "Dezactivat",
+    "orchestratorLocked": "Super agentul nu poate fi dezactivat",
+    "enable": "Activează agentul",
+    "disable": "Dezactivează agentul",
+    "enabledToast": "Agent activat",
+    "disabledToast": "Agent dezactivat",
+    "duplicate": "Duplică",
+    "duplicated": "Agent duplicat",
+    "deleted": "Agent șters",
+    "deleteTitle": "Ștergi agentul {name}?",
+    "deleteDescription": "Se șterg și versiunile, rulările, jurnalele, memoriile și programările lui. Acțiunea nu poate fi anulată.",
+    "restore": "Restaurează",
+    "restoreTitle": "Restaurezi v{version}?",
+    "restoreDescription": "Configurația agentului devine cea din v{version}, salvată ca versiune nouă. Proiectele atribuite nu se schimbă.",
+    "restored": "Restaurat ca v{version}",
+    "more": "Mai multe acțiuni"
+  },
+  "avatar": {
+    "title": "Avatar",
+    "search": "Caută iconițe...",
+    "noResults": "Nicio iconiță găsită.",
+    "iconOption": "Iconița {name}",
+    "colors": "Culori",
+    "paletteOption": "Perechea de culori {n}",
+    "iconColor": "Culoare iconiță",
+    "background": "Fundal"
+  },
+  "model": {
+    "price": "{input} / {output} per 1M",
+    "unknownPrice": "preț necunoscut",
+    "context": "{size} context",
+    "pick": "Alege un model",
+    "search": "Caută sau scrie un id de model...",
+    "empty": "Niciun model în catalog. Scrie id-ul manual.",
+    "useCustom": "Folosește <mono>{id}</mono>",
+    "catalog": "Catalog (cu tool calling)"
+  },
+  "chain": {
+    "primary": "Principal",
+    "fallback": "Rezervă {n}",
+    "provider": "Provider {n}",
+    "noKey": "inactiv",
+    "moveUp": "Mută mai sus",
+    "moveDown": "Mută mai jos",
+    "remove": "Elimină",
+    "addFallback": "Adaugă fallback"
+  },
+  "form": {
+    "identityTitle": "Identitate",
+    "changeAvatar": "Schimbă avatarul",
+    "name": "Nume",
+    "namePlaceholder": "Numele agentului",
+    "role": "Rol",
+    "rolePlaceholder": "Ce face, ex: Research și sinteză",
+    "instructionsTitle": "Instrucțiuni",
+    "instructionsDescription": "Cine este agentul, ce trebuie să obțină, cum lucrează și ce să evite.",
+    "systemPrompt": "System prompt",
+    "promptPlaceholder": "Ești un [rol] pentru [echipă sau companie].\n\nScop: ce trebuie să obțină agentul.\nCum lucrezi: pași, surse folosite, ton și formatul răspunsului.\nLimite: ce nu ai voie să faci sau să decizi singur.",
+    "characters": "{count, plural, one {# caracter} few {# caractere} other {# de caractere}}",
+    "modelTitle": "Model",
+    "modelDescription": "Modelul pe care rulează agentul.",
+    "useDefault": "Modelul implicit",
+    "defaultNotSet": "Nesetat încă",
+    "defaultHint": "Se schimbă din <link>Setări → Provideri AI</link> pentru toți agenții care îl folosesc.",
+    "defaultMissing": "Modelul implicit nu e setat: <link>setează-l în Setări → Provideri AI</link>",
+    "useCustom": "Alege un model",
+    "useCustomDescription": "Un provider și un model doar pentru acest agent.",
+    "provider": "Provider",
+    "providerPlaceholder": "Alege providerul",
+    "noKey": "inactiv",
+    "providerMissingKey": "Fără cheie API: <link>adaug-o în Setări</link>",
+    "model": "Model",
+    "outsideCatalog": "Model în afara catalogului",
+    "toolsTitle": "Tool-uri",
+    "skillsProjectsTitle": "Skill-uri și proiecte",
+    "skillsProjectsDescription": "Instrucțiuni reutilizabile pe care le urmează și proiectele în care poate lucra.",
+    "skills": "Skill-uri",
+    "skillsDescription": "Apasă ca să adaugi sau să elimini; ține cursorul deasupra pentru descriere.",
+    "noSkills": "Niciun skill activ. <link>Adaugă skill-uri</link>",
+    "projects": "Proiecte",
+    "projectsDescription": "Echipele din care face parte, ca specialist. Cine conduce un proiect se stabilește în tabul Echipă al proiectului.",
+    "noProjects": "Niciun proiect. <link>Creează un proiect</link>",
+    "advancedTitle": "Avansat",
+    "fallbackChain": "Lanț de fallback",
+    "fallbackDescription": "Dacă un provider pică sau atinge rate limit, rularea continuă pe următorul, cu același context.",
+    "fallbackCount": "{count, plural, =0 {Fără fallback} one {Un fallback} few {# fallback-uri} other {# de fallback-uri}}",
+    "effortSummary": "Efort: {effort}",
+    "limitsSummary": "{steps} pași, {minutes} min",
+    "budgetSummary": "buget ${budget}",
+    "noBudget": "fără plafon de buget",
+    "limitsTitle": "Limite",
+    "limitsDescription": "Plafoane aplicate fiecărei rulări.",
+    "maxSteps": "Max pași",
+    "timeout": "Timeout (minute)",
+    "budget": "Buget pe rulare (USD)",
+    "unlimited": "nelimitat",
+    "summaryLabel": "Rezumatul configurației",
+    "untitled": "Agent fără nume",
+    "noRole": "Fără rol încă",
+    "nameMissing": "Adaugă un nume",
+    "promptMissing": "Nescrise încă",
+    "defaultSummary": "Implicit: {chain}",
+    "noModel": "Niciun model ales",
+    "selectedCount": "{count, plural, =0 {Niciunul} one {Unul selectat} few {# selectate} other {# de selectate}}",
+    "complete": "complet",
+    "incomplete": "incomplet",
+    "unsaved": "Modificări nesalvate",
+    "noChanges": "Nicio modificare nesalvată",
+    "versionNote": "Notă versiune (opțional)",
+    "versionNoteAria": "Notă versiune",
+    "create": "Creează agentul",
+    "created": "Agent creat",
+    "savedVersion": "Salvat ca v{version}",
+    "savedNoVersion": "Salvat, fără modificări de versiune",
+    "invalidMaxSteps": "Max pași: între 1 și 100",
+    "invalidTimeout": "Timeout: minim 1 minut",
+    "invalidBudget": "Bugetul trebuie să fie un număr pozitiv sau gol",
+    "pickModel": "Alege un model sau folosește modelul implicit",
+    "fallbackModel": "Completează modelul pentru fiecare fallback",
+    "managesProject": "Conduce acest proiect. Alege mai întâi alt manager în tabul Echipă al proiectului."
+  },
+  "permissions": {
+    "title": "Tool-uri și permisiuni",
+    "description": "Alege ce poate face agentul singur, ce așteaptă aprobarea ta și ce nu poate folosi deloc.",
+    "options": {
+      "allow": "Permite",
+      "ask": "Întreabă",
+      "deny": "Blochează"
+    },
+    "legend": {
+      "allow": "Rulează fără să întrebe",
+      "ask": "Așteaptă aprobarea ta",
+      "deny": "Agentul nu îl poate folosi"
+    },
+    "summary": {
+      "allow": "{count, plural, one {# permis} few {# permise} other {# de permise}}",
+      "ask": "{count, plural, one {# cere aprobare} other {# cer aprobare}}",
+      "deny": "{count, plural, one {# blocat} few {# blocate} other {# de blocate}}"
+    },
+    "setAll": "Setează tot",
+    "setAllHint": "Se aplică tuturor tool-urilor incluse și tuturor serverelor MCP de mai jos",
+    "setAllOptions": {
+      "allow": "Permite tot",
+      "ask": "Întreabă pentru tot",
+      "deny": "Blochează tot"
+    },
+    "builtinTitle": "Tool-uri incluse",
+    "orchestratorGroup": "{group} (doar super agent)",
+    "managerGroup": "{group} (cât timp conduce un proiect)",
+    "controlFor": "Permisiune pentru {name}",
+    "groupControlFor": "Permisiune pentru toate tool-urile din {group}",
+    "alwaysAsk": "Așteaptă mereu aprobarea ta, nu poate rula singur",
+    "mcpTitle": "Servere MCP",
+    "mcpDescription": "Tool-uri de pe servere externe. Implicitul se aplică serverelor fără setare proprie, inclusiv celor pe care agentul le primește prin proiecte.",
+    "mcpDefault": "Implicit pentru serverele MCP",
+    "noServersAssigned": "Niciun server MCP atribuit acestui agent.",
+    "noRegistry": "Niciun server MCP încă. <link>Adaugă un server</link>",
+    "addServer": "Adaugă server MCP",
+    "disabled": "dezactivat",
+    "overrides": "{count, plural, one {# tool modificat} few {# tool-uri modificate} other {# de tool-uri modificate}}",
+    "ownSetting": "setare proprie",
+    "remove": "Elimină",
+    "removeServer": "Elimină {name}",
+    "toolsNotLoaded": "Lista de tool-uri a acestui server nu a fost încărcată încă.",
+    "loadTools": "Încarcă tool-urile",
+    "toolsLoaded": "{count, plural, one {Un tool încărcat} few {# tool-uri încărcate} other {# de tool-uri încărcate}}",
+    "noTools": "Serverul nu expune niciun tool.",
+    "syncedAt": "Încărcate",
+    "refresh": "Reîncarcă",
+    "refreshAria": "Reîncarcă tool-urile pentru {name}",
+    "globalBadge": "Toți agenții",
+    "builtinBadge": "Inclus",
+    "offForAgent": "oprit pentru acest agent",
+    "globalNote": "Îl primește fiecare agent. Blochează îl oprește pentru acesta."
+  },
+  "effort": {
+    "label": "Efort de raționament",
+    "inheritFrom": "Implicit ({source}: {effort})",
+    "inheritModel": "Implicit (decide modelul)",
+    "fromSettings": "Implicit (Setări)",
+    "sources": {
+      "settings": "Setări",
+      "agent": "Agent"
+    },
+    "unsupported": "{model} nu are raționament, așa că setarea e ignorată.",
+    "alwaysOn": "{model} gândește mereu; efortul nu poate fi setat.",
+    "fallback": "{model} nu suportă {effort}; va folosi {resolved}.",
+    "modelDefault": "setarea implicită a modelului",
+    "options": {
+      "default": {
+        "label": "Implicit",
+        "hint": "Decide modelul"
+      },
+      "none": {
+        "label": "Oprit",
+        "hint": "Răspunde fără să gândească înainte"
+      },
+      "minimal": {
+        "label": "Minim",
+        "hint": "Gândește foarte puțin, cel mai rapid"
+      },
+      "low": {
+        "label": "Scăzut",
+        "hint": "Gândire scurtă pentru sarcini simple"
+      },
+      "medium": {
+        "label": "Mediu",
+        "hint": "Echilibru între viteză și profunzime"
+      },
+      "high": {
+        "label": "Ridicat",
+        "hint": "Gândește mai mult la probleme grele"
+      },
+      "xhigh": {
+        "label": "Foarte ridicat",
+        "hint": "Gândește foarte mult, lent și scump"
+      },
+      "max": {
+        "label": "Maxim",
+        "hint": "Cel mai profund raționament oferit de model, cel mai lent și mai scump"
+      }
+    }
+  },
+  "versions": {
+    "title": "Versiuni",
+    "description": "Fiecare salvare cu modificări păstrează configurația anterioară.",
+    "emptyState": "Nicio versiune salvată încă: configurația actuală (v{version}) se păstrează la prima salvare cu modificări.",
+    "openConfig": "Deschide configurarea",
+    "noNote": "Fără notă",
+    "compare": "Compară",
+    "diffTitle": "v{version} față de configurația curentă (v{current})",
+    "diffCount": "{count, plural, one {Un câmp diferă.} few {# câmpuri diferă.} other {# de câmpuri diferă.}}",
+    "noDiff": "Nicio diferență față de configurația curentă.",
+    "currentLabel": "Curent",
+    "empty": "(gol)",
+    "none": "niciunul",
+    "default": "implicit",
+    "deleted": "(șters)",
+    "unlimited": "nelimitat",
+    "limits": "{steps, plural, one {# pas} few {# pași} other {# de pași}}, timeout {minutes} min, buget {budget}",
+    "fields": {
+      "name": "Nume",
+      "role": "Rol",
+      "avatar": "Avatar",
+      "systemPrompt": "System prompt",
+      "provider": "Provider",
+      "model": "Model",
+      "fallbacks": "Fallback-uri",
+      "reasoningEffort": "Efort de raționament",
+      "permissions": "Permisiuni tool-uri",
+      "limits": "Limite",
+      "skillIds": "Skill-uri",
+      "mcpServerIds": "Servere MCP"
+    },
+    "hideCompare": "Ascunde comparația",
+    "permission": {
+      "allow": "Permise: {tools}",
+      "ask": "Cer aprobare: {tools}",
+      "deny": "Blocate: {tools}"
+    },
+    "mcpAll": "toate serverele MCP"
+  },
+  "journal": {
+    "title": "Jurnal",
+    "description": "Agentul scrie un rezumat la sfârșitul fiecărei zile în care a lucrat.",
+    "searchPlaceholder": "Caută în jurnale...",
+    "searchAria": "Caută în jurnale",
+    "reset": "Resetează",
+    "noResults": "Nimic găsit pentru \"{query}\".",
+    "empty": "Niciun jurnal încă.",
+    "all": "Toate jurnalele",
+    "filterLabel": "Filtrează după proiect",
+    "allProjects": "Toate proiectele",
+    "noProject": "Fără proiect",
+    "emptyFiltered": "Nicio zi de jurnal aici.",
+    "allProjectsLink": "Arată toate proiectele"
+  },
+  "runs": {
+    "title": "Rulări",
+    "description": "Cele mai recente rulări ale acestui agent.",
+    "empty": "Nicio rulare încă. Pornește o conversație sau atribuie un task ca agentul să lucreze.",
+    "all": "Toate rulările",
+    "status": "Status",
+    "trigger": "Declanșator",
+    "input": "Input",
+    "model": "Model",
+    "cost": "Cost",
+    "duration": "Durată",
+    "when": "Când",
+    "open": "Deschide rularea"
+  },
+  "schedules": {
+    "title": "Programări",
+    "description": "Rulează agentul automat, recurent sau o singură dată.",
+    "empty": "Nicio programare încă.",
+    "manage": "Gestionează în Automatizări",
+    "disabled": "Dezactivată",
+    "once": "O singură dată: {date}",
+    "lastRun": "Ultima rulare {time}",
+    "never": "Nu a rulat încă"
+  },
+  "versionNotes": {
+    "initial": "Versiune inițială",
+    "fromTemplate": "Creat din template-ul {slug}",
+    "duplicated": "Duplicat din {name} v{version}",
+    "restored": "Restaurat din v{version}"
+  },
+  "copyName": "{name} (copie)",
+  "errors": {
+    "notFound": "Agentul nu există",
+    "orchestratorDisable": "Super agentul nu poate fi dezactivat",
+    "orchestratorDelete": "Super agentul nu poate fi șters",
+    "versionNotFound": "Versiunea v{version} nu există"
+  },
+  "validation": {
+    "unknownProvider": "Provider necunoscut",
+    "pickModel": "Alege un model",
+    "nameRequired": "Numele este obligatoriu",
+    "timeoutMin": "Timeout minim: 1 minut",
+    "budgetPositive": "Bugetul trebuie să fie pozitiv"
+  },
+  "unsaved": {
+    "title": "Pleci fără să salvezi?",
+    "description": "Ai modificări nesalvate pe această pagină. Dacă pleci acum, se pierd.",
+    "stay": "Rămâi pe pagină",
+    "leave": "Pleacă fără să salvezi"
+  },
+  "projects": {
+    "title": "Proiecte",
+    "description": "Echipele de proiect din care face parte acest agent. Profesia lui (instrucțiuni, skill-uri, unelte) e aceeași peste tot; ce învață într-un proiect rămâne la acel proiect.",
+    "empty": "Nu face parte încă din nicio echipă de proiect. Adaugă-l din tabul Echipă al unui proiect (<link>vezi proiectele</link>) sau din Configurare.",
+    "learned": "{count, plural, one {Ce a învățat aici: # amintire} few {Ce a învățat aici: # amintiri} other {Ce a învățat aici: # de amintiri}}",
+    "openTeam": "Deschide echipa",
+    "openJournal": "Jurnal"
+  }
+}

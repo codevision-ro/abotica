@@ -1,0 +1,10 @@
+# Generated or vendored: kept as their tools write them.
+pnpm-lock.yaml
+packages/db/migrations
+apps/web/src/components/ui
+apps/web/src/components/ai-elements
+apps/web/src/hooks/use-mobile.ts
+# Local data: uploads, and sandbox workspaces with the agents' files and clones.
+**/.data
+# Prose: table alignment and list markers would churn every doc.
+*.md

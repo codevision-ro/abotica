@@ -1,0 +1,55 @@
+{
+  "title": "Preview-uri",
+  "intro": "Linkuri către ce au făcut agenții: mockup-uri, documente și aplicații pornite de ei. Un preview privat se deschide doar pentru tine, unul public pentru oricine are linkul. Fiecare expiră singur.",
+  "empty": "Niciun preview încă. Cere unui agent să publice un mockup sau un document, ori să pornească o aplicație, și linkul apare aici.",
+  "kinds": {
+    "static": "Fișiere",
+    "live": "Aplicație live"
+  },
+  "visibility": {
+    "public": "Public",
+    "private": "Privat"
+  },
+  "chat": "Chat",
+  "expires": "expiră",
+  "actions": {
+    "open": "Deschide",
+    "copy": "Copiază linkul",
+    "makePublic": "Fă-l public",
+    "makePrivate": "Fă-l privat",
+    "extend": "Prelungește",
+    "takeDown": "Retrage"
+  },
+  "toasts": {
+    "copied": "Link copiat",
+    "public": "{title} e public: oricine are linkul îl poate deschide.",
+    "private": "{title} e din nou privat.",
+    "extended": "{title} a fost prelungit.",
+    "takenDown": "{title} a fost retras."
+  },
+  "confirmPublic": {
+    "title": "Faci {title} public?",
+    "description": "Oricine are linkul îl poate deschide fără autentificare, până expiră sau până îl retragi."
+  },
+  "confirmTakeDown": {
+    "title": "Retragi {title}?",
+    "description": "Linkul nu mai funcționează imediat, iar copia fișierelor se șterge. Agentul îl poate publica din nou."
+  },
+  "page": {
+    "notFound": {
+      "title": "Preview inexistent",
+      "body": "Acest link nu există sau a expirat."
+    },
+    "notRunning": {
+      "title": "Aplicația nu rulează",
+      "body": "Aplicația din spatele acestui preview s-a oprit. Cere agentului să o pornească din nou."
+    },
+    "denied": {
+      "title": "Acces refuzat",
+      "body": "Linkul de acces nu mai este valabil. Deschide din nou preview-ul din Abotica."
+    }
+  },
+  "errors": {
+    "notFound": "Acest preview nu mai există sau a expirat."
+  }
+}
