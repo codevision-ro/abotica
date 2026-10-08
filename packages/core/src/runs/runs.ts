@@ -23,6 +23,7 @@ import {
   activeTaskRun,
   assertTaskDependenciesDone,
   isActiveTaskRunConflict,
+  resetFixRounds,
   TaskBusyError,
   TaskCircuitOpenError,
   taskFailureStreak,
@@ -200,7 +201,8 @@ async function taskBrief(taskId: string): Promise<string> {
 /**
  * Starts the run of a task's assignee. Refuses a task that is missing, unassigned, waiting for its
  * dependencies, already has an active run (TaskBusyError) or whose runs keep failing
- * (TaskCircuitOpenError). `force` is the user's start: it goes past the circuit breaker, and resets it.
+ * (TaskCircuitOpenError). `force` is the user's start: it goes past the circuit breaker, and resets it
+ * and the automatic fix rounds of the task's pull requests.
  */
 export async function startTaskRun(
   taskId: string,
@@ -212,7 +214,8 @@ export async function startTaskRun(
   await assertTaskDependenciesDone(taskId);
   // Checked before the task changes; a run started at the same moment still fails on the unique index.
   if (await activeTaskRun(taskId)) throw new TaskBusyError(taskId);
-  if (!opts.force) {
+  if (opts.force) await resetFixRounds(taskId);
+  else {
     const streak = await taskFailureStreak(taskId);
     if (streak.open) throw new TaskCircuitOpenError(taskId, streak);
   }

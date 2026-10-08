@@ -1,9 +1,11 @@
 /**
- * The project's repositories inside a sandbox workspace: how git authenticates to them, which
- * hosts it may reach, and the clones and task worktrees Abotica keeps there. Git always runs inside
- * the sandbox; nothing here touches the host's files.
+ * The project's repositories inside a sandbox workspace: how git authenticates to them, and the
+ * clones and task worktrees Abotica keeps there. Git always runs inside the sandbox; nothing here
+ * touches the host's files. The tokens never enter it: git reaches each repository through a
+ * credential route of the egress proxy, which adds the token on the way out.
  */
-import { type CommandResult, runCommand, shellQuote, type Workspace } from "@abotica/sandbox";
+import { type CommandResult, type CredentialRoute, runCommand, shellQuote, type Workspace } from "@abotica/sandbox";
+import { routeUrl } from "@abotica/sandbox/routes";
 import type { RepoProvider } from "../projects/repo-url";
 import { REPOS_DIR, repoPath, taskBranch, taskWorktreePath, WORK_DIR } from "./workspace-paths";
 
@@ -25,16 +27,23 @@ const CLONE_TIMEOUT_MS = 10 * 60_000;
 const GIT_TIMEOUT_MS = 2 * 60_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-const tokenVariable = (index: number) => `ABOTICA_GIT_TOKEN_${index}`;
+/** How git in a workspace reaches the repositories: the environment of its commands and their routes. */
+export type RepoGitAccess = { env: Record<string, string>; routes: CredentialRoute[] };
+
+const routeId = (repo: Pick<WorkspaceRepo, "name">) => `git-${repo.name}`;
+
+const basicAuth = (username: string, password: string) =>
+  `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
 
 /**
- * Environment of every command in a workspace with repositories. Git reads its configuration from
- * GIT_CONFIG_COUNT/KEY/VALUE (git 2.31+), so no file holds a token: each repository URL, with and
- * without `.git`, gets a credential helper that answers from its token's variable. The empty
- * helper first drops any helper of the system configuration, which would otherwise answer before
- * ours or store the token. Commits are authored by the agent.
+ * Environment and credential routes of every command in a workspace with repositories. Each
+ * repository gets a route to its clone URL that signs in with its token, and git's configuration
+ * (GIT_CONFIG_COUNT/KEY/VALUE, git 2.31+, so no file is written) rewrites the clone URL, with and
+ * without `.git`, to that route: plain git commands work and no command ever sees a token. The empty
+ * credential helper drops any helper of the system configuration, which would otherwise answer a
+ * rejected request with credentials of its own or store them. Commits are authored by the agent.
  */
-export function repoGitEnv(repos: WorkspaceRepo[], author: GitAuthor): Record<string, string> {
+export function repoGitAccess(repos: WorkspaceRepo[], author: GitAuthor): RepoGitAccess {
   const env: Record<string, string> = {
     GIT_AUTHOR_NAME: author.name,
     GIT_AUTHOR_EMAIL: author.email,
@@ -43,33 +52,31 @@ export function repoGitEnv(repos: WorkspaceRepo[], author: GitAuthor): Record<st
     // A missing or rejected credential fails at once instead of waiting for a prompt nobody answers.
     GIT_TERMINAL_PROMPT: "0",
   };
-  if (!repos.length) return env;
-  const config: [string, string][] = [
-    ["credential.helper", ""],
-    ["credential.useHttpPath", "true"],
-  ];
-  repos.forEach((repo, index) => {
-    env[tokenVariable(index)] = repo.token;
-    const helper = `!f() { test "$1" = get && printf 'username=%s\\npassword=%s\\n' ${TOKEN_USERNAME[repo.provider]} "$${tokenVariable(index)}"; }; f`;
+  if (!repos.length) return { env, routes: [] };
+  const config: [string, string][] = [["credential.helper", ""]];
+  const routes = repos.map((repo): CredentialRoute => {
+    const id = routeId(repo);
     for (const url of [repo.cloneUrl, repo.cloneUrl.replace(/\.git$/, "")]) {
-      config.push([`credential.${url}.helper`, helper]);
+      config.push([`url.${routeUrl(id)}.insteadOf`, url]);
     }
+    return {
+      id,
+      upstream: repo.cloneUrl,
+      headers: { Authorization: basicAuth(TOKEN_USERNAME[repo.provider], repo.token) },
+    };
   });
   env.GIT_CONFIG_COUNT = String(config.length);
   config.forEach(([key, value], index) => {
     env[`GIT_CONFIG_KEY_${index}`] = key;
     env[`GIT_CONFIG_VALUE_${index}`] = value;
   });
-  return env;
+  return { env, routes };
 }
-
-/** Hosts git must reach for the repositories, on top of the project's network policy. */
-export const repoHosts = (repos: Pick<WorkspaceRepo, "host">[]) => [...new Set(repos.map((r) => r.host))];
 
 export type PrepareReposOptions = {
   repos: WorkspaceRepo[];
-  /** `repoGitEnv` of the run. */
-  env: Record<string, string>;
+  /** `repoGitAccess` of the run. */
+  git: RepoGitAccess;
   /** The run's task: it gets a worktree in each repository. */
   taskId: string | null;
   /** Of these task ids, the ones whose worktrees may go (finished or deleted tasks). */
@@ -91,8 +98,9 @@ export const commandFailure = (result: CommandResult) =>
 export async function prepareRepos(workspace: Workspace, options: PrepareReposOptions): Promise<void> {
   const { repos, signal } = options;
   if (!repos.length) return;
+  // Git needs no network of its own: the routes are its only way out.
   const run = (command: string, timeoutMs: number) =>
-    runCommand(workspace, { command, env: options.env, egress: repoHosts(repos), signal, timeoutMs });
+    runCommand(workspace, { command, env: options.git.env, routes: options.git.routes, egress: [], signal, timeoutMs });
 
   for (const repo of repos) {
     if (signal.aborted) return;

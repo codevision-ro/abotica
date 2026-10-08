@@ -9,6 +9,10 @@
  * Sandboxed stdio servers run as the sandbox's MCP user, never as the user of agent commands, and
  * never start inside a workspace the agent writes; their own workspaces are keyed by server and
  * secret scope (`mcpWorkspaceKeyFor`).
+ *
+ * What a server sends back (results, errors with its stderr) loses the run's secrets before it is
+ * capped, stored or wrapped for the model: the ones its connection resolved, the run's repository
+ * tokens, and well-known token shapes (redact.ts).
  */
 import { type MCPClient, createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
@@ -21,7 +25,7 @@ import { touchWorkspace } from "../sandbox/sandbox";
 import { DEFAULT_MCP_NETWORK, setupEgressFor } from "../sandbox/sandbox-policy";
 import { syncBuiltinMcpServers } from "../mcp/mcp-servers";
 import { currentSandboxBackend } from "../sandbox/sandbox-runtime";
-import { GLOBAL_SECRETS, interpolateSecrets, type SecretScope } from "../platform/vault";
+import { GLOBAL_SECRETS, type SecretScope } from "../platform/vault";
 import type { McpServer } from "./context";
 import {
   connectHttpMcp,
@@ -30,11 +34,14 @@ import {
   type McpTestResult,
   type McpToolSource,
   probeMcp,
+  resolveMcpSecrets,
   saveMcpToolCache,
   sameToolDefinitions,
 } from "./mcp";
+import { resolveMcpRoutes } from "./mcp-routes";
 import { SandboxMcpTransport } from "./mcp-sandbox-transport";
 import { mcpToolDefault } from "./permissions";
+import { type SecretRedactor, secretRedactor } from "./redact";
 import {
   capToolText,
   type FullOutputTarget,
@@ -69,6 +76,8 @@ export type McpRunOptions = McpConnectOptions & {
   toolOutput?: ToolOutputWorkspace | null;
   /** A result went to the model as untrusted data: every MCP result does, also when a replay rebuilds it. */
   onUntrusted?: () => void;
+  /** Redacted from what the servers send back, besides the secrets their connections resolve: the repository tokens. */
+  knownSecrets?: readonly string[];
 };
 
 /** The only host variables an unsandboxed stdio server gets; the worker's secrets stay out. */
@@ -119,12 +128,17 @@ async function stdioWorkspace(
 /** A connected server, with the folder of its files the agent can read (null when it has none). */
 type McpConnected = { client: MCPClient; folder: string | null };
 
-/** A stdio server inside a sandbox workspace, as the MCP user, with the network its own policy allows. */
+/**
+ * A stdio server inside a sandbox workspace, as the MCP user, with the network its own policy allows
+ * and its credential routes.
+ */
 async function connectSandboxedStdio(
   server: McpServer,
   env: Record<string, string>,
   opts: McpRunOptions,
 ): Promise<McpConnected> {
+  // Job data serialized before the column existed has no routes.
+  const routes = await resolveMcpRoutes(server.credentialRoutes ?? [], opts);
   const { workspace, folder } = await stdioWorkspace(server, opts);
   // `npx -y` and `uvx` download the server when it starts, so the registries are always reachable.
   // The egress belongs to this process, so in a run's workspace it does not widen the agent's own.
@@ -134,7 +148,15 @@ async function connectSandboxedStdio(
   const start = `exec ${[server.command!, ...server.args].map(shellQuote).join(" ")}`;
   const command = folder ? `mkdir -p -- ${shellQuote(folder)} && cd -- ${shellQuote(folder)} && ${start}` : start;
   const transport = new SandboxMcpTransport(() =>
-    workspace.exec({ command, env, egress, stdin: "pipe", signal: opts.signal, user: "mcp" }),
+    workspace.exec({
+      command,
+      env: { ...env, ...routes.env },
+      egress,
+      routes: routes.routes,
+      stdin: "pipe",
+      signal: opts.signal,
+      user: "mcp",
+    }),
   );
   try {
     return { client: await createMCPClient({ transport, clientName: "abotica" }), folder };
@@ -163,7 +185,7 @@ async function connectHostStdio(server: McpServer, env: Record<string, string>, 
 async function connectMcp(server: McpServer, opts: McpRunOptions): Promise<McpConnected> {
   if (server.transport === "http") return { client: await connectHttpMcp(server, opts), folder: null };
   if (!server.command) throw new Error(`MCP ${server.slug}: command is missing`);
-  const env = await interpolateSecrets(server.env, opts.secrets);
+  const env = await resolveMcpSecrets(server.env, opts);
   // Rows serialized before the column existed (or drafts from the form) count as sandboxed.
   if (server.sandboxed === false) return { client: await connectHostStdio(server, env, opts), folder: null };
   return connectSandboxedStdio(server, env, opts);
@@ -271,12 +293,32 @@ function folderNote(result: McpCallResult, folder: string): string | undefined {
   );
 }
 
+/** Binary parts are base64: no secret is readable there, and a token shape could match by chance. */
+const isBinaryPart = (part: { type: string; resource?: unknown }) =>
+  part.type === "image" ||
+  part.type === "audio" ||
+  (part.type === "resource" && typeof part.resource === "object" && part.resource !== null && "blob" in part.resource);
+
+/** The result without the secrets `redactor` knows, binary parts left as they are. */
+function redactResult(result: McpCallResult, redactor: SecretRedactor): McpCallResult {
+  if (!("content" in result) || !Array.isArray(result.content)) return redactor.redact(result);
+  const { content, ...rest } = result;
+  return { ...redactor.redact(rest), content: content.map((part) => (isBinaryPart(part) ? part : redactor.redact(part))) };
+}
+
+/** An error's text without the secrets `redactor` knows; a UserError is Abotica's own text and stays. */
+function redactError(error: unknown, redactor: SecretRedactor): unknown {
+  if (isUserError(error)) return error;
+  return new Error(redactor.redact(error instanceof Error ? error.message : String(error)));
+}
+
 /** One server's tools, built from its definitions; the server is only connected on a call. */
 function serverTools(
   server: McpServer,
   definitions: McpToolInfo[],
   connect: () => Promise<McpConnected>,
   opts: McpRunOptions,
+  redactor: SecretRedactor,
 ): Record<string, Tool> {
   const tools: Record<string, Tool> = {};
   const toModelOutput = modelOutput(server.slug, opts.onUntrusted);
@@ -304,7 +346,7 @@ function serverTools(
             const message = error instanceof Error ? error.message : String(error);
             return { isError: true, content: [{ type: "text", text: message }] };
           });
-        const capped = await capResult(result, fullOutputTarget(opts.toolOutput, options));
+        const capped = await capResult(redactResult(result, redactor), fullOutputTarget(opts.toolOutput, options));
         if ("isError" in capped && capped.isError) {
           const message = errorResultText(capped);
           opts.onUntrusted?.();
@@ -323,10 +365,12 @@ function serverTools(
   return tools;
 }
 
-export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): Promise<McpConnection> {
+export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions): Promise<McpConnection> {
   const clients: MCPClient[] = [];
   const errors: McpConnection["errors"] = [];
   let closed = false;
+  const redactor = secretRedactor(runOpts.knownSecrets);
+  const opts: McpRunOptions = { ...runOpts, onSecrets: redactor.add };
 
   /** Connects once; a failed start is retried on the next call rather than remembered. */
   const lazyClient = (server: McpServer) => {
@@ -348,8 +392,9 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
           }
           return connected;
         },
-        (error: unknown) => {
+        (failure: unknown) => {
           pending = null;
+          const error = redactError(failure, redactor);
           opts.onLazyError?.(server.slug, error);
           throw error;
         },
@@ -361,7 +406,11 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
   const listings = await Promise.all(
     servers.map(async (server) => {
       if (isComplete(server.tools)) {
-        return { server, definitions: server.tools, tools: serverTools(server, server.tools, lazyClient(server), opts) };
+        return {
+          server,
+          definitions: server.tools,
+          tools: serverTools(server, server.tools, lazyClient(server), opts, redactor),
+        };
       }
       // No usable cache yet: connect now, list the tools and remember them for the next runs.
       try {
@@ -370,9 +419,9 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
         const definitions = await listToolDefinitions(connected.client);
         // The cache only feeds the agent form and later runs; a failed write must never fail this one.
         if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
-        return { server, definitions, tools: serverTools(server, definitions, async () => connected, opts) };
+        return { server, definitions, tools: serverTools(server, definitions, async () => connected, opts, redactor) };
       } catch (error) {
-        errors.push({ server: server.slug, error });
+        errors.push({ server: server.slug, error: redactError(error, redactor) });
         return null;
       }
     }),

@@ -7,7 +7,7 @@ import { projectAgents, projects } from "./projects";
 import { agentMcpServers, agentSkills, mcpServers, skills } from "./registry";
 import { projectRepos, taskPullRequests } from "./repos";
 import { approvals, runEvents, runs } from "./runs";
-import { taskComments, taskDependencies, taskEvents, tasks } from "./tasks";
+import { taskComments, taskDependencies, taskEvents, tasks, taskWakeups } from "./tasks";
 
 export const projectsRelations = relations(projects, ({ many }) => ({
   agents: many(projectAgents),
@@ -56,11 +56,17 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   dependencies: many(taskDependencies, { relationName: "dependencies" }),
   runs: many(runs),
   pullRequests: many(taskPullRequests),
+  wakeups: many(taskWakeups),
 }));
 
 export const taskPullRequestsRelations = relations(taskPullRequests, ({ one }) => ({
   task: one(tasks, { fields: [taskPullRequests.taskId], references: [tasks.id] }),
   repo: one(projectRepos, { fields: [taskPullRequests.repoId], references: [projectRepos.id] }),
+}));
+
+export const taskWakeupsRelations = relations(taskWakeups, ({ one }) => ({
+  task: one(tasks, { fields: [taskWakeups.taskId], references: [tasks.id] }),
+  agent: one(agents, { fields: [taskWakeups.agentId], references: [agents.id] }),
 }));
 
 export const taskDependenciesRelations = relations(taskDependencies, ({ one }) => ({

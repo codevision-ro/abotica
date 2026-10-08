@@ -1,6 +1,5 @@
 import { agents, conversations, db, messages, projectRepos, runEvents, runs } from "@abotica/db";
 import { asc, eq } from "@abotica/db/orm";
-import { REDACTED } from "../src/agents/redact";
 import { taskBranch, taskWorktreePath } from "../src/agents/workspace-paths";
 import {
   createAgentFromTemplate,
@@ -15,14 +14,16 @@ import {
 /**
  * End-to-end check of a project repository in a real sandbox: a specialist works on a task in a
  * project whose network is off, and must find the repository cloned, its task worktree on the
- * task's branch, git able to reach the host, and the token hidden from everything it reads.
- * Uses a public GitHub repository with a made-up token, so nothing is pushed. Needs the worker
- * running with the sandbox (docker compose).
- * Usage: pnpm --filter @abotica/core e2e:repos (E2E_PROVIDER and E2E_MODEL pick the model, default DeepSeek)
+ * task's branch, git able to reach the host through the egress proxy's credential route, and the
+ * token in no command's environment nor anything stored. Uses a public GitHub repository, so nothing
+ * is pushed, with a real token: the route always sends it, and GitHub refuses a made-up one. Needs
+ * the worker running with the sandbox (docker compose).
+ * Usage: E2E_GITHUB_TOKEN=<any token that reads public repositories> pnpm --filter @abotica/core e2e:repos
+ * (E2E_PROVIDER and E2E_MODEL pick the model, default DeepSeek)
  */
 const MODEL = { provider: process.env.E2E_PROVIDER ?? "deepseek", model: process.env.E2E_MODEL ?? "deepseek-v4-flash" };
 const REPO = { host: "github.com", path: "octocat/Hello-World", defaultBranch: "master", name: "hello-world" };
-const TOKEN = `ghp_e2e${Date.now().toString(36)}notarealtoken`;
+const TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TIMEOUT_MS = 8 * 60_000;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -31,6 +32,11 @@ const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "PASS" : "FAIL"} ${label}`);
   if (!ok) failures.push(label);
 };
+
+if (!TOKEN) {
+  console.error("Set E2E_GITHUB_TOKEN to a GitHub token that can read public repositories.");
+  process.exit(1);
+}
 
 const status = await getSandboxStatus();
 console.log("sandbox:", status?.isolation ?? "not running");
@@ -77,7 +83,7 @@ try {
       "1. ls repos",
       "2. git -C WORKTREE branch --show-current",
       "3. git -C WORKTREE log -1 --format=%s",
-      "4. env | grep ABOTICA_GIT_TOKEN",
+      "4. env",
       "5. git -C repos/hello-world ls-remote --heads origin master",
       "Then set the task to done with the outputs as the result.",
     ]
@@ -109,8 +115,9 @@ try {
 
   check(all.includes(REPO.name), "the repository is cloned in repos/");
   check(all.includes(taskBranch(task.id)), `the task worktree ${taskWorktreePath(task.id, REPO.name)} is on its branch`);
-  check(all.includes("refs/heads/master"), "git reaches github.com although the project's network is off");
-  check(all.includes(REDACTED), "the token is replaced in what the agent reads");
+  check(all.includes("refs/heads/master"), "git reaches github.com through its route although the network is off");
+  check(all.includes("routes.abotica.invalid"), "git's configuration points the repository at its route");
+  check(!all.includes(TOKEN), "no command's environment or output holds the token");
 
   const stored = [
     ...events.map((e) => JSON.stringify(e.data)),

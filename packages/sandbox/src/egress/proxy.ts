@@ -3,6 +3,10 @@
  * only way out is this proxy, which the worker runs on its address in that network. Plain HTTP goes
  * through as absolute-URI requests, everything else (HTTPS, git, ssh over 443) through CONNECT.
  *
+ * Credential routes (routes.ts) are served here too: a request to the route host, as an absolute URI
+ * or inside a CONNECT tunnel to it (Node's fetch tunnels plain http as well), goes to the route's
+ * upstream over verified TLS with the route's headers, which never enter the sandbox.
+ *
  * Each exec gets a random token (sent as the proxy username) that maps to its egress list, only
  * works from the address of the container it was issued to (a token read from another workspace's
  * environment is useless) and dies with the exec. A request is allowed when the host matches the list, then the name is resolved once,
@@ -15,9 +19,19 @@ import { lookup } from "node:dns/promises";
 import http from "node:http";
 import net from "node:net";
 import type { Duplex } from "node:stream";
-import type { Egress } from "../types";
+import tls from "node:tls";
+import type { CredentialRoute, Egress } from "../types";
 import { addressKey, isBlockedAddress, localAddresses, parseIPv4 } from "./addresses";
 import { matchesEgress, normalizeHost, parseAuthority } from "./policy";
+import {
+  parseRouteTarget,
+  type ResolvedRoute,
+  resolveRoute,
+  ROUTE_HOST,
+  routeLocation,
+  upstreamHeaders,
+  upstreamUrl,
+} from "./routes";
 
 export const EGRESS_PROXY_PORT = 3128;
 
@@ -34,6 +48,8 @@ export type EgressProxyOptions = {
   maxConnectionsPerToken?: number;
   /** Tests only: allow loopback upstreams so local test servers are reachable. */
   unsafeAllowLoopback?: boolean;
+  /** Tests only: the CA that route upstreams are verified against instead of the system's (a local test server). */
+  upstreamCa?: string;
   /** Name resolution, default dns.lookup (all addresses). Tests use it to control timing. */
   lookup?: (hostname: string) => Promise<{ address: string; family: number }[]>;
 };
@@ -52,12 +68,22 @@ export type EgressGrant = {
 export type EgressProxy = {
   readonly host: string;
   readonly port: number;
-  /** Registers a token for one exec, usable only from `client` (the container's address). */
-  register(egress: Egress, client: string): EgressGrant;
+  /**
+   * Registers a token for one exec, usable only from `client` (the container's address), with the
+   * credential routes the exec may use. Throws on a malformed route.
+   */
+  register(egress: Egress, client: string, routes?: readonly CredentialRoute[]): EgressGrant;
   close(): Promise<void>;
 };
 
-type GrantState = { egress: Egress; client: string; active: number; sockets: Set<Duplex>; revoked: boolean };
+type GrantState = {
+  egress: Egress;
+  client: string;
+  routes: Map<string, ResolvedRoute>;
+  active: number;
+  sockets: Set<Duplex>;
+  revoked: boolean;
+};
 
 class Refusal extends Error {
   constructor(
@@ -81,6 +107,11 @@ const HOP_BY_HOP = new Set([
   "upgrade",
   "expect",
 ]);
+
+const ROUTE_ADDRESS = new Refusal(
+  400,
+  `Bad request: credential routes are plain http URLs, http://${ROUTE_HOST}/<id>/..., as given in the environment`,
+);
 
 const AUTH_REQUIRED = new Refusal(407, "Proxy authentication required: use the HTTP_PROXY settings of the sandbox", {
   "proxy-authenticate": 'Basic realm="abotica-sandbox"',
@@ -185,6 +216,8 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
   const maxPerToken = options.maxConnectionsPerToken ?? 64;
   const grants = new Map<string, GrantState>();
   const tunnels = new Set<Duplex>();
+  /** Tunnels to the route host, with the grant of the CONNECT request that opened each one. */
+  const tunnelGrants = new WeakMap<Duplex, GrantState>();
 
   let own = localAddresses();
   let ownCheckedAt = Date.now();
@@ -207,8 +240,8 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
     return grant;
   };
 
-  /** Checks the policy, resolves once and connects to a vetted address. Counts against the token. */
-  async function openUpstream(grant: GrantState, host: string, port: number): Promise<net.Socket> {
+  /** Checks the policy, then connects (`connectVetted`). */
+  function openUpstream(grant: GrantState, host: string, port: number): Promise<net.Socket> {
     if (!matchesEgress(host, port, grant.egress)) {
       const reason =
         grant.egress !== "public" && grant.egress.length === 0
@@ -216,6 +249,11 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
           : `Blocked by the sandbox network policy: ${host}:${port} is not an allowed destination`;
       throw new Refusal(403, reason);
     }
+    return connectVetted(grant, host, port);
+  }
+
+  /** Resolves once and connects to a vetted address. Counts against the token. */
+  async function connectVetted(grant: GrantState, host: string, port: number): Promise<net.Socket> {
     if (grant.active >= maxPerToken) {
       throw new Refusal(429, `Blocked by the sandbox: more than ${maxPerToken} open connections from this command`);
     }
@@ -294,6 +332,85 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
     return true;
   };
 
+  /**
+   * Sends `req` upstream over `socket` and streams the answer back; `adjust` may change the headers
+   * the client gets.
+   */
+  function relay(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    socket: net.Socket,
+    request: Pick<http.RequestOptions, "path" | "headers">,
+    target: string,
+    adjust: (headers: http.OutgoingHttpHeaders) => http.OutgoingHttpHeaders = (headers) => headers,
+  ) {
+    const upstream = http.request({ ...request, method: req.method, createConnection: () => socket });
+    socket.setTimeout(idleTimeoutMs, () => socket.destroy());
+    upstream.on("response", (response) => {
+      res.writeHead(response.statusCode ?? 502, response.statusMessage, adjust(endToEndHeaders(response.headers)));
+      response.pipe(res);
+      response.on("error", () => res.destroy());
+    });
+    upstream.on("error", () => {
+      if (!res.headersSent) respondRefusal(res, new Refusal(502, `Connection to ${target} failed`));
+      else res.destroy();
+    });
+    res.on("close", () => {
+      if (!res.writableFinished) upstream.destroy();
+    });
+    req.pipe(upstream);
+  }
+
+  /** A verified TLS connection to a route's upstream, over a vetted address. */
+  async function openRouteUpstream(grant: GrantState, upstream: URL): Promise<tls.TLSSocket> {
+    const host = normalizeHost(upstream.hostname);
+    const socket = await connectVetted(grant, host, upstream.port ? Number(upstream.port) : 443);
+    return new Promise((resolve, reject) => {
+      const secure = tls.connect({
+        socket,
+        host,
+        servername: net.isIP(host) ? undefined : host,
+        ca: options.upstreamCa,
+        ALPNProtocols: ["http/1.1"],
+      });
+      const fail = (error?: NodeJS.ErrnoException) => {
+        clearTimeout(timer);
+        secure.destroy();
+        const code = error?.code ?? "ETIMEDOUT";
+        reject(new Refusal(502, `TLS connection to ${upstream.host} failed (${code})`));
+      };
+      const timer = setTimeout(fail, connectTimeoutMs);
+      secure.once("error", fail);
+      secure.once("secureConnect", () => {
+        clearTimeout(timer);
+        secure.off("error", fail);
+        resolve(secure);
+      });
+    });
+  }
+
+  /** A request to the route host: on to the route's upstream, with the route's headers. */
+  async function forwardRoute(
+    grant: GrantState,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    target: URL,
+  ): Promise<void> {
+    if (target.port && target.port !== "80") throw ROUTE_ADDRESS;
+    const parsed = parseRouteTarget(target.pathname + target.search);
+    if (!parsed) throw ROUTE_ADDRESS;
+    const route = grant.routes.get(parsed.id);
+    if (!route) throw new Refusal(404, `Unknown credential route ${parsed.id}: it is not given to this command`);
+    const url = upstreamUrl(route, parsed.rest);
+    if (!url) throw new Refusal(403, `Blocked by the sandbox: the path is outside credential route ${route.id}`);
+    const socket = await openRouteUpstream(grant, route.upstream);
+    if (!track(grant, socket)) throw AUTH_REQUIRED;
+    const headers = { ...upstreamHeaders(route, endToEndHeaders(req.headers)), connection: "close" };
+    relay(req, res, socket, { path: url.pathname + url.search, headers }, url.host, (out) =>
+      typeof out.location === "string" ? { ...out, location: routeLocation(route, out.location, url) } : out,
+    );
+  }
+
   async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     try {
       const grant = grantFor(req.headers["proxy-authorization"], req.socket);
@@ -306,34 +423,47 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       if (url.protocol !== "http:") {
         throw new Refusal(400, `Bad request: only http URLs can be forwarded, use CONNECT for ${url.protocol}`);
       }
+      if (normalizeHost(url.hostname) === ROUTE_HOST) return await forwardRoute(grant, req, res, url);
       const port = url.port ? Number(url.port) : 80;
       const socket = await openUpstream(grant, url.hostname, port);
       if (!track(grant, socket)) throw AUTH_REQUIRED;
       // Host follows the URL the policy checked, so a different Host header cannot reach another site.
       const headers = { ...endToEndHeaders(req.headers), host: url.host, connection: "close" };
-      const upstream = http.request({
-        method: req.method,
-        path: `${url.pathname}${url.search}`,
-        headers,
-        createConnection: () => socket,
-      });
-      socket.setTimeout(idleTimeoutMs, () => socket.destroy());
-      upstream.on("response", (response) => {
-        res.writeHead(response.statusCode ?? 502, response.statusMessage, endToEndHeaders(response.headers));
-        response.pipe(res);
-        response.on("error", () => res.destroy());
-      });
-      upstream.on("error", () => {
-        if (!res.headersSent) respondRefusal(res, new Refusal(502, `Connection to ${url.host} failed`));
-        else res.destroy();
-      });
-      res.on("close", () => {
-        if (!res.writableFinished) upstream.destroy();
-      });
-      req.pipe(upstream);
+      relay(req, res, socket, { path: `${url.pathname}${url.search}`, headers }, url.host);
     } catch (error) {
       respondRefusal(res, error instanceof Refusal ? error : new Refusal(502, "Proxy error"));
     }
+  }
+
+  /**
+   * A request inside a CONNECT tunnel to the route host. It carries no proxy credentials: the tunnel
+   * was granted to the CONNECT request's token, and revoking it closes the tunnel.
+   */
+  async function handleTunneledRoute(req: http.IncomingMessage, res: http.ServerResponse) {
+    try {
+      const grant = tunnelGrants.get(req.socket);
+      if (!grant || grant.revoked) throw AUTH_REQUIRED;
+      // Origin-form only; the Host header is not read, so the tunnel leads to the route host and nowhere else.
+      const base = `http://${ROUTE_HOST}`;
+      if (!URL.canParse(req.url ?? "", base)) throw ROUTE_ADDRESS;
+      const url = new URL(req.url ?? "", base);
+      if (url.host !== ROUTE_HOST) throw ROUTE_ADDRESS;
+      await forwardRoute(grant, req, res, url);
+    } catch (error) {
+      respondRefusal(res, error instanceof Refusal ? error : new Refusal(502, "Proxy error"));
+    }
+  }
+
+  /** Hands a CONNECT tunnel to the route host to the route server, which parses what comes through it. */
+  function tunnelToRoutes(grant: GrantState, client: Duplex, head: Buffer) {
+    if (!track(grant, client)) return;
+    tunnelGrants.set(client, grant);
+    if ("setTimeout" in client && typeof client.setTimeout === "function") {
+      (client as net.Socket).setTimeout(idleTimeoutMs, () => client.destroy());
+    }
+    client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+    if (head.length > 0) client.unshift(head);
+    routeServer.emit("connection", client);
   }
 
   async function handleConnect(req: http.IncomingMessage, client: Duplex, head: Buffer) {
@@ -344,6 +474,10 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       const grant = grantFor(req.headers["proxy-authorization"], client);
       const target = parseAuthority(req.url ?? "");
       if (!target) throw new Refusal(400, "Bad request: CONNECT needs host:port");
+      if (target.host === ROUTE_HOST) {
+        if (target.port !== 80) throw ROUTE_ADDRESS;
+        return tunnelToRoutes(grant, client, head);
+      }
       const upstream = await openUpstream(grant, target.host, target.port);
       if (client.destroyed) {
         upstream.destroy();
@@ -380,13 +514,19 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
   server.maxConnections = 4096;
   server.on("request", (req, res) => void handleRequest(req, res));
   server.on("connect", (req, socket, head) => void handleConnect(req, socket, head));
-  server.on("upgrade", (_req, socket: Duplex) => {
-    socket.on("error", () => socket.destroy());
-    writeRefusal(socket, new Refusal(501, "Upgrade through the proxy is not supported, use CONNECT"));
-  });
-  server.on("clientError", (_error, socket: Duplex) => {
-    if (!socket.destroyed) writeRefusal(socket, new Refusal(400, "Bad request"));
-  });
+  // Never listens: it parses the requests inside CONNECT tunnels to the route host.
+  const routeServer = http.createServer((req, res) => void handleTunneledRoute(req, res));
+  routeServer.headersTimeout = 20_000;
+  routeServer.requestTimeout = 0;
+  for (const target of [server, routeServer]) {
+    target.on("upgrade", (_req, socket: Duplex) => {
+      socket.on("error", () => socket.destroy());
+      writeRefusal(socket, new Refusal(501, "Upgrade through the proxy is not supported, use CONNECT"));
+    });
+    target.on("clientError", (_error, socket: Duplex) => {
+      if (!socket.destroyed) writeRefusal(socket, new Refusal(400, "Bad request"));
+    });
+  }
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -402,11 +542,23 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
   return {
     host: options.host,
     port: address.port,
-    register(egress, client) {
+    register(egress, client, routes = []) {
       const key = addressKey(client);
       if (!key) throw new Error(`Invalid client address: ${client}`);
+      const resolved = new Map<string, ResolvedRoute>();
+      for (const route of routes) {
+        if (resolved.has(route.id)) throw new Error(`Duplicate credential route id: ${route.id}`);
+        resolved.set(route.id, resolveRoute(route));
+      }
       const token = randomBytes(24).toString("base64url");
-      const state: GrantState = { egress, client: key, active: 0, sockets: new Set(), revoked: false };
+      const state: GrantState = {
+        egress,
+        client: key,
+        routes: resolved,
+        active: 0,
+        sockets: new Set(),
+        revoked: false,
+      };
       grants.set(token, state);
       return {
         token,

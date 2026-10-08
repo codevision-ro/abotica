@@ -1,8 +1,11 @@
+import { isUserError } from "@abotica/i18n";
 import { describe, expect, it, vi } from "vitest";
 import {
+  type McpCredentialRouteDraft,
   mcpOAuthBindingChanged,
   type McpServerDraft,
   mcpTestFailure,
+  normalizeCredentialRoutes,
   normalizeMcpServerValues,
   openMcpCredentials,
   sealMcpCredentials,
@@ -30,10 +33,29 @@ const draft = (overrides: Partial<McpServerDraft> = {}): McpServerDraft => ({
   network: { mode: "off", domains: [] },
   sandboxed: true,
   workspace: "run",
+  credentialRoutes: [route()],
   ...overrides,
 });
 
-const saved = { env: { TOKEN: sealValue("old-token") }, headers: {}, oauthClientSecret: sealValue("old") };
+function route(overrides: Partial<McpCredentialRouteDraft> = {}): McpCredentialRouteDraft {
+  return {
+    baseUrlEnv: "OPENAI_BASE_URL",
+    upstream: " https://api.openai.com/v1 ",
+    header: "Authorization",
+    value: "Bearer {{secret:OPENAI_KEY}}",
+    keyEnv: "OPENAI_API_KEY",
+    ...overrides,
+  };
+}
+
+const saved = {
+  env: { TOKEN: sealValue("old-token") },
+  headers: {},
+  credentialRoutes: [
+    { baseUrlEnv: "OPENAI_BASE_URL", upstream: "https://x", header: "Authorization", value: sealValue("k") },
+  ],
+  oauthClientSecret: sealValue("old"),
+};
 
 describe("normalizeMcpServerValues", () => {
   it("keeps only the stdio fields of a stdio server", () => {
@@ -67,8 +89,10 @@ describe("normalizeMcpServerValues", () => {
     });
   });
 
-  it("runs an unsandboxed stdio server in no workspace of a run", () => {
-    expect(normalizeMcpServerValues(draft({ sandboxed: false }), null).workspace).toBe("server");
+  it("runs an unsandboxed stdio server in no workspace of a run and with no credential routes", () => {
+    const values = normalizeMcpServerValues(draft({ sandboxed: false }), null);
+    expect(values).toMatchObject({ workspace: "server", credentialRoutes: [] });
+    expect(normalizeMcpServerValues(draft({ transport: "http" }), null).credentialRoutes).toEqual([]);
   });
 
   it("drops a client secret without its client id, and takes kept values from the saved row", () => {
@@ -84,12 +108,57 @@ describe("normalizeMcpServerValues", () => {
   });
 });
 
+describe("normalizeCredentialRoutes", () => {
+  it("trims the fields and leaves out an empty key variable", () => {
+    expect(normalizeCredentialRoutes([route({ keyEnv: " " })], null)).toEqual([
+      {
+        baseUrlEnv: "OPENAI_BASE_URL",
+        upstream: "https://api.openai.com/v1",
+        header: "Authorization",
+        value: "Bearer {{secret:OPENAI_KEY}}",
+      },
+    ]);
+  });
+
+  it("takes a kept value from the saved route of the same variable", () => {
+    const [kept] = normalizeCredentialRoutes([route({ value: { keep: "OPENAI_BASE_URL" } })], saved.credentialRoutes);
+    expect(kept?.value).toBe(saved.credentialRoutes[0]!.value);
+  });
+
+  it("refuses what the sandbox could not run, naming the route", () => {
+    const failure = (routes: McpCredentialRouteDraft[]) => {
+      try {
+        normalizeCredentialRoutes(routes, null);
+      } catch (error) {
+        return isUserError(error) ? [error.key, error.values] : error;
+      }
+      return null;
+    };
+    const named = { name: "OPENAI_BASE_URL" };
+    expect(failure([route({ baseUrlEnv: "1BAD" })])).toEqual(["mcp.errors.routeEnvName", { name: "1BAD" }]);
+    expect(failure([route({ keyEnv: "BAD-NAME" })])).toEqual(["mcp.errors.routeEnvName", { name: "BAD-NAME" }]);
+    expect(failure([route(), route({ baseUrlEnv: "openai_base_url" })])).toEqual([
+      "mcp.errors.routeDuplicate",
+      { name: "openai_base_url" },
+    ]);
+    expect(failure([route({ upstream: "http://api.openai.com/v1" })])).toEqual(["mcp.errors.routeUpstream", named]);
+    expect(failure([route({ value: " " })])).toEqual(["mcp.errors.routeValueRequired", named]);
+    expect(failure([route({ header: "Host" })])).toEqual(["mcp.errors.routeHeader", named]);
+    expect(failure([route({ value: "a\r\nX-Injected: 1" })])).toEqual(["mcp.errors.routeHeader", named]);
+  });
+});
+
 describe("sealMcpCredentials", () => {
-  const plain = { env: { A: "a" }, headers: { Authorization: "Bearer {{secret:X}}" }, oauthClientSecret: "s" };
+  const plain = {
+    env: { A: "a" },
+    headers: { Authorization: "Bearer {{secret:X}}" },
+    credentialRoutes: [{ baseUrlEnv: "API_URL", upstream: "https://api.example.com", header: "X-Key", value: "k-value" }],
+    oauthClientSecret: "s",
+  };
 
   it("stores no value in plain text and opens back to the same values", () => {
     const sealed = sealMcpCredentials(plain);
-    expect(JSON.stringify(sealed)).not.toMatch(/"a"|Bearer|"s"/);
+    expect(JSON.stringify(sealed)).not.toMatch(/"a"|Bearer|"s"|k-value/);
     expect(openMcpCredentials(sealed)).toEqual(plain);
   });
 
@@ -99,7 +168,7 @@ describe("sealMcpCredentials", () => {
   });
 
   it("leaves empty records and a missing secret alone", () => {
-    const empty = { env: {}, headers: {}, oauthClientSecret: null };
+    const empty = { env: {}, headers: {}, credentialRoutes: [], oauthClientSecret: null };
     expect(sealMcpCredentials(empty)).toEqual(empty);
   });
 

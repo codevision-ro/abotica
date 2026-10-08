@@ -116,7 +116,20 @@
     "workspaceServer": "Workspace propriu",
     "workspaceServerHint": "Un singur proces pentru toți agenții, cu fișierele lui.",
     "workspaceRun": "Workspace-ul agentului",
-    "workspaceRunHint": "Poate citi fișierele agentului din /workspace și își salvează fișierele unde agentul le poate citi, dar nu modifică niciodată fișierele agentului. Fiecare proiect primește propriul proces."
+    "workspaceRunHint": "Poate citi fișierele agentului din /workspace și își salvează fișierele unde agentul le poate citi, dar nu modifică niciodată fișierele agentului. Fiecare proiect primește propriul proces.",
+    "credentialRoutes": {
+      "title": "Rute de credențiale",
+      "description": "Serverul primește în variabilă doar URL-ul rutei. Proxy-ul Abotica adaugă header-ul cu secretul la cererile lui către upstream, așa că secretul nu intră niciodată în sandbox.",
+      "count": "{count, plural, one {# rută de credențiale} few {# rute de credențiale} other {# de rute de credențiale}}",
+      "baseUrlEnv": "Variabila pentru URL",
+      "upstream": "URL upstream",
+      "header": "Header",
+      "value": "Valoarea header-ului",
+      "keyEnv": "Variabila pentru cheie (opțional)",
+      "keyEnvHint": "Primește o valoare substitut, ca să pornească și clienții care cer o cheie.",
+      "add": "Adaugă rută",
+      "remove": "Elimină ruta"
+    }
   },
   "oauth": {
     "title": "Autorizare",
@@ -189,7 +202,12 @@
     "oauthHttpOnly": "OAuth este disponibil doar pentru serverele HTTP salvate cu autentificare OAuth.",
     "builtinDelete": "Serverele incluse nu pot fi șterse. Dezactivează serverul în schimb.",
     "notBuiltin": "Acesta nu este un server inclus",
-    "noApiKey": "Acest server nu folosește o cheie API"
+    "noApiKey": "Acest server nu folosește o cheie API",
+    "routeEnvName": "\"{name}\" nu este un nume de variabilă valid: trebuie să înceapă cu o literă și să conțină doar litere, cifre și underscore.",
+    "routeDuplicate": "Două rute de credențiale folosesc variabila {name}.",
+    "routeUpstream": "Upstream-ul rutei {name} trebuie să fie un URL https fără credențiale, query sau fragment.",
+    "routeValueRequired": "Ruta {name} are nevoie de o valoare pentru header.",
+    "routeHeader": "Header-ul rutei {name} nu este valid: folosește un nume pe care proxy-ul nu îl setează singur (nu Host, Connection, Content-Length, Transfer-Encoding sau Proxy-Authorization) și o valoare pe un singur rând."
   },
   "validation": {
     "nameRequired": "Numele este obligatoriu",

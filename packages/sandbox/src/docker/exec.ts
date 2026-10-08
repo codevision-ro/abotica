@@ -231,7 +231,8 @@ export type ExecHooks = {
 
 /**
  * Starts `bash -c command` (as the sandbox user, or root or the MCP user when asked) with egress
- * through a fresh proxy token, bound to `address` (the container's address on the sandbox network).
+ * through a fresh proxy token, bound to `address` (the container's address on the sandbox network),
+ * which also carries the exec's credential routes.
  */
 export async function startProcess(
   container: Docker.Container,
@@ -241,7 +242,7 @@ export async function startProcess(
   hooks: ExecHooks,
 ): Promise<SandboxProcess> {
   const marker = randomBytes(16).toString("hex");
-  const grant = proxy.register(options.egress, address);
+  const grant = proxy.register(options.egress, address, options.routes);
   const env = { ...options.env, ...proxyEnv(grant.url), [MARKER_ENV]: marker };
   const pipeStdin = options.stdin === "pipe";
   let raw: RawExec;

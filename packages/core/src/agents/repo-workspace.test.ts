@@ -3,15 +3,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { Workspace } from "@abotica/sandbox";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { prepareRepos, repoGitEnv, type WorkspaceRepo } from "./repo-workspace";
+import { runCommand, type Workspace } from "@abotica/sandbox";
+import { routeUrl } from "@abotica/sandbox/routes";
+import { type EgressProxy, proxiedWorkspace, startEgressProxy, testCertificate } from "@abotica/sandbox/testing";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { prepareRepos, type RepoGitAccess, repoGitAccess, type WorkspaceRepo } from "./repo-workspace";
+import { type GitServer, startGitServer } from "./test-git-server";
 import { bashWorkspace } from "./test-workspace";
 import { taskBranch } from "./workspace-paths";
 
 /**
  * prepareRepos against real git: a bare repository on disk plays the remote, and the "sandbox" is
- * a folder where commands run with bash. Only the network policy is not exercised here.
+ * a folder where commands run with bash. Over file:// first, for the clones and worktrees; then over
+ * HTTPS through the real egress proxy and its credential routes, as in a workspace.
  */
 
 const TASK = "1a2b3c4d-0000-4000-8000-000000000001";
@@ -60,11 +64,20 @@ async function makeRemote(name: string) {
   return { remote, upstream, repo };
 }
 
-async function prepare(workspace: Workspace, repos: WorkspaceRepo[], taskId: string | null, finished: string[] = []) {
+/** Over file:// git needs no credentials: only the author. */
+const localGit = () => repoGitAccess([], AUTHOR);
+
+async function prepare(
+  workspace: Workspace,
+  repos: WorkspaceRepo[],
+  taskId: string | null,
+  finished: string[] = [],
+  access: RepoGitAccess = localGit(),
+) {
   const errors: string[] = [];
   await prepareRepos(workspace, {
     repos,
-    env: repoGitEnv(repos, AUTHOR),
+    git: access,
     taskId,
     finishedTasks: async (ids) => new Set(ids.filter((id) => finished.includes(id))),
     signal: new AbortController().signal,
@@ -134,7 +147,7 @@ describe("prepareRepos", () => {
 
     const proc = await workspace.exec({
       command: `cd work/${TASK}/site && echo x > new.txt && git add . && git commit --quiet -m change && git push --quiet -u origin HEAD`,
-      env: repoGitEnv([repo], AUTHOR),
+      env: localGit().env,
       egress: [],
     });
     expect((await proc.wait()).exitCode).toBe(0);
@@ -155,7 +168,7 @@ describe("prepareRepos", () => {
     const tree = (id: string) => path.join(dir, "work", id, "site");
     const env = { ...gitIdentity };
     const sh = async (command: string) => {
-      const proc = await workspace.exec({ command, env: { ...repoGitEnv([repo], AUTHOR), ...env }, egress: [] });
+      const proc = await workspace.exec({ command, env: { ...localGit().env, ...env }, egress: [] });
       const stderr = new Response(proc.stderr).text();
       const exitCode = (await proc.wait()).exitCode;
       expect({ exitCode, stderr: await stderr }).toEqual({ exitCode: 0, stderr: "" });
@@ -188,7 +201,7 @@ describe("prepareRepos", () => {
   });
 });
 
-describe("repoGitEnv", () => {
+describe("repoGitAccess", () => {
   const site: WorkspaceRepo = {
     name: "site",
     provider: "github",
@@ -206,43 +219,164 @@ describe("repoGitEnv", () => {
     token: "glpat_api_token",
   };
 
-  /** What git's credential lookup answers for a URL in a workspace with this environment. */
-  function credentialFor(url: string, env: Record<string, string>): string {
-    try {
-      return execFileSync("git", ["credential", "fill"], {
-        cwd: root,
-        input: `url=${url}\n\n`,
-        env: { PATH: process.env.PATH!, HOME: home, GIT_CONFIG_NOSYSTEM: "1", ...env },
-        encoding: "utf8",
-        stdio: ["pipe", "pipe", "ignore"],
-      });
-    } catch {
-      return "refused";
+  /** The URL git uses for a remote URL in a workspace with this environment. */
+  const gitUrl = (url: string, env: Record<string, string>) =>
+    execFileSync("git", ["ls-remote", "--get-url", url], {
+      cwd: root,
+      env: { PATH: process.env.PATH!, HOME: home, GIT_CONFIG_NOSYSTEM: "1", ...env },
+      encoding: "utf8",
+    }).trim();
+
+  it("sends each repository, with or without .git, through its own route", () => {
+    const { env } = repoGitAccess([site, api], AUTHOR);
+    expect(gitUrl("https://github.com/acme/site.git", env)).toBe(routeUrl("git-site"));
+    expect(gitUrl("https://github.com/acme/site", env)).toBe(routeUrl("git-site"));
+    expect(gitUrl("https://gitlab.com/acme/api.git", env)).toBe(routeUrl("git-api"));
+    expect(gitUrl("https://github.com/acme/other.git", env)).toBe("https://github.com/acme/other.git");
+  });
+
+  it("signs in on the route with each repository's token, which the environment never holds", () => {
+    const { env, routes } = repoGitAccess([site, api], AUTHOR);
+    const basic = (user: string, token: string) => `Basic ${Buffer.from(`${user}:${token}`).toString("base64")}`;
+    expect(routes).toEqual([
+      {
+        id: "git-site",
+        upstream: site.cloneUrl,
+        headers: { Authorization: basic("x-access-token", "ghp_site_token") },
+      },
+      { id: "git-api", upstream: api.cloneUrl, headers: { Authorization: basic("oauth2", "glpat_api_token") } },
+    ]);
+    expect(JSON.stringify(env)).not.toMatch(/ghp_site_token|glpat_api_token|Basic /);
+  });
+
+  it("sets the author and no routes without repositories", () => {
+    expect(repoGitAccess([], AUTHOR)).toEqual({
+      env: {
+        GIT_AUTHOR_NAME: AUTHOR.name,
+        GIT_AUTHOR_EMAIL: AUTHOR.email,
+        GIT_COMMITTER_NAME: AUTHOR.name,
+        GIT_COMMITTER_EMAIL: AUTHOR.email,
+        GIT_TERMINAL_PROMPT: "0",
+      },
+      routes: [],
+    });
+  });
+});
+
+describe("git through the egress proxy", () => {
+  const TOKEN = "ghp_route_token_0123456789abcdefghij";
+  const certificate = testCertificate();
+  let remotes: string;
+  let server: GitServer;
+  let proxy: EgressProxy;
+
+  /** A repository served at `/git/<name>.git` of the test server. */
+  const served = (name: string): WorkspaceRepo => ({
+    name,
+    provider: "github",
+    host: `localhost:${server.port}`,
+    cloneUrl: `https://localhost:${server.port}/git/${name}.git`,
+    defaultBranch: "main",
+    token: TOKEN,
+  });
+
+  beforeAll(async () => {
+    remotes = mkdtempSync(path.join(tmpdir(), "abotica-remotes-"));
+    const env = { PATH: process.env.PATH!, GIT_CONFIG_NOSYSTEM: "1", HOME: remotes, ...gitIdentity };
+    const sh = (command: string) => execFileSync("bash", ["-c", command], { cwd: remotes, env, stdio: "ignore" });
+    sh(
+      "git init --quiet --initial-branch=main seed && cd seed && echo hello > README.md && git add . && git commit -qm first",
+    );
+    for (const name of ["site", "docs"]) {
+      sh(`git clone --quiet --bare seed ${name}.git && git -C ${name}.git config http.receivepack true`);
     }
+    server = await startGitServer({
+      root: remotes,
+      tls: certificate,
+      authorization: `Basic ${Buffer.from(`x-access-token:${TOKEN}`).toString("base64")}`,
+      redirects: {
+        // Moved below the repository's own address, which its route covers.
+        "/git/docs.git/info/refs": "/git/docs.git/moved/info/refs",
+        // Moved to another repository: outside the route.
+        "/git/old.git/": "/git/site.git/",
+      },
+      aliases: { "/git/docs.git/moved/": "/git/docs.git/" },
+    });
+    proxy = await startEgressProxy({ host: "127.0.0.1", port: 0, unsafeAllowLoopback: true, upstreamCa: certificate.cert });
+  });
+
+  afterAll(async () => {
+    await proxy.close();
+    await server.close();
+    rmSync(remotes, { recursive: true, force: true });
+  });
+
+  /** A workspace whose commands reach the network only through the proxy, as in the sandbox. */
+  async function proxied() {
+    const dir = path.join(root, "ws");
+    await mkdir(dir);
+    return proxiedWorkspace(localWorkspace(dir), proxy);
   }
 
-  it("answers each repository with its own token, with or without .git", () => {
-    const env = repoGitEnv([site, api], AUTHOR);
-    expect(credentialFor("https://github.com/acme/site.git", env)).toContain("password=ghp_site_token");
-    expect(credentialFor("https://github.com/acme/site", env)).toContain("username=x-access-token");
-    expect(credentialFor("https://gitlab.com/acme/api.git", env)).toContain("password=glpat_api_token");
-    expect(credentialFor("https://gitlab.com/acme/api", env)).toContain("username=oauth2");
+  const sh = async (workspace: Workspace, access: RepoGitAccess, command: string) =>
+    runCommand(workspace, { command, env: access.env, routes: access.routes, egress: [] });
+
+  it("clones, gives the task its worktree and pushes with no token in any command's environment", async () => {
+    const repo = served("site");
+    const access = repoGitAccess([repo], AUTHOR);
+    const workspace = await proxied();
+    expect(await prepare(workspace, [repo], TASK, [], access)).toEqual([]);
+
+    const environment = await sh(workspace, access, "env");
+    expect(environment.stdout).not.toContain(TOKEN);
+    expect(environment.stdout).not.toMatch(/token/i);
+
+    // Over 1 MiB, so git streams the pack in chunks.
+    const pushed = await sh(
+      workspace,
+      access,
+      `cd work/${TASK}/site && head -c 3000000 /dev/urandom > blob.bin && git add . && git commit -qm change && git push --quiet -u origin HEAD`,
+    );
+    expect(pushed).toMatchObject({ exitCode: 0, stderr: "" });
+    expect(git(path.join(remotes, "site.git"), "log", "-1", "--format=%an", taskBranch(TASK))).toBe(AUTHOR.name);
+
+    const fetched = await sh(workspace, access, "git -C repos/site fetch --quiet origin && git -C repos/site branch -r");
+    expect(fetched.stdout).toContain(`origin/${taskBranch(TASK)}`);
+    expect(server.requests.every((r) => r.authorized)).toBe(true);
   });
 
-  it("gives other repositories nothing, without prompting", () => {
-    const env = repoGitEnv([site], AUTHOR);
-    expect(credentialFor("https://github.com/acme/other.git", env)).toBe("refused");
-    expect(credentialFor("https://github.com/acme/site-fork.git", env)).toBe("refused");
+  it("fetches shallow clones", async () => {
+    const access = repoGitAccess([served("site")], AUTHOR);
+    const workspace = await proxied();
+    const result = await sh(
+      workspace,
+      access,
+      `git clone --quiet --depth 1 ${served("site").cloneUrl} shallow && git -C shallow fetch --quiet --depth 1 origin main && git -C shallow rev-parse --is-shallow-repository`,
+    );
+    expect(result).toMatchObject({ exitCode: 0, stdout: "true\n" });
   });
 
-  it("sets the author and no credentials without repositories", () => {
-    const env = repoGitEnv([], AUTHOR);
-    expect(env).toEqual({
-      GIT_AUTHOR_NAME: AUTHOR.name,
-      GIT_AUTHOR_EMAIL: AUTHOR.email,
-      GIT_COMMITTER_NAME: AUTHOR.name,
-      GIT_COMMITTER_EMAIL: AUTHOR.email,
-      GIT_TERMINAL_PROMPT: "0",
-    });
+  it("follows a redirect below the repository's address through the route", async () => {
+    const access = repoGitAccess([served("docs")], AUTHOR);
+    const workspace = await proxied();
+    const result = await sh(
+      workspace,
+      access,
+      `git clone --quiet ${served("docs").cloneUrl} docs && git -C docs log -1 --format=%s`,
+    );
+    expect(result).toMatchObject({ exitCode: 0, stdout: "first\n" });
+    expect(server.requests.some((r) => r.url.startsWith("/git/docs.git/moved/") && r.authorized)).toBe(true);
+  });
+
+  it("never carries the token along a redirect elsewhere", async () => {
+    const before = server.requests.length;
+    const access = repoGitAccess([served("old")], AUTHOR);
+    const workspace = await proxied();
+    const result = await sh(workspace, access, `git clone --quiet ${served("old").cloneUrl} old`);
+    expect(result.exitCode).not.toBe(0);
+    // The redirect itself came through the route; following it is a direct connection, which the
+    // command's network policy refuses before anything reaches the server.
+    expect(server.requests.slice(before).map((r) => r.url)).toEqual(["/git/old.git/info/refs?service=git-upload-pack"]);
+    expect(result.stderr).not.toContain(TOKEN);
   });
 });

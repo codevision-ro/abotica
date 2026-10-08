@@ -116,7 +116,20 @@
     "workspaceServer": "Its own workspace",
     "workspaceServerHint": "One process shared by every agent, with its own files.",
     "workspaceRun": "The agent's workspace",
-    "workspaceRunHint": "It can read the agent's files in /workspace and saves its own where the agent can read them, but never changes the agent's files. Each project gets its own process."
+    "workspaceRunHint": "It can read the agent's files in /workspace and saves its own where the agent can read them, but never changes the agent's files. Each project gets its own process.",
+    "credentialRoutes": {
+      "title": "Credential routes",
+      "description": "The server gets only the route's URL in the variable. Abotica's proxy adds the header with the secret to its requests to the upstream, so the secret never enters the sandbox.",
+      "count": "{count, plural, one {# credential route} other {# credential routes}}",
+      "baseUrlEnv": "Base URL variable",
+      "upstream": "Upstream URL",
+      "header": "Header",
+      "value": "Header value",
+      "keyEnv": "Key variable (optional)",
+      "keyEnvHint": "Gets a placeholder value, so clients that require a key still start.",
+      "add": "Add route",
+      "remove": "Remove route"
+    }
   },
   "oauth": {
     "title": "Authorization",
@@ -189,7 +202,12 @@
     "oauthHttpOnly": "OAuth is available only for saved HTTP servers set to OAuth.",
     "builtinDelete": "Built-in servers cannot be deleted. Turn the server off instead.",
     "notBuiltin": "This is not a built-in server",
-    "noApiKey": "This server does not take an API key"
+    "noApiKey": "This server does not take an API key",
+    "routeEnvName": "\"{name}\" is not a valid variable name: start with a letter and use only letters, digits and underscores.",
+    "routeDuplicate": "Two credential routes use the variable {name}.",
+    "routeUpstream": "The upstream of the route {name} must be an https URL without credentials, query or fragment.",
+    "routeValueRequired": "The route {name} needs a header value.",
+    "routeHeader": "The header of the route {name} is not valid: use a name the proxy does not set itself (not Host, Connection, Content-Length, Transfer-Encoding or Proxy-Authorization) and a value on a single line."
   },
   "validation": {
     "nameRequired": "Name is required",

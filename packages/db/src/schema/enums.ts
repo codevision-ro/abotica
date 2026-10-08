@@ -117,3 +117,27 @@ export const pullRequestChecks = pgEnum("pull_request_checks", ["none", "pending
 
 /** Where the reviews of a pull request stand: none yet, approved, changes requested, or comments only. */
 export const pullRequestReview = pgEnum("pull_request_review", ["none", "approved", "changes_requested", "commented"]);
+
+/**
+ * What a task wakeup waits for: a time, the CI checks of a pull request finishing or its merge, the
+ * task's subtasks all done, or another task reaching a status.
+ */
+export const taskWakeupKind = pgEnum("task_wakeup_kind", [
+  "timer",
+  "pr_checks_finished",
+  "pr_merged",
+  "subtasks_done",
+  "task_status",
+]);
+
+/**
+ * Where a task wakeup stands: waiting, fired (a one-time wakeup that woke its agent), paused by a
+ * runaway limit (see paused_reason), or expired before its condition held.
+ */
+export const taskWakeupStatus = pgEnum("task_wakeup_status", ["active", "fired", "paused", "expired"]);
+
+/**
+ * Why a wakeup was paused: its fires were used up, it came back in the chain of wakes behind a run
+ * without a person in between (a loop), or its task was woken too often in the last hour.
+ */
+export const taskWakeupPausedReason = pgEnum("task_wakeup_paused_reason", ["max_fires", "loop", "rate"]);

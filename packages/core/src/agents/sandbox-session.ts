@@ -23,7 +23,7 @@ import { conversationWorkspaceKey, projectWorkspaceKey, touchWorkspace } from ".
 import { currentSandboxBackend } from "../sandbox/sandbox-runtime";
 import { egressFor, setupEgressFor } from "../sandbox/sandbox-policy";
 import type { RunContext } from "./context";
-import { prepareRepos, repoGitEnv, repoHosts } from "./repo-workspace";
+import { prepareRepos, repoGitAccess } from "./repo-workspace";
 import { expiredToolOutputs } from "./tool-output";
 import { workspaceToolsOf } from "./tools/workspace";
 import { workspaceDescription } from "./workspace-description";
@@ -225,16 +225,16 @@ export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Prom
   const bundles = await skillBundles(ctx.skills);
   const commandTimeoutSec = ctx.settings.sandbox.commandTimeoutSec;
   const repos = ctx.repos;
-  const gitEnv = repoGitEnv(repos, gitAuthor(ctx.agent));
-  const egress = egressFor(policy.network);
+  const git = repoGitAccess(repos, gitAuthor(ctx.agent));
   return createSandboxSession({
     backend,
     spec: { key, bundles },
-    // Git reaches the repositories' hosts whatever the network setting.
-    egress: egress === "public" ? egress : [...new Set([...egress, ...repoHosts(repos)])],
+    // Git reaches the repositories through its routes whatever the network setting.
+    egress: egressFor(policy.network),
     setupEgress: setupEgressFor(policy.network),
     packages: policy.packages,
-    env: gitEnv,
+    env: git.env,
+    routes: git.routes,
     description: workspaceDescription({
       paths: backend.pathsFor(key),
       scope: ctx.project ? "project" : "conversation",
@@ -263,7 +263,7 @@ export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Prom
       }
       await prepareRepos(workspace, {
         repos,
-        env: gitEnv,
+        git,
         taskId: ctx.run.taskId,
         finishedTasks,
         signal,

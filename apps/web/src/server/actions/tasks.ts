@@ -4,6 +4,7 @@ import {
   addTaskComment,
   addTaskDependency,
   attachTaskFiles,
+  cancelWakeup,
   createTask as insertTask,
   deleteFile,
   deleteTask as removeTask,
@@ -141,6 +142,12 @@ export const startTaskRun = action(z.object({ id: z.uuid() }), async ({ id }) =>
   const run = await enqueueTaskRun(id, { force: true });
   revalidateTask(id);
   return { runId: run.id };
+});
+
+/** Cancels what the task waits for, or removes a wait that stopped. */
+export const cancelTaskWakeup = action(z.object({ taskId: z.uuid(), id: z.uuid() }), async ({ taskId, id }) => {
+  await cancelWakeup(taskId, id);
+  revalidateTask(taskId);
 });
 
 export const createTaskComment = action(

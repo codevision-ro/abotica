@@ -192,13 +192,16 @@ export async function deleteSecret(name: string): Promise<boolean> {
 
 /**
  * Replaces `{{secret:NAME}}` placeholders with the secrets visible in `scope`, used in MCP env,
- * headers and OAuth client secrets. Values may be stored sealed (`sealValue`); they are opened first.
+ * headers, credential routes and OAuth client secrets, and returns the secret values it put in, so
+ * what a server sends back can be redacted. Values may be stored sealed (`sealValue`); they are
+ * opened first.
  */
-export async function interpolateSecrets(
+export async function resolveSecretPlaceholders(
   record: Record<string, string>,
   scope: SecretScope,
-): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
+): Promise<{ values: Record<string, string>; secrets: string[] }> {
+  const values: Record<string, string> = {};
+  const used: string[] = [];
   for (const [k, stored] of Object.entries(record)) {
     const v = unsealValue(stored);
     let value = v;
@@ -206,10 +209,19 @@ export async function interpolateSecrets(
       const name = match[1]!;
       const secret = await resolveSecret(name, scope);
       if (secret === undefined) throw new UserError("projects.errors.secretNotSet", { name });
+      used.push(secret);
       // A function, so a `$` in the secret is not read as a replacement pattern.
       value = value.replace(match[0], () => secret);
     }
-    out[k] = value;
+    values[k] = value;
   }
-  return out;
+  return { values, secrets: used };
+}
+
+/** `resolveSecretPlaceholders`, for callers that do not redact (an OAuth client secret). */
+export async function interpolateSecrets(
+  record: Record<string, string>,
+  scope: SecretScope,
+): Promise<Record<string, string>> {
+  return (await resolveSecretPlaceholders(record, scope)).values;
 }

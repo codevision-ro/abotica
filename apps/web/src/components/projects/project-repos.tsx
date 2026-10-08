@@ -207,7 +207,7 @@ function TokenHelp({
       <br />
       {t(provider === "github" ? "githubTracking" : "gitlabTracking")}
       <br />
-      {t("shared")}
+      {t("proxy")}
     </FieldDescription>
   );
 }

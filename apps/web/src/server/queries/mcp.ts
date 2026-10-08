@@ -128,8 +128,9 @@ export const getMcpServer = query(async (id: string) => {
 });
 
 /**
- * The server with its assignments and OAuth status, for the edit form. Saved env and header values
- * and the OAuth client secret are write-only: the form gets them only when they reference the vault.
+ * The server with its assignments and OAuth status, for the edit form. Saved env and header values,
+ * credential route values and the OAuth client secret are write-only: the form gets them only when
+ * they reference the vault.
  */
 export const getMcpServerDetail = query(async (id: string) => {
   const server = await getMcpServer(id);
@@ -140,11 +141,12 @@ export const getMcpServerDetail = query(async (id: string) => {
     db.select(oauthColumns).from(mcpOAuth).where(eq(mcpOAuth.serverId, id)),
     server.builtin ? builtinMcpKeyStatus() : {},
   ]);
-  const { env, headers, oauthClientSecret, ...rest } = server;
+  const { env, headers, credentialRoutes, oauthClientSecret, ...rest } = server;
   return {
     ...rest,
     env: redactSavedRecord(env),
     headers: redactSavedRecord(headers),
+    credentialRoutes: credentialRoutes.map((route) => ({ ...route, value: redactSaved(route.value) })),
     oauthClientSecret: oauthClientSecret === null ? null : redactSaved(oauthClientSecret),
     /** A saved client secret, shown or not. */
     hasOAuthClientSecret: oauthClientSecret !== null,

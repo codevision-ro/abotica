@@ -15,6 +15,20 @@ export type SandboxSession = Experimental_SandboxSession;
  */
 export type Egress = readonly string[] | "public";
 
+/**
+ * A credential of one exec that the process can use but never read: requests to the route's URL
+ * (`routeUrl(id)`, plain http to a name only the egress proxy knows) go to `upstream` over HTTPS,
+ * with `headers` added by the proxy. The process gets the URL, never the header values.
+ */
+export type CredentialRoute = {
+  /** Lowercase letters, digits, dots, hyphens and underscores; unique within the exec. */
+  id: string;
+  /** HTTPS base URL without credentials, query or fragment (`https://api.example.com/v1`); paths outside it are refused. */
+  upstream: string;
+  /** Sent on every request through the route, replacing the client's own authorization. */
+  headers: Record<string, string>;
+};
+
 /** A read-only folder copied into the sandbox (a skill). Rewritten only when `hash` changes. */
 export type Bundle = {
   /** Folder name: lowercase letters, digits and hyphens. */
@@ -66,6 +80,8 @@ export type ExecOptions = {
   /** Added to the sandbox's base environment (PATH, HOME, LANG). Nothing from the host leaks in. */
   env?: Record<string, string>;
   egress: Egress;
+  /** Credential routes the process may use; they die with it. They need no entry in `egress`. */
+  routes?: readonly CredentialRoute[];
   /** Kills the process after this many milliseconds. */
   timeoutMs?: number;
   signal?: AbortSignal;

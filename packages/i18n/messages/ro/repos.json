@@ -1,6 +1,6 @@
 {
   "title": "Repository-uri",
-  "intro": "Repository-urile git pe care lucrează agenții proiectului. Fiecare e clonat în repos/<nume> din workspace-ul proiectului, unde git se autentifică cu token-ul lui.",
+  "intro": "Repository-urile git pe care lucrează agenții proiectului. Fiecare e clonat în repos/<nume> din workspace-ul proiectului, unde git se autentifică prin proxy-ul Abotica, fără ca token-ul să intre în workspace.",
   "empty": "Niciun repository încă. Adaugă unul și agenții proiectului pot lucra pe codul lui.",
   "providers": {
     "github": "GitHub",
@@ -43,7 +43,7 @@
     "gitlabCreate": "Creează token-ul pe GitLab",
     "githubTracking": "Ca să urmărească CI-ul pull request-urilor deschise de agenți, token-ul are nevoie și de Actions și Commit statuses pe Read (linkul le setează). Fără ele, starea, merge-ul și review-urile sunt urmărite în continuare.",
     "gitlabTracking": "Cu aceste scope-uri, Abotica urmărește și pipeline-urile, discuțiile și starea merge request-urilor deschise de agenți.",
-    "shared": "Orice agent al proiectului poate folosi token-ul în sandbox. Limitează-l la acest repository."
+    "proxy": "Token-ul nu intră niciodată în sandbox: git se autentifică prin proxy-ul Abotica, doar la adresa acestui repository. Orice agent al proiectului poate totuși face push cu el, așa că limitează-l la acest repository."
   },
   "recheck": "Verifică din nou",
   "rechecked": "{name} verificat",

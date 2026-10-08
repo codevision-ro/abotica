@@ -71,6 +71,13 @@
       "when": 1791442724109,
       "tag": "0009_pr_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791450798895,
+      "tag": "0010_wakeups_and_routes",
+      "breakpoints": true
     }
   ]
 }

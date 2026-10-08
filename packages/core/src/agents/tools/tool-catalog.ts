@@ -61,6 +61,13 @@ export const TOOL_CATALOG: ToolInfo[] = [
     deferred: true,
   },
   { name: "task_comment", label: "Comment", description: "Add comments to tasks", group: "tasks" },
+  {
+    name: "task_wait",
+    label: "Wait for events",
+    description:
+      "End its run and be woken at a time, when a pull request's checks finish or it merges, when subtasks are done or another task reaches a status",
+    group: "tasks",
+  },
   { name: "web_fetch", label: "Read web pages", description: "Fetch and read the content of a URL", group: "web" },
   {
     name: "shell_run",

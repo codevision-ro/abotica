@@ -2,10 +2,10 @@ import { agents, approvals, DEFAULT_AGENT_LIMITS, db, runEvents, runs, tasks } f
 import { and, eq, inArray } from "@abotica/db/orm";
 import { getTranslator, type Translator } from "@abotica/i18n";
 import { publish } from "../infra/events";
-import { enqueueDelegationReport, notify, runJobState, type RunJobState } from "../infra/queues";
+import { enqueueDelegationReport, enqueueTaskEvent, notify, runJobState, type RunJobState } from "../infra/queues";
 import { redis } from "../infra/redis";
 import { getSettings, settingsLocale } from "../platform/settings";
-import { addTaskComment, awaitsDelegatedWork, updateTask } from "../tasks/tasks";
+import { addTaskComment, awaitsDelegatedWork, awaitsWakeup, updateTask } from "../tasks/tasks";
 import type { RunFailureKind } from "./run-failures";
 import { interruptRunMessage } from "./run-messages";
 
@@ -133,8 +133,11 @@ export async function finishRun(
     await attempt(run.id, "moving its task to review", async () => {
       if (!finished.taskId) return;
       const [task] = await db.select().from(tasks).where(eq(tasks.id, finished.taskId));
+      if (task?.status !== "in_progress") return;
+      // A task waiting for a wakeup stays in progress: checked now, a condition already true fires.
+      if (await awaitsWakeup(task.id)) return enqueueTaskEvent({ taskId: task.id, event: "wakeups" });
       // A task whose work was handed on stays in progress until that work is reported back here.
-      if (task?.status === "in_progress" && !(await awaitsDelegatedWork(finished.conversationId))) {
+      if (!(await awaitsDelegatedWork(finished.conversationId))) {
         await updateTask(task.id, { status: "review", output: task.output ?? end.output }, end.actor);
       }
     });

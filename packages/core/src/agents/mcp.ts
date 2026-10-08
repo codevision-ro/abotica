@@ -11,9 +11,16 @@ import { requestWorkspaceRemoval } from "../sandbox/sandbox";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
 import { builtinMcp } from "../mcp/mcp-builtins";
 import { getSettings, settingsLocale } from "../platform/settings";
-import { GLOBAL_SECRETS, interpolateSecrets, OWNER_SECRETS, resolveSecret, type SecretScope } from "../platform/vault";
+import {
+  GLOBAL_SECRETS,
+  OWNER_SECRETS,
+  resolveSecret,
+  resolveSecretPlaceholders,
+  type SecretScope,
+} from "../platform/vault";
 import type { McpServer } from "./context";
 import { markMcpOAuthError, mcpRuntimeAuthProvider } from "./mcp-oauth";
+import { secretRedactor } from "./redact";
 
 /**
  * Where a runtime MCP tool comes from, kept because the `<slug>__<tool>` name cannot be reversed
@@ -28,19 +35,34 @@ export type McpConnectOptions = {
   signal?: AbortSignal;
   /** The secrets the server's placeholders, API key and OAuth client may use: the run's project, or the user's. */
   secrets: SecretScope;
+  /** Gets the secret values the connection resolved, so what the server sends back can be redacted. */
+  onSecrets?: (secrets: string[]) => void;
 };
 
 /** Longest a registry test waits for the worker; the worker gives up a little earlier. */
 const MCP_TEST_TIMEOUT_MS = 60_000;
 const MCP_PROBE_TIMEOUT_MS = 50_000;
 
+/** `record` with its secret placeholders filled in, the values used reported to `onSecrets`. */
+export async function resolveMcpSecrets(
+  record: Record<string, string>,
+  opts: McpConnectOptions,
+): Promise<Record<string, string>> {
+  const { values, secrets } = await resolveSecretPlaceholders(record, opts.secrets);
+  opts.onSecrets?.(secrets);
+  return values;
+}
+
 /** The server's headers with secrets filled in; a bundled server gets its API key when the user set one. */
-async function httpHeaders(server: McpServer, secrets: SecretScope): Promise<Record<string, string>> {
-  const headers = await interpolateSecrets(server.headers, secrets);
+async function httpHeaders(server: McpServer, opts: McpConnectOptions): Promise<Record<string, string>> {
+  const headers = await resolveMcpSecrets(server.headers, opts);
   const bundled = builtinMcp(server.builtin);
   if (bundled?.transport === "http") {
-    const key = await resolveSecret(bundled.apiKeySecret, secrets);
-    if (key) headers.Authorization = `Bearer ${key}`;
+    const key = await resolveSecret(bundled.apiKeySecret, opts.secrets);
+    if (key) {
+      opts.onSecrets?.([key]);
+      headers.Authorization = `Bearer ${key}`;
+    }
   }
   return headers;
 }
@@ -55,7 +77,7 @@ export async function connectHttpMcp(server: McpServer, opts: McpConnectOptions)
       transport: {
         type: "http",
         url: server.url,
-        headers: await httpHeaders(server, opts.secrets),
+        headers: await httpHeaders(server, opts),
         authProvider,
         redirect: "follow",
       },
@@ -103,7 +125,10 @@ async function errorMessage(error: unknown): Promise<string> {
   return translateKey(getTranslator(settingsLocale(await getSettings())), error.key, error.values);
 }
 
-/** Connects once with `connect`, lists the tools and disconnects; errors come back as text. */
+/**
+ * Connects once with `connect`, lists the tools and disconnects; errors come back as text, without
+ * the secrets the connection resolved (the worker logs them).
+ */
 export async function probeMcp(
   server: McpServer,
   secrets: SecretScope,
@@ -111,13 +136,14 @@ export async function probeMcp(
   timeoutMs = MCP_PROBE_TIMEOUT_MS,
 ): Promise<McpTestResult> {
   const signal = AbortSignal.timeout(timeoutMs);
+  const redactor = secretRedactor();
   let client: MCPClient | undefined;
   try {
-    client = await connect(server, { signal, secrets });
+    client = await connect(server, { signal, secrets, onSecrets: redactor.add });
     return { ok: true, tools: await listToolDefinitions(client) };
   } catch (error) {
     const reason = signal.aborted ? new UserError("sandbox.errors.mcpTestTimeout", { seconds: timeoutMs / 1000 }) : error;
-    return { ok: false, tools: [], error: await errorMessage(reason) };
+    return { ok: false, tools: [], error: redactor.redact(await errorMessage(reason)) };
   } finally {
     await client?.close().catch(() => {});
   }

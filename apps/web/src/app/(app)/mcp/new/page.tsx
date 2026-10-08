@@ -39,6 +39,7 @@ export default async function NewMcpPage() {
           network: DEFAULT_MCP_NETWORK,
           sandboxed: true,
           workspace: "server",
+          credentialRoutes: [],
           auth: "headers",
           oauthClientId: "",
           oauthClientSecret: "",

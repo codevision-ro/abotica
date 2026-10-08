@@ -5,7 +5,6 @@ import { UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
 import { loadDelegationProject } from "../tasks/delegation";
 import { env } from "../infra/env";
-import type { TaskEventJob } from "../infra/queues";
 import { type Run, startRun, startTaskRun } from "../runs/runs";
 import { TaskCircuitOpenError, unblockedDependents } from "../tasks/tasks";
 import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-rules";
@@ -192,7 +191,7 @@ export async function assertWorksIn(agentId: string, projectId: string | null): 
 }
 
 /** Fires task.created / task.done triggers and starts tasks whose dependencies just finished. */
-export async function handleTaskEvent(taskId: string, event: TaskEventJob["event"]): Promise<void> {
+export async function handleTaskEvent(taskId: string, event: "created" | "done"): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) return; // deleted since the event was queued
   const name = event === "created" ? "task.created" : "task.done";

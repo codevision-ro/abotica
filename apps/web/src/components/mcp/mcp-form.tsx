@@ -46,6 +46,13 @@ import { AssignmentChips } from "./assignment-chips";
 import { McpActiveSwitch, McpGlobalSwitch } from "./mcp-switch-row";
 import { type KeyValueRow, toRecord, toRows } from "./key-value-editor";
 import { McpFormAuth } from "./mcp-form-auth";
+import {
+  type CredentialRouteValue,
+  McpFormCredentialRoutes,
+  routeCount,
+  toRouteDrafts,
+  toRouteRows,
+} from "./mcp-form-credential-routes";
 import { McpFormTest } from "./mcp-form-test";
 import { McpFormTransport } from "./mcp-form-transport";
 import type { OAuthClientValue } from "./mcp-oauth-panel";
@@ -70,6 +77,8 @@ type McpFormValue = {
   sandboxed: boolean;
   /** Sandboxed stdio only: "run" starts the process in the workspace of the run that uses it. */
   workspace: "server" | "run";
+  /** Sandboxed stdio only: the egress proxy adds a secret header to the server's requests upstream. */
+  credentialRoutes: CredentialRouteValue[];
   auth: "headers" | "oauth";
   oauthClientId: string;
   /** The saved client secret when it references the vault; empty otherwise. */
@@ -143,6 +152,7 @@ export function McpForm({
   const [network, setNetwork] = useState(initial.network);
   const [sandboxed, setSandboxed] = useState(initial.sandboxed);
   const [workspace, setWorkspace] = useState(initial.workspace);
+  const [routeRows, setRouteRows] = useState(toRouteRows(initial.credentialRoutes));
   const [auth, setAuth] = useState(initial.auth);
   const [client, setClient] = useState<OAuthClientValue>({
     clientId: initial.oauthClientId,
@@ -175,6 +185,7 @@ export function McpForm({
     network,
     sandboxed,
     workspace,
+    routeRows,
     auth,
     client,
     enabled,
@@ -214,6 +225,7 @@ export function McpForm({
     network,
     sandboxed,
     workspace,
+    credentialRoutes: toRouteDrafts(routeRows),
     auth,
     oauthClientId: client.clientId.trim() || null,
     oauthClientSecret: clientSecret,
@@ -368,8 +380,13 @@ export function McpForm({
       : toolCount != null
         ? t("lastSeen", { count: toolCount })
         : t("notTested");
+  const routes = routeCount(routeRows);
   const sandboxSummary = sandboxed
-    ? `${workspace === "run" ? t("workspaceRun") : t("workspaceServer")} · ${policySummary.network(network)}`
+    ? [
+        workspace === "run" ? t("workspaceRun") : t("workspaceServer"),
+        policySummary.network(network),
+        ...(routes ? [t("credentialRoutes.count", { count: routes })] : []),
+      ].join(" · ")
     : ts("outside");
   const assignmentSummary = global
     ? t("globalSummary")
@@ -558,6 +575,12 @@ export function McpForm({
               <FormSubsection title={tn("label")} description={tn("description")}>
                 <NetworkPolicyEditor name="mcp-network" value={network} onChange={setNetwork} />
               </FormSubsection>
+              <McpFormCredentialRoutes
+                rows={routeRows}
+                onChange={setRouteRows}
+                secretNames={secretNames}
+                secretsHint={secretsHint}
+              />
             </>
           ) : (
             <p className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/5 p-3 text-sm text-pretty">

@@ -11,7 +11,7 @@ import { getTranslator, isUserError, translateKey, type Translator } from "@abot
 import { wrapUntrusted } from "../agents/untrusted";
 import { newMarkerId } from "../agents/untrusted-id";
 import { publish } from "../infra/events";
-import { notify } from "../infra/queues";
+import { enqueueTaskEvent, notify } from "../infra/queues";
 import { getSettings, settingsLocale } from "../platform/settings";
 import { decrypt } from "../platform/vault";
 import { readCheckLogTail, readPullRequest } from "../projects/pull-request-api";
@@ -24,7 +24,10 @@ import { activeTaskRun, addTaskComment, TaskBusyError, updateTask } from "./task
 
 type Row = typeof taskPullRequests.$inferSelect;
 
-/** Automatic wake-ups of the assignee per pull request; past them the task is blocked for the user. */
+/**
+ * Automatic wake-ups of the assignee per pull request; past them the task is blocked for the user,
+ * whose own start gives them back (resetFixRounds).
+ */
 export const MAX_FIX_ROUNDS = MAX_REDELEGATIONS;
 
 /**
@@ -369,6 +372,10 @@ async function syncPullRequest(row: Row, repo: RepoAccess, t: Translator): Promi
     status.review !== row.review ||
     status.draft !== row.draft;
   if (changed) await publish({ type: "task.updated", taskId: task.id, projectId: task.projectId });
+  // Its wakeups read the stored state: checks finished on a new head (even with the same result), a merge.
+  if (changed || (status.headSha && status.headSha !== row.headSha)) {
+    await enqueueTaskEvent({ taskId: task.id, event: "wakeups" });
+  }
 }
 
 /**

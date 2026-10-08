@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { activeTaskRun, taskFailureStreak, TaskCircuitOpenError, updateTask } from "../tasks/tasks";
+import { activeTaskRun, resetFixRounds, taskFailureStreak, TaskCircuitOpenError, updateTask } from "../tasks/tasks";
 import { clearHeldReplies, countHeldReply, takeResumeRequest } from "./run-lifecycle";
 import { loadUnsteeredMessages, markUndelivered } from "./run-messages";
 import { holdStaleReply, type Run, startFollowUpIfQueued, startTaskRun } from "./runs";
 
 /**
- * startTaskRun and the task's circuit breaker: refused while open, unless the user forces the start.
+ * startTaskRun and the task's circuit breaker: refused while open, unless the user forces the start, which
+ * also gives its pull requests their automatic fix rounds back.
  * After a run: the follow-up and the Telegram send gate, for messages the run did not take in.
  */
 
@@ -46,6 +47,7 @@ vi.mock("../tasks/tasks", async () => {
     activeTaskRun: vi.fn(),
     assertTaskDependenciesDone: vi.fn(),
     isActiveTaskRunConflict: () => false,
+    resetFixRounds: vi.fn(),
     TaskBusyError: class extends Error {},
     TaskCircuitOpenError,
     taskFailureStreak: vi.fn(),
@@ -84,6 +86,26 @@ describe("startTaskRun with the circuit breaker open", () => {
     vi.mocked(taskFailureStreak).mockResolvedValue({ failures: 2, reason: "Loop", open: false });
     await startPastBreaker();
     expect(updateTask).toHaveBeenCalledWith("t1", { status: "in_progress" }, "system");
+  });
+});
+
+describe("startTaskRun and the pull requests' fix rounds", () => {
+  it("resets them on the user's start: a person stepped in", async () => {
+    await startPastBreaker({ force: true });
+    expect(resetFixRounds).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
+  it("keeps them on an automatic start (a wake-up, a dependency, a delegation)", async () => {
+    vi.mocked(taskFailureStreak).mockResolvedValue({ failures: 0, reason: null, open: false });
+    await startPastBreaker();
+    await startPastBreaker({ parentRunId: "manager-run" });
+    expect(resetFixRounds).not.toHaveBeenCalled();
+  });
+
+  it("keeps them when the start is refused", async () => {
+    vi.mocked(activeTaskRun).mockResolvedValue({ id: "r0" });
+    await startPastBreaker({ force: true });
+    expect(resetFixRounds).not.toHaveBeenCalled();
   });
 });
 

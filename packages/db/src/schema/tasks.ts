@@ -9,11 +9,12 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./_shared";
 import { agents } from "./agents";
-import { commentAuthor, taskPriority, taskStatus } from "./enums";
+import { commentAuthor, taskPriority, taskStatus, taskWakeupKind, taskWakeupPausedReason, taskWakeupStatus } from "./enums";
 import { projects } from "./projects";
 import { runs } from "./runs";
 
@@ -96,4 +97,59 @@ export const taskEvents = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index().on(t.taskId)],
+);
+
+/**
+ * What a task wakeup waits for, by kind; references only, the agent reads the current state with its
+ * tools. A timer repeats every `everyMinutes` when set; the pull request kinds name `pullRequestId`
+ * (a task_pull_requests row); task_status waits for task `taskId` to reach `status`.
+ */
+export type TaskWakeupCondition = {
+  everyMinutes?: number;
+  pullRequestId?: string;
+  taskId?: string;
+  status?: (typeof taskStatus.enumValues)[number];
+};
+
+/**
+ * "Wake me when": an agent ends its run with task_wait and its task stays in progress until the
+ * condition holds, then its assignee gets a new run (see tasks/wakeups.ts in core). Runaway limits
+ * pause a wakeup and block its task for the user.
+ */
+export const taskWakeups = pgTable(
+  "task_wakeups",
+  {
+    id: id(),
+    taskId: uuid()
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    /** The agent that asked to be woken. */
+    agentId: uuid().references(() => agents.id, { onDelete: "set null" }),
+    createdByRunId: uuid().references((): AnyPgColumn => runs.id, { onDelete: "set null" }),
+    kind: taskWakeupKind().notNull(),
+    /** The condition it waits for, one wakeup per task: asking again for the same one re-arms it (wakeupKey). */
+    key: text().notNull(),
+    condition: jsonb().$type<TaskWakeupCondition>().notNull().default({}),
+    /** What the agent means to do once woken, in the comment that wakes it. */
+    notes: text().notNull().default(""),
+    /** When a timer fires next; null for the other kinds. */
+    nextCheckAt: timestamp({ withTimezone: true }),
+    /** Reached before the condition holds: the wakeup expires and its task is blocked for the user. */
+    expiresAt: timestamp({ withTimezone: true }),
+    /** 1 for a one-time wakeup; a repeating one is paused once it fired this many times. */
+    maxFires: integer().notNull().default(1),
+    fires: integer().notNull().default(0),
+    /** The wakeups behind the run that set it, without a person in between; one seen twice is a loop. */
+    chain: jsonb().$type<string[]>().notNull().default([]),
+    /**
+     * The facts the condition last held on (for checks: also the ones already finished when it was set),
+     * so it fires again only once they change.
+     */
+    fingerprint: text(),
+    status: taskWakeupStatus().notNull().default("active"),
+    pausedReason: taskWakeupPausedReason(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [unique().on(t.taskId, t.key), index().on(t.status, t.kind)],
 );

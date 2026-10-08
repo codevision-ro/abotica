@@ -72,6 +72,7 @@ import {
 } from "./task-meta";
 import { TaskPicker } from "./task-picker";
 import { PullRequestBadge } from "./task-pull-request";
+import { TaskWakeups } from "./task-wakeups";
 
 const NONE = "none";
 
@@ -225,7 +226,11 @@ export function TaskDetail({
             <Attachments task={task} />
             <Activity task={task} options={options} />
           </div>
-          <Runs task={task} className="@3xl:col-start-2 @3xl:row-start-2" />
+          <TaskWakeups taskId={task.id} wakeups={task.wakeups} className="@3xl:col-start-2 @3xl:row-start-2" />
+          <Runs
+            task={task}
+            className={cn("@3xl:col-start-2", task.wakeups.length ? "@3xl:row-start-3" : "@3xl:row-start-2")}
+          />
         </div>
       </div>
     </div>

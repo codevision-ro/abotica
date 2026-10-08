@@ -36,6 +36,15 @@ const TEST_TIMEOUT_MS = 20_000;
 const keep = z.object({ keep: z.string() });
 const record = z.record(z.string().trim().min(1), z.union([z.string(), keep])).default({});
 const optionalText = z.string().trim().max(2000).nullish();
+const envName = z.string().trim().max(128);
+/** Sandboxed stdio only: shape here, the rules (names, https upstream, header) in core's `normalize`. */
+const credentialRoute = z.object({
+  baseUrlEnv: envName,
+  upstream: z.string().trim().max(2000),
+  header: z.string().trim().max(256),
+  value: z.union([z.string().max(4000), keep]),
+  keyEnv: envName.nullish(),
+});
 
 const serverInput = z
   .object({
@@ -61,6 +70,7 @@ const serverInput = z
     sandboxed: z.boolean().default(true),
     /** Stdio only: "run" starts the process in the workspace of the run that uses it. */
     workspace: z.enum(["server", "run"]).default("server"),
+    credentialRoutes: z.array(credentialRoute).max(10).default([]),
   })
   .superRefine((v, ctx) => {
     if (v.transport === "http") {
@@ -140,6 +150,7 @@ const rowValues = (row: McpRow): McpServerValues => ({
   network: row.network,
   sandboxed: row.sandboxed,
   workspace: row.workspace,
+  credentialRoutes: row.credentialRoutes,
 });
 
 /** A bundled server: only whether it is enabled, offered to every agent and its assignments change. */

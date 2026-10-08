@@ -44,6 +44,8 @@ export * from "./skills/skills";
 export * from "./platform/slug";
 export * from "./tasks/tasks";
 export * from "./tasks/team-rules";
+export * from "./tasks/wakeup-rules";
+export * from "./tasks/wakeups";
 export * from "./automations/trigger-events";
 export * from "./automations/triggers";
 export * from "./files/uploads";

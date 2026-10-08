@@ -61,7 +61,7 @@ function redacting(original: Tool, secrets: string[]): Tool {
 export function builtinTools(ctx: RunContext): ToolSet {
   const out: ToolSet = {};
   const opts = { isOrchestrator: ctx.agent.isOrchestrator, isManager: ctx.isManager };
-  // Workspace commands run with the repositories' tokens in their environment.
+  // The tokens never enter the workspace; this catches one that got there another way (a URL saved with it).
   const secrets = ctx.repos.map((r) => r.token);
   // Denied tools are left out entirely, so the model never sees them.
   for (const { name, group, needsRepos } of TOOL_CATALOG) {

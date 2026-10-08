@@ -31,7 +31,8 @@
     "./settings": "./src/platform/settings.ts",
     "./skill-md": "./src/skills/skill-md.ts",
     "./slug": "./src/platform/slug.ts",
-    "./trigger-events": "./src/automations/trigger-events.ts"
+    "./trigger-events": "./src/automations/trigger-events.ts",
+    "./wakeup-rules": "./src/tasks/wakeup-rules.ts"
   },
   "scripts": {
     "typecheck": "tsc",

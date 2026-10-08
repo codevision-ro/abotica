@@ -15,6 +15,8 @@ import {
   updateTask,
 } from "../../tasks/tasks";
 import { listTaskPullRequests } from "../../tasks/pull-requests";
+import { DEFAULT_MAX_FIRES, MAX_FIRES_LIMIT, WAKEUP_KINDS } from "../../tasks/wakeup-rules";
+import { armWakeup, listTaskWakeups, type WakeupRequest } from "../../tasks/wakeups";
 import { clipUntrusted, hasUntrusted } from "../untrusted";
 import { inputPath } from "../workspace-paths";
 import {
@@ -76,49 +78,51 @@ export const taskTools: Record<string, ToolFactory> = {
   task_get: (ctx) =>
     tool({
       description:
-        "Read one task in full: description, output (the result), comments, subtasks, dependencies, attachments, its pull requests (state, CI checks, review) and its latest runs.",
+        "Read one task in full: description, output (the result), comments, subtasks, dependencies, attachments, its pull requests (state, CI checks, review), what it waits for (task_wait) and its latest runs.",
       inputSchema: z.object({ taskId: z.string().uuid() }),
       execute: async ({ taskId }) => {
         const task = await visibleTask(ctx, taskId);
         if ("error" in task) return task;
-        const [closed, assignee, comments, subtasks, dependsOn, attachments, latestRuns, pullRequests] = await Promise.all([
-          closedProjects(ctx),
-          task.assigneeAgentId
-            ? db.select({ slug: agents.slug }).from(agents).where(eq(agents.id, task.assigneeAgentId))
-            : [],
-          db
-            .select({
-              body: taskComments.body,
-              kind: taskComments.authorKind,
-              agent: agents.slug,
-              createdAt: taskComments.createdAt,
-            })
-            .from(taskComments)
-            .leftJoin(agents, eq(agents.id, taskComments.authorAgentId))
-            .where(eq(taskComments.taskId, task.id))
-            .orderBy(desc(taskComments.createdAt))
-            .limit(COMMENT_LIMIT),
-          db.select().from(tasks).where(eq(tasks.parentId, task.id)).orderBy(asc(tasks.createdAt)),
-          db
-            .select({ id: tasks.id, title: tasks.title, status: tasks.status })
-            .from(taskDependencies)
-            .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
-            .where(eq(taskDependencies.taskId, task.id)),
-          listFiles({ taskId: task.id }),
-          db
-            .select({
-              id: runs.id,
-              status: runs.status,
-              error: runs.error,
-              costUsd: runs.costUsd,
-              createdAt: runs.createdAt,
-            })
-            .from(runs)
-            .where(eq(runs.taskId, task.id))
-            .orderBy(desc(runs.createdAt))
-            .limit(5),
-          listTaskPullRequests(task.id),
-        ]);
+        const [closed, assignee, comments, subtasks, dependsOn, attachments, latestRuns, pullRequests, wakeups] =
+          await Promise.all([
+            closedProjects(ctx),
+            task.assigneeAgentId
+              ? db.select({ slug: agents.slug }).from(agents).where(eq(agents.id, task.assigneeAgentId))
+              : [],
+            db
+              .select({
+                body: taskComments.body,
+                kind: taskComments.authorKind,
+                agent: agents.slug,
+                createdAt: taskComments.createdAt,
+              })
+              .from(taskComments)
+              .leftJoin(agents, eq(agents.id, taskComments.authorAgentId))
+              .where(eq(taskComments.taskId, task.id))
+              .orderBy(desc(taskComments.createdAt))
+              .limit(COMMENT_LIMIT),
+            db.select().from(tasks).where(eq(tasks.parentId, task.id)).orderBy(asc(tasks.createdAt)),
+            db
+              .select({ id: tasks.id, title: tasks.title, status: tasks.status })
+              .from(taskDependencies)
+              .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
+              .where(eq(taskDependencies.taskId, task.id)),
+            listFiles({ taskId: task.id }),
+            db
+              .select({
+                id: runs.id,
+                status: runs.status,
+                error: runs.error,
+                costUsd: runs.costUsd,
+                createdAt: runs.createdAt,
+              })
+              .from(runs)
+              .where(eq(runs.taskId, task.id))
+              .orderBy(desc(runs.createdAt))
+              .limit(5),
+            listTaskPullRequests(task.id),
+            listTaskWakeups(task.id),
+          ]);
         const details = {
           ...taskSummary(task),
           assignee: task.assignedToUser ? "user" : (assignee[0]?.slug ?? null),
@@ -159,8 +163,24 @@ export const taskTools: Record<string, ToolFactory> = {
             checks: p.checks,
             review: p.review,
           })),
+          // Waiting (active), or stopped by a runaway limit (paused) or its expiry (expired).
+          wakeups: wakeups.map((w) => ({
+            id: w.id,
+            kind: w.kind,
+            status: w.status,
+            pausedReason: w.pausedReason,
+            pullRequest: w.pullRequest?.url ?? null,
+            // task_status: the task it waits on and the status it waits for.
+            watchedTask: w.watchedTask && { ...w.watchedTask, status: w.condition.status },
+            everyMinutes: w.condition.everyMinutes ?? null,
+            nextAt: w.nextCheckAt?.toISOString() ?? null,
+            expiresAt: w.expiresAt?.toISOString() ?? null,
+            fires: w.fires,
+            maxFires: w.maxFires,
+            notes: clip(w.notes, 2_000),
+          })),
         };
-        return withholdClosed(details, task.projectId, closed, ["description", "output", "comments", "runs"]);
+        return withholdClosed(details, task.projectId, closed, ["description", "output", "comments", "runs", "wakeups"]);
       },
     }),
 
@@ -297,4 +317,134 @@ export const taskTools: Record<string, ToolFactory> = {
         return { ok: true };
       },
     }),
+
+  task_wait: (ctx) =>
+    tool({
+      description: [
+        "End your run and be woken later on a task: at a time (timer), when the CI checks of its pull request finish (pr_checks_finished) or it is merged (pr_merged), when all its subtasks are done (subtasks_done), or when another task reaches a status (task_status).",
+        "The task stays in progress meanwhile. When it happens you get a new run, with a comment saying what woke you and your notes; read the current state with your tools then.",
+        "Asking again for the same condition replaces it, and a task has one timer. To check periodically, set one repeating wait (everyMinutes, or repeat) instead of a new one each run: a wait set again run after run without the user in between is paused as a loop, and the user is told.",
+        "Checks already finished when you call it do not count. Call it last, then end your run.",
+      ].join(" "),
+      inputSchema: z.object({
+        taskId: optionalId().describe("Defaults to this run's task; it must be assigned to you"),
+        kind: z.enum(WAKEUP_KINDS),
+        at: optionalDateTime().describe("timer: when"),
+        afterMinutes: z.number().int().min(1).optional().describe("timer: in how many minutes, instead of at"),
+        everyMinutes: z.number().int().min(1).optional().describe("timer: repeat every this many minutes"),
+        pullRequestUrl: optionalText().describe(
+          "pr_checks_finished, pr_merged: which pull request; default the task's latest",
+        ),
+        watchTaskId: optionalId().describe("task_status: the task to wait on"),
+        status: z.enum(TASK_STATUSES).optional().describe("task_status: the status to wait for"),
+        repeat: z
+          .boolean()
+          .default(false)
+          .describe("pr_checks_finished, subtasks_done, task_status: wake again each time it happens again"),
+        maxFires: z
+          .number()
+          .int()
+          .min(2)
+          .max(MAX_FIRES_LIMIT)
+          .optional()
+          .describe(`Repeating waits: how many times at most (default ${DEFAULT_MAX_FIRES})`),
+        expiresInMinutes: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Give up after this long: the task is then blocked for the user"),
+        notes: z.string().max(2_000).default("").describe("What to do once woken; you get them back then"),
+      }),
+      execute: async (input) => {
+        const taskId = input.taskId ?? ctx.run.taskId;
+        if (!taskId) return { error: "This run has no task: pass taskId." };
+        const task = await visibleTask(ctx, taskId);
+        if ("error" in task) return task;
+        if (task.assigneeAgentId !== ctx.agent.id) {
+          return { error: "Only the task's assignee waits on it, and this task is not assigned to you." };
+        }
+        if (task.status === "done") return { error: "The task is done: there is nothing to wait for." };
+        const target = await waitTarget(ctx, task.id, input);
+        if ("error" in target) return target;
+        const now = Date.now();
+        const repeating = input.kind === "timer" ? Boolean(input.everyMinutes) : input.repeat;
+        const wakeup = await armWakeup({
+          ...target,
+          taskId: task.id,
+          agentId: ctx.agent.id,
+          run: { id: ctx.run.id, taskId: ctx.run.taskId },
+          kind: input.kind,
+          notes: input.notes.trim(),
+          expiresAt: input.expiresInMinutes ? new Date(now + input.expiresInMinutes * 60_000) : null,
+          maxFires: repeating ? (input.maxFires ?? DEFAULT_MAX_FIRES) : 1,
+        });
+        return {
+          ok: true,
+          wakeupId: wakeup.id,
+          kind: wakeup.kind,
+          nextAt: wakeup.nextCheckAt?.toISOString() ?? null,
+          expiresAt: wakeup.expiresAt?.toISOString() ?? null,
+          maxFires: wakeup.maxFires,
+          next: "Saved. End your run now: the task stays in progress until it fires.",
+        };
+      },
+    }),
 };
+
+type WaitInput = {
+  kind: WakeupRequest["kind"];
+  at?: string;
+  afterMinutes?: number;
+  everyMinutes?: number;
+  pullRequestUrl?: string;
+  watchTaskId?: string;
+  status?: (typeof TASK_STATUSES)[number];
+  repeat: boolean;
+};
+
+/** What task_wait waits for, checked against the task: its condition and, for a timer, the first time. */
+async function waitTarget(
+  ctx: Parameters<ToolFactory>[0],
+  taskId: string,
+  input: WaitInput,
+): Promise<Pick<WakeupRequest, "condition" | "at"> | { error: string }> {
+  switch (input.kind) {
+    case "timer": {
+      const every = input.everyMinutes;
+      // Without a first time, a repeating timer first fires one period from now.
+      const minutes = input.afterMinutes ?? every;
+      if (!input.at && !minutes) return { error: "A timer needs at, afterMinutes or everyMinutes." };
+      const at = input.at ? new Date(input.at) : new Date(Date.now() + minutes! * 60_000);
+      if (at.getTime() <= Date.now()) return { error: `${input.at} is in the past.` };
+      return { condition: every ? { everyMinutes: every } : {}, at };
+    }
+    case "pr_checks_finished":
+    case "pr_merged": {
+      if (input.kind === "pr_merged" && input.repeat) return { error: "A pull request is merged once: leave repeat out." };
+      const pulls = await listTaskPullRequests(taskId);
+      const pull = input.pullRequestUrl ? pulls.find((p) => p.url === input.pullRequestUrl) : pulls.at(-1);
+      if (!pull) {
+        return {
+          error: input.pullRequestUrl
+            ? `${input.pullRequestUrl} is not a pull request of this task (see task_get).`
+            : "This task has no pull request: open one with repo_open_pr first.",
+        };
+      }
+      if (pull.state !== "open") return { error: `Pull request ${pull.url} is already ${pull.state}.` };
+      return { condition: { pullRequestId: pull.id }, at: null };
+    }
+    case "subtasks_done": {
+      const [subtask] = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.parentId, taskId)).limit(1);
+      if (!subtask) return { error: "This task has no subtasks to wait for." };
+      return { condition: {}, at: null };
+    }
+    case "task_status": {
+      if (!input.watchTaskId || !input.status) return { error: "task_status needs watchTaskId and status." };
+      if (input.watchTaskId === taskId) return { error: "A task cannot wait on itself." };
+      const watched = await visibleTask(ctx, input.watchTaskId);
+      if ("error" in watched) return watched;
+      return { condition: { taskId: watched.id, status: input.status }, at: null };
+    }
+  }
+}

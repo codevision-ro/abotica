@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./shell": "./src/shell.ts",
-    "./addresses": "./src/egress/addresses.ts"
+    "./addresses": "./src/egress/addresses.ts",
+    "./routes": "./src/egress/routes.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "typecheck": "tsc",

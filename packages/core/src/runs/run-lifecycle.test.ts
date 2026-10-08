@@ -1,29 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { enqueueRun, runJobState } from "../infra/queues";
+import { enqueueRun, enqueueTaskEvent, runJobState } from "../infra/queues";
 import { publish } from "../infra/events";
 import {
   cancelClaimedRun,
   cancelPendingRun,
   cancelQueuedRuns,
   failRun,
+  finishRun,
   recoverRuns,
   staleRunReason,
 } from "./run-lifecycle";
 import { interruptRunMessage } from "./run-messages";
+import { awaitsDelegatedWork, awaitsWakeup, updateTask } from "../tasks/tasks";
 
 type Run = {
   id: string;
   status: string;
   conversationId: string | null;
-  taskId: null;
+  taskId: string | null;
   createdAt: Date;
   startedAt: Date | null;
 };
 type Update = { table: string; patch: Record<string, unknown>; where: { column: string; value: unknown }[] };
 
 // Records the writes; a run update returns the run unless another path ended it first (`taken`).
-const { active, taken, updates, inserts } = vi.hoisted(() => ({
+const { active, taskRows, taken, updates, inserts } = vi.hoisted(() => ({
   active: [] as { run: Run; limits: null }[],
+  taskRows: [] as { id: string; status: string; output: string | null }[],
   taken: new Set<string>(),
   updates: [] as Update[],
   inserts: [] as Record<string, unknown>[],
@@ -47,7 +50,12 @@ vi.mock("@abotica/db", () => {
     runEvents: table("runEvents"),
     tasks: table("tasks", "id", "status"),
     db: {
-      select: () => ({ from: () => ({ leftJoin: () => ({ where: async () => active }) }) }),
+      select: () => ({
+        from: (t: Record<string, string>) => ({
+          leftJoin: () => ({ where: async () => active }),
+          where: async () => (t.name === "tasks" ? taskRows : []),
+        }),
+      }),
       insert: () => ({ values: async (row: Record<string, unknown>) => void inserts.push(row) }),
       update: (t: Record<string, string>) => ({
         set: (patch: Record<string, unknown>) => ({
@@ -71,13 +79,19 @@ vi.mock("@abotica/db", () => {
 vi.mock("../infra/queues", () => ({
   enqueueDelegationReport: vi.fn(async () => {}),
   enqueueRun: vi.fn(async () => {}),
+  enqueueTaskEvent: vi.fn(async () => {}),
   notify: vi.fn(async () => {}),
   runJobState: vi.fn(async () => "unknown"),
 }));
 vi.mock("../infra/events", () => ({ publish: vi.fn(async () => {}) }));
 vi.mock("../infra/redis", () => ({ redis: () => ({}) }));
 vi.mock("../platform/settings", () => ({ getSettings: async () => ({}), settingsLocale: () => "en" }));
-vi.mock("../tasks/tasks", () => ({ addTaskComment: vi.fn(), awaitsDelegatedWork: vi.fn(), updateTask: vi.fn() }));
+vi.mock("../tasks/tasks", () => ({
+  addTaskComment: vi.fn(),
+  awaitsDelegatedWork: vi.fn(),
+  awaitsWakeup: vi.fn(),
+  updateTask: vi.fn(),
+}));
 vi.mock("./run-messages", () => ({ interruptRunMessage: vi.fn(async () => {}) }));
 
 const NOW = new Date("2026-10-07T12:00:00Z");
@@ -283,5 +297,36 @@ describe("ending a run records its failure kind", () => {
       ["r1", "kill_switch"],
       ["r2", "kill_switch"],
     ]);
+  });
+});
+
+describe("finishRun with the run's task", () => {
+  beforeEach(() => {
+    active.length = 0;
+    taskRows.length = 0;
+    taken.clear();
+    vi.clearAllMocks();
+    vi.mocked(awaitsDelegatedWork).mockResolvedValue(false);
+  });
+
+  const finish = async () => {
+    const running = { ...run("r1", "running", MINUTE), taskId: "t1", trigger: "task" };
+    active.push({ run: running, limits: null });
+    taskRows.push({ id: "t1", status: "in_progress", output: null });
+    await finishRun(running as never, { status: "succeeded", output: "Done", actor: "agent:dev" });
+  };
+
+  it("moves the task to review when it waits for nothing", async () => {
+    vi.mocked(awaitsWakeup).mockResolvedValue(false);
+    await finish();
+    expect(updateTask).toHaveBeenCalledWith("t1", { status: "review", output: "Done" }, "agent:dev");
+    expect(enqueueTaskEvent).not.toHaveBeenCalled();
+  });
+
+  it("keeps a task waiting for a wakeup in progress and has its wakeups checked", async () => {
+    vi.mocked(awaitsWakeup).mockResolvedValue(true);
+    await finish();
+    expect(updateTask).not.toHaveBeenCalled();
+    expect(enqueueTaskEvent).toHaveBeenCalledExactlyOnceWith({ taskId: "t1", event: "wakeups" });
   });
 });

@@ -1,4 +1,15 @@
-import { agents, db, runs, taskComments, taskDependencies, taskEvents, tasks, type Tx } from "@abotica/db";
+import {
+  agents,
+  db,
+  runs,
+  taskComments,
+  taskDependencies,
+  taskEvents,
+  taskPullRequests,
+  tasks,
+  taskWakeups,
+  type Tx,
+} from "@abotica/db";
 import { and, count, desc, eq, inArray, isNull, max, ne, sql } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
@@ -150,6 +161,16 @@ export async function awaitsDelegatedWork(conversationId: string | null): Promis
   return Boolean(open);
 }
 
+/** Whether the task waits for a wakeup (task_wait): a run of it that ends stays in progress until one fires. */
+export async function awaitsWakeup(taskId: string): Promise<boolean> {
+  const [active] = await db
+    .select({ id: taskWakeups.id })
+    .from(taskWakeups)
+    .where(and(eq(taskWakeups.taskId, taskId), eq(taskWakeups.status, "active")))
+    .limit(1);
+  return Boolean(active);
+}
+
 /** Run statuses that still work on their task: a run waiting for an approval continues once it is decided. */
 const ACTIVE_TASK_RUN_STATUSES = ["queued", "running", "waiting_approval"] as const;
 
@@ -251,6 +272,14 @@ export class TaskCircuitOpenError extends UserError {
   }
 }
 
+/**
+ * The user started the task: with a person in between, its pull requests get their automatic fix
+ * rounds back (pull-requests.ts), as those count only the wake-ups no one stepped into.
+ */
+export async function resetFixRounds(taskId: string): Promise<void> {
+  await db.update(taskPullRequests).set({ fixRounds: 0 }).where(eq(taskPullRequests.taskId, taskId));
+}
+
 /** Column values are equal; dates (the deadline) compare by time, since each read makes a new Date. */
 function sameValue(a: unknown, b: unknown): boolean {
   return a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b;
@@ -307,7 +336,11 @@ export async function updateTask(
     await db.insert(taskEvents).values({ taskId: id, type: "updated", actor, data: changes });
   }
   if (task.status === "done" && before.status !== "done") await emit(task, "done");
-  else await publish({ type: "task.updated", taskId: task.id, projectId: task.projectId });
+  else {
+    await publish({ type: "task.updated", taskId: task.id, projectId: task.projectId });
+    // Tasks may wait for this one to reach a status (task_status wakeups).
+    if (task.status !== before.status) await enqueueTaskEvent({ taskId: id, event: "status" });
+  }
   return task;
 }
 

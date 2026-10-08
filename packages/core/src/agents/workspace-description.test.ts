@@ -93,6 +93,8 @@ describe("workspaceDescription", () => {
     expect(text).toContain("repo_open_pr");
     expect(text).toContain("git switch -c");
     expect(text).not.toContain("worktree");
+    // The token never enters the workspace, so the agent is not told it is there.
+    expect(text).toContain("no token in your environment");
   });
 
   it("points a task at its worktrees and branch", () => {

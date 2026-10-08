@@ -191,7 +191,8 @@
     "runNotStarted": "Rularea nu a pornit",
     "dependencyNotFound": "Un task de care depinde nu există",
     "alreadyRunning": "Task-ul are deja o rulare activă",
-    "circuitOpen": "{failures, plural, one {Ultima rulare a acestui task a eșuat} few {Ultimele # rulări ale acestui task au eșuat} other {Ultimele # de rulări ale acestui task au eșuat}} ({reason}), așa că nu mai pornește singur. Pornește-l tu după ce rezolvi cauza."
+    "circuitOpen": "{failures, plural, one {Ultima rulare a acestui task a eșuat} few {Ultimele # rulări ale acestui task au eșuat} other {Ultimele # de rulări ale acestui task au eșuat}} ({reason}), așa că nu mai pornește singur. Pornește-l tu după ce rezolvi cauza.",
+    "wakeupNotFound": "Așteptarea nu a fost găsită"
   },
   "pr": {
     "badge": {
@@ -216,6 +217,45 @@
       "capReached": "Task-ul \"{title}\" este blocat: pull request-ul {label} are încă nevoie de corecturi după {rounds} runde automate de corectare. {url}",
       "notWoken": "Pull request-ul {label} al task-ului \"{title}\" are nevoie de corecturi, dar agentul lui nu a fost pornit: {reason}. {url}",
       "closed": "Pull request-ul {label} al task-ului \"{title}\" a fost închis fără merge. {url}"
+    }
+  },
+  "wakeups": {
+    "title": "Așteaptă",
+    "condition": {
+      "timer": "Ora: {time}",
+      "timerEvery": "La fiecare {minutes, plural, one {minut} few {# minute} other {# de minute}}, următoarea: {time}",
+      "prChecksFinished": "Terminarea verificărilor CI ale pull request-ului {label}",
+      "prMerged": "Merge-ul pull request-ului {label}",
+      "subtasksDone": "Finalizarea tuturor sub-task-urilor",
+      "taskStatus": "Ajungerea task-ului \"{title}\" în starea {status}"
+    },
+    "status": {
+      "active": "Așteaptă",
+      "paused": "Oprită",
+      "expired": "Expirată"
+    },
+    "stopped": {
+      "max_fires": "s-a declanșat de {maxFires} ori, limita ei",
+      "loop": "trezea agentul iar și iar fără ca cineva să intervină (o buclă)",
+      "rate": "task-ul a fost trezit de {max} ori în ultima oră",
+      "expired": "a expirat înainte să se întâmple"
+    },
+    "notes": "Note: {notes}",
+    "expires": "Expiră {time}",
+    "fires": "Declanșată de {fires} din {maxFires} ori",
+    "cancel": "Anulează așteptarea",
+    "remove": "Elimină așteptarea",
+    "cancelled": "Așteptare anulată",
+    "removed": "Așteptare eliminată",
+    "comments": {
+      "woken": "Ai fost trezit: s-a întâmplat ce ai așteptat cu task_wait.\n{items}\nCitește starea actuală cu uneltele tale (task_get) înainte să acționezi.",
+      "notes": "Notele tale: {notes}",
+      "stopped": "Aceste așteptări s-au oprit și nu mai trezesc agentul:\n{items}",
+      "blocked": "Task-ul este blocat până te uiți la el: elimină așteptările sau pornește din nou task-ul."
+    },
+    "notices": {
+      "stopped": "Task-ul \"{title}\": o așteptare a agentului său s-a oprit.\n{items}",
+      "notWoken": "Task-ul \"{title}\": s-a întâmplat ce aștepta agentul lui, dar agentul nu a fost pornit: {reason}."
     }
   }
 }

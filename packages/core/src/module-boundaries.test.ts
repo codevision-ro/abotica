@@ -26,6 +26,7 @@ const CLIENT_SAFE = [
   "sandbox/sandbox-policy",
   "skills/skill-md",
   "tasks/delegation-report",
+  "tasks/wakeup-rules",
 ];
 
 /** Packages a client-safe module may import at runtime. */

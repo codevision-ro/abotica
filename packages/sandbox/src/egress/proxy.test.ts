@@ -1,8 +1,13 @@
+import { execFile, spawnSync } from "node:child_process";
 import http from "node:http";
+import https from "node:https";
 import type net from "node:net";
 import type { Duplex } from "node:stream";
+import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { testCertificate } from "../testing";
 import { startEgressProxy, type EgressProxy } from "./proxy";
+import { ROUTE_HOST, routeUrl } from "./routes";
 
 type Seen = { url?: string; headers: http.IncomingHttpHeaders };
 
@@ -27,6 +32,18 @@ function viaProxy(target: EgressProxy, path: string, headers: Record<string, str
       res.setEncoding("utf8");
       res.on("data", (chunk: string) => (body += chunk));
       res.on("end", () => resolve({ status: res.statusCode ?? 0, message: res.statusMessage ?? "", body }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/** A proxied request whose response headers are returned as they are (redirects are not followed). */
+function rawViaProxy(target: EgressProxy, path: string, headers: Record<string, string> = {}) {
+  return new Promise<http.IncomingMessage>((resolve, reject) => {
+    const req = http.request({ host: target.host, port: target.port, path, headers }, (res) => {
+      res.resume();
+      resolve(res);
     });
     req.on("error", reject);
     req.end();
@@ -234,5 +251,220 @@ describe("egress proxy", () => {
     const res = await viaProxy(proxy, "/relative", { "proxy-authorization": auth(grant.token) });
     expect(res.status).toBe(400);
     grant.revoke();
+  });
+});
+
+describe("credential routes", () => {
+  const SECRET = "Bearer sk-route-secret-0123456789";
+  const certificate = testCertificate();
+  let api: https.Server;
+  let apiPort: number;
+  let routed: EgressProxy;
+  let untrusting: EgressProxy;
+
+  /** Answers with what it received; a few paths redirect. */
+  const echo = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    if (req.url === "/v1/moved") {
+      res.writeHead(302, { location: `https://localhost:${apiPort}/v1/echo?from=moved` });
+      return res.end();
+    }
+    if (req.url === "/v1/away") {
+      res.writeHead(302, { location: "https://elsewhere.example/v1/echo" });
+      return res.end();
+    }
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk: string) => (body += chunk));
+    req.on("end", () => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ method: req.method, url: req.url, headers: req.headers, body }));
+    });
+  };
+
+  const route = () => ({ id: "api", upstream: `https://localhost:${apiPort}/v1`, headers: { Authorization: SECRET } });
+  const registerRoute = (target = routed) => target.register([], LOCAL, [route()]);
+  type Echo = { method: string; url: string; headers: http.IncomingHttpHeaders; body: string };
+  const parsed = (body: string) => JSON.parse(body) as Echo;
+
+  beforeAll(async () => {
+    api = https.createServer({ cert: certificate.cert, key: certificate.key }, echo);
+    apiPort = await new Promise<number>((resolve) =>
+      api.listen(0, "127.0.0.1", () => resolve((api.address() as net.AddressInfo).port)),
+    );
+    routed = await startEgressProxy({ host: LOCAL, port: 0, unsafeAllowLoopback: true, upstreamCa: certificate.cert });
+    untrusting = await startEgressProxy({ host: LOCAL, port: 0, unsafeAllowLoopback: true });
+  });
+
+  afterAll(async () => {
+    await routed.close();
+    await untrusting.close();
+    api.closeAllConnections();
+    await new Promise((resolve) => api.close(resolve));
+  });
+
+  it("forwards to the upstream with the route's header instead of the client's, whatever Host says", async () => {
+    const grant = registerRoute();
+    const res = await viaProxy(routed, `${routeUrl("api")}/echo?q=1`, {
+      "proxy-authorization": auth(grant.token),
+      authorization: "Bearer abotica-proxy-managed",
+      host: "evil.example",
+      "x-kept": "yes",
+    });
+    expect(res.status).toBe(200);
+    const seen = parsed(res.body);
+    expect(seen.url).toBe("/v1/echo?q=1");
+    expect(seen.headers.authorization).toBe(SECRET);
+    expect(seen.headers.host).toBe(`localhost:${apiPort}`);
+    expect(seen.headers["x-kept"]).toBe("yes");
+    expect(seen.headers["proxy-authorization"]).toBeUndefined();
+    grant.revoke();
+  });
+
+  it("needs no egress entry for its upstream, and the egress list gives no route", async () => {
+    const grant = routed.register("public", LOCAL);
+    const res = await viaProxy(routed, `${routeUrl("api")}/echo`, { "proxy-authorization": auth(grant.token) });
+    expect(res.status).toBe(404);
+    expect(res.message).toContain("Unknown credential route api");
+    grant.revoke();
+  });
+
+  it("serves requests inside a CONNECT tunnel to the route host", async () => {
+    const grant = registerRoute();
+    const tunnel = await connect(routed, `${ROUTE_HOST}:80`, { "proxy-authorization": auth(grant.token) });
+    expect(tunnel.status).toBe(200);
+    const raw = await requestOverTunnel(tunnel.socket, "/api/echo?via=tunnel");
+    expect(raw).toMatch(/^HTTP\/1\.1 200/);
+    expect(raw).toContain('"url":"/v1/echo?via=tunnel"');
+    expect(raw).toContain(SECRET);
+    grant.revoke();
+  });
+
+  it("leads a tunnel to the route host nowhere else, whatever the request inside names", async () => {
+    const grant = routed.register("public", LOCAL, [route()]);
+    const tunnel = await connect(routed, `${ROUTE_HOST}:80`, { "proxy-authorization": auth(grant.token) });
+    const raw = await requestOverTunnel(tunnel.socket, `http://localhost:${upstreamPort}/tunnel-escape`);
+    expect(raw).toMatch(/^HTTP\/1\.1 400/);
+    expect(lastSeen.url).not.toBe("/tunnel-escape");
+    grant.revoke();
+  });
+
+  it("works only for the token's own container and exec", async () => {
+    const elsewhere = routed.register([], "10.0.0.7", [route()]);
+    const res = await viaProxy(routed, `${routeUrl("api")}/echo`, { "proxy-authorization": auth(elsewhere.token) });
+    expect(res.status).toBe(407);
+    const tunnel = await connect(routed, `${ROUTE_HOST}:80`, { "proxy-authorization": auth(elsewhere.token) });
+    expect(tunnel.status).toBe(407);
+    tunnel.socket.destroy();
+    elsewhere.revoke();
+
+    const ended = registerRoute();
+    ended.revoke();
+    const after = await viaProxy(routed, `${routeUrl("api")}/echo`, { "proxy-authorization": auth(ended.token) });
+    expect(after.status).toBe(407);
+  });
+
+  it("closes a tunnel to the route host when the exec ends", async () => {
+    const grant = registerRoute();
+    const tunnel = await connect(routed, `${ROUTE_HOST}:80`, { "proxy-authorization": auth(grant.token) });
+    const closed = new Promise((resolve) => tunnel.socket.once("close", resolve));
+    grant.revoke();
+    await closed;
+  });
+
+  it("refuses other addresses of the route host and paths that are no route", async () => {
+    const grant = registerRoute();
+    const headers = { "proxy-authorization": auth(grant.token) };
+    const tls = await connect(routed, `${ROUTE_HOST}:443`, headers);
+    expect(tls.status).toBe(400);
+    expect(tls.message).toContain(`http://${ROUTE_HOST}/<id>`);
+    tls.socket.destroy();
+    for (const url of [`http://${ROUTE_HOST}:8080/api/echo`, `http://${ROUTE_HOST}/`]) {
+      expect((await viaProxy(routed, url, headers)).status, url).toBe(400);
+    }
+    const escaped = await viaProxy(routed, `${routeUrl("api")}/%2e%2e/admin`, headers);
+    expect(escaped.status).toBe(404);
+    grant.revoke();
+  });
+
+  it("sends redirects below the base back through the route and leaves the others alone", async () => {
+    const grant = registerRoute();
+    const headers = { "proxy-authorization": auth(grant.token) };
+    const inside = await rawViaProxy(routed, `${routeUrl("api")}/moved`, headers);
+    expect(inside.headers.location).toBe(`${routeUrl("api")}/echo?from=moved`);
+    const outside = await rawViaProxy(routed, `${routeUrl("api")}/away`, headers);
+    expect(outside.headers.location).toBe("https://elsewhere.example/v1/echo");
+    grant.revoke();
+  });
+
+  it("verifies the upstream's certificate and never sends the header to one it cannot verify", async () => {
+    const grant = registerRoute(untrusting);
+    const res = await viaProxy(untrusting, `${routeUrl("api")}/echo`, { "proxy-authorization": auth(grant.token) });
+    expect(res.status).toBe(502);
+    expect(res.message).toMatch(/^TLS connection to localhost:\d+ failed \([A-Z_]+\)$/);
+    expect(res.body).not.toContain(SECRET);
+    grant.revoke();
+  });
+
+  it("applies the address checks to the upstream", async () => {
+    const grant = strictProxy.register([], LOCAL, [route()]);
+    const res = await viaProxy(strictProxy, `${routeUrl("api")}/echo`, { "proxy-authorization": auth(grant.token) });
+    expect(res.status).toBe(403);
+    expect(res.message).toContain("private or reserved");
+    grant.revoke();
+  });
+
+  it("rejects malformed routes when the exec is registered", () => {
+    expect(() => routed.register([], LOCAL, [{ ...route(), upstream: "http://localhost/v1" }])).toThrow("https");
+    expect(() => routed.register([], LOCAL, [route(), route()])).toThrow("Duplicate");
+  });
+
+  describe("with real clients", () => {
+    const run = promisify(execFile);
+
+    /** Runs a client with the proxy environment of a sandboxed exec and returns what the upstream saw. */
+    async function through(file: string, args: string[]): Promise<Echo> {
+      const grant = registerRoute();
+      const proxyUrl = grant.url;
+      try {
+        const { stdout } = await run(file, args, {
+          env: {
+            PATH: process.env.PATH,
+            HTTP_PROXY: proxyUrl,
+            HTTPS_PROXY: proxyUrl,
+            http_proxy: proxyUrl,
+            https_proxy: proxyUrl,
+            NO_PROXY: "",
+            no_proxy: "",
+            NODE_USE_ENV_PROXY: "1",
+          },
+        });
+        return parsed(stdout);
+      } finally {
+        grant.revoke();
+      }
+    }
+
+    /** Whether a client is installed; the ones that are not are skipped. */
+    const has = (command: string, args: string[]) => spawnSync(command, args, { stdio: "ignore" }).status === 0;
+
+    it("Node fetch (NODE_USE_ENV_PROXY tunnels plain http too)", async () => {
+      const script = `fetch(${JSON.stringify(`${routeUrl("api")}/echo`)}, { method: "POST", body: "hi", headers: { authorization: "Bearer dummy" } }).then((r) => r.text()).then((t) => process.stdout.write(t))`;
+      const seen = await through(process.execPath, ["-e", script]);
+      expect(seen).toMatchObject({ method: "POST", url: "/v1/echo", body: "hi" });
+      expect(seen.headers.authorization).toBe(SECRET);
+    });
+
+    it.runIf(has("curl", ["--version"]))("curl", async () => {
+      const seen = await through("curl", ["-sS", "-H", "Authorization: Bearer dummy", `${routeUrl("api")}/echo`]);
+      expect(seen).toMatchObject({ method: "GET", url: "/v1/echo" });
+      expect(seen.headers.authorization).toBe(SECRET);
+    });
+
+    it.runIf(has("python3", ["-c", "import requests"]))("Python requests", async () => {
+      const script = `import requests, sys; sys.stdout.write(requests.get(${JSON.stringify(`${routeUrl("api")}/echo`)}, headers={"Authorization": "Bearer dummy"}).text)`;
+      const seen = await through("python3", ["-c", script]);
+      expect(seen).toMatchObject({ method: "GET", url: "/v1/echo" });
+      expect(seen.headers.authorization).toBe(SECRET);
+    });
   });
 });

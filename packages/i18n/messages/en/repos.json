@@ -1,6 +1,6 @@
 {
   "title": "Repositories",
-  "intro": "Git repositories the project's agents work on. Each one is cloned in repos/<name> of the project's workspace, where git signs in with its token.",
+  "intro": "Git repositories the project's agents work on. Each one is cloned in repos/<name> of the project's workspace, where git signs in through Abotica's proxy without the token entering the workspace.",
   "empty": "No repository yet. Add one and the project's agents can work on its code.",
   "providers": {
     "github": "GitHub",
@@ -43,7 +43,7 @@
     "gitlabCreate": "Create the token on GitLab",
     "githubTracking": "To follow CI on the pull requests the agents open, the token also needs Actions and Commit statuses set to Read (the link sets them). Without them, merges and reviews are still followed.",
     "gitlabTracking": "With these scopes Abotica also follows the pipelines, discussions and merges of the merge requests the agents open.",
-    "shared": "Every agent of the project can use the token inside the sandbox. Limit it to this repository."
+    "proxy": "The token never enters the sandbox: git signs in through Abotica's proxy, only at this repository's address. Every agent of the project can still push with it, so limit it to this repository."
   },
   "recheck": "Check again",
   "rechecked": "{name} checked",

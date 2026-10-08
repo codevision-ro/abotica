@@ -9,6 +9,7 @@ import { ensurePackages, type PackageLists } from "./packages";
 import { collectBytes, collectText, runCommand, TIMEOUT_EXIT_CODE } from "./process";
 import { shellQuote } from "./shell";
 import type {
+  CredentialRoute,
   Egress,
   ExecOptions,
   SandboxBackend,
@@ -29,6 +30,8 @@ export type SandboxSessionOptions = {
   packages?: PackageLists;
   /** Extra environment for every command. */
   env?: Record<string, string>;
+  /** Credential routes of every command (git through the proxy). */
+  routes?: readonly CredentialRoute[];
   /** Returned as `session.description` for the agent's instructions. */
   description: string;
   /** Default and maximum run time of a command. */
@@ -168,6 +171,7 @@ export function createSandboxSession(options: SandboxSessionOptions): ManagedSan
     env: { ...options.env, ...call.env },
     // Root is for installing system packages, so it reaches the package registries too.
     egress: call.user === "root" ? options.setupEgress : options.egress,
+    routes: options.routes,
     timeoutMs: capTimeout(call.timeoutMs),
     signal: call.abortSignal,
     user: call.user,

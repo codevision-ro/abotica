@@ -19,6 +19,7 @@ export const AGENT_TOOLS = [
   "task_update",
   "task_delete",
   "task_comment",
+  "task_wait",
   "web_fetch",
   "shell_run",
   "shell_run_root",

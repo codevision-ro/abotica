@@ -38,7 +38,7 @@ function reposText(repos: DescribedRepo[], taskId: string | null): string | null
     ...repos.map(
       (r) => `  - ${repoPath(r.name)}: ${r.webUrl} (${PROVIDER_LABEL[r.provider]}, default branch ${r.defaultBranch})`,
     ),
-    "  Git is signed in to these repositories over HTTPS: clone, fetch, pull and push work with plain git commands, and their hosts are reachable whatever the network setting. The credentials are in your environment: never print, copy or commit them.",
+    "  Git is signed in to these repositories over HTTPS: clone, fetch, pull and push work with plain git commands whatever the network setting. Abotica's proxy adds the credentials on the way out, so there is no token in your environment and none to configure. Other repositories and the providers' APIs get no credentials.",
     `  Never push to a default branch. Commit on a branch, push it with \`git push -u origin HEAD\`, then open a ${pull} with repo_open_pr and share its link.`,
   ];
   if (taskId) {

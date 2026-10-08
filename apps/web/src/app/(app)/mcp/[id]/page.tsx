@@ -87,6 +87,7 @@ export default async function McpServerPage(props: PageProps<"/mcp/[id]">) {
     network: server.network,
     sandboxed: server.sandboxed,
     workspace: server.workspace,
+    credentialRoutes: server.credentialRoutes,
     auth: server.auth,
     oauthClientId: server.oauthClientId ?? "",
     oauthClientSecret: server.oauthClientSecret ?? "",

@@ -71,6 +71,11 @@
     "description": "Adds comments to tasks",
     "running": "Adding a comment"
   },
+  "task_wait": {
+    "label": "Wait for events",
+    "description": "Ends its run and is woken at a time, when a pull request's checks finish or it merges, when subtasks are done or another task reaches a status",
+    "running": "Setting a wait"
+  },
   "web_fetch": {
     "label": "Read web pages",
     "description": "Downloads and reads the content of a URL",

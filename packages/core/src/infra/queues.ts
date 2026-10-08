@@ -39,8 +39,13 @@ export type MaintenanceJob =
   /** Looks for a newer Abotica release and tells the user once per version (platform/updates.ts). */
   | { kind: "updates-check" };
 
-/** A task was created or finished; the worker fires its triggers and starts unblocked dependents. */
-export type TaskEventJob = { taskId: string; event: "created" | "done" };
+/**
+ * A task changed, on one queue so the worker handles them one at a time. Created or done: it fires
+ * the task's triggers and starts unblocked dependents. Done or another status: it checks the wakeups
+ * waiting on the task. `wakeups`: it checks the task's own wakeups (a timer came due, its run ended,
+ * its pull request changed).
+ */
+export type TaskEventJob = { taskId: string; event: "created" | "done" | "status" | "wakeups" };
 
 /** A run ended: the tasks delegated with its task are reported back to the delegator once all settled. */
 export type DelegationReportJob = { runId: string };
@@ -119,6 +124,19 @@ export async function notify(job: NotificationJob): Promise<void> {
 export async function enqueueTaskEvent(job: TaskEventJob): Promise<void> {
   // A retry could start the same triggered runs twice.
   await taskEventsQueue().add(job.event, job, { attempts: 1 });
+}
+
+/**
+ * Checks a task's wakeups at `at` (a timer or an expiry), through the task-events queue. One job per
+ * wakeup and time: asking again for the same time adds nothing.
+ */
+export async function scheduleWakeupCheck(taskId: string, wakeupId: string, at: Date): Promise<void> {
+  await taskEventsQueue().add(
+    "wakeups",
+    { taskId, event: "wakeups" },
+    // BullMQ refuses custom ids with ":", hence the hyphens.
+    { jobId: `wakeup-${wakeupId}-${at.getTime()}`, delay: Math.max(0, at.getTime() - Date.now()), attempts: 1 },
+  );
 }
 
 /**

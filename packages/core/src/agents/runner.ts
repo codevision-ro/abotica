@@ -299,6 +299,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       onUntrusted: () => {
         ctx.untrustedSeen = true;
       },
+      knownSecrets: ctx.repos.map((r) => r.token),
       onLazyError: (server, error) => logEventInBackground(runId, "mcp-error", { error: `${server}: ${errorText(error)}` }),
     });
     for (const { server, error } of mcp.errors)

@@ -71,6 +71,11 @@
     "description": "Adaugă comentarii pe task-uri",
     "running": "Adaugă un comentariu"
   },
+  "task_wait": {
+    "label": "Așteaptă evenimente",
+    "description": "Își încheie rularea și e trezit la o oră, când se termină verificările unui pull request sau se face merge, când sub-task-urile sunt gata sau alt task ajunge într-o stare",
+    "running": "Setează o așteptare"
+  },
   "web_fetch": {
     "label": "Citește pagini web",
     "description": "Descarcă și citește conținutul unui URL",

@@ -7,6 +7,7 @@ import {
   interpolateSecrets,
   OWNER_SECRETS,
   resolveSecret,
+  resolveSecretPlaceholders,
   sealValue,
   type SecretScope,
   unsealValue,
@@ -89,6 +90,11 @@ describe("interpolateSecrets", () => {
       Authorization: "Bearer own-value",
       "X-Key": "global-value",
     });
+  });
+
+  it("reports the secret values it put in, and nothing of the text around them", async () => {
+    const record = { Authorization: "Bearer {{secret:OWN_TOKEN}}", PLAIN: "x", BOTH: "{{secret:GLOBAL_TOKEN}}" };
+    expect((await resolveSecretPlaceholders(record, inProject)).secrets).toEqual(["own-value", "global-value"]);
   });
 
   it("keeps a `$` in a secret as it is", async () => {

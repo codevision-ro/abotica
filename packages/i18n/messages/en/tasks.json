@@ -191,7 +191,8 @@
     "runNotStarted": "The run did not start",
     "dependencyNotFound": "A task it depends on does not exist",
     "alreadyRunning": "The task already has an active run",
-    "circuitOpen": "{failures, plural, one {The last run} other {The last # runs}} of this task failed ({reason}), so it does not start again on its own. Start it yourself once the cause is fixed."
+    "circuitOpen": "{failures, plural, one {The last run} other {The last # runs}} of this task failed ({reason}), so it does not start again on its own. Start it yourself once the cause is fixed.",
+    "wakeupNotFound": "Wait not found"
   },
   "pr": {
     "badge": {
@@ -216,6 +217,45 @@
       "capReached": "Task \"{title}\" is blocked: pull request {label} still needs fixes after {rounds} automatic fix rounds. {url}",
       "notWoken": "Pull request {label} of task \"{title}\" needs fixes, but its agent was not started: {reason}. {url}",
       "closed": "Pull request {label} of task \"{title}\" was closed without merging. {url}"
+    }
+  },
+  "wakeups": {
+    "title": "Waiting for",
+    "condition": {
+      "timer": "Time: {time}",
+      "timerEvery": "Every {minutes, plural, one {minute} other {# minutes}}, next: {time}",
+      "prChecksFinished": "The CI checks of pull request {label} to finish",
+      "prMerged": "Pull request {label} to be merged",
+      "subtasksDone": "All subtasks to be done",
+      "taskStatus": "Task \"{title}\" to reach {status}"
+    },
+    "status": {
+      "active": "Waiting",
+      "paused": "Paused",
+      "expired": "Expired"
+    },
+    "stopped": {
+      "max_fires": "it fired {maxFires} times, its limit",
+      "loop": "it kept waking the agent with no person in between (a loop)",
+      "rate": "the task was woken {max} times in the last hour",
+      "expired": "it expired before it happened"
+    },
+    "notes": "Notes: {notes}",
+    "expires": "Expires {time}",
+    "fires": "Fired {fires} of {maxFires} times",
+    "cancel": "Cancel this wait",
+    "remove": "Remove this wait",
+    "cancelled": "Wait cancelled",
+    "removed": "Wait removed",
+    "comments": {
+      "woken": "You were woken: what you waited for with task_wait happened.\n{items}\nRead the current state with your tools (task_get) before you act.",
+      "notes": "Your notes: {notes}",
+      "stopped": "These waits stopped and no longer wake the agent:\n{items}",
+      "blocked": "The task is blocked until you look at it: remove the waits or start the task again."
+    },
+    "notices": {
+      "stopped": "Task \"{title}\": a wait of its agent stopped.\n{items}",
+      "notWoken": "Task \"{title}\": what its agent waited for happened, but the agent was not started: {reason}."
     }
   }
 }

@@ -1,12 +1,22 @@
-import type { McpToolInfo } from "@abotica/db";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import type { IncomingHttpHeaders } from "node:http";
+import https from "node:https";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { McpCredentialRoute, McpToolInfo } from "@abotica/db";
 import type { ExecOptions, SandboxProcess, Workspace } from "@abotica/sandbox";
+import { routeUrl } from "@abotica/sandbox/routes";
+import { type EgressProxy, proxiedWorkspace, startEgressProxy, testCertificate } from "@abotica/sandbox/testing";
 import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { convertToModelMessages, isStepCount, streamText, type Tool, type UIMessage } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { McpServer } from "./context";
 import { GLOBAL_SECRETS } from "../platform/vault";
+import { PROXY_MANAGED_KEY } from "./mcp-routes";
 import { loadMcpTools, McpToolError, type McpRunOptions } from "./mcp-runtime";
+import { bashWorkspace } from "./test-workspace";
 import { TOOL_TEXT_MAX_CHARS } from "./tool-output";
 import { wrapUntrusted } from "./untrusted";
 import { markerId } from "./untrusted-id";
@@ -14,6 +24,24 @@ import { wrapUntrustedResults } from "./untrusted-results";
 
 // The runtime only touches the database after a successful connection (the tool cache).
 vi.mock("@abotica/db", () => ({ db: {} }));
+/** The vault of these tests: placeholders are filled from here instead of the database. */
+const vault = vi.hoisted(() => new Map<string, string>());
+vi.mock("../platform/vault", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../platform/vault")>()),
+  resolveSecretPlaceholders: async (record: Record<string, string>) => {
+    const secrets: string[] = [];
+    const values = Object.fromEntries(
+      Object.entries(record).map(([key, value]) => [
+        key,
+        value.replace(/\{\{secret:([A-Z0-9_]+)\}\}/g, (_, name: string) => {
+          secrets.push(vault.get(name)!);
+          return vault.get(name)!;
+        }),
+      ]),
+    );
+    return { values, secrets };
+  },
+}));
 // Marker ids of untrusted data are keyed with the instance's secret.
 vi.stubEnv("DATABASE_URL", "postgres://test@localhost/test");
 vi.stubEnv("VAULT_KEY", Buffer.alloc(32, 7).toString("base64"));
@@ -43,6 +71,7 @@ const server = (tools: McpToolInfo[] | null): McpServer =>
     network: { mode: "full", domains: [] },
     sandboxed: true,
     workspace: "server",
+    credentialRoutes: [],
     global: false,
     builtin: null,
     auth: "headers",
@@ -145,18 +174,26 @@ function fakeServerProcess(reply: Reply, extra: object = {}): SandboxProcess {
   };
 }
 
+/** A stdio server in the run's workspace, with a full tool cache. */
+const stdioServer = (): McpServer => ({
+  ...server(cached),
+  transport: "stdio",
+  url: null,
+  command: "npx",
+  args: ["-y", "some-server"],
+  workspace: "run",
+});
+
 describe("loadMcpTools in a run's workspace", () => {
-  const stdio = (): McpServer => ({
-    ...server(cached),
-    transport: "stdio",
-    url: null,
-    command: "npx",
-    args: ["-y", "some-server"],
-    workspace: "run",
-  });
+  const stdio = stdioServer;
 
   /** The tools of a stdio server in a run's workspace whose process answers every call with `reply`. */
-  async function load(reply: Reply, options: Partial<McpRunOptions> = {}, extra: object = {}) {
+  async function load(
+    reply: Reply,
+    options: Partial<McpRunOptions> = {},
+    extra: object = {},
+    patch: Partial<McpServer> = {},
+  ) {
     const execs: ExecOptions[] = [];
     const workspace: Workspace = {
       key: "project-x",
@@ -171,7 +208,7 @@ describe("loadMcpTools in a run's workspace", () => {
         return fakeServerProcess(reply, extra);
       },
     };
-    const mcp = await loadMcpTools([stdio()], {
+    const mcp = await loadMcpTools([{ ...stdio(), ...patch }], {
       secrets: GLOBAL_SECRETS,
       runWorkspace: async () => workspace,
       ...options,
@@ -464,5 +501,215 @@ describe("loadMcpTools in a run's workspace", () => {
       expect(text).toContain("[... 170000 characters cut and not kept.");
       expect(text.length).toBeLessThan(TOOL_TEXT_MAX_CHARS + 200);
     });
+  });
+
+  describe("secrets", () => {
+    const API_KEY = "api-key-value-0123456789";
+    const REPO_TOKEN = "repo-token-value-0123456789";
+    const UNKNOWN = `ghp_${"x".repeat(36)}`;
+    const withKey = { env: { API_KEY: "{{secret:API_KEY}}" } };
+
+    /** Calls the tool of a server with the API key in its env, whose process answers `reply`. */
+    async function callWithKey(reply: Reply, extra: object = {}, options: Partial<McpRunOptions> = {}) {
+      vault.set("API_KEY", API_KEY);
+      const { mcp } = await load(reply, { knownSecrets: [REPO_TOKEN], ...options }, extra, withKey);
+      const run = mcp.tools["search_test__web_search"]!.execute!({ query: "x" }, {
+        toolCallId: "1",
+        messages: [],
+      } as never);
+      return run.finally(() => mcp.close());
+    }
+
+    it("replaces the run's secrets and well-known token shapes in results, before they are capped", async () => {
+      const text = `key=${API_KEY} repo=${REPO_TOKEN} other=${UNKNOWN} ${"x".repeat(200_000)}`;
+      const output = (await callWithKey(text, { structuredContent: { key: API_KEY } })) as {
+        content: ContentPart[];
+        structuredContent: unknown;
+      };
+      const first = (output.content[0] as { text: string }).text;
+      expect(first.startsWith("key=[redacted] repo=[redacted] other=[redacted] ")).toBe(true);
+      expect(output.structuredContent).toEqual({ key: "[redacted]" });
+    });
+
+    it("leaves images as they are", async () => {
+      // Valid base64 that has the shape of an AWS key id.
+      const image: ContentPart = { type: "image", data: "AKIAIOSFODNN7EXAMPLE", mimeType: "image/png" };
+      const output = (await callWithKey([image])) as { content: ContentPart[] };
+      expect(output.content).toEqual([image]);
+    });
+
+    it("replaces them in an error, its message and what the model reads", async () => {
+      const error: unknown = await callWithKey(`rejected key ${API_KEY}`, { isError: true }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(McpToolError);
+      expect((error as McpToolError).message).toBe("rejected key [redacted]");
+      expect(String(error)).toContain("rejected key [redacted]");
+      expect(String(error)).not.toContain(API_KEY);
+    });
+
+    it("replaces them in a server's failure to start, with what it wrote on stderr", async () => {
+      vault.set("API_KEY", API_KEY);
+      const onLazyError = vi.fn();
+      const failing: Workspace = {
+        key: "project-x",
+        paths: { workspace: "/workspace", bundles: "/opt/abotica/bundles", home: "/workspace/.home" },
+        exec: async () => ({
+          stdin: new WritableStream(),
+          stdout: new ReadableStream({ start: (c) => c.close() }),
+          stderr: new ReadableStream({
+            start: (c) => {
+              c.enqueue(new TextEncoder().encode(`invalid API key ${API_KEY}`));
+              c.close();
+            },
+          }),
+          wait: async () => ({ exitCode: 1, timedOut: false }),
+          kill: async () => {},
+        }),
+      };
+      const mcp = await loadMcpTools([{ ...stdio(), ...withKey }], {
+        secrets: GLOBAL_SECRETS,
+        runWorkspace: async () => failing,
+        onLazyError,
+      });
+      const error: unknown = await mcp.tools["search_test__web_search"]!.execute!({ query: "x" }, {
+        toolCallId: "1",
+        messages: [],
+      } as never).catch((e: unknown) => e);
+      await mcp.close();
+      expect(String(error)).toContain("invalid API key [redacted]");
+      expect(String(error)).not.toContain(API_KEY);
+      expect(String(onLazyError.mock.calls[0]?.[1])).not.toContain(API_KEY);
+    });
+  });
+
+  describe("credential routes", () => {
+    const route: McpCredentialRoute = {
+      baseUrlEnv: "OPENAI_BASE_URL",
+      upstream: "https://api.openai.com/v1",
+      header: "Authorization",
+      value: "Bearer {{secret:OPENAI_KEY}}",
+      keyEnv: "OPENAI_API_KEY",
+    };
+
+    it("gives the process the route's URL and a placeholder key, and the proxy the secret", async () => {
+      vault.set("OPENAI_KEY", "sk-openai-real-key-0123456789");
+      const { execs, mcp } = await load("done", {}, {}, { credentialRoutes: [route] });
+      await mcp.tools["search_test__web_search"]!.execute!({ query: "x" }, { toolCallId: "1", messages: [] } as never);
+      await mcp.close();
+      expect(execs[0]!.env).toMatchObject({
+        OPENAI_BASE_URL: routeUrl("openai-base-url"),
+        OPENAI_API_KEY: PROXY_MANAGED_KEY,
+      });
+      expect(JSON.stringify(execs[0]!.env)).not.toContain("sk-openai-real-key");
+      expect(execs[0]!.routes).toEqual([
+        {
+          id: "openai-base-url",
+          upstream: "https://api.openai.com/v1",
+          headers: { Authorization: "Bearer sk-openai-real-key-0123456789" },
+        },
+      ]);
+    });
+
+    it("redacts a route's value whole, also one typed without the vault", async () => {
+      const typed = { ...route, value: "Token typed-in-key-0123456789" };
+      const { mcp } = await load("echo: Token typed-in-key-0123456789", {}, {}, { credentialRoutes: [typed] });
+      const output = (await mcp.tools["search_test__web_search"]!.execute!({ query: "x" }, {
+        toolCallId: "1",
+        messages: [],
+      } as never)) as { content: ContentPart[] };
+      await mcp.close();
+      expect(output.content).toEqual([{ type: "text", text: "echo: [redacted]" }]);
+    });
+  });
+});
+
+describe("a credential route through the egress proxy", () => {
+  const SECRET = "sk-routed-secret-0123456789abcdef";
+  const certificate = testCertificate();
+  let api: https.Server;
+  let apiPort: number;
+  let proxy: EgressProxy;
+  let dir: string;
+  const seen: IncomingHttpHeaders[] = [];
+
+  /** A stdio MCP server whose tool calls `${API_BASE_URL}/echo` with `API_KEY`, returning its env and the answer. */
+  const SERVER_SCRIPT = `
+const reply = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
+let buffer = "";
+process.stdin.on("data", async (chunk) => {
+  buffer += chunk;
+  const lines = buffer.split("\\n");
+  buffer = lines.pop();
+  for (const line of lines.filter(Boolean)) {
+    const { id, method, params } = JSON.parse(line);
+    if (id === undefined) continue;
+    if (method === "initialize") {
+      reply(id, { protocolVersion: params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "api", version: "1" } });
+    } else if (method === "tools/list") {
+      reply(id, { tools: [] });
+    } else {
+      const res = await fetch(process.env.API_BASE_URL + "/echo", { headers: { authorization: "Bearer " + process.env.API_KEY } });
+      const env = { API_BASE_URL: process.env.API_BASE_URL, API_KEY: process.env.API_KEY, all: process.env };
+      reply(id, { content: [{ type: "text", text: JSON.stringify({ env, status: res.status, body: await res.text() }) }] });
+    }
+  }
+});
+`;
+
+  beforeAll(async () => {
+    api = https.createServer({ cert: certificate.cert, key: certificate.key }, (req, res) => {
+      seen.push(req.headers);
+      res.end(JSON.stringify({ url: req.url, authorization: req.headers.authorization }));
+    });
+    apiPort = await new Promise<number>((resolve) =>
+      api.listen(0, "127.0.0.1", () => resolve((api.address() as AddressInfo).port)),
+    );
+    proxy = await startEgressProxy({ host: "127.0.0.1", port: 0, unsafeAllowLoopback: true, upstreamCa: certificate.cert });
+    dir = mkdtempSync(path.join(tmpdir(), "abotica-mcp-route-"));
+    writeFileSync(path.join(dir, "server.cjs"), SERVER_SCRIPT);
+  });
+
+  afterAll(async () => {
+    await proxy.close();
+    api.closeAllConnections();
+    await new Promise((resolve) => api.close(resolve));
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("calls its API with the secret, which the server's process never sees", async () => {
+    vault.set("API_TOKEN", SECRET);
+    const server: McpServer = {
+      ...stdioServer(),
+      command: process.execPath,
+      args: [path.join(dir, "server.cjs")],
+      credentialRoutes: [
+        {
+          baseUrlEnv: "API_BASE_URL",
+          upstream: `https://localhost:${apiPort}/v1`,
+          header: "Authorization",
+          value: "Bearer {{secret:API_TOKEN}}",
+          keyEnv: "API_KEY",
+        },
+      ],
+    };
+    const workspace = proxiedWorkspace(bashWorkspace(dir), proxy);
+    const mcp = await loadMcpTools([server], { secrets: GLOBAL_SECRETS, runWorkspace: async () => workspace });
+    const output = (await mcp.tools["search_test__web_search"]!.execute!({ query: "x" }, {
+      toolCallId: "1",
+      messages: [],
+    } as never).finally(() => mcp.close())) as { content: { text: string }[] };
+
+    expect(seen.at(-1)?.authorization).toBe(`Bearer ${SECRET}`);
+    const result = JSON.parse(output.content[0]!.text) as {
+      env: { API_BASE_URL: string; API_KEY: string; all: Record<string, string> };
+      status: number;
+      body: string;
+    };
+    expect(result.status).toBe(200);
+    expect(result.env.API_BASE_URL).toBe(routeUrl("api-base-url"));
+    expect(result.env.API_KEY).toBe(PROXY_MANAGED_KEY);
+    // The secret is nowhere in the process's environment (it would show as redacted), and the API's
+    // echo of it is redacted before the model gets it.
+    expect(JSON.stringify(result.env.all)).not.toContain("[redacted]");
+    expect(JSON.parse(result.body)).toEqual({ url: "/v1/echo", authorization: "[redacted]" });
   });
 });

@@ -26,7 +26,7 @@ Abotica is single-user and runs on your own server or computer, with your own mo
 
 - **A super agent and real teams.** One point of contact on Telegram and the web. Every project has a manager who delegates within its team, sends work back when it is not good enough and reports the result. Specialists such as a web developer or an SEO agent are shared across projects and keep a separate memory per project.
 - **Agents that do the work, not just talk about it.** Each project gets its own Docker workspace. Agents run shell commands there, install packages, start MySQL, PostgreSQL or Redis, and browse and scrape the web. They hand you the results as files or as preview links to the apps they started.
-- **Git-native.** Connect GitHub, GitLab or a self-hosted repository to a project. Each task gets its own worktree and branch, and agents open the pull request. The token stays out of what agents read.
+- **Git-native.** Connect GitHub, GitLab or a self-hosted repository to a project. Each task gets its own worktree and branch, and agents open the pull request. The token never enters the sandbox: git signs in through its egress proxy.
 - **Memory that lasts.** Global, project and agent memory with semantic search, an end-of-day journal per agent and project, and a weekly consolidation of the facts that matter.
 - **Works while you sleep.** Cron and one-shot schedules, signed webhooks, triggers on task events, and daily and weekly digests on Telegram.
 - **You stay in control.** Approval per tool, budgets per run, per project and per month with Telegram alerts, a kill switch, an audit log and a step-by-step trace of every run. A project can be limited to chosen providers, for example only local Ollama models for sensitive data.
@@ -120,7 +120,7 @@ To update, run the same command again. To install with Docker by hand, or withou
 - Description, goals, status, an overview of spend against budget and recent runs.
 - A team: a manager created with the project, who answers in its conversations and Telegram topic and delegates within the team. Add specialists from templates, or share them with other projects.
 - Knowledge base (files, documents, links) with semantic search. The original files are copied into the project workspace.
-- Git repositories (GitHub, GitLab, self-hosted): cloned in the workspace, with a worktree and branch per task and pull or merge requests opened by agents. The token is checked when you add it and hidden from what agents read. The UI warns when the default branch is not protected.
+- Git repositories (GitHub, GitLab, self-hosted): cloned in the workspace, with a worktree and branch per task and pull or merge requests opened by agents. The token is checked when you add it and never enters the sandbox: git signs in through its egress proxy. The UI warns when the default branch is not protected.
 - Credentials in the vault, used as `{{secret:NAME}}` and never placed in the workspace.
 - Monthly budget: runs are refused once it is reached.
 - Allowed providers. They cover everything that carries the project's data: runs, journals, memory consolidation, the digest, embeddings, voice transcription in its Telegram topic, and task results reported back to whoever delegated them.
@@ -161,7 +161,7 @@ To update, run the same command again. To install with Docker by hand, or withou
 - Skills as Agent Skills folders (SKILL.md plus reference files and scripts), edited in the browser, with versions, diff and restore. Scripts run in the sandbox.
 - Install skills from skills.sh, GitHub, a zip or a folder. A skill shows when its source has an update.
 - Test a skill with any agent in a real chat run.
-- MCP servers over HTTP (with OAuth, detected automatically) or stdio, with a connection test. Environment variables and headers can reference vault secrets. Stdio servers run in the sandbox by default.
+- MCP servers over HTTP (with OAuth, detected automatically) or stdio, with a connection test. Environment variables and headers can reference vault secrets. Stdio servers run in the sandbox by default, and credential routes give them an API key without putting it in the sandbox.
 - Four bundled MCP servers: Parallel Search (web search), Context7 (library documentation), Playwright (browser automation) and Scrapling (scraping, including JavaScript and Cloudflare pages).
 - MCP tools load on demand. The agent sees their names and loads the ones it needs, so a long tool list does not cost tokens on every step.
 - Assign skills and MCP servers to agents, or to every member of a project.

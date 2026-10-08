@@ -78,6 +78,24 @@ export type McpToolInfo = {
   annotations?: Record<string, unknown>;
 };
 
+/**
+ * A credential route of a sandboxed stdio server: the process gets the route's URL in `baseUrlEnv`
+ * and the sandbox's egress proxy adds `header: value` to its requests to `upstream`, so the value
+ * never enters the sandbox. `value` may reference vault secrets and is stored sealed.
+ */
+export type McpCredentialRoute = {
+  /** Environment variable that gets the route's URL, e.g. OPENAI_BASE_URL. */
+  baseUrlEnv: string;
+  /** HTTPS base URL the requests go to, e.g. https://api.openai.com/v1. */
+  upstream: string;
+  /** Header the proxy adds, e.g. Authorization. */
+  header: string;
+  /** Its value, e.g. `Bearer {{secret:OPENAI_KEY}}`. */
+  value: string;
+  /** Environment variable set to a placeholder, for clients that do not start without a key. */
+  keyEnv?: string;
+};
+
 export const mcpServers = pgTable("mcp_servers", {
   id: id(),
   slug: text().notNull().unique(),
@@ -98,6 +116,8 @@ export const mcpServers = pgTable("mcp_servers", {
   sandboxed: boolean().notNull().default(true),
   /** Stdio servers: `run` starts the process in the workspace of the run that uses it. */
   workspace: mcpWorkspace().notNull().default("server"),
+  /** Sandboxed stdio servers only. */
+  credentialRoutes: jsonb().$type<McpCredentialRoute[]>().notNull().default([]),
   /** Offered to every agent; an agent opts out by denying the server in its permissions. */
   global: boolean().notNull().default(false),
   /** Key of the bundled server this row is (`mcp-builtins.ts`); null for servers added by the user. */

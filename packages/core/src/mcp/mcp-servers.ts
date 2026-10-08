@@ -2,13 +2,23 @@
  * The MCP server registry: saving servers with their assignments, the bundled servers' rules,
  * keeping their rows in line with the catalog, and the registry's connection test. Server only.
  *
- * Env and header values and the OAuth client secret are stored sealed (vault.ts `sealValue`);
+ * Env and header values, credential route values and the OAuth client secret are stored sealed (vault.ts `sealValue`);
  * `interpolateSecrets` opens them where a connection uses them, and values saved before that are
  * read as plain text until `encryptLegacyMcpCredentials` rewrites them.
  */
-import { agentMcpServers, db, mcpOAuth, mcpServers, type NetworkPolicy, projectMcpServers, secrets } from "@abotica/db";
+import {
+  agentMcpServers,
+  db,
+  type McpCredentialRoute,
+  mcpOAuth,
+  mcpServers,
+  type NetworkPolicy,
+  projectMcpServers,
+  secrets,
+} from "@abotica/db";
 import { eq, inArray, isNotNull } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
+import { isRouteHeader, isRouteUpstream } from "@abotica/sandbox/routes";
 import type { MCPClient } from "@ai-sdk/mcp";
 import {
   connectHttpMcp,
@@ -19,6 +29,7 @@ import {
   testMcpServer,
 } from "../agents/mcp";
 import { MCP_OAUTH_REQUIRED } from "../agents/mcp-oauth";
+import { mcpRouteId } from "../agents/mcp-routes";
 import { audit } from "../platform/audit";
 import { BUILTIN_MCP_SERVERS, type BuiltinMcp, builtinMcp } from "./mcp-builtins";
 import { type KeepStored, resolveStoredRecord, resolveStoredSecret } from "./mcp-stored-values";
@@ -26,7 +37,7 @@ import { DEFAULT_MCP_NETWORK, parseNetworkPolicy } from "../sandbox/sandbox-poli
 import { OWNER_SECRETS, sealValue, unsealValue } from "../platform/vault";
 
 type McpRow = typeof mcpServers.$inferSelect;
-type McpCredentials = Pick<McpRow, "env" | "headers" | "oauthClientSecret">;
+type McpCredentials = Pick<McpRow, "env" | "headers" | "credentialRoutes" | "oauthClientSecret">;
 
 /** The connection settings of a server, as the registry form sends them (normalized). */
 export type McpServerValues = {
@@ -45,6 +56,13 @@ export type McpServerValues = {
   network: NetworkPolicy;
   sandboxed: boolean;
   workspace: "server" | "run";
+  credentialRoutes: McpCredentialRoute[];
+};
+
+/** A credential route as the form sends it; a value it could not show comes back as `{ keep: <saved baseUrlEnv> }`. */
+export type McpCredentialRouteDraft = Omit<McpCredentialRoute, "value" | "keyEnv"> & {
+  value: string | KeepStored;
+  keyEnv?: string | null;
 };
 
 /** The registry form as validated, before `normalizeMcpServerValues`. */
@@ -66,7 +84,41 @@ export type McpServerDraft = {
   network?: unknown;
   sandboxed: boolean;
   workspace: "server" | "run";
+  /** Sandboxed stdio only, checked by `normalizeCredentialRoutes`. */
+  credentialRoutes?: McpCredentialRouteDraft[];
 };
+
+/** An environment variable a route may set; it also names the route (`mcpRouteId`). */
+const ENV_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/**
+ * The credential routes to save, checked with the rules the sandbox applies when it runs them, so a
+ * mistake shows up in the form and not in a run. Kept values come from `saved`.
+ */
+export function normalizeCredentialRoutes(
+  drafts: McpCredentialRouteDraft[],
+  saved: McpCredentialRoute[] | null,
+): McpCredentialRoute[] {
+  const savedValues = saved && Object.fromEntries(saved.map((route) => [route.baseUrlEnv, route.value]));
+  const ids = new Set<string>();
+  return drafts.map((draft) => {
+    const baseUrlEnv = draft.baseUrlEnv.trim();
+    const keyEnv = draft.keyEnv?.trim() || undefined;
+    const upstream = draft.upstream.trim();
+    const header = draft.header.trim();
+    for (const name of [baseUrlEnv, keyEnv]) {
+      if (name !== undefined && !ENV_NAME_RE.test(name)) throw new UserError("mcp.errors.routeEnvName", { name });
+    }
+    const id = mcpRouteId({ baseUrlEnv });
+    if (ids.has(id)) throw new UserError("mcp.errors.routeDuplicate", { name: baseUrlEnv });
+    ids.add(id);
+    if (!isRouteUpstream(upstream)) throw new UserError("mcp.errors.routeUpstream", { name: baseUrlEnv });
+    const value = resolveStoredRecord({ [baseUrlEnv]: draft.value }, savedValues)[baseUrlEnv]!;
+    if (!value.trim()) throw new UserError("mcp.errors.routeValueRequired", { name: baseUrlEnv });
+    if (!isRouteHeader(header, value)) throw new UserError("mcp.errors.routeHeader", { name: baseUrlEnv });
+    return { baseUrlEnv, upstream, header, value, ...(keyEnv && { keyEnv }) };
+  });
+}
 
 /**
  * Keeps only the fields that belong to the chosen transport and authentication; values the form
@@ -93,13 +145,18 @@ export function normalizeMcpServerValues(v: McpServerDraft, saved: McpCredential
     oauthScope: oauth ? v.oauthScope || null : null,
     network: http ? DEFAULT_MCP_NETWORK : parseNetworkPolicy(v.network ?? DEFAULT_MCP_NETWORK),
     sandboxed,
-    // Only a sandboxed stdio process can live in a run's workspace.
+    // Only a sandboxed stdio process can live in a run's workspace or use the egress proxy's routes.
     workspace: !http && sandboxed ? v.workspace : "server",
+    credentialRoutes:
+      !http && sandboxed ? normalizeCredentialRoutes(v.credentialRoutes ?? [], saved?.credentialRoutes ?? null) : [],
   };
 }
 
 const mapValues = (record: Record<string, string>, fn: (value: string) => string) =>
   Object.fromEntries(Object.entries(record).map(([key, value]) => [key, fn(value)]));
+
+const mapRouteValues = (routes: McpCredentialRoute[], fn: (value: string) => string) =>
+  routes.map((route) => ({ ...route, value: fn(route.value) }));
 
 /** The credentials as they are stored: sealed, values that already are stay as they are. */
 export function sealMcpCredentials<T extends McpCredentials>(values: T): T {
@@ -107,6 +164,7 @@ export function sealMcpCredentials<T extends McpCredentials>(values: T): T {
     ...values,
     env: mapValues(values.env, sealValue),
     headers: mapValues(values.headers, sealValue),
+    credentialRoutes: mapRouteValues(values.credentialRoutes, sealValue),
     oauthClientSecret: values.oauthClientSecret === null ? null : sealValue(values.oauthClientSecret),
   };
 }
@@ -117,6 +175,7 @@ export function openMcpCredentials<T extends McpCredentials>(row: T): T {
     ...row,
     env: mapValues(row.env, unsealValue),
     headers: mapValues(row.headers, unsealValue),
+    credentialRoutes: mapRouteValues(row.credentialRoutes, unsealValue),
     oauthClientSecret: row.oauthClientSecret === null ? null : unsealValue(row.oauthClientSecret),
   };
 }
@@ -169,6 +228,7 @@ function builtinValues(b: BuiltinMcp): McpServerValues {
     network: http ? { mode: "full", domains: [] } : b.network,
     sandboxed: true,
     workspace: http ? "server" : "run",
+    credentialRoutes: [],
   };
 }
 
@@ -220,6 +280,7 @@ export async function saveMcpServer(id: string | undefined, input: SaveMcpServer
           sandboxed: values.sandboxed,
           network: values.network.mode,
           workspace: values.workspace,
+          credentialRoutes: values.credentialRoutes.length,
         }),
         agents: agentIds.length,
         projects: projectIds.length,
@@ -328,6 +389,7 @@ export async function encryptLegacyMcpCredentials(): Promise<number> {
         id: mcpServers.id,
         env: mcpServers.env,
         headers: mcpServers.headers,
+        credentialRoutes: mcpServers.credentialRoutes,
         oauthClientSecret: mcpServers.oauthClientSecret,
       })
       .from(mcpServers)
