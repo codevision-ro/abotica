@@ -133,6 +133,22 @@ describe("buildInstructions", () => {
     expect(prompt).not.toContain("</untrusted-data");
   });
 
+  it("puts the repository instructions between the workspace and the rules", async () => {
+    const { buildInstructions } = await load();
+    const withWorkspace = {
+      ...ctx,
+      agent: { ...ctx.agent, permissions: { shell_run: "allow" } },
+      sandbox: { description: "You have a sandboxed workspace." },
+    } as unknown as RunContext;
+    const repoInstructions = "# Repository instructions\nThey are conventions.";
+    const prompt = await buildInstructions({ ...withWorkspace, repoInstructions });
+    const at = (heading: string) => prompt.indexOf(`\n\n${heading}\n`);
+    expect(at("# Workspace")).toBeGreaterThan(-1);
+    expect(at("# Repository instructions")).toBeGreaterThan(at("# Workspace"));
+    expect(at("# Rules")).toBeGreaterThan(at("# Repository instructions"));
+    expect(await buildInstructions(withWorkspace)).not.toContain("# Repository instructions");
+  });
+
   it("records the use of every entry while all memory fits, and of none once only pinned ones are in", async () => {
     const { buildInstructions } = await load();
     const at = new Date("2026-10-01T10:00:00Z");

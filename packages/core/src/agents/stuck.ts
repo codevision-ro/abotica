@@ -33,10 +33,10 @@ function stableJson(value: unknown): string {
 
 const digest = (text: string) => createHash("sha256").update(text).digest("base64url");
 
-/** Tools report most failures as data ({ error }), MCP servers with isError; a thrown error is a tool-error part. */
+/** Tools report most failures as data ({ error }); a thrown error, an MCP server's isError included, is a tool-error part. */
 function isErrorOutput(output: unknown): boolean {
   if (typeof output !== "object" || output === null || Array.isArray(output)) return false;
-  return "error" in output || (output as { isError?: unknown }).isError === true;
+  return "error" in output;
 }
 
 /** The fingerprint of a step's tool calls and results; null for a step that called no tool. */

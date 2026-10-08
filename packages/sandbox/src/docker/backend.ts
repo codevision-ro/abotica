@@ -1,8 +1,8 @@
 /**
  * Docker backend: one long-lived container per workspace, its files in a named volume, commands
- * through exec. Containers start on first use, stop after being idle (reap) and are recreated when
- * their spec changes while nothing runs in them. The egress proxy runs in this process, on the
- * worker's address in the sandbox network.
+ * through exec. Containers start on first use, are paused when idle and stopped after a longer idle
+ * (reap), and are recreated when their spec changes while nothing runs in them. The egress proxy
+ * runs in this process, on the worker's address in the sandbox network.
  *
  * Users: agent commands run as the sandbox user, stdio MCP servers as the MCP user. A workspace is
  * owned by the sandbox user, except an MCP server's own workspace, which belongs to the MCP user;
@@ -42,7 +42,7 @@ const IMAGE_CHECK_MS = 30_000;
 type Usage = {
   /** Last open or exec in this process; null until one happens. */
   usedAt: number | null;
-  /** First time reap saw the container running: after a worker restart, running containers count as just used. */
+  /** First time reap saw the container up: after a worker restart, running and paused containers count as just used. */
   seenAt: number | null;
   active: Set<SandboxProcess>;
   /** Execs being created; counted so reap and recreate leave the container alone meanwhile. */
@@ -132,6 +132,16 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
       throw error;
     }
   }
+
+  /** The container's endpoint on the sandbox network, found by the network's name or else its id. */
+  const endpointOf = (current: Docker.ContainerInspectInfo) => {
+    const networks = current.NetworkSettings.Networks ?? {};
+    return networks[options.network] ?? Object.values(networks).find((n) => n.NetworkID === networkId);
+  };
+
+  /** The address of a container that runs and is not paused; null otherwise. */
+  const runningAddress = (current: Docker.ContainerInspectInfo | null) =>
+    current?.State.Running && !current.State.Paused ? endpointOf(current)?.IPAddress || null : null;
 
   const inspect = (name: string) =>
     withTimeout(docker.getContainer(name).inspect(), API_TIMEOUT_MS, "Container inspect").catch((error: unknown) => {
@@ -246,8 +256,7 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     serialize(spec.key, async () => {
       const current = await ensureContainer(spec.key);
       await prepareUsers(spec, current);
-      const networks = current.NetworkSettings.Networks ?? {};
-      const endpoint = networks[options.network] ?? Object.values(networks).find((n) => n.NetworkID === networkId);
+      const endpoint = endpointOf(current);
       if (!endpoint?.IPAddress) throw new Error(`${resourceName(spec.key)} has no address on ${options.network}`);
       addresses.set(spec.key, endpoint.IPAddress);
       await syncBundles(spec.key, current, spec);
@@ -281,7 +290,8 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     try {
       return await start();
     } catch (error) {
-      // Stopped by reap or removed since open: bring it back (bundles too, the tmpfs is gone) and retry once.
+      // Paused or stopped by reap, or removed since open: bring it back (after a stop the bundles too,
+      // the tmpfs is gone) and retry once. Docker answers 409 to an exec in a paused container.
       const status = statusOf(error);
       if (status !== 404 && status !== 409) throw error;
       await prepare(specs.get(key) ?? spec);
@@ -313,18 +323,23 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
       return workspace;
     },
 
-    async addressOf(key) {
+    async wake(key) {
       assertWorkspaceKey(key);
-      const current = await inspect(resourceName(key));
-      if (!current?.State.Running || current.State.Paused) return null;
-      const networks = current.NetworkSettings.Networks ?? {};
-      const endpoint = networks[options.network] ?? Object.values(networks).find((n) => n.NetworkID === networkId);
-      return endpoint?.IPAddress || null;
-    },
-
-    touch(key) {
-      assertWorkspaceKey(key);
-      touch(key);
+      const name = resourceName(key);
+      // Every request to a live preview comes here: only unpausing waits for the workspace's lock.
+      let current = await inspect(name);
+      if (current?.State.Paused) {
+        current = await serialize(key, async () => {
+          const latest = await inspect(name);
+          if (!latest?.State.Paused) return latest;
+          await withTimeout(docker.getContainer(latest.Id).unpause(), API_TIMEOUT_MS, "Container unpause");
+          return inspect(name);
+        });
+      }
+      // A stopped container is not started: what ran in it is gone, so starting it would only cost resources.
+      const address = runningAddress(current);
+      if (address) touch(key);
+      return address;
     },
 
     async remove(key) {
@@ -356,31 +371,43 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
       });
     },
 
-    async reap({ stopAfterMs }) {
-      const running = await withTimeout(
-        docker.listContainers({ filters: { label: [`${LABELS.sandbox}=1`], status: ["running"] } }),
+    async reap({ pauseAfterMs, stopAfterMs }) {
+      const containers = await withTimeout(
+        docker.listContainers({ filters: { label: [`${LABELS.sandbox}=1`], status: ["running", "paused"] } }),
         API_TIMEOUT_MS,
         "Container list",
       );
       const now = Date.now();
-      const idle = (key: string) => {
+      /** What the container is due for: stop past `stopAfterMs`, pause (when running) past `pauseAfterMs`. */
+      const due = (key: string, paused: boolean): "pause" | "stop" | null => {
         const entry = usageOf(key);
         entry.seenAt ??= now;
-        return !busy(key) && Date.now() - (entry.usedAt ?? entry.seenAt) >= stopAfterMs;
+        if (busy(key)) return null;
+        const idleMs = Date.now() - (entry.usedAt ?? entry.seenAt);
+        if (idleMs >= stopAfterMs) return "stop";
+        return !paused && idleMs >= pauseAfterMs ? "pause" : null;
       };
       const failures: string[] = [];
-      for (const container of running) {
+      for (const container of containers) {
         const key = container.Labels?.[LABELS.workspace];
-        if (!key || !idle(key)) continue;
+        if (!key) continue;
+        const paused = container.State === "paused";
+        const action = due(key, paused);
+        if (!action) continue;
         await serialize(key, async () => {
-          if (!idle(key)) return; // used while waiting for the lock
-          await withTimeout(docker.getContainer(container.Id).stop({ t: 5 }), API_TIMEOUT_MS, "Container stop").catch(
-            ignoreStatus(304, 404),
-          );
+          if (due(key, paused) !== action) return; // used while waiting for the lock
+          const target = docker.getContainer(container.Id);
+          if (action === "pause") {
+            await withTimeout(target.pause(), API_TIMEOUT_MS, "Container pause").catch(ignoreStatus(404, 409));
+            return;
+          }
+          // Unpaused first: a signal cannot be delivered into a paused gVisor sandbox.
+          if (paused) await withTimeout(target.unpause(), API_TIMEOUT_MS, "Container unpause").catch(ignoreStatus(404));
+          await withTimeout(target.stop({ t: 5 }), API_TIMEOUT_MS, "Container stop").catch(ignoreStatus(304, 404));
           usageOf(key).seenAt = null;
         }).catch((error: unknown) => failures.push(`${resourceName(key)}: ${errorMessage(error)}`));
       }
-      if (failures.length > 0) throw new Error(`Stopping idle sandboxes failed: ${failures.join("; ")}`);
+      if (failures.length > 0) throw new Error(`Pausing or stopping idle sandboxes failed: ${failures.join("; ")}`);
     },
 
     async close() {

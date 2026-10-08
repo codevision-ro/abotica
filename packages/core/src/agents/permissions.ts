@@ -1,5 +1,6 @@
 /** Tool permission rules. Pure and client-safe: no database or server imports. */
 import type { ToolPermission, ToolPermissions } from "@abotica/db";
+import { builtinMcp } from "../mcp/mcp-builtins";
 import { TOOL_CATALOG, type ToolInfo } from "./tools/tool-catalog";
 
 export type { ToolPermission, ToolPermissions };
@@ -7,8 +8,11 @@ export type { ToolPermission, ToolPermissions };
 /** Display order: least to most restrictive. */
 export const TOOL_PERMISSIONS = ["allow", "ask", "deny"] as const satisfies readonly ToolPermission[];
 
-/** Fallback for MCP tools when neither the tool, its server nor "mcp:*" has an entry. */
-export const MCP_DEFAULT_PERMISSION: ToolPermission = "allow";
+/**
+ * Starting permission of an MCP tool whose hints do not mark it safe: it declares none, declares itself
+ * destructive, or is not known yet (its server's tools were never loaded).
+ */
+export const MCP_DEFAULT_PERMISSION: ToolPermission = "ask";
 export const MCP_ALL_KEY = "mcp:*";
 
 export const mcpServerKey = (serverSlug: string) => `mcp:${serverSlug}`;
@@ -46,14 +50,61 @@ export function builtinPermission(permissions: ToolPermissions, name: string, op
   return clampPermission(tool, stored ?? "deny");
 }
 
-/** Permission a server's tools inherit when they have no entry of their own. */
-export function mcpServerPermission(permissions: ToolPermissions, serverSlug: string): ToolPermission {
-  return permissions[mcpServerKey(serverSlug)] ?? permissions[MCP_ALL_KEY] ?? MCP_DEFAULT_PERMISSION;
+/** What an MCP tool declares about itself: it only reads, it only adds, it may destroy, or nothing usable. */
+export type McpToolHint = "readOnly" | "nonDestructive" | "destructive" | "none";
+
+/**
+ * Reads the hints in a tool's annotations (MCP `ToolAnnotations`). Under the MCP defaults a tool that
+ * is not read-only and omits `destructiveHint` is destructive; values that are not booleans count as missing.
+ */
+export function mcpToolHint(annotations?: Record<string, unknown>): McpToolHint {
+  if (annotations?.readOnlyHint === true) return "readOnly";
+  if (annotations?.destructiveHint === false) return "nonDestructive";
+  if (annotations?.destructiveHint === true || annotations?.readOnlyHint === false) return "destructive";
+  return "none";
 }
 
-/** Effective permission of one MCP tool: tool entry, then server, then "mcp:*", then allow. */
-export function mcpToolPermission(permissions: ToolPermissions, serverSlug: string, tool: string): ToolPermission {
-  return permissions[mcpToolKey(serverSlug, tool)] ?? mcpServerPermission(permissions, serverSlug);
+/**
+ * Starting permission of an MCP tool from its hints: allow when it only reads or only adds, else
+ * MCP_DEFAULT_PERMISSION. Hints come from the server and are not trusted: they only pick the value a
+ * tool starts at, and the most a server can claim is allow, what every MCP tool started at before.
+ */
+export function annotationPermission(annotations?: Record<string, unknown>): ToolPermission {
+  const hint = mcpToolHint(annotations);
+  return hint === "readOnly" || hint === "nonDestructive" ? "allow" : MCP_DEFAULT_PERMISSION;
+}
+
+/**
+ * What an MCP tool starts at without an entry the user set: the choice Abotica makes for a bundled
+ * server it ships (mcp-builtins.ts), else the default from the tool's hints.
+ */
+export function mcpToolDefault(annotations: Record<string, unknown> | undefined, builtin?: string | null): ToolPermission {
+  return builtinMcp(builtin)?.defaultPermission ?? annotationPermission(annotations);
+}
+
+/**
+ * Permission an MCP tool without an entry of its own inherits: its server's entry, then "mcp:*", then
+ * `toolDefault` (mcpToolDefault). For a tool not known yet that is MCP_DEFAULT_PERMISSION.
+ */
+export function mcpServerPermission(
+  permissions: ToolPermissions,
+  serverSlug: string,
+  toolDefault: ToolPermission = MCP_DEFAULT_PERMISSION,
+): ToolPermission {
+  return permissions[mcpServerKey(serverSlug)] ?? permissions[MCP_ALL_KEY] ?? toolDefault;
+}
+
+/**
+ * Effective permission of one MCP tool: tool entry, then server, then "mcp:*", then `toolDefault`
+ * (mcpToolDefault). What the user set at any level wins over what the server declares.
+ */
+export function mcpToolPermission(
+  permissions: ToolPermissions,
+  serverSlug: string,
+  tool: string,
+  toolDefault: ToolPermission = MCP_DEFAULT_PERMISSION,
+): ToolPermission {
+  return permissions[mcpToolKey(serverSlug, tool)] ?? mcpServerPermission(permissions, serverSlug, toolDefault);
 }
 
 /** Permissions of a new agent: every tool it can have, at the tool's default (always-ask tools ask). */

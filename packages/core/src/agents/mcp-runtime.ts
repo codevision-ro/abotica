@@ -34,6 +34,7 @@ import {
   sameToolDefinitions,
 } from "./mcp";
 import { SandboxMcpTransport } from "./mcp-sandbox-transport";
+import { mcpToolDefault } from "./permissions";
 import {
   capToolText,
   type FullOutputTarget,
@@ -225,6 +226,35 @@ async function capResult(result: McpCallResult, target: FullOutputTarget | null)
   return { ...result, content };
 }
 
+/**
+ * A call the server answered with `isError`, thrown so the AI SDK records it as a failed call. Its
+ * message is the server's text, which the chat and the run's events show. The model reads the error as
+ * the AI SDK writes it, `String(error)`: that text wrapped as untrusted data, like every MCP result, and
+ * exactly as a replay wraps the stored error (untrusted-results.ts), so both give the same bytes.
+ */
+export class McpToolError extends Error {
+  override readonly name = "McpToolError";
+  readonly #forModel: string;
+
+  constructor(message: string, forModel: string) {
+    super(message);
+    this.#forModel = forModel;
+  }
+
+  override toString(): string {
+    return this.#forModel;
+  }
+}
+
+/** The text of an error result, as the model reads a result: images left out, other parts as JSON. */
+function errorResultText(result: McpCallResult): string {
+  if (!("content" in result) || !Array.isArray(result.content)) return JSON.stringify(result);
+  const text = result.content
+    .flatMap((part) => (part.type === "image" ? [] : [part.type === "text" ? part.text : JSON.stringify(part)]))
+    .join("\n");
+  return text || "The MCP server reported an error without a message.";
+}
+
 /** A relative path such as `./page.png`, which is how Playwright links the files it saves. */
 const RELATIVE_PATH = /(?:^|[\s(["'`])\.\.?\//m;
 
@@ -250,6 +280,8 @@ function serverTools(
 ): Record<string, Tool> {
   const tools: Record<string, Tool> = {};
   const toModelOutput = modelOutput(server.slug, opts.onUntrusted);
+  // As a replay names it: from the runtime tool name, which is all a stored message keeps.
+  const errorSource = `mcp:${prefix(server.slug)}` as const;
   for (const definition of definitions) {
     // As `@ai-sdk/mcp` builds it: no extra keys, and an object even when the server lists no properties.
     const schema = (definition.inputSchema ?? { type: "object" }) as JSONSchema7;
@@ -267,13 +299,20 @@ function serverTools(
             options: { signal: options?.abortSignal },
           })
           .catch((error: unknown): McpCallResult => {
-            // A cancelled run still stops. The server's error is its text: thrown, the AI SDK would hand
-            // it to the model as it is, so it comes back as an error result toModelOutput wraps.
+            // A cancelled run still stops. Any other failure of the call fails it like an error result.
             if (options?.abortSignal?.aborted) throw error;
             const message = error instanceof Error ? error.message : String(error);
             return { isError: true, content: [{ type: "text", text: message }] };
           });
         const capped = await capResult(result, fullOutputTarget(opts.toolOutput, options));
+        if ("isError" in capped && capped.isError) {
+          const message = errorResultText(capped);
+          opts.onUntrusted?.();
+          throw new McpToolError(
+            message,
+            wrapUntrusted(message, { source: errorSource, id: markerId(options.toolCallId) }),
+          );
+        }
         // Set on every result, so a `folderNote` the server sends itself never reaches the model unwrapped.
         const output: McpToolOutput = { ...capped, folderNote: folder ? folderNote(capped, folder) : undefined };
         return output;
@@ -321,7 +360,9 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
 
   const listings = await Promise.all(
     servers.map(async (server) => {
-      if (isComplete(server.tools)) return { server, tools: serverTools(server, server.tools, lazyClient(server), opts) };
+      if (isComplete(server.tools)) {
+        return { server, definitions: server.tools, tools: serverTools(server, server.tools, lazyClient(server), opts) };
+      }
       // No usable cache yet: connect now, list the tools and remember them for the next runs.
       try {
         const connected = await connectMcp(server, opts);
@@ -329,7 +370,7 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
         const definitions = await listToolDefinitions(connected.client);
         // The cache only feeds the agent form and later runs; a failed write must never fail this one.
         if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
-        return { server, tools: serverTools(server, definitions, async () => connected, opts) };
+        return { server, definitions, tools: serverTools(server, definitions, async () => connected, opts) };
       } catch (error) {
         errors.push({ server: server.slug, error });
         return null;
@@ -343,10 +384,14 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
   const sources: Record<string, McpToolSource> = {};
   for (const listing of listings) {
     if (!listing) continue;
-    for (const [name, t] of Object.entries(listing.tools)) {
+    for (const { name, annotations } of listing.definitions) {
       const runtimeName = `${prefix(listing.server.slug)}__${name}`;
-      tools[runtimeName] = t;
-      sources[runtimeName] = { serverSlug: listing.server.slug, tool: name };
+      tools[runtimeName] = listing.tools[name]!;
+      sources[runtimeName] = {
+        serverSlug: listing.server.slug,
+        tool: name,
+        defaultPermission: mcpToolDefault(annotations, listing.server.builtin),
+      };
     }
   }
   return {

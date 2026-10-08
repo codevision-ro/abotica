@@ -109,6 +109,8 @@
     "toolNoResult": "fără rezultat",
     "toolInput": "Input",
     "toolResult": "Rezultat",
+    "toolFailed": "eșuat",
+    "toolError": "Eroare",
     "finishReason": {
       "stop": "terminat",
       "tool-calls": "apel unelte",

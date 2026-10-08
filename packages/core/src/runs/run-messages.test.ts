@@ -117,6 +117,8 @@ async function runThreeToolSteps(opts: {
   originalMessages?: UIMessage[];
   save?: (message: UIMessage) => Promise<void>;
   onTool?: (n: number) => void;
+  onError?: (error: unknown) => string;
+  toolErrorText?: (error: unknown) => string;
 }) {
   const tools: ToolSet = {
     step: tool({
@@ -144,7 +146,8 @@ async function runThreeToolSteps(opts: {
     stream: result.stream,
     tools,
     originalMessages,
-    onError: (error) => String(error),
+    onError: opts.onError ?? String,
+    toolErrorText: opts.toolErrorText ?? String,
     save: opts.save ?? ((message) => saveMessage(CONVERSATION, message, STARTED)),
     onEnd: async (end) => {
       ended.push(end);
@@ -217,6 +220,26 @@ describe("responseMessageStream", () => {
     expect(error).toHaveBeenCalledWith(`[runs] saving a step of run ${RUN} failed:`, expect.any(Error));
     expect(ended[0]!.isAborted).toBe(false);
     expect(toolParts(assistantRows()[0]!.parts)).toHaveLength(3);
+  });
+
+  it("fails a call whose tool throws with its own text, never as the stream's error", async () => {
+    const onError = vi.fn(String);
+    const toolErrorText = vi.fn((error: unknown) => `tool: ${(error as Error).message}`);
+    const { ended } = await runThreeToolSteps({
+      onTool: (n) => {
+        if (n === 2) throw new Error("step 2 broke");
+      },
+      onError,
+      toolErrorText,
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(toolErrorText).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "step 2 broke" }));
+    expect(toolParts(ended[0]!.responseMessage.parts).map((p) => [p.toolCallId, p.state, p.errorText])).toEqual([
+      ["call-1", "output-available", undefined],
+      ["call-2", "output-error", "tool: step 2 broke"],
+      ["call-3", "output-available", undefined],
+    ]);
   });
 
   it("makes a continued answer this run's before its first step", async () => {

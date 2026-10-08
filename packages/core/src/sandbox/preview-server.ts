@@ -12,8 +12,10 @@
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import http from "node:http";
+import net from "node:net";
 import type { Duplex } from "node:stream";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { db } from "@abotica/db";
 import { sql } from "@abotica/db/orm";
 import { getTranslator } from "@abotica/i18n";
@@ -46,6 +48,9 @@ const LOOKUP_TTL_MS = 5_000;
 /** The workspace's last use is recorded at most this often per workspace. */
 const TOUCH_EVERY_MS = 60_000;
 const CONNECT_TIMEOUT_MS = 10_000;
+/** A refused connection to a live preview's app is retried this often, up to about 2 s in all. */
+const CONNECT_RETRY_MS = 100;
+const CONNECT_ATTEMPTS = 20;
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -201,18 +206,43 @@ async function serveStatic(req: http.IncomingMessage, res: http.ServerResponse, 
     .pipe(res);
 }
 
-/** The container address of a live preview, marking its workspace as used; null when it is not running. */
-async function liveTarget(preview: Preview): Promise<{ host: string; port: number } | null> {
-  const backend = currentSandboxBackend();
-  const address = backend ? await backend.addressOf(preview.workspaceKey) : null;
-  if (!backend || !address) return null;
-  backend.touch(preview.workspaceKey);
+/** Connects to a port of a container, giving up after CONNECT_TIMEOUT_MS. */
+function connect(host: string, port: number): Promise<net.Socket> {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect({ host, port, noDelay: true });
+    const onTimeout = () => socket.destroy(new Error("timeout"));
+    socket.setTimeout(CONNECT_TIMEOUT_MS);
+    socket.once("timeout", onTimeout);
+    socket.once("error", reject);
+    socket.once("connect", () => {
+      socket.setTimeout(0);
+      socket.off("timeout", onTimeout).off("error", reject);
+      resolve(socket);
+    });
+  });
+}
+
+/**
+ * A connection to the app of a live preview, waking its workspace and marking it as used; null when
+ * the workspace is not running or nothing answers. A refused connection is retried for a moment: an
+ * app in a workspace that was just unpaused may not accept connections yet.
+ */
+async function connectLive(preview: Preview): Promise<net.Socket | null> {
+  const address = await currentSandboxBackend()?.wake(preview.workspaceKey);
+  if (!address) return null;
   const last = touched.get(preview.workspaceKey) ?? 0;
   if (Date.now() - last > TOUCH_EVERY_MS) {
     touched.set(preview.workspaceKey, Date.now());
     void touchWorkspace(preview.workspaceKey).catch(() => {});
   }
-  return { host: address, port: preview.port! };
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await connect(address, preview.port!);
+    } catch (error) {
+      if (attempt >= CONNECT_ATTEMPTS || (error as NodeJS.ErrnoException).code !== "ECONNREFUSED") return null;
+      await sleep(CONNECT_RETRY_MS);
+    }
+  }
 }
 
 /** Headers for the app behind a live preview: the visitor's, without hop-by-hop ones and our cookie. */
@@ -234,11 +264,10 @@ function upstreamHeaders(req: http.IncomingMessage, keepUpgrade: boolean): http.
 }
 
 async function proxyLive(req: http.IncomingMessage, res: http.ServerResponse, preview: Preview) {
-  const target = await liveTarget(preview);
-  if (!target) return sendPage(res, 502, "notRunning");
+  const connection = await connectLive(preview);
+  if (!connection) return sendPage(res, 502, "notRunning");
   const upstream = http.request({
-    host: target.host,
-    port: target.port,
+    createConnection: () => connection,
     method: req.method,
     path: req.url,
     headers: upstreamHeaders(req, false),
@@ -272,11 +301,10 @@ async function proxyUpgrade(req: http.IncomingMessage, socket: Duplex, head: Buf
   const preview = host ? await lookup(host) : null;
   if (!preview || preview.kind !== "live") return refuse("404 Not Found");
   if (!hasAccess(req, preview)) return refuse("401 Unauthorized");
-  const target = await liveTarget(preview);
-  if (!target) return refuse("502 Bad Gateway");
+  const connection = await connectLive(preview);
+  if (!connection) return refuse("502 Bad Gateway");
   const upstream = http.request({
-    host: target.host,
-    port: target.port,
+    createConnection: () => connection,
     method: req.method,
     path: req.url,
     headers: upstreamHeaders(req, true),

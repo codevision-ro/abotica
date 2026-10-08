@@ -35,6 +35,17 @@ export const repoPath = (repoName: string) => `${REPOS_DIR}/${repoName}`;
 
 export const taskWorktreePath = (taskId: string, repoName: string) => `${WORK_DIR}/${taskId}/${repoName}`;
 
+/**
+ * The checkout of one of `repoNames` that holds `file` (normalized, relative to the working directory):
+ * its clone `repos/<name>` or a task's worktree `work/<taskId>/<name>`. Null for any other path.
+ */
+export function repoCheckoutOf(file: string, repoNames: string[]): string | null {
+  const parts = file.split("/");
+  const depth = parts[0] === REPOS_DIR ? 2 : parts[0] === WORK_DIR ? 3 : 0;
+  if (!depth || parts.length <= depth || !repoNames.includes(parts[depth - 1]!)) return null;
+  return parts.slice(0, depth).join("/");
+}
+
 /** The file with the full output of one tool call; a shell command has one per stream. */
 export const toolOutputPath = (runId: string, toolCallId: string, stream?: "stdout" | "stderr") =>
   `${TOOL_OUTPUT_DIR}/${runId}/${safeFileName(toolCallId, "call")}${stream ? `.${stream}` : ""}.txt`;

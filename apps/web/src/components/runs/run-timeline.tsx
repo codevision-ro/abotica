@@ -25,6 +25,8 @@ import { JsonBlock } from "./json-block";
 type ModelRef = { provider?: string; model?: string } | null | undefined;
 type ToolCall = { id?: string; name?: string; input?: unknown };
 type ToolResult = { id?: string; name?: string; output?: unknown };
+/** A call whose tool failed (it threw, or an MCP server answered with an error); steps logged before had none. */
+type ToolError = { id?: string; name?: string; error?: string };
 type StepData = {
   step?: number;
   provider?: string;
@@ -34,6 +36,7 @@ type StepData = {
   reasoning?: string;
   toolCalls?: ToolCall[];
   toolResults?: ToolResult[];
+  toolErrors?: ToolError[];
   usage?: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number };
   costUsd?: number;
 };
@@ -88,7 +91,15 @@ function Labelled({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
-function ToolCallRow({ call, result }: { call: ToolCall; result: ToolResult | undefined }) {
+function ToolCallRow({
+  call,
+  result,
+  error,
+}: {
+  call: ToolCall;
+  result: ToolResult | undefined;
+  error: ToolError | undefined;
+}) {
   const t = useTranslations("runs.timeline");
   const tool = useToolLabel()(call.name ?? "");
   return (
@@ -101,10 +112,16 @@ function ToolCallRow({ call, result }: { call: ToolCall; result: ToolResult | un
             <span className="truncate font-medium">{tool.label}</span>
             <span className="hidden truncate font-mono text-xs text-muted-foreground sm:inline">{call.name}</span>
           </span>
-          {!result && (
-            <Badge variant="outline" className="shrink-0 font-normal text-muted-foreground">
-              {t("toolNoResult")}
+          {error ? (
+            <Badge variant="outline" className="shrink-0 border-destructive/40 font-normal text-destructive">
+              {t("toolFailed")}
             </Badge>
+          ) : (
+            !result && (
+              <Badge variant="outline" className="shrink-0 font-normal text-muted-foreground">
+                {t("toolNoResult")}
+              </Badge>
+            )
           )}
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -115,6 +132,13 @@ function ToolCallRow({ call, result }: { call: ToolCall; result: ToolResult | un
             {result && (
               <Labelled label={t("toolResult")}>
                 <JsonBlock value={result.output} />
+              </Labelled>
+            )}
+            {error && (
+              <Labelled label={t("toolError")}>
+                <pre className="max-h-64 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap text-destructive">
+                  {error.error}
+                </pre>
               </Labelled>
             )}
           </div>
@@ -129,6 +153,7 @@ function StepEvent({ data, fmt }: { data: StepData; fmt: Format }) {
   const finishKey = `finishReason.${data.finishReason}` as Parameters<typeof t>[0];
   const calls = data.toolCalls ?? [];
   const results = data.toolResults ?? [];
+  const errors = data.toolErrors ?? [];
   const usage = data.usage ?? {};
   return (
     <Collapsible defaultOpen className="min-w-0 rounded-xl border border-border/70 bg-background/60 dark:bg-background/30">
@@ -183,6 +208,7 @@ function StepEvent({ data, fmt }: { data: StepData; fmt: Format }) {
                   key={call.id ?? i}
                   call={call}
                   result={results.find((r) => r.id && r.id === call.id) ?? (call.id ? undefined : results[i])}
+                  error={errors.find((e) => e.id && e.id === call.id)}
                 />
               ))}
             </ul>

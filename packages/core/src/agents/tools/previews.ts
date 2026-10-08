@@ -138,7 +138,7 @@ export const previewTools: Record<string, ToolFactory> = {
           if (!owner) return { error: "This run has no project or conversation to open the preview in." };
           if (!ctx.sandbox) return NO_SANDBOX;
           const workspace = await ctx.sandbox.workspace();
-          const address = await currentSandboxBackend()?.addressOf(workspace.key);
+          const address = await currentSandboxBackend()?.wake(workspace.key);
           if (!address || !(await answers(address, port))) {
             return {
               error: `Nothing answers on port ${port}. Start the app in the background listening on 0.0.0.0 (not 127.0.0.1), check it with curl, then call preview_open again.`,

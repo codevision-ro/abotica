@@ -1,12 +1,12 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Readable, Writable } from "node:stream";
-import type { ExecOptions, SandboxProcess, Workspace } from "@abotica/sandbox";
+import type { Workspace } from "@abotica/sandbox";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prepareRepos, repoGitEnv, type WorkspaceRepo } from "./repo-workspace";
+import { bashWorkspace } from "./test-workspace";
 import { taskBranch } from "./workspace-paths";
 
 /**
@@ -22,29 +22,7 @@ let root: string;
 let home: string;
 
 /** Commands run in the workspace folder with a clean HOME and no system git configuration. */
-function localWorkspace(dir: string): Workspace {
-  return {
-    key: "test",
-    paths: { workspace: dir, bundles: path.join(dir, ".bundles"), home },
-    async exec(options: ExecOptions): Promise<SandboxProcess> {
-      const child = spawn("bash", ["-c", options.command], {
-        cwd: options.cwd ? path.resolve(dir, options.cwd) : dir,
-        env: { PATH: process.env.PATH!, HOME: home, GIT_CONFIG_NOSYSTEM: "1", ...options.env },
-        stdio: [options.stdin === "pipe" ? "pipe" : "ignore", "pipe", "pipe"],
-      });
-      const exited = new Promise<{ exitCode: number; timedOut: boolean }>((resolve) =>
-        child.on("close", (code) => resolve({ exitCode: code ?? 1, timedOut: false })),
-      );
-      return {
-        stdin: child.stdin ? (Writable.toWeb(child.stdin) as WritableStream<Uint8Array>) : null,
-        stdout: Readable.toWeb(child.stdout!) as ReadableStream<Uint8Array>,
-        stderr: Readable.toWeb(child.stderr!) as ReadableStream<Uint8Array>,
-        wait: () => exited,
-        kill: async () => void child.kill("SIGKILL"),
-      };
-    },
-  };
-}
+const localWorkspace = (dir: string) => bashWorkspace(dir, { HOME: home, GIT_CONFIG_NOSYSTEM: "1" });
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync("git", args, {

@@ -3,7 +3,7 @@
  * servers run only in the worker (`mcp-runtime.ts`), so their tests are sent there as jobs.
  */
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
-import { db, mcpServers, type McpToolInfo, projects } from "@abotica/db";
+import { db, mcpServers, type McpToolInfo, projects, type ToolPermission } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
 import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
 import { sandboxQueue, sandboxQueueEvents } from "../infra/queues";
@@ -15,8 +15,11 @@ import { GLOBAL_SECRETS, interpolateSecrets, OWNER_SECRETS, resolveSecret, type 
 import type { McpServer } from "./context";
 import { markMcpOAuthError, mcpRuntimeAuthProvider } from "./mcp-oauth";
 
-/** Where a runtime MCP tool comes from; kept because the `<slug>__<tool>` name cannot be reversed safely. */
-export type McpToolSource = { serverSlug: string; tool: string };
+/**
+ * Where a runtime MCP tool comes from, kept because the `<slug>__<tool>` name cannot be reversed
+ * safely, with what it starts at when the agent set nothing for it (permissions.ts `mcpToolDefault`).
+ */
+export type McpToolSource = { serverSlug: string; tool: string; defaultPermission: ToolPermission };
 
 export type McpTestResult = { ok: boolean; tools: McpToolInfo[]; error?: string };
 

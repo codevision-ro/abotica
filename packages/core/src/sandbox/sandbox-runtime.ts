@@ -23,8 +23,10 @@ import { getSettings } from "../platform/settings";
 
 /** Processes per container; enough for package installs and dev servers, not for a fork bomb. */
 const CONTAINER_PIDS = 512;
-/** Containers idle this long are stopped; their volume stays. */
-const STOP_IDLE_AFTER_MS = 15 * 60_000;
+/** Containers idle this long are paused: what runs in them (dev servers, databases) waits, frozen. */
+const PAUSE_IDLE_AFTER_MS = 15 * 60_000;
+/** Containers idle this long, paused or not, are stopped (a paused one keeps its memory); their volume stays. */
+const STOP_IDLE_AFTER_MS = 6 * 3600_000;
 /** Conversation workspaces unused this long are deleted. */
 const CONVERSATION_WORKSPACE_TTL_MS = 30 * 24 * 3600_000;
 
@@ -135,17 +137,17 @@ async function processPendingRemovals(): Promise<void> {
 }
 
 /**
- * Worker only, every few minutes: stops idle containers, removes workspaces whose project,
- * conversation, MCP server or secret scope is gone (and MCP workspaces of the older unscoped
- * form), and conversation workspaces unused for 30 days.
+ * Worker only, every few minutes: pauses idle containers and stops long idle ones, removes
+ * workspaces whose project, conversation, MCP server or secret scope is gone (and MCP workspaces
+ * of the older unscoped form), and conversation workspaces unused for 30 days.
  */
 export async function reapSandbox(): Promise<void> {
   const backend = state.backend;
   if (!backend) return;
-  // One container that fails to stop must not block the cleanup below.
+  // One container that fails to pause or stop must not block the cleanup below.
   await backend
-    .reap({ stopAfterMs: STOP_IDLE_AFTER_MS })
-    .catch((error: unknown) => console.error("[sandbox] stopping idle workspaces failed:", error));
+    .reap({ pauseAfterMs: PAUSE_IDLE_AFTER_MS, stopAfterMs: STOP_IDLE_AFTER_MS })
+    .catch((error: unknown) => console.error("[sandbox] pausing or stopping idle workspaces failed:", error));
   await processPendingRemovals();
 
   const workspaces = await backend.list();

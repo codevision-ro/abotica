@@ -1,7 +1,8 @@
 import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import { APICallError } from "ai";
+import { APICallError, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { estimateCost, getCatalog } from "../models/catalog";
 import { languageModel, ProviderNotConfiguredError } from "../models/providers";
 import { tightestBudget } from "../platform/budgets";
@@ -13,6 +14,7 @@ import { cancelClaimedRun, claimRun, failRun, finishRun, logRunEvent } from "../
 import { loadConversation, loadUnsteeredMessages, markSteered, saveMessage } from "../runs/run-messages";
 import { SUMMARY_PREFIX } from "./compaction";
 import { loadRunContext } from "./context";
+import { loadMcpTools } from "./mcp-runtime";
 import { fullModelChain, modelChain } from "./model-chain";
 import { builtinPermission } from "./permissions";
 import { executeRun } from "./runner";
@@ -24,12 +26,21 @@ import { wrapUntrusted } from "./untrusted";
  * providers are mocked; streamText, the fallback chain and the run's message stream are real.
  */
 
-const { progress } = vi.hoisted(() => ({ progress: [] as Record<string, unknown>[] }));
+const { progress, approvalRows } = vi.hoisted(() => ({
+  progress: [] as Record<string, unknown>[],
+  approvalRows: [] as Record<string, unknown>[],
+}));
 vi.mock("@abotica/db", () => ({
   approvals: {},
   messages: {},
   runs: {},
   db: {
+    insert: () => ({
+      values: (rows: Record<string, unknown>[]) => {
+        approvalRows.push(...rows);
+        return { returning: async () => rows.map((_, i) => ({ id: `ap${i + 1}` })) };
+      },
+    }),
     update: () => ({
       set: (patch: Record<string, unknown>) => {
         progress.push(patch);
@@ -101,11 +112,15 @@ vi.mock("./context", () => ({
   withSentTimes: (history: { message: unknown }[]) => history.map((h) => h.message),
 }));
 vi.mock("./mcp-runtime", () => ({
-  loadMcpTools: async () => ({ tools: {}, sources: {}, errors: [], close: async () => {} }),
+  loadMcpTools: vi.fn(),
 }));
 vi.mock("./message-files", () => ({ withModelFiles: async (messages: unknown) => messages }));
 vi.mock("./model-chain", () => ({ fullModelChain: vi.fn(), modelChain: vi.fn() }));
-vi.mock("./permissions", () => ({ builtinPermission: vi.fn(), mcpToolPermission: () => "allow" }));
+// MCP tools go by the real rules: their hints, unless the agent's permissions say otherwise.
+vi.mock("./permissions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./permissions")>()),
+  builtinPermission: vi.fn(),
+}));
 vi.mock("./sandbox-session", () => ({ openRunSandbox: async () => null }));
 const { written } = vi.hoisted(() => ({ written: [] as { type: string }[] }));
 vi.mock("./stream", () => ({
@@ -162,6 +177,7 @@ function useContext(
     conversationId?: string | null;
     limits?: Partial<Limits>;
     memoryRequiresApproval?: boolean;
+    permissions?: Record<string, string>;
   } = {},
 ) {
   vi.mocked(loadRunContext).mockResolvedValue({
@@ -171,7 +187,7 @@ function useContext(
       slug: "tester",
       enabled: over.enabled ?? true,
       isOrchestrator: false,
-      permissions: {},
+      permissions: over.permissions ?? {},
       reasoningEffort: "default",
       limits: { maxSteps: 20, timeoutMs: 60_000, budgetUsd: null, ...over.limits },
     },
@@ -245,6 +261,8 @@ beforeEach(() => {
   saved.length = 0;
   written.length = 0;
   progress.length = 0;
+  approvalRows.length = 0;
+  vi.mocked(loadMcpTools).mockResolvedValue({ tools: {}, sources: {}, errors: [], close: async () => {} });
   vi.mocked(estimateCost).mockResolvedValue(0);
   vi.mocked(getCatalog).mockResolvedValue([]);
   vi.mocked(isKillSwitchActive).mockResolvedValue(false);
@@ -904,5 +922,77 @@ describe("messages sent while a run works", () => {
     expect(loadUnsteeredMessages).toHaveBeenCalledOnce();
     expect(markSteered).not.toHaveBeenCalled();
     expect(logRunEvent).not.toHaveBeenCalledWith(RUN.id, "steered", expect.anything());
+  });
+});
+
+describe("MCP tools in a run", () => {
+  const executed: string[] = [];
+  // One server: a tool that declares itself read-only, one that declares nothing and one that fails.
+  function useMcp() {
+    executed.length = 0;
+    const mcpTool = (name: string, fails = false) =>
+      tool({
+        inputSchema: z.object({}),
+        execute: async () => {
+          executed.push(name);
+          if (fails) throw new Error("Issue 42 not found");
+          return `${name} done`;
+        },
+      });
+    vi.mocked(loadMcpTools).mockResolvedValue({
+      tools: { github__list: mcpTool("list"), github__delete: mcpTool("delete"), github__get: mcpTool("get", true) },
+      sources: {
+        github__list: { serverSlug: "github", tool: "list", defaultPermission: "allow" },
+        github__delete: { serverSlug: "github", tool: "delete", defaultPermission: "ask" },
+        github__get: { serverSlug: "github", tool: "get", defaultPermission: "allow" },
+      },
+      errors: [],
+      close: async () => {},
+    });
+  }
+  const callTool = (toolName: string) =>
+    streamOf(
+      { type: "tool-call", toolCallId: `call_${++calls}`, toolName, input: "{}" },
+      { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage },
+    );
+
+  it("runs a read-only tool directly and stops a tool without hints for approval", async () => {
+    useMcp();
+    useModel((call) => callTool(call === 1 ? "github__list" : "github__delete"));
+
+    expect(await run()).toMatchObject({ status: "waiting_approval" });
+    expect(executed).toEqual(["list"]);
+    expect(approvalRows).toEqual([expect.objectContaining({ toolName: "github__delete" })]);
+  });
+
+  it("follows the agent's own setting over what the tools declare", async () => {
+    useContext({ permissions: { "mcp:github": "allow", "mcp:github/list": "ask" } });
+    useMcp();
+    useModel((call) => (call === 1 ? callTool("github__delete") : call === 2 ? callTool("github__list") : answer("Done")));
+
+    expect(await run()).toMatchObject({ status: "waiting_approval" });
+    expect(executed).toEqual(["delete"]);
+    expect(approvalRows).toEqual([expect.objectContaining({ toolName: "github__list" })]);
+  });
+
+  it("records a failed call as failed, gives the model the error and lets the run go on", async () => {
+    useMcp();
+    const prompts = useModel((call) => (call === 1 ? callTool("github__get") : answer("It does not exist")));
+
+    expect(await run()).toEqual({ status: "succeeded", output: "It does not exist" });
+    expect(failRun).not.toHaveBeenCalled();
+    expect(JSON.stringify(prompts[1]!.at(-1))).toContain("Issue 42 not found");
+    expect(logRunEvent).toHaveBeenCalledWith(
+      RUN.id,
+      "step",
+      expect.objectContaining({
+        toolResults: [],
+        toolErrors: [{ id: "call_1", name: "github__get", error: "Issue 42 not found" }],
+      }),
+    );
+    const parts = vi.mocked(saveMessage).mock.calls.at(-1)![1].parts;
+    expect(parts).toContainEqual(
+      expect.objectContaining({ toolCallId: "call_1", state: "output-error", errorText: "Issue 42 not found" }),
+    );
   });
 });

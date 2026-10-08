@@ -4,8 +4,10 @@ import { z } from "zod";
 import { fileUrl } from "../../files/file-types";
 import { type FileOwner, saveFile } from "../../files/files";
 import { FILE_MAX_BYTES } from "../../platform/limits";
+import { logRunEvent } from "../../runs/run-lifecycle";
 import type { Agent, RunContext } from "../context";
 import { builtinPermission } from "../permissions";
+import { nestedRepoInstructions } from "../repo-instructions";
 import { capStreamText, fullOutputTarget, TOOL_TEXT_MAX_CHARS } from "../tool-output";
 import { blankToUndefined, clip, errorResult, type ToolFactory } from "./shared";
 import { TOOL_CATALOG } from "./tool-catalog";
@@ -159,10 +161,10 @@ export const workspaceTools: Record<string, ToolFactory> = {
       execute: (input, call) => runShell(ctx, input, "root", call),
     }),
 
-  file_read: () =>
+  file_read: (ctx) =>
     tool({
       description:
-        "Read a text file from your workspace. Optionally pass a line range (1-based, inclusive). Returns the content and the total number of lines.",
+        "Read a text file from your workspace. Optionally pass a line range (1-based, inclusive). Returns the content and the total number of lines; the first read in a repository folder also returns its instructions for coding agents (repoInstructions).",
       inputSchema: z.object({
         path: pathInput,
         startLine: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).optional()),
@@ -175,11 +177,16 @@ export const workspaceTools: Record<string, ToolFactory> = {
           if (typeof text !== "string") return text;
           const { content, totalLines } = sliceLines(text, startLine, endLine);
           const shown = clip(content, READ_CHARS)!;
+          const repoInstructions = await nestedRepoInstructions(ctx, file, {
+            signal: abortSignal,
+            onError: (error) => void logRunEvent(ctx.run.id, "sandbox-error", errorResult(error)).catch(() => {}),
+          });
           return {
             path: file,
             content: shown,
             totalLines,
             ...(shown !== content && { note: "Content was cut. Read the rest with startLine and endLine." }),
+            ...(repoInstructions && { repoInstructions }),
           };
         }),
     }),

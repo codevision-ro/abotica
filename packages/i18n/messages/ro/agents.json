@@ -224,7 +224,15 @@
     "globalBadge": "Toți agenții",
     "builtinBadge": "Inclus",
     "offForAgent": "oprit pentru acest agent",
-    "globalNote": "Îl primește fiecare agent. Blochează îl oprește pentru acesta."
+    "globalNote": "Îl primește fiecare agent. Blochează îl oprește pentru acesta.",
+    "mcpDefaultFromHints": "Din indiciile fiecărui tool: cele doar de citire și cele nedistructive rulează, celelalte întreabă",
+    "useHints": "Folosește în schimb indiciile fiecărui tool",
+    "hintReadOnly": "Doar citire",
+    "hintNonDestructive": "Nedistructiv",
+    "hintDestructive": "Distructiv",
+    "hintNone": "Fără indicii",
+    "bundledDefault": "Implicit pentru acest server inclus: {permission}",
+    "hintDefault": "Implicit din indiciile serverului: {permission}"
   },
   "effort": {
     "label": "Efort de raționament",

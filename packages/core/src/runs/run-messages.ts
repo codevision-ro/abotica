@@ -153,6 +153,7 @@ export function responseMessageStream({
   tools,
   originalMessages,
   onError,
+  toolErrorText,
   save,
   onEnd,
 }: {
@@ -160,7 +161,10 @@ export function responseMessageStream({
   stream: ReadableStream<TextStreamPart<ToolSet>>;
   tools: ToolSet;
   originalMessages: UIMessage[];
+  /** The text of an error that ended the stream. */
   onError: (error: unknown) => string;
+  /** The text of a failed tool call, shown on its part: the call failed, the run goes on. */
+  toolErrorText: (error: unknown) => string;
   save: (message: UIMessage) => Promise<void>;
   onEnd: (end: { responseMessage: UIMessage; isAborted: boolean }) => Promise<void>;
 }) {
@@ -181,7 +185,18 @@ export function responseMessageStream({
       // A continuation (after approvals) adds to the last answer. It becomes this run's before the
       // approved tools run, so the reaper finds it even when the run dies in its first step.
       if (last?.role === "assistant") await saveStep(last);
-      writer.merge(toUIMessageStream({ stream, tools, onError }));
+      // toUIMessageStream asks onError for the text of a tool's error too; those are told apart here.
+      const toolErrors = new Set<unknown>();
+      const tapped = stream.pipeThrough(
+        new TransformStream<TextStreamPart<ToolSet>, TextStreamPart<ToolSet>>({
+          transform(part, controller) {
+            if (part.type === "tool-error") toolErrors.add(part.error);
+            controller.enqueue(part);
+          },
+        }),
+      );
+      const errorText = (error: unknown) => (toolErrors.has(error) ? toolErrorText(error) : onError(error));
+      writer.merge(toUIMessageStream({ stream: tapped, tools, onError: errorText }));
     },
     onStepEnd: ({ responseMessage }) => saveStep(responseMessage),
     onEnd: ({ responseMessage, isAborted }) => onEnd({ responseMessage: withRunId(responseMessage, runId), isAborted }),

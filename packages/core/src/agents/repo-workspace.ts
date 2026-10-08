@@ -79,7 +79,8 @@ export type PrepareReposOptions = {
   onError: (message: string) => void;
 };
 
-const failure = (result: CommandResult) =>
+/** Why a command failed, for an error message: its timeout, the end of its stderr or its exit code. */
+export const commandFailure = (result: CommandResult) =>
   result.timedOut ? "timed out" : result.stderr.trim().slice(-500) || `exit code ${result.exitCode}`;
 
 /**
@@ -96,7 +97,7 @@ export async function prepareRepos(workspace: Workspace, options: PrepareReposOp
   for (const repo of repos) {
     if (signal.aborted) return;
     const synced = await run(syncScript(repo), CLONE_TIMEOUT_MS);
-    if (synced.exitCode !== 0) options.onError(`Updating ${repoPath(repo.name)} failed: ${failure(synced)}`);
+    if (synced.exitCode !== 0) options.onError(`Updating ${repoPath(repo.name)} failed: ${commandFailure(synced)}`);
   }
 
   if (options.taskId) {
@@ -104,7 +105,9 @@ export async function prepareRepos(workspace: Workspace, options: PrepareReposOp
       if (signal.aborted) return;
       const result = await run(worktreeScript(repo, options.taskId), GIT_TIMEOUT_MS);
       if (result.exitCode !== 0) {
-        options.onError(`Creating the worktree ${taskWorktreePath(options.taskId, repo.name)} failed: ${failure(result)}`);
+        options.onError(
+          `Creating the worktree ${taskWorktreePath(options.taskId, repo.name)} failed: ${commandFailure(result)}`,
+        );
       }
     }
   }
@@ -114,7 +117,7 @@ export async function prepareRepos(workspace: Workspace, options: PrepareReposOp
   const finished = taskIds.length ? [...(await options.finishedTasks(taskIds))] : [];
   if (!finished.length || signal.aborted) return;
   const cleaned = await run(cleanupScript(finished), GIT_TIMEOUT_MS);
-  if (cleaned.exitCode !== 0) options.onError(`Removing finished worktrees failed: ${failure(cleaned)}`);
+  if (cleaned.exitCode !== 0) options.onError(`Removing finished worktrees failed: ${commandFailure(cleaned)}`);
 }
 
 /**

@@ -100,7 +100,9 @@ export interface Workspace {
 }
 
 export type ReapOptions = {
-  /** Stop containers unused for this long. */
+  /** Pause containers unused for this long: their processes (dev servers, databases) stay, frozen. */
+  pauseAfterMs: number;
+  /** Stop containers unused for this long, paused or not, counted from the last use. */
   stopAfterMs: number;
 };
 
@@ -115,17 +117,16 @@ export interface SandboxBackend {
    */
   open(spec: WorkspaceSpec): Promise<Workspace>;
   /**
-   * The workspace container's address on the sandbox network while it runs, for the worker to
-   * reach a port of it (live previews); null when it is stopped or does not exist.
+   * The workspace container's address on the sandbox network, for the worker to reach a port of it
+   * (live previews): a paused container is unpaused first, and the call counts as use. Null when it
+   * is stopped or does not exist; a stopped container is not started.
    */
-  addressOf(key: string): Promise<string | null>;
-  /** Counts as use, so reap leaves the container running (traffic to a live preview). */
-  touch(key: string): void;
+  wake(key: string): Promise<string | null>;
   /** Deletes a workspace: files, and for Docker its container and volume. No-op when missing. */
   remove(key: string): Promise<void>;
   /** Workspaces that exist, with the last time one was opened (null when unknown). */
   list(): Promise<{ key: string; lastUsedAt: Date | null }[]>;
-  /** Stops containers that have been idle for `stopAfterMs`; their volumes stay. */
+  /** Pauses containers idle for `pauseAfterMs` and stops those idle for `stopAfterMs`; their volumes stay. */
   reap(options: ReapOptions): Promise<void>;
   /** Shuts down proxies and connections. */
   close(): Promise<void>;

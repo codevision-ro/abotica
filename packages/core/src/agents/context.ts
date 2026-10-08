@@ -59,6 +59,16 @@ export type RunContext = {
    * In memory only; set by the runner and by the tools that wrap their results.
    */
   untrustedSeen: boolean;
+  /**
+   * The `# Repository instructions` section (see repo-instructions.ts), set by the runner before the
+   * instructions are built; null when the run has none.
+   */
+  repoInstructions: string | null;
+  /**
+   * Repository folders whose instruction file the model was given in this run, or that have none, so
+   * file_read adds each once (see repo-instructions.ts).
+   */
+  instructionFolders: Set<string>;
 };
 
 export async function loadRunContext(runId: string): Promise<RunContext> {
@@ -164,6 +174,8 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
     settings: await getSettings(),
     sandbox: null,
     untrustedSeen: false,
+    repoInstructions: null,
+    instructionFolders: new Set(),
   };
 }
 
@@ -387,6 +399,12 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
           ].join("\n"),
     );
   }
+
+  // Right after the workspace section, which already differs per task (its worktree paths), so the
+  // prefix the agent's other runs share ends where it did and providers that cache prefixes keep it.
+  // The text changes only when the files do, so a task's steps and runs keep their cache. Before the
+  // rules, so Abotica's rules come last.
+  if (ctx.repoInstructions) sections.push(ctx.repoInstructions);
 
   sections.push(
     [

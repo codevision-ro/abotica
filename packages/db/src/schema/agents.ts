@@ -14,7 +14,8 @@ export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
  * - a built-in tool name, e.g. "task_create" (missing means deny);
  * - "mcp:<server-slug>/<tool>" for one MCP tool;
  * - "mcp:<server-slug>" for every tool of a server without its own entry;
- * - "mcp:*" for every MCP server without its own entry (missing means allow).
+ * - "mcp:*" for every MCP server without its own entry (missing: each tool starts from its hints, see
+ *   `annotationPermission` in core).
  */
 export type ToolPermissions = Record<string, ToolPermission>;
 

@@ -109,6 +109,8 @@
     "toolNoResult": "no result",
     "toolInput": "Input",
     "toolResult": "Result",
+    "toolFailed": "failed",
+    "toolError": "Error",
     "finishReason": {
       "stop": "finished",
       "tool-calls": "tool calls",

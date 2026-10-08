@@ -4,9 +4,10 @@ import {
   builtinPermission,
   clampPermission,
   MCP_ALL_KEY,
-  MCP_DEFAULT_PERMISSION,
+  type McpToolHint,
   mcpServerKey,
-  mcpServerPermission,
+  mcpToolDefault,
+  mcpToolHint,
   mcpToolKey,
   mcpToolPermission,
   type PermissionSubject,
@@ -15,6 +16,7 @@ import {
   type ToolPermissions,
 } from "@abotica/core/agents/permissions";
 import { TOOL_CATALOG, type ToolInfo } from "@abotica/core/agents/tools/tool-catalog";
+import { builtinMcp } from "@abotica/core/mcp-builtins";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -48,6 +50,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { syncMcpTools } from "@/server/actions/mcp";
 import type { AgentFormOptions } from "@/server/queries/agents";
+import { common, mcpDefaultValue, mcpServerValue, withMcpDefault, withMcpTool } from "./mcp-permission-values";
 import { PERMISSION_ICONS, PERMISSION_TEXT, PermissionControl } from "./permission-control";
 
 type McpServer = AgentFormOptions["mcpServers"][number];
@@ -85,14 +88,6 @@ function withServer(perms: ToolPermissions, slug: string, permission: ToolPermis
   return next;
 }
 
-/** A tool matching its server needs no entry of its own. */
-function withMcpTool(perms: ToolPermissions, slug: string, tool: string, permission: ToolPermission): ToolPermissions {
-  const next = { ...perms };
-  if (permission === mcpServerPermission(perms, slug)) delete next[mcpToolKey(slug, tool)];
-  else next[mcpToolKey(slug, tool)] = permission;
-  return next;
-}
-
 /**
  * Servers the agent gets: the global ones (offered to every agent, never stored as an assignment)
  * first, then the ones assigned to it.
@@ -100,8 +95,13 @@ function withMcpTool(perms: ToolPermissions, slug: string, tool: string, permiss
 const offeredServers = (servers: McpServer[], mcpServerIds: string[]) =>
   servers.filter((s) => s.global || mcpServerIds.includes(s.id)).sort((a, b) => Number(b.global) - Number(a.global));
 
-const common = (values: ToolPermission[]): ToolPermission | "mixed" =>
-  values.every((v) => v === values[0]) && values[0] ? values[0] : "mixed";
+/** Message key under `agents.permissions` for what a tool declares about itself. */
+const HINT_KEYS = {
+  readOnly: "hintReadOnly",
+  nonDestructive: "hintNonDestructive",
+  destructive: "hintDestructive",
+  none: "hintNone",
+} as const satisfies Record<McpToolHint, string>;
 
 /** Effective permission of every tool the agent has: built-in ones plus loaded tools of its MCP servers. */
 export function effectivePermissions(
@@ -110,7 +110,9 @@ export function effectivePermissions(
 ): ToolPermission[] {
   const builtin = toolsFor(subject).map((tool) => builtinPermission(permissions, tool.name, subject));
   const mcp = offeredServers(servers, mcpServerIds).flatMap((s) =>
-    (s.tools ?? []).map((tool) => mcpToolPermission(permissions, s.slug, tool.name)),
+    (s.tools ?? []).map((tool) =>
+      mcpToolPermission(permissions, s.slug, tool.name, mcpToolDefault(tool.annotations, s.builtin)),
+    ),
   );
   return [...builtin, ...mcp];
 }
@@ -279,7 +281,6 @@ function McpSection({
 }) {
   const t = useTranslations("agents.permissions");
   const unassigned = servers.filter((s) => !offered.includes(s));
-  const defaultValue = permissions[MCP_ALL_KEY] ?? MCP_DEFAULT_PERMISSION;
 
   // Without any server in the registry the default has nothing to apply to: one line with the way forward.
   if (servers.length === 0) {
@@ -305,17 +306,22 @@ function McpSection({
           <ServerIcon className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">{t("mcpDefault")}</p>
+            {permissions[MCP_ALL_KEY] ? (
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => setPermissions((prev) => withMcpDefault(prev, null))}
+                className="h-auto p-0 text-xs font-normal text-muted-foreground"
+              >
+                {t("useHints")}
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t("mcpDefaultFromHints")}</p>
+            )}
           </div>
           <PermissionControl
-            value={defaultValue}
-            onChange={(p) =>
-              setPermissions((prev) => {
-                const next = { ...prev };
-                if (p === MCP_DEFAULT_PERMISSION) delete next[MCP_ALL_KEY];
-                else next[MCP_ALL_KEY] = p;
-                return next;
-              })
-            }
+            value={mcpDefaultValue(permissions, offered)}
+            onChange={(p) => setPermissions((prev) => withMcpDefault(prev, p))}
             label={t("mcpDefault")}
           />
         </div>
@@ -376,11 +382,15 @@ function McpServerGroup({
   onToolsLoaded: (tools: McpServer["tools"], syncedAt: Date) => void;
 }) {
   const t = useTranslations("agents.permissions");
-  const serverPermission = mcpServerPermission(permissions, server.slug);
   const [loading, startLoading] = useTransition();
   const prefix = mcpToolKey(server.slug, "");
   const overrides = Object.keys(permissions).filter((key) => key.startsWith(prefix)).length;
-  const values = (server.tools ?? []).map((tool) => mcpToolPermission(permissions, server.slug, tool.name));
+  const rows = (server.tools ?? []).map((tool) => ({
+    tool,
+    value: mcpToolPermission(permissions, server.slug, tool.name, mcpToolDefault(tool.annotations, server.builtin)),
+  }));
+  const values = rows.map((row) => row.value);
+  const serverValue = mcpServerValue(permissions, server);
 
   function load() {
     startLoading(async () => {
@@ -402,13 +412,13 @@ function McpServerGroup({
           {server.builtin && <Badge variant="secondary">{t("builtinBadge")}</Badge>}
           {server.global && <Badge variant="secondary">{t("globalBadge")}</Badge>}
           {!server.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
-          {server.global && serverPermission === "deny" && <Badge variant="outline">{t("offForAgent")}</Badge>}
+          {server.global && serverValue === "deny" && <Badge variant="outline">{t("offForAgent")}</Badge>}
           {overrides > 0 && <Badge variant="secondary">{t("overrides", { count: overrides })}</Badge>}
         </>
       }
       control={
         <PermissionControl
-          value={serverPermission}
+          value={serverValue}
           onChange={(p) => setPermissions((prev) => withServer(prev, server.slug, p))}
           label={t("controlFor", { name: server.name })}
         />
@@ -424,18 +434,25 @@ function McpServerGroup({
             {t("loadTools")}
           </Button>
         </div>
-      ) : server.tools.length ? (
-        server.tools.map((tool, i) => (
+      ) : rows.length ? (
+        rows.map(({ tool, value }) => (
           <ToolRow
             key={tool.name}
             label={tool.name}
             mono
             description={tool.description}
-            badge={permissions[mcpToolKey(server.slug, tool.name)] !== undefined ? t("ownSetting") : undefined}
+            badges={
+              <>
+                <ToolHintBadge annotations={tool.annotations} builtin={server.builtin} />
+                {permissions[mcpToolKey(server.slug, tool.name)] !== undefined && (
+                  <Badge variant="secondary">{t("ownSetting")}</Badge>
+                )}
+              </>
+            }
           >
             <PermissionControl
-              value={values[i] ?? MCP_DEFAULT_PERMISSION}
-              onChange={(p) => setPermissions((prev) => withMcpTool(prev, server.slug, tool.name, p))}
+              value={value}
+              onChange={(p) => setPermissions((prev) => withMcpTool(prev, server, tool, p))}
               label={t("controlFor", { name: tool.name })}
             />
           </ToolRow>
@@ -560,13 +577,31 @@ export function StateSummary({ values }: { values: ToolPermission[] }) {
   );
 }
 
+/**
+ * What an MCP tool declares about itself; the title names the permission it starts at, which a bundled
+ * server can set instead of its hints.
+ */
+function ToolHintBadge({ annotations, builtin }: { annotations?: Record<string, unknown>; builtin: string | null }) {
+  const t = useTranslations("agents.permissions");
+  const permission = t(`options.${mcpToolDefault(annotations, builtin)}`);
+  const hintDefault = builtinMcp(builtin)?.defaultPermission
+    ? t("bundledDefault", { permission })
+    : t("hintDefault", { permission });
+  return (
+    <Badge variant="outline" className="font-normal text-muted-foreground" title={hintDefault}>
+      {t(HINT_KEYS[mcpToolHint(annotations)])}
+      <span className="sr-only">, {hintDefault}</span>
+    </Badge>
+  );
+}
+
 /** One dense line: name and description (clamped) on the left, the compact control on the right. */
 function ToolRow({
   label,
   name,
   description,
   note,
-  badge,
+  badges,
   mono,
   children,
 }: {
@@ -575,7 +610,7 @@ function ToolRow({
   description?: string;
   /** Why an option is unavailable; replaces the description line so it stays visible on touch. */
   note?: string;
-  badge?: string;
+  badges?: React.ReactNode;
   mono?: boolean;
   children: React.ReactNode;
 }) {
@@ -604,7 +639,7 @@ function ToolRow({
             </span>
           )}
           {note && <LockIcon className={cn("size-3.5 shrink-0", PERMISSION_TEXT.ask)} aria-hidden />}
-          {badge && <Badge variant="secondary">{badge}</Badge>}
+          {badges}
         </div>
         {note ? (
           <p className={cn("line-clamp-2 text-xs", PERMISSION_TEXT.ask)} title={description}>

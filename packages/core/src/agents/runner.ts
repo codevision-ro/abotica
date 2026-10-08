@@ -38,6 +38,7 @@ import { loadMcpTools, type McpConnection } from "./mcp-runtime";
 import { withModelFiles } from "./message-files";
 import { fullModelChain, modelChain } from "./model-chain";
 import { builtinPermission, mcpToolPermission } from "./permissions";
+import { loadRepoInstructions } from "./repo-instructions";
 import { openRunSandbox } from "./sandbox-session";
 import { answerSegments, createSteering, stepStarts, withUndeliveredNotes } from "./steering";
 import { prepareSteps } from "./step-preparation";
@@ -88,7 +89,7 @@ type ToolApproval = NonNullable<Parameters<typeof streamText<ToolSet>>[0]["toolA
 /** Effective permission of a tool in the run's tool set; skill_read and tool_search are always allowed. */
 function toolPermission(ctx: RunContext, mcpSources: Record<string, McpToolSource>, name: string) {
   const source = mcpSources[name];
-  if (source) return mcpToolPermission(ctx.agent.permissions, source.serverSlug, source.tool);
+  if (source) return mcpToolPermission(ctx.agent.permissions, source.serverSlug, source.tool, source.defaultPermission);
   if (name === "skill_read" || name === TOOL_SEARCH) return "allow";
   return builtinPermission(ctx.agent.permissions, name, {
     isOrchestrator: ctx.agent.isOrchestrator,
@@ -285,6 +286,11 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       logEventInBackground(runId, "sandbox-error", { error: errorText(error) });
       return null;
     });
+    // Before the instructions are built; it opens the workspace of a task run in a project with repositories.
+    ctx.repoInstructions = await loadRepoInstructions(ctx, {
+      signal,
+      onError: (error) => logEventInBackground(runId, "sandbox-error", { error: errorText(error) }),
+    });
     mcp = await loadMcpTools(ctx.mcpServers, {
       signal,
       secrets: { projectId: ctx.projectId },
@@ -300,8 +306,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
     const mcpSources = mcp.sources;
     const available: ToolSet = builtinTools(ctx);
     for (const [name, t] of Object.entries(mcp.tools)) {
-      const { serverSlug, tool } = mcpSources[name]!;
-      if (mcpToolPermission(ctx.agent.permissions, serverSlug, tool) !== "deny") available[name] = t;
+      if (toolPermission(ctx, mcpSources, name) !== "deny") available[name] = t;
     }
     // MCP tools and rarely used built-ins load on demand; what this conversation used stays loaded,
     // including what a compaction summarized, so the tool list does not change with it.
@@ -429,6 +434,9 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
             reasoning: step.reasoningText,
             toolCalls: step.toolCalls.map((c) => ({ id: c.toolCallId, name: c.toolName, input: c.input })),
             toolResults: step.toolResults.map((r) => ({ id: r.toolCallId, name: r.toolName, output: r.output })),
+            toolErrors: step.content.flatMap((p) =>
+              p.type === "tool-error" ? [{ id: p.toolCallId, name: p.toolName, error: errorText(p.error) }] : [],
+            ),
             usage,
             costUsd: stepCost,
           });
@@ -454,6 +462,8 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
           streamError ??= { reason: errorText(error), kind: failureKindOf(error) };
           return streamError.reason;
         },
+        // A failed tool call is the model's to handle: it reads the error and the run goes on.
+        toolErrorText: errorText,
         // Saved after every step, so a worker that dies mid-run leaves the finished steps in the chat.
         // Reasoning is saved with the answer, since the next turn replays it to the model.
         save: saveAnswer,

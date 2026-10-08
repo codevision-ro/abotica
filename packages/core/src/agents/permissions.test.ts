@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  annotationPermission,
   builtinPermission,
   clampPermission,
   defaultPermissions,
@@ -7,7 +8,9 @@ import {
   MCP_DEFAULT_PERMISSION,
   mcpServerKey,
   mcpServerPermission,
+  mcpToolHint,
   mcpToolKey,
+  mcpToolDefault,
   mcpToolPermission,
   sanitizePermissions,
 } from "./permissions";
@@ -81,6 +84,69 @@ describe("MCP permissions", () => {
     expect(mcpToolPermission({ [MCP_ALL_KEY]: "deny", "mcp:github": "ask" }, "github", "x")).toBe("ask");
     expect(mcpToolPermission({ "mcp:github": "ask", "mcp:github/x": "allow" }, "github", "x")).toBe("allow");
     expect(mcpServerPermission({ "mcp:github/x": "deny" }, "github")).toBe(MCP_DEFAULT_PERMISSION);
+  });
+});
+
+describe("mcpToolDefault", () => {
+  it("is the default from the hints, unless a bundled server sets its own", () => {
+    expect(mcpToolDefault({ readOnlyHint: true }, null)).toBe("allow");
+    expect(mcpToolDefault({ destructiveHint: true }, null)).toBe("ask");
+    expect(mcpToolDefault({ destructiveHint: true }, "context7")).toBe("ask");
+    // Playwright declares clicks and typing destructive; browsing would ask at every step.
+    expect(mcpToolDefault({ destructiveHint: true }, "playwright")).toBe("allow");
+    expect(mcpToolDefault(undefined, "unknown-key")).toBe("ask");
+  });
+});
+
+describe("MCP tool hints", () => {
+  it.each([
+    [{ readOnlyHint: true }, "readOnly", "allow"],
+    [{ readOnlyHint: true, destructiveHint: true }, "readOnly", "allow"],
+    [{ destructiveHint: false }, "nonDestructive", "allow"],
+    [{ readOnlyHint: false, destructiveHint: false }, "nonDestructive", "allow"],
+    [{ destructiveHint: true }, "destructive", "ask"],
+    // Not read-only and no destructiveHint: destructive under the MCP defaults.
+    [{ readOnlyHint: false }, "destructive", "ask"],
+    [{ readOnlyHint: false, openWorldHint: true }, "destructive", "ask"],
+    [{}, "none", "ask"],
+    [undefined, "none", "ask"],
+    [{ title: "Search", openWorldHint: false }, "none", "ask"],
+    [{ readOnlyHint: "true" }, "none", "ask"],
+    [{ readOnlyHint: 1, destructiveHint: "false" }, "none", "ask"],
+    [{ destructiveHint: null }, "none", "ask"],
+  ])("reads %j as %s, starting at %s", (annotations, hint, permission) => {
+    expect(mcpToolHint(annotations)).toBe(hint);
+    expect(annotationPermission(annotations)).toBe(permission);
+  });
+
+  const readOnly = annotationPermission({ readOnlyHint: true });
+  const destructive = annotationPermission({ destructiveHint: true });
+
+  it("start a tool without entries at the default from its hints", () => {
+    expect(mcpToolPermission({}, "github", "list_issues", readOnly)).toBe("allow");
+    expect(mcpToolPermission({}, "github", "delete_repo", destructive)).toBe("ask");
+    expect(mcpToolPermission({}, "github", "x", undefined)).toBe("ask");
+    expect(mcpServerPermission({}, "github", readOnly)).toBe("allow");
+  });
+
+  it("never win over an entry the user set, at any level", () => {
+    for (const permission of ["allow", "ask", "deny"] as const) {
+      for (const hints of [readOnly, destructive, undefined]) {
+        expect(mcpToolPermission({ [MCP_ALL_KEY]: permission }, "github", "x", hints)).toBe(permission);
+        expect(mcpToolPermission({ [mcpServerKey("github")]: permission }, "github", "x", hints)).toBe(permission);
+        expect(mcpToolPermission({ [mcpToolKey("github", "x")]: permission }, "github", "x", hints)).toBe(permission);
+        expect(mcpServerPermission({ [mcpServerKey("github")]: permission }, "github", hints)).toBe(permission);
+      }
+    }
+    // The nearest entry still wins over the farther ones.
+    const permissions = {
+      [MCP_ALL_KEY]: "deny",
+      [mcpServerKey("github")]: "ask",
+      [mcpToolKey("github", "x")]: "allow",
+    } as const;
+    expect(mcpToolPermission(permissions, "github", "x", destructive)).toBe("allow");
+    expect(mcpToolPermission(permissions, "github", "y", readOnly)).toBe("ask");
+    expect(mcpToolPermission(permissions, "other", "y", readOnly)).toBe("deny");
   });
 });
 
