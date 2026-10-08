@@ -7,6 +7,8 @@ import {
   getOrchestrator,
   getSettings,
   isProviderId,
+  managesProject,
+  modelRole,
   resolveModelChain,
   startProjectConversation,
 } from "@abotica/core";
@@ -67,6 +69,8 @@ export const setConversationModel = action(
   async ({ conversationId, model, reasoningEffort }) => {
     const [row] = await db
       .select({
+        id: agents.id,
+        isOrchestrator: agents.isOrchestrator,
         provider: agents.provider,
         model: agents.model,
         fallbacks: agents.fallbacks,
@@ -80,7 +84,7 @@ export const setConversationModel = action(
       throw new UserError("chat.model.errors.providerNotConfigured", { provider: model.provider });
     }
 
-    const primary = resolveModelChain(row, await getSettings())[0];
+    const primary = resolveModelChain(row, await getSettings(), modelRole(row, await managesProject(row.id)))[0];
     const sameAsAgent = model && primary?.provider === model.provider && primary.model === model.model;
     const modelOverride = model && !sameAsAgent ? { provider: model.provider, model: model.model } : null;
 

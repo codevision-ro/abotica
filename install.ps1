@@ -142,16 +142,7 @@ function New-EnvFile([string]$Version, [string]$Domain) {
     "# Creating the account needs this code, so nobody else can claim the instance before you do.",
     "# Sign-up closes on its own after the first account.",
     "SETUP_CODE=$(New-Secret 24 -Hex)",
-    "ALLOW_SIGNUP=true",
-    "",
-    "# Telegram (DEPLOY.md): bot token from @BotFather, then your user id, which the bot sends you.",
-    "TELEGRAM_BOT_TOKEN=",
-    "TELEGRAM_ALLOWED_USER_IDS=",
-    "TELEGRAM_NOTIFY_CHAT_ID=",
-    "",
-    "# Embeddings: openai (needs an OpenAI API key in Settings) or ollama (add ollama to",
-    "# COMPOSE_PROFILES and set OLLAMA_BASE_URL=http://ollama:11434).",
-    "EMBEDDING_PROVIDER=openai"
+    "ALLOW_SIGNUP=true"
   )
   Write-EnvFile (Join-Path (Get-Location) ".env") $lines
 }

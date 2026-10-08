@@ -27,6 +27,7 @@ const CLIENT_SAFE = [
   "skills/skill-md",
   "tasks/delegation-report",
   "tasks/wakeup-rules",
+  "telegram/telegram-ids",
 ];
 
 /** Packages a client-safe module may import at runtime. */

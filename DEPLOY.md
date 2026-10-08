@@ -79,7 +79,7 @@ and a `.env` next to it:
 
 Then `docker compose up -d`. To update, download the new release's compose file, change `ABOTICA_VERSION` and run `docker compose up -d` again.
 
-`DATABASE_URL`, `REDIS_URL` and `UPLOADS_DIR` are set by compose, not from `.env`. `OLLAMA_BASE_URL` defaults to Ollama on the host (`http://host.docker.internal:11434`): do not copy `localhost` from `.env.example`, which inside a container means the container itself. The web app, the worker and the migrations run as the unprivileged `node` user (uid 1000), not as root.
+`DATABASE_URL`, `REDIS_URL`, `UPLOADS_DIR` and `HOST_GATEWAY` are set by compose, not from `.env`. `HOST_GATEWAY` is how the containers reach the host: an address entered in the app as `http://localhost:11434` (Ollama on the host) is rewritten to it, so addresses are entered as the host sees them. The Ollama address, the embedding provider and the runs executed in parallel are set in the app; an install that had `OLLAMA_BASE_URL`, `EMBEDDING_PROVIDER` or `RUN_CONCURRENCY` in `.env` gets them copied into Settings the first time the worker starts after the update, and the lines can then be removed. The web app, the worker and the migrations run as the unprivileged `node` user (uid 1000), not as root.
 
 ## Running it
 
@@ -87,9 +87,13 @@ The commands below run in the install folder, where `docker-compose.yml` and `.e
 
 ### Telegram
 
-1. Create a bot with @BotFather and put the token in `TELEGRAM_BOT_TOKEN` in `.env`.
-2. Run `docker compose up -d` and send the bot a message: it replies with your Telegram user ID.
-3. Put the ID in `TELEGRAM_ALLOWED_USER_IDS` (and optionally `TELEGRAM_NOTIFY_CHAT_ID`, for notifications in a forum group), then `docker compose up -d` again.
+Telegram is configured in the app, under **Settings > Telegram**; nothing goes in `.env` and nothing needs a restart.
+
+1. Create a bot with @BotFather and paste its token under **Bot token**. It is checked with Telegram and stored encrypted in the vault.
+2. Add your Telegram user ID under **Allowed users**. To find it, message @userinfobot, or send the bot a message: it replies with your ID while you are not on the list.
+3. Optionally, set **Notification chat** to a group ID, for notifications in a forum group. Left empty, they go to the first allowed user.
+
+The page shows whether the worker's bot is connected. An install that had these values in `.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS`, `TELEGRAM_NOTIFY_CHAT_ID`) gets them copied into Settings the first time the worker starts after the update; the lines can then be removed.
 
 Commands: `/status`, `/tasks`, `/new` (new conversation), `/stop` (kill switch), `/resume` (turn the kill switch off). The bot accepts text, voice (transcribed through OpenAI), photos and files. Approvals arrive with Approve / Reject buttons. In a group with forum topics, each project's topic talks to that project's manager; everywhere else you talk to the super agent.
 
@@ -156,11 +160,13 @@ A separate domain for previews (for example `abotica-preview.com`) isolates them
 
 Listed in `COMPOSE_PROFILES` in `.env`, comma separated (for example `COMPOSE_PROFILES=https,ollama`), then `docker compose up -d`.
 
-**Ollama** (local embeddings instead of OpenAI). In `.env`: `EMBEDDING_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://ollama:11434`, then once:
+**Ollama** (local embeddings instead of OpenAI). Pull the embedding model once:
 
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text
 ```
+
+Then, in **Settings > AI providers**, add Ollama, set its server address to `http://ollama:11434`, and choose Ollama under **Embeddings**. The embeddings stored so far are made again with Ollama in the background.
 
 The model uses about 400 MB of RAM while loaded and unloads itself after 5 minutes of inactivity. On a small VPS, embeddings through OpenAI are cheaper in terms of resources.
 
@@ -230,6 +236,6 @@ Everything (memory, journals, tasks, conversations) is in Postgres; the files (y
 
 ### Ollama without Docker
 
-Install it from ollama.com, then `ollama pull nomic-embed-text` and `EMBEDDING_PROVIDER=ollama` in `.env`.
+Install it from ollama.com, run `ollama pull nomic-embed-text`, then choose Ollama under **Embeddings** in **Settings > AI providers**.
 
 The bundled Playwright and Scrapling need the sandbox. To use Scrapling anyway, install it on the server (`pip install "scrapling[ai]"` and `scrapling install`, which downloads the browser into the worker user's home) and add your own server under **MCP > New**: transport `stdio`, command = the full path from `which scrapling`, argument `mcp`, with **Run in the sandbox** turned off. It then runs in the worker with the worker user's files (see `SECURITY.md`).

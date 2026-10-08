@@ -21,7 +21,7 @@ pnpm logs:worker     # the worker's output
 
 The worker runs in Docker because the sandbox needs it on the sandbox network; its source is mounted and reloads on change. After changing any `package.json` (dependencies or a package's exports), run `pnpm infra:up` again to rebuild its image.
 
-Agent runs need at least one connected provider (Settings > AI providers; keys are not read from `.env`). Telegram is optional: without `TELEGRAM_BOT_TOKEN` the worker runs without the bot.
+Agent runs need at least one connected provider (Settings > AI providers; keys are not read from `.env`). Telegram is optional: without a bot token (Settings > Telegram) the worker runs without the bot.
 
 ## Project layout
 
@@ -53,6 +53,7 @@ Where code goes:
   - `skills/`: skills, skill sources, `SKILL.md` parsing.
   - `mcp/`: MCP servers, bundled servers, stored values.
   - `platform/`: settings, kill switch, costs, budgets, limits, vault, audit and audit actions, app origins, safe fetch, slugs, return paths.
+  - `telegram/`: the bot's configuration (token, allowed users, notification chat) and its status; the bot itself runs in the worker.
   - `infra/`: env, Redis, queues, live events, database errors.
 - Other packages import core through `@abotica/core` (the barrel) or a subpath listed in `exports` in `packages/core/package.json`. A subpath keeps its public name (for example `@abotica/core/limits`) wherever the file lives; add an entry there before importing a new one. `sandbox-runtime`, `agents/mcp-runtime` and `agents/runner` are worker only and stay out of the barrel.
 - Modules imported by client components must stay free of server-only imports; they are listed by path under `src/` in `packages/core/src/module-boundaries.test.ts`, which fails when one of them (or anything it imports) reaches server-only code. Add a module there before importing it from a client component.

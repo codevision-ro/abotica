@@ -21,6 +21,7 @@
     "./mcp-builtins": "./src/mcp/mcp-builtins.ts",
     "./mcp-servers": "./src/mcp/mcp-servers.ts",
     "./mcp-stored-values": "./src/mcp/mcp-stored-values.ts",
+    "./models/model-role": "./src/models/model-role.ts",
     "./models/reasoning": "./src/models/reasoning.ts",
     "./preview-server": "./src/sandbox/preview-server.ts",
     "./repo-url": "./src/projects/repo-url.ts",
@@ -31,6 +32,7 @@
     "./settings": "./src/platform/settings.ts",
     "./skill-md": "./src/skills/skill-md.ts",
     "./slug": "./src/platform/slug.ts",
+    "./telegram-ids": "./src/telegram/telegram-ids.ts",
     "./trigger-events": "./src/automations/trigger-events.ts",
     "./wakeup-rules": "./src/tasks/wakeup-rules.ts"
   },

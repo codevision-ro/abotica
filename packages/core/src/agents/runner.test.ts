@@ -640,6 +640,8 @@ describe("context compaction in a run", () => {
     const marker = { anthropic: { cacheControl: { type: "ephemeral", ttl: "5m" } } };
     expect(prompt[0]!.providerOptions).toMatchObject(marker);
     expect(streams[2]!.providerOptions).toMatchObject(marker);
+    // Every step of the conversation asks OpenAI for the same prompt cache.
+    expect(streams[2]!.providerOptions).toMatchObject({ openai: { promptCacheKey: "c1" } });
     // Saved for the next runs as covering the history before the request.
     expect(saveCompaction).toHaveBeenCalledWith("c1", expect.objectContaining({ coversUntil: "2026-10-08T09:01:00.000Z" }));
     expect(compactionEvent()).toMatchObject({ reason: "hard", midRun: true });

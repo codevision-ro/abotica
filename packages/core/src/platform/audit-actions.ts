@@ -82,6 +82,8 @@ export const AUDIT_ACTIONS = [
   "skill.synced",
   "skill.tested",
   "task.deleted",
+  "telegram.token-set",
+  "telegram.token-removed",
   "trigger.created",
   "trigger.updated",
   "trigger.deleted",

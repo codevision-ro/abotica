@@ -37,7 +37,9 @@ export type MaintenanceJob =
   /** Polls the open pull requests of tasks and reacts to CI, reviews and merges (tasks/pull-requests.ts). */
   | { kind: "prs-sync" }
   /** Looks for a newer Abotica release and tells the user once per version (platform/updates.ts). */
-  | { kind: "updates-check" };
+  | { kind: "updates-check" }
+  /** A slice of the re-embedding after the embedding provider changed (memory/embedding-reindex.ts). */
+  | { kind: "embeddings-reindex" };
 
 /**
  * A task changed, on one queue so the worker handles them one at a time. Created or done: it fires

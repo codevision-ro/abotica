@@ -2,7 +2,6 @@ import {
   appendUserMessage,
   type Conversation,
   ConversationBusyError,
-  env,
   filePart,
   getSettings,
   projectProviderPolicy,
@@ -25,7 +24,7 @@ import { replyError } from "./send";
 
 async function download(bot: Bot, fileId: string): Promise<{ data: Buffer; path: string }> {
   const file = await bot.api.getFile(fileId);
-  const res = await fetch(`https://api.telegram.org/file/bot${env().TELEGRAM_BOT_TOKEN}/${file.file_path}`);
+  const res = await fetch(`https://api.telegram.org/file/bot${bot.token}/${file.file_path}`);
   if (!res.ok) throw new Error(`File download failed (${res.status})`);
   return { data: Buffer.from(await res.arrayBuffer()), path: file.file_path ?? "" };
 }

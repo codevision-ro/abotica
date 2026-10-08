@@ -97,7 +97,6 @@
     "busyHint": "Agentul răspunde acum. Schimbarea se aplică de la următorul mesaj.",
     "close": "Închide",
     "effort": {
-      "cacheHint": "Schimbarea efortului în mijlocul conversației resetează cache-ul promptului, așa că următorul răspuns costă mai mult.",
       "options": {
         "default": "Implicit",
         "none": "Oprit",

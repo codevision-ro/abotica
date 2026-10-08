@@ -1,15 +1,17 @@
-import { env, getSettings, settingsLocale } from "@abotica/core";
+import { getSettings, settingsLocale, telegramAccess } from "@abotica/core";
 import { getTranslator, type Translator } from "@abotica/i18n";
-import { Bot } from "grammy";
+import type { Bot } from "grammy";
 
-let bot: Bot | null = null;
+/** Where getBot finds the bot; bot-lifecycle.ts points it at the bot it runs when the worker starts. */
+let botSource: () => Bot | null = () => null;
 
-/** Null when TELEGRAM_BOT_TOKEN is not configured; callers then skip Telegram. */
+export function setBotSource(source: () => Bot | null) {
+  botSource = source;
+}
+
+/** Null when no bot token is set in Settings > Telegram; callers then skip Telegram. */
 export function getBot(): Bot | null {
-  const token = env().TELEGRAM_BOT_TOKEN;
-  if (!token) return null;
-  bot ??= new Bot(token);
-  return bot;
+  return botSource();
 }
 
 /** Translator for Telegram and notification texts, in the language from Settings. */
@@ -17,7 +19,7 @@ export async function botTranslator(): Promise<Translator> {
   return getTranslator(settingsLocale(await getSettings()));
 }
 
-export function notifyChatId(): number | null {
-  const id = env().TELEGRAM_NOTIFY_CHAT_ID ?? String(env().TELEGRAM_ALLOWED_USER_IDS[0] ?? "");
-  return id ? Number(id) : null;
+/** The chat notifications go to, read from the settings each time so a change applies at once. */
+export async function notifyChatId(): Promise<number | null> {
+  return (await telegramAccess()).notifyChatId;
 }

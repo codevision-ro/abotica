@@ -29,6 +29,19 @@ describe("isActiveTaskRunConflict", () => {
   });
 });
 
+describe("leavesBacklog", () => {
+  it("drops the wait for a place once the task starts, settles or is moved by hand", async () => {
+    const { leavesBacklog } = await load();
+    for (const status of ["in_progress", "review", "done", "blocked"] as const) expect(leavesBacklog(status)).toBe(true);
+  });
+
+  it("keeps it while the task stays in the backlog or its status is not changed", async () => {
+    const { leavesBacklog } = await load();
+    expect(leavesBacklog("backlog")).toBe(false);
+    expect(leavesBacklog(undefined)).toBe(false);
+  });
+});
+
 describe("failureStreak (the task's circuit breaker)", () => {
   type Outcome = { agentId: string | null; status: string; failureKind: string | null; error: string | null };
   const failed = (failureKind: string, agentId = "a1"): Outcome => ({

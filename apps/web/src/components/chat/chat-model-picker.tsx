@@ -389,12 +389,7 @@ function EffortSection({ state, selection, effective, onChange, busy }: PickerPr
       size="sm"
       className="shrink-0 px-3.5 pt-3 pb-3"
     >
-      {(effective.support !== null || busy) && (
-        <p className="text-[11px] leading-snug text-muted-foreground">
-          {effective.support !== null && t("effort.cacheHint")}
-          {busy && <span className="mt-1 block text-foreground/80">{t("busyHint")}</span>}
-        </p>
-      )}
+      {busy && <p className="text-[11px] leading-snug text-foreground/80">{t("busyHint")}</p>}
     </ReasoningEffortControl>
   );
 }

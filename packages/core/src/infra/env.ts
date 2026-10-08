@@ -8,24 +8,13 @@ const schema = z.object({
   /** Extra public origins (tunnels, a second domain), comma separated. */
   TRUSTED_ORIGINS: z.string().optional(),
   VAULT_KEY: z.string().min(1, "VAULT_KEY is required (openssl rand -base64 32)"),
-  TELEGRAM_BOT_TOKEN: z.string().optional(),
-  TELEGRAM_ALLOWED_USER_IDS: z
-    .string()
-    .optional()
-    .transform((v) =>
-      (v ?? "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map(Number),
-    ),
-  TELEGRAM_NOTIFY_CHAT_ID: z.string().optional(),
-  OLLAMA_BASE_URL: z.string().default("http://localhost:11434"),
-  EMBEDDING_PROVIDER: z.enum(["openai", "ollama"]).default("openai"),
+  /**
+   * The host machine as a container reaches it (host.docker.internal), set by the compose files: localhost
+   * addresses entered in Settings (Ollama) are rewritten to it. Unset outside containers. See reachableUrl().
+   */
+  HOST_GATEWAY: z.string().optional(),
   /** Task attachments folder, shared by the web app and the worker. See uploadsRoot(). */
   UPLOADS_DIR: z.string().optional(),
-  /** Runs one worker executes at the same time. */
-  RUN_CONCURRENCY: z.coerce.number().int().positive().default(4),
   /**
    * On shutdown (restart, update), how long the runs in progress get to finish on their own before
    * they are stopped and their partial answers saved. Keep it below the compose stop_grace_period.

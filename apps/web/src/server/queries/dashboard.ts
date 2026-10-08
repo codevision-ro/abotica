@@ -1,5 +1,5 @@
 import "server-only";
-import { env, isProviderConfigured, PROVIDER_IDS } from "@abotica/core";
+import { getTelegramToken, isProviderConfigured, PROVIDER_IDS } from "@abotica/core";
 import { agents, approvals, db, projects, runs, tasks } from "@abotica/db";
 import { and, asc, count, countDistinct, desc, eq, inArray, sql } from "@abotica/db/orm";
 import { getDailyCostByProvider, getMonthCosts } from "./costs";
@@ -35,20 +35,15 @@ export const getPendingApprovalCount = query(async (): Promise<number> => {
 
 async function onboardingState() {
   const keyProviders = PROVIDER_IDS.filter((p) => p !== "ollama");
-  const [configured, [agentCount], [projectCount]] = await Promise.all([
+  const [configured, [agentCount], [projectCount], telegram] = await Promise.all([
     Promise.all(keyProviders.map((p) => isProviderConfigured(p).catch(() => false))),
     db
       .select({ n: count() })
       .from(agents)
       .where(and(eq(agents.isOrchestrator, false), eq(agents.isTemplate, false))),
     db.select({ n: count() }).from(projects),
+    getTelegramToken().then(Boolean, () => false),
   ]);
-  let telegram = false;
-  try {
-    telegram = Boolean(env().TELEGRAM_BOT_TOKEN);
-  } catch {
-    telegram = false;
-  }
   return {
     hasKeys: configured.some(Boolean),
     hasAgents: (agentCount?.n ?? 0) > 0,

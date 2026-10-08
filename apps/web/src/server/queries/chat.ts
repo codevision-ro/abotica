@@ -7,7 +7,10 @@ import {
   getOrchestrator,
   getSettings,
   listFiles,
+  managesProject,
+  modelRole,
   resolveModelChain,
+  roleDefaultEffort,
 } from "@abotica/core";
 import { placeCompactions } from "@abotica/core/compaction-record";
 import type { ReasoningSupport } from "@abotica/core/models/reasoning";
@@ -54,13 +57,16 @@ export type ChatModelState = {
     followsDefault: boolean;
     reasoningEffort: ReasoningEffort;
   };
-  /** Effort from settings, used when the agent's is "default". */
+  /** The default effort of the agent's role from settings, used when the agent's is "default". */
   defaultReasoningEffort: ReasoningEffort;
   /** What this conversation overrides; null means it follows the agent. */
   selection: { model: ModelRef | null; reasoningEffort: ReasoningEffort | null };
 };
 
-type AgentRow = Pick<typeof agents.$inferSelect, "provider" | "model" | "fallbacks" | "reasoningEffort">;
+type AgentRow = Pick<
+  typeof agents.$inferSelect,
+  "id" | "isOrchestrator" | "provider" | "model" | "fallbacks" | "reasoningEffort"
+>;
 type ConversationRow = Pick<Conversation, "modelOverride" | "reasoningEffort">;
 
 const toOption = (m: CatalogModel): ChatModelOption => ({
@@ -73,8 +79,14 @@ const toOption = (m: CatalogModel): ChatModelOption => ({
 
 /** Everything the chat model picker needs for one conversation. */
 export const getChatModelState = query(async (agent: AgentRow, conversation: ConversationRow): Promise<ChatModelState> => {
-  const [providers, settings, catalog] = await Promise.all([availableProviders(), getSettings(), getCatalog()]);
-  const primary = resolveModelChain(agent, settings)[0];
+  const [providers, settings, catalog, isManager] = await Promise.all([
+    availableProviders(),
+    getSettings(),
+    getCatalog(),
+    managesProject(agent.id),
+  ]);
+  const role = modelRole(agent, isManager);
+  const primary = resolveModelChain(agent, settings, role)[0];
   const entry = primary && catalog.find((m) => m.provider === primary.provider && m.id === primary.model);
   return {
     providers: providers.map((p) => ({ id: p.id, label: p.label, models: p.models.map(toOption) })),
@@ -90,7 +102,7 @@ export const getChatModelState = query(async (agent: AgentRow, conversation: Con
       followsDefault: !agent.provider || !agent.model,
       reasoningEffort: agent.reasoningEffort,
     },
-    defaultReasoningEffort: settings.defaultReasoningEffort,
+    defaultReasoningEffort: roleDefaultEffort(settings, role),
     selection: { model: conversation.modelOverride ?? null, reasoningEffort: conversation.reasoningEffort ?? null },
   };
 });

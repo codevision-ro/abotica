@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { deleteProviderKey, disconnectSubscriptionAccount, setOllamaEnabled } from "@/server/actions/settings";
 import type { ProviderStatus } from "@/server/queries/settings";
 import { ProviderCardKey } from "./provider-card-key";
+import { ProviderCardOllama } from "./provider-card-ollama";
 import { ProviderCardPlan } from "./provider-card-plan";
 import { ProviderIcon } from "./provider-icon";
 import { ProviderTestResult, useProviderTest } from "./provider-test";
@@ -30,10 +31,11 @@ type Method = "api-key" | "plan";
  */
 export function ProviderCard({
   provider,
-  ollamaBaseUrl,
+  ollamaBaseUrl = "",
   onClose,
 }: {
   provider: ProviderStatus;
+  /** Only for Ollama: where its server listens, from Settings. */
   ollamaBaseUrl?: string;
   onClose: () => void;
 }) {
@@ -85,9 +87,7 @@ export function ProviderCard({
     );
 
   const subtitle = isOllama ? (
-    <span className="truncate font-mono" title={ollamaBaseUrl}>
-      {ollamaBaseUrl}
-    </span>
+    <span className="truncate">{t("subtitleLocal")}</span>
   ) : provider.connection === "plan" && plan ? (
     <span className="truncate">
       {t("subtitlePlan", { plan: plan.label, account: plan.account?.email ?? plan.account?.name ?? "" })}
@@ -174,17 +174,7 @@ export function ProviderCard({
 
       <div className="flex flex-1 flex-col gap-4 p-4 sm:px-5">
         {isOllama ? (
-          provider.models.length ? (
-            <div className="flex flex-wrap gap-1">
-              {provider.models.map((m) => (
-                <Badge key={m} variant="outline" className="max-w-full font-mono font-normal" title={m}>
-                  <span className="truncate">{m}</span>
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t("ollamaEmpty")}</p>
-          )
+          <ProviderCardOllama provider={provider} baseUrl={ollamaBaseUrl} />
         ) : (
           <>
             {plan && (

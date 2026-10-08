@@ -58,6 +58,7 @@ export const listBoardTasks = query(async (filters: TaskFilters) => {
       deadline: tasks.deadline,
       completedAt: tasks.completedAt,
       assignedToUser: tasks.assignedToUser,
+      waitingForSlotSince: tasks.waitingForSlotSince,
       projectId: tasks.projectId,
       projectName: projects.name,
       agentId: agents.id,

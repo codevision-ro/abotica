@@ -30,7 +30,7 @@ import {
   providerAllowed,
   type ProviderPolicy,
 } from "../models/provider-policy";
-import { embeddingModel, embeddingProvider } from "../models/providers";
+import { type EmbeddingProvider, embeddingModel, embeddingProvider } from "../models/providers";
 
 export type Memory = typeof memories.$inferSelect;
 export type MemoryScope = Memory["scope"];
@@ -42,7 +42,7 @@ const providerOptions = { openai: { dimensions: EMBEDDING_DIMENSIONS } };
  * null when the embedding provider is not allowed for it or not reachable; search is then by keyword only.
  */
 export async function embedText(text: string, policy: ProviderPolicy): Promise<number[] | null> {
-  if (!providerAllowed(policy, embeddingProvider())) return null;
+  if (!providerAllowed(policy, await embeddingProvider())) return null;
   try {
     const { model } = await embeddingModel();
     const { embedding } = await embed({ model, value: text, providerOptions });
@@ -55,15 +55,25 @@ export async function embedText(text: string, policy: ProviderPolicy): Promise<n
 
 export async function embedTexts(texts: string[], policy: ProviderPolicy): Promise<(number[] | null)[]> {
   if (!texts.length) return [];
-  if (!providerAllowed(policy, embeddingProvider())) return texts.map(() => null);
+  const provider = await embeddingProvider();
+  if (!providerAllowed(policy, provider)) return texts.map(() => null);
   try {
-    const { model } = await embeddingModel();
-    const { embeddings } = await embedMany({ model, values: texts, providerOptions });
-    return embeddings;
+    return await embedWith(provider, texts);
   } catch (error) {
     console.warn("[memory] embedding unavailable:", (error as Error).message);
     return texts.map(() => null);
   }
+}
+
+/**
+ * Embeds with `provider`, throwing when it cannot (no key, server down): the re-embedding after a provider
+ * change waits and tries again, where a write goes on without embeddings (embedTexts).
+ */
+export async function embedWith(provider: EmbeddingProvider, texts: string[]): Promise<number[][]> {
+  if (!texts.length) return [];
+  const { model } = await embeddingModel(provider);
+  const { embeddings } = await embedMany({ model, values: texts, providerOptions });
+  return embeddings;
 }
 
 /** Project memory is the project's data; global and agent memory are not tied to one. */

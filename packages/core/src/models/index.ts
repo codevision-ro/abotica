@@ -1,6 +1,9 @@
 export * from "./catalog";
 export * from "./chain";
 export { FallbackModel } from "./fallback-model";
+export * from "./model-ratings";
+export * from "./model-stats";
+export * from "./model-role";
 export { classifyProviderError, ContextOverflowError, type ProviderErrorKind } from "./provider-errors";
 export * from "./provider-keys";
 export * from "./provider-policy";

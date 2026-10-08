@@ -42,8 +42,8 @@ services:
     environment:
       DATABASE_URL: postgres://abotica:abotica@postgres:5432/abotica
       REDIS_URL: redis://redis:6379
-      # Ollama on this machine, if any.
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # This machine as the container reaches it: localhost addresses set in the app (Ollama) go there.
+      HOST_GATEWAY: host.docker.internal
       # The web app's uploads folder, shared so both see the same stored files.
       UPLOADS_DIR: /data/uploads
       SANDBOX_DOCKER_HOST: tcp://docker-proxy:2375

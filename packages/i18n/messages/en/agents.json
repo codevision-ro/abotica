@@ -86,7 +86,13 @@
     "search": "Search or type a model id...",
     "empty": "No model in the catalog. Type the id manually.",
     "useCustom": "Use <mono>{id}</mono>",
-    "catalog": "Catalog (with tool calling)"
+    "catalog": "Catalog (with tool calling)",
+    "consumptionLevel": "Consumption {level} of 5",
+    "class": {
+      "fast": "Fast",
+      "balanced": "Balanced",
+      "powerful": "Powerful"
+    }
   },
   "chain": {
     "primary": "Primary",
@@ -114,7 +120,7 @@
     "modelDescription": "The model the agent runs on.",
     "useDefault": "Default model",
     "defaultNotSet": "Not set yet",
-    "defaultHint": "Change it in <link>Settings → AI providers</link> for every agent that uses it.",
+    "defaultHint": "{role, select, orchestrator {The super agent's default.} manager {The managers' default, since this agent manages a project.} other {The agents' default.}} Change it in <link>Settings → AI providers</link> for every agent that uses it.",
     "defaultMissing": "The default model is not set: <link>set it in Settings → AI providers</link>",
     "useCustom": "Choose a model",
     "useCustomDescription": "A provider and model only for this agent.",
@@ -247,6 +253,18 @@
     "alwaysOn": "{model} always reasons; its effort cannot be set.",
     "fallback": "{model} does not support {effort}; it will use {resolved}.",
     "modelDefault": "the model default",
+    "defaultFrom": "Default: {effort}, from {source}",
+    "defaultEffort": "Default: {effort}",
+    "defaultModel": "Default: the model decides",
+    "short": {
+      "none": "Off",
+      "minimal": "Min",
+      "low": "Low",
+      "medium": "Med",
+      "high": "High",
+      "xhigh": "X-High",
+      "max": "Max"
+    },
     "options": {
       "default": {
         "label": "Default",

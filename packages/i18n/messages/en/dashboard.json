@@ -37,7 +37,8 @@
     },
     "telegram": {
       "title": "Set up Telegram",
-      "description": "Set <code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_ALLOWED_USER_IDS</code> and <code>TELEGRAM_NOTIFY_CHAT_ID</code> in the .env file, then restart the worker."
+      "description": "Create a bot with @BotFather, paste its token and add your Telegram user ID.",
+      "cta": "Set up"
     },
     "agent": {
       "title": "Create your first agent",

@@ -219,6 +219,12 @@
       "closed": "Pull request {label} of task \"{title}\" was closed without merging. {url}"
     }
   },
+  "slots": {
+    "waiting": "Waiting for a free place",
+    "waitingTitle": "Waiting for a free place: it starts on its own when one of the other delegated tasks finishes",
+    "waitingHint": "Only a few tasks delegated from the same conversation run at once (Settings > General). This one starts on its own when one of them finishes; Run now starts it right away.",
+    "startFailed": "This task waited for a free place and could not start when one freed up: {reason}. Fix the cause, then start it again."
+  },
   "wakeups": {
     "title": "Waiting for",
     "condition": {

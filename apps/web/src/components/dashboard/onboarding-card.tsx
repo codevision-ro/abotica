@@ -7,8 +7,6 @@ import { Progress } from "@/components/ui/progress";
 
 type Step = { id: string; title: string; description: React.ReactNode; done: boolean; href?: string; cta?: string };
 
-const code = (chunks: React.ReactNode) => <code className="rounded bg-muted px-1 font-mono text-[11px]">{chunks}</code>;
-
 export async function OnboardingCard({
   state,
 }: {
@@ -27,8 +25,10 @@ export async function OnboardingCard({
     {
       id: "telegram",
       title: t("telegram.title"),
-      description: t.rich("telegram.description", { code }),
+      description: t("telegram.description"),
       done: state.hasTelegram,
+      href: "/settings/telegram",
+      cta: t("telegram.cta"),
     },
     {
       id: "agent",

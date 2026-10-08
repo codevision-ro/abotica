@@ -97,7 +97,6 @@
     "busyHint": "The agent is answering. The change applies from the next message.",
     "close": "Close",
     "effort": {
-      "cacheHint": "Changing the effort mid-conversation resets the prompt cache, so the next reply costs more.",
       "options": {
         "default": "Default",
         "none": "Off",

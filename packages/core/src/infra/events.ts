@@ -14,7 +14,15 @@ export type AppEvent =
   /** When active, workers abort their running runs with `reason`. */
   | { type: "kill-switch"; active: boolean; reason?: string }
   /** The worker stored a new sandbox status; read it with getSandboxStatus(). */
-  | { type: "sandbox.status" };
+  | { type: "sandbox.status" }
+  /** The Telegram bot token was saved or removed; the worker restarts or stops the bot. */
+  | { type: "telegram.config-changed" }
+  /** The worker stored a new bot status; read it with getTelegramBotStatus(). */
+  | { type: "telegram.status" }
+  /** The app settings were saved; the worker applies what it holds in memory (the run concurrency). */
+  | { type: "settings.updated" }
+  /** The re-embedding after an embedding provider change moved on; read it with getReindexState(). */
+  | { type: "embeddings.reindex" };
 
 const CHANNEL = "abotica:events";
 

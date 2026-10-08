@@ -1,0 +1,2 @@
+ALTER TABLE "tasks" ADD COLUMN "waiting_for_slot_since" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "tasks_waiting_for_slot_since_index" ON "tasks" USING btree ("waiting_for_slot_since") WHERE "tasks"."waiting_for_slot_since" is not null;

@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redelegateTask } from "../../tasks/delegation";
 import { activeTaskRun, taskFailureStreak, TaskCircuitOpenError } from "../../tasks/tasks";
-import { startTaskRun } from "../../runs/runs";
+import { startDelegatedTask } from "../../tasks/delegation-slots";
 import { runTools } from "./runs";
 
-/** delegate_task on a task whose runs keep failing: the delegator gets the error as data, no run starts. */
+/**
+ * delegate_task on a task whose runs keep failing: the delegator gets the error as data, no run starts.
+ * With every place of its conversation taken, the task waits and the delegator is told it starts on its own.
+ */
 
 const TASK = { id: "t1", assigneeAgentId: "worker", projectId: null, redelegations: 0 };
 const WORKER = { id: "worker", slug: "worker", isTemplate: false, enabled: true };
@@ -33,10 +36,8 @@ vi.mock("../../platform/audit", () => ({ audit: vi.fn() }));
 vi.mock("../../files/files", () => ({ deleteFile: vi.fn(), readFileBytes: vi.fn(), saveFile: vi.fn() }));
 vi.mock("../../models/provider-policy", () => ({}));
 vi.mock("../model-chain", () => ({}));
-vi.mock("../../runs/runs", () => ({
-  cancelRun: vi.fn(),
-  startTaskRun: vi.fn(async () => ({ id: "run-2" })),
-}));
+vi.mock("../../runs/runs", () => ({ cancelRun: vi.fn() }));
+vi.mock("../../tasks/delegation-slots", () => ({ startDelegatedTask: vi.fn(async () => ({ id: "run-2" })) }));
 vi.mock("../../tasks/delegation", () => ({
   answersUser: vi.fn(async () => false),
   loadDelegationProject: vi.fn(),
@@ -101,14 +102,14 @@ describe("delegate_task and the task's circuit breaker", () => {
 
     expect(result.error).toContain("Task t1 is stopped: its last 1 run(s) failed (All providers failed");
     expect(result.error).toContain("only they can start it again");
-    expect(startTaskRun).not.toHaveBeenCalled();
+    expect(startDelegatedTask).not.toHaveBeenCalled();
     // Nothing changed on the task either: the send-back is not counted.
     expect(redelegateTask).not.toHaveBeenCalled();
   });
 
   it("starts a task whose breaker is closed", async () => {
     expect(await delegate("worker")).toEqual({ taskId: "t1", runId: "run-2", started: true });
-    expect(startTaskRun).toHaveBeenCalledWith("t1", { parentRunId: "manager-run" });
+    expect(startDelegatedTask).toHaveBeenCalledWith("t1", { parentRunId: "manager-run" });
   });
 
   it("hands the task to another agent, which starts a new count", async () => {
@@ -118,7 +119,17 @@ describe("delegate_task and the task's circuit breaker", () => {
   });
 
   it("reports a breaker that opened while it was delegating", async () => {
-    vi.mocked(startTaskRun).mockRejectedValueOnce(new TaskCircuitOpenError("t1", AUTH_FAILURE));
+    vi.mocked(startDelegatedTask).mockRejectedValueOnce(new TaskCircuitOpenError("t1", AUTH_FAILURE));
     expect((await delegate("worker")).error).toContain("Task t1 is stopped");
+  });
+});
+
+describe("delegate_task with every place of the conversation taken", () => {
+  it("leaves the task waiting and tells the delegator it starts on its own", async () => {
+    vi.mocked(startDelegatedTask).mockResolvedValueOnce(null);
+    const result = await delegate("worker");
+    expect(result).toMatchObject({ taskId: "t1", started: false });
+    expect(result.queued).toContain("starts on its own when one of them finishes. Do not start it again.");
+    expect(result.runId).toBeUndefined();
   });
 });

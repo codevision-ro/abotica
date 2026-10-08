@@ -6,9 +6,9 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { EmbeddingModel } from "ai";
 import { UserError } from "@abotica/i18n";
 import { isLocalProvider, isProviderId, isSubscriptionProviderId, type ProviderId } from "./catalog";
-import { env } from "../infra/env";
-import { getSettings } from "../platform/settings";
+import { type AppSettings, getSettings } from "../platform/settings";
 import { getSecret } from "../platform/vault";
+import { ollamaBase } from "./ollama";
 import { isSubscriptionConnected, subscriptionLanguageModel } from "./subscriptions/connections";
 
 /** The vault name of each provider's API key, set in Settings; null for a local server. */
@@ -50,7 +50,8 @@ export async function isProviderConfigured(provider: ProviderId): Promise<boolea
   return (await providerConnection(provider)) !== null;
 }
 
-const ollamaBaseUrl = () => new URL("/v1", env().OLLAMA_BASE_URL).toString();
+/** Ollama's OpenAI-compatible API. */
+const ollamaApiUrl = async () => new URL("/v1", await ollamaBase()).toString();
 
 export async function languageModel(provider: string, model: string): Promise<LanguageModelV4> {
   if (!isProviderId(provider)) throw new Error(`Unknown provider ${provider}`);
@@ -73,27 +74,54 @@ export async function languageModel(provider: string, model: string): Promise<La
         model,
       );
     case "ollama":
-      return createOpenAICompatible({ name: "ollama", baseURL: ollamaBaseUrl(), includeUsage: true })(model);
+      return createOpenAICompatible({ name: "ollama", baseURL: await ollamaApiUrl(), includeUsage: true })(model);
   }
 }
 
-const EMBEDDING_MODELS = {
+export type EmbeddingProvider = AppSettings["embeddingProvider"];
+
+export const EMBEDDING_MODELS = {
   openai: "text-embedding-3-small",
   ollama: "nomic-embed-text",
-} as const;
+} as const satisfies Record<EmbeddingProvider, string>;
 
-/** The provider that embeds memory, journals and knowledge (EMBEDDING_PROVIDER). */
-export const embeddingProvider = (): "openai" | "ollama" => env().EMBEDDING_PROVIDER;
+/** The provider that embeds memory, journals and knowledge, chosen in Settings. */
+export const embeddingProvider = async (): Promise<EmbeddingProvider> => (await getSettings()).embeddingProvider;
 
-export async function embeddingModel(): Promise<{ model: EmbeddingModel; provider: "openai" | "ollama" }> {
-  const provider = embeddingProvider();
+/** The embedding model of `provider`, by default the one from Settings. */
+export async function embeddingModel(
+  provider?: EmbeddingProvider,
+): Promise<{ model: EmbeddingModel; provider: EmbeddingProvider }> {
+  provider ??= await embeddingProvider();
   if (provider === "ollama") {
     return {
       provider,
-      model: createOpenAICompatible({ name: "ollama", baseURL: ollamaBaseUrl() }).embeddingModel(EMBEDDING_MODELS.ollama),
+      model: createOpenAICompatible({ name: "ollama", baseURL: await ollamaApiUrl() }).embeddingModel(
+        EMBEDDING_MODELS.ollama,
+      ),
     };
   }
   return { provider, model: createOpenAI({ apiKey: await apiKey("openai") }).embeddingModel(EMBEDDING_MODELS.openai) };
+}
+
+/**
+ * Whether `provider` can embed now, else what it lacks: OpenAI needs its API key (a ChatGPT plan does not
+ * cover embeddings), Ollama a running server with the embedding model pulled.
+ */
+export type EmbeddingReadiness = "ready" | "no-openai-key" | "ollama-unreachable" | "ollama-model-missing";
+
+export async function embeddingReadiness(provider: EmbeddingProvider): Promise<EmbeddingReadiness> {
+  if (provider === "openai") return (await getSecret(PROVIDER_KEY_SECRET.openai!)) ? "ready" : "no-openai-key";
+  try {
+    const res = await fetch(new URL("/api/tags", await ollamaBase()), { signal: AbortSignal.timeout(3_000) });
+    if (!res.ok) return "ollama-unreachable";
+    const { models } = (await res.json()) as { models: { name: string }[] };
+    // Pulled without a tag, the model is listed as nomic-embed-text:latest.
+    const pulled = models.some((m) => m.name.split(":")[0] === EMBEDDING_MODELS.ollama);
+    return pulled ? "ready" : "ollama-model-missing";
+  } catch {
+    return "ollama-unreachable";
+  }
 }
 
 /** Voice messages are transcribed by OpenAI only. */

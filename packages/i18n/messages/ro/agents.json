@@ -86,7 +86,13 @@
     "search": "Caută sau scrie un id de model...",
     "empty": "Niciun model în catalog. Scrie id-ul manual.",
     "useCustom": "Folosește <mono>{id}</mono>",
-    "catalog": "Catalog (cu tool calling)"
+    "catalog": "Catalog (cu tool calling)",
+    "consumptionLevel": "Consum {level} din 5",
+    "class": {
+      "fast": "Rapid",
+      "balanced": "Echilibrat",
+      "powerful": "Puternic"
+    }
   },
   "chain": {
     "primary": "Principal",
@@ -114,7 +120,7 @@
     "modelDescription": "Modelul pe care rulează agentul.",
     "useDefault": "Modelul implicit",
     "defaultNotSet": "Nesetat încă",
-    "defaultHint": "Se schimbă din <link>Setări → Provideri AI</link> pentru toți agenții care îl folosesc.",
+    "defaultHint": "{role, select, orchestrator {Modelul implicit al super agentului.} manager {Modelul implicit al managerilor, pentru că acest agent conduce un proiect.} other {Modelul implicit al agenților.}} Se schimbă din <link>Setări → Provideri AI</link> pentru toți agenții care îl folosesc.",
     "defaultMissing": "Modelul implicit nu e setat: <link>setează-l în Setări → Provideri AI</link>",
     "useCustom": "Alege un model",
     "useCustomDescription": "Un provider și un model doar pentru acest agent.",
@@ -247,6 +253,18 @@
     "alwaysOn": "{model} gândește mereu; efortul nu poate fi setat.",
     "fallback": "{model} nu suportă {effort}; va folosi {resolved}.",
     "modelDefault": "setarea implicită a modelului",
+    "defaultFrom": "Implicit: {effort}, din {source}",
+    "defaultEffort": "Implicit: {effort}",
+    "defaultModel": "Implicit: decide modelul",
+    "short": {
+      "none": "Oprit",
+      "minimal": "Min",
+      "low": "Scăzut",
+      "medium": "Mediu",
+      "high": "Ridicat",
+      "xhigh": "Extra",
+      "max": "Max"
+    },
     "options": {
       "default": {
         "label": "Implicit",

@@ -9,7 +9,7 @@ import { sendMarkdown, type Target } from "../telegram/send";
 
 /** Project notifications go to the project's forum topic when one is configured. */
 async function targetFor(projectId: string | null | undefined): Promise<Target | null> {
-  const chatId = notifyChatId();
+  const chatId = await notifyChatId();
   if (!chatId) return null;
   if (!projectId) return { chatId };
   const [project] = await db.select({ topic: projects.telegramTopicId }).from(projects).where(eq(projects.id, projectId));

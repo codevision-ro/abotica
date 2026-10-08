@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
@@ -43,6 +44,11 @@ export const tasks = pgTable(
     reportedAt: timestamp({ withTimezone: true }),
     /** Times the delegating agent sent the task back on its own; capped so review loops end with the user. */
     redelegations: integer().notNull().default(0),
+    /**
+     * Delegated while its conversation had no free place (the parallelDelegations setting): it starts,
+     * oldest first, once one frees up. Null for every task that is not waiting for one.
+     */
+    waitingForSlotSince: timestamp({ withTimezone: true }),
     completedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -52,6 +58,9 @@ export const tasks = pgTable(
     index().on(t.assigneeAgentId),
     index().on(t.delegatedByRunId),
     index().on(t.parentId),
+    index()
+      .on(t.waitingForSlotSince)
+      .where(sql`${t.waitingForSlotSince} is not null`),
   ],
 );
 

@@ -1,13 +1,13 @@
-import { env } from "../infra/env";
 import { redis } from "../infra/redis";
 import { inputFromOllama } from "./input-modalities";
+import { ollamaBase } from "./ollama";
 import { isSubscriptionConnected, listSubscriptionModels } from "./subscriptions/connections";
 import { type ModelsDevReasoningOption, type ReasoningSupport, supportFromModelsDev, supportFromOllama } from "./reasoning";
 
 /** Model catalog and pricing from models.dev (USD per 1M tokens). */
 const CATALOG_URL = "https://models.dev/api.json";
 // Versioned: a cached entry from before a shape change is ignored, not misread.
-const CACHE_KEY = "abotica:catalog:v4";
+const CACHE_KEY = "abotica:catalog:v5";
 const CACHE_TTL_SECONDS = 24 * 3600;
 
 type ProviderInfo = {
@@ -67,6 +67,11 @@ export type CatalogModel = {
   releaseDate: string | null;
   /** USD per 1M tokens; `cacheWrite` is the 5-minute write price where writes cost extra. */
   cost: { input: number; output: number; cacheRead?: number; cacheWrite?: number } | null;
+  /**
+   * The provider's API price (USD per 1M tokens) even when a plan makes `cost` zero, so models compare by
+   * what they consume; `null` for a local model or one models.dev does not price.
+   */
+  listPrice: { input: number; output: number } | null;
 };
 
 /** The provider's tool-capable model with the lowest input price (the provider connection test uses it). */
@@ -97,6 +102,8 @@ async function fetchModelsDev(): Promise<ModelsDev> {
 }
 
 function fromModelsDev(m: ModelsDevModel, provider: ProviderId): CatalogModel {
+  const { input, output, cache_read, cache_write } = m.cost ?? {};
+  const priced = input !== undefined && output !== undefined;
   return {
     id: m.id,
     name: m.name,
@@ -106,10 +113,8 @@ function fromModelsDev(m: ModelsDevModel, provider: ProviderId): CatalogModel {
     input: m.modalities?.input ?? null,
     contextWindow: m.limit?.context ?? null,
     releaseDate: m.release_date ?? null,
-    cost:
-      m.cost?.input !== undefined && m.cost.output !== undefined
-        ? { input: m.cost.input, output: m.cost.output, cacheRead: m.cost.cache_read, cacheWrite: m.cost.cache_write }
-        : null,
+    cost: priced ? { input, output, cacheRead: cache_read, cacheWrite: cache_write } : null,
+    listPrice: priced ? { input, output } : null,
   };
 }
 
@@ -147,7 +152,7 @@ async function planModels(data: ModelsDev | null): Promise<{ models: CatalogMode
       models.push({
         ...(base
           ? fromModelsDev(base, provider)
-          : { toolCall: true, reasoning: null, input: null, contextWindow: null, releaseDate: null }),
+          : { toolCall: true, reasoning: null, input: null, contextWindow: null, releaseDate: null, listPrice: null }),
         ...m,
         provider,
         cost: PLAN_COST,
@@ -163,9 +168,9 @@ type OllamaShow = Parameters<typeof supportFromOllama>[0] & Parameters<typeof in
  * A local model's thinking support and input modalities from /api/show; a model that cannot be read
  * counts as not reasoning, with unknown input.
  */
-async function ollamaDetails(model: string): Promise<Pick<CatalogModel, "reasoning" | "input">> {
+async function ollamaDetails(base: string, model: string): Promise<Pick<CatalogModel, "reasoning" | "input">> {
   try {
-    const res = await fetch(new URL("/api/show", env().OLLAMA_BASE_URL), {
+    const res = await fetch(new URL("/api/show", base), {
       method: "POST",
       body: JSON.stringify({ model }),
       signal: AbortSignal.timeout(3_000),
@@ -180,7 +185,8 @@ async function ollamaDetails(model: string): Promise<Pick<CatalogModel, "reasoni
 
 async function fetchOllama(): Promise<CatalogModel[]> {
   try {
-    const res = await fetch(new URL("/api/tags", env().OLLAMA_BASE_URL), { signal: AbortSignal.timeout(3_000) });
+    const base = await ollamaBase();
+    const res = await fetch(new URL("/api/tags", base), { signal: AbortSignal.timeout(3_000) });
     if (!res.ok) return [];
     const data = (await res.json()) as { models: { name: string }[] };
     // Embedding models cannot chat; keep them out of the model pickers.
@@ -191,10 +197,11 @@ async function fetchOllama(): Promise<CatalogModel[]> {
         name: m.name,
         provider: "ollama" as const,
         toolCall: true,
-        ...(await ollamaDetails(m.name)),
+        ...(await ollamaDetails(base, m.name)),
         contextWindow: null,
         releaseDate: null,
         cost: { input: 0, output: 0 },
+        listPrice: null,
       })),
     );
   } catch {

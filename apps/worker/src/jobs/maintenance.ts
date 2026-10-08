@@ -21,11 +21,14 @@ import {
   promoteRecalledMemories,
   QUEUE,
   refreshCatalog,
+  reindexSlice,
+  requestReindex,
   requeueMissedReports,
   resolveModelChain,
   createRedis,
   sendBudgetAlerts,
   settingsLocale,
+  startAllWaitingTasks,
   sweepFiles,
   sweepPreviews,
   syncPullRequests,
@@ -52,14 +55,17 @@ async function sweepStoredFiles() {
 }
 
 /**
- * Fails runs nothing is going to end any more and sends the budget alerts that are due; logs only
- * when there were some.
+ * Fails runs nothing is going to end any more, queues the delegation reports that were missed, starts
+ * the delegated tasks that wait for a place already free and sends the budget alerts that are due; logs
+ * only when there were some.
  */
 export async function reapRuns() {
   const failed = await recoverRuns();
   if (failed) console.log(`[runs] failed ${failed} runs nothing was executing any more`);
   const requeued = await requeueMissedReports();
   if (requeued) console.log(`[delegation] queued ${requeued} missed delegation reports again`);
+  const started = await startAllWaitingTasks();
+  if (started) console.log(`[delegation] started ${started} delegated tasks that waited for a free place`);
   // Rides on the reaper's minute; a failure here must not fail the reaper's job.
   const alerts = await sendBudgetAlerts().catch((error: unknown) => {
     console.error("[budgets] checking the budget alerts failed:", error);
@@ -73,6 +79,17 @@ async function syncTaskPullRequests() {
   const synced = await syncPullRequests();
   if (synced) console.log(`[prs] synced ${synced} pull requests`);
 }
+
+/**
+ * A slice of the re-embedding after the embedding provider changed; while some is left, the next slice is
+ * queued at once, behind the maintenance jobs already waiting.
+ */
+async function reindexEmbeddings() {
+  if (await reindexSlice(REINDEX_SLICE_MS)) await requestReindex();
+}
+
+/** How long one slice of the re-embedding holds the maintenance queue. */
+const REINDEX_SLICE_MS = 10_000;
 
 async function sweepExpiredPreviews() {
   const expired = await sweepPreviews();
@@ -171,7 +188,7 @@ export async function writeJournals() {
 
 async function sendDigest(period: "daily" | "weekly") {
   const bot = getBot();
-  const chatId = notifyChatId();
+  const chatId = await notifyChatId();
   const settings = await getSettings();
   const language = localeEnglishNames[settingsLocale(settings)];
   const days = period === "daily" ? 1 : 7;
@@ -212,7 +229,7 @@ async function sendDigest(period: "daily" | "weekly") {
   // Content of a project whose restriction the digest's models do not satisfy never reaches them:
   // its tasks are left out and its journals follow the digest as they were written.
   const orchestrator = await getOrchestrator();
-  const closed = await projectsClosedTo(resolveModelChain(orchestrator, settings));
+  const closed = await projectsClosedTo(resolveModelChain(orchestrator, settings, "orchestrator"));
   const journalsBy = splitByProject(recentJournals, closed);
   const doneTitles = splitByProject(done, closed).open.map((t) => t.title);
   const waitingTitles = splitByProject(waiting, closed).open.map((t) => `${t.title} (${t.status})`);
@@ -328,6 +345,12 @@ export async function registerMaintenanceSchedules() {
   await q.upsertJobScheduler("runs-reap", { every: 60_000 }, { name: "runs-reap", data: { kind: "runs-reap" } });
   // Every minute, a batch at a time (PR_SYNC_BATCH): each open pull request comes up in turn.
   await q.upsertJobScheduler("prs-sync", { every: 60_000 }, { name: "prs-sync", data: { kind: "prs-sync" } });
+  // Picks up a re-embedding after a restart, and tries again after a provider error; idle, one query.
+  await q.upsertJobScheduler(
+    "embeddings-reindex",
+    { every: 60_000 },
+    { name: "embeddings-reindex", data: { kind: "embeddings-reindex" } },
+  );
   await q.upsertJobScheduler("files-sweep", { every: 3600_000 }, { name: "files-sweep", data: { kind: "files-sweep" } });
   await q.upsertJobScheduler(
     "previews-sweep",
@@ -374,6 +397,8 @@ export function startMaintenanceWorker() {
           return syncTaskPullRequests();
         case "updates-check":
           return void (await notifyUpdateAvailable(await checkForUpdates()));
+        case "embeddings-reindex":
+          return reindexEmbeddings();
       }
     },
     { connection: createRedis(), concurrency: 1 },

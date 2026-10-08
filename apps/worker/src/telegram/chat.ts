@@ -18,7 +18,7 @@ const externalIdOf = (ctx: Context) => {
  */
 async function routeOf(ctx: Context): Promise<ChatRoute> {
   const topic = topicOf(ctx.msg);
-  if (!topic || ctx.chat?.id !== notifyChatId()) return { kind: "orchestrator" };
+  if (!topic || ctx.chat?.id !== (await notifyChatId())) return { kind: "orchestrator" };
   const [project] = await db
     .select({ id: projects.id, name: projects.name, managerAgentId: projects.managerAgentId })
     .from(projects)

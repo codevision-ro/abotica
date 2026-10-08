@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 import type { ModelOption } from "@/server/queries/agents";
+import { ModelConsumptionMeter } from "./model-consumption";
 
 function formatContext(value: number | null): string | null {
   if (!value) return null;
@@ -106,6 +107,7 @@ export function ModelPicker({
                       </span>
                       <ModelMeta model={m} />
                     </div>
+                    {m.consumption && <ModelConsumptionMeter consumption={m.consumption} className="mt-0.5 shrink-0" />}
                   </CommandItem>
                 ))}
               </CommandGroup>

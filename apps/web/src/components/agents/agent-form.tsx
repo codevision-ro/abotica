@@ -1,6 +1,7 @@
 "use client";
 
 import type { ToolPermissions } from "@abotica/core/agents/permissions";
+import { modelRole, roleDefaultEffort, roleDefaultModels } from "@abotica/core/models/model-role";
 import type { ReasoningEffort } from "@abotica/core/models/reasoning";
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import {
@@ -112,6 +113,9 @@ export function AgentForm({
     initial.provider ? { provider: initial.provider, model: initial.model, fallbacks: initial.fallbacks } : null,
   );
   const usesDefault = !v.provider;
+  // "Default" means the default of the agent's role: the super agent's, the managers' or the agents'.
+  const role = modelRole({ isOrchestrator }, isManager);
+  const defaultChain = roleDefaultModels(options, role);
   const setUsesDefault = (on: boolean) => {
     if (on && v.provider) explicitModel.current = { provider: v.provider, model: v.model, fallbacks: v.fallbacks };
     const restored = explicitModel.current ?? {
@@ -127,7 +131,7 @@ export function AgentForm({
 
   const provider = options.providers.find((p) => p.id === v.provider);
   const selectedModel = options.models.find((m) => m.provider === v.provider && m.id === v.model);
-  const primary = usesDefault ? options.defaultModels[0] : { provider: v.provider, model: v.model };
+  const primary = usesDefault ? defaultChain[0] : { provider: v.provider, model: v.model };
   const primaryModel = options.models.find((m) => m.provider === primary?.provider && m.id === primary?.model);
   const link = (href: string) =>
     function RichLink(chunks: React.ReactNode) {
@@ -138,7 +142,7 @@ export function AgentForm({
       );
     };
 
-  const inheritedEffort = { effort: options.defaultReasoningEffort, source: te("sources.settings") };
+  const inheritedEffort = { effort: roleDefaultEffort(options, role), source: te("sources.settings") };
   const inheritedLabel =
     inheritedEffort.effort === "default"
       ? te("inheritModel")
@@ -155,8 +159,8 @@ export function AgentForm({
     .filter(Boolean)
     .join(" · ");
   const modelSummary = usesDefault
-    ? options.defaultModels.length
-      ? t("defaultSummary", { chain: chainLabel(options.defaultModels.slice(0, 1)) })
+    ? defaultChain.length
+      ? t("defaultSummary", { chain: chainLabel(defaultChain.slice(0, 1)) })
       : t("defaultNotSet")
     : v.model
       ? `${v.provider}/${v.model}`
@@ -230,7 +234,7 @@ export function AgentForm({
   );
   const status = (done: boolean): SummaryStatus => (done ? "done" : "todo");
   const statusLabel = (done: boolean) => (done ? t("complete") : t("incomplete"));
-  const modelDone = usesDefault ? options.defaultModels.length > 0 : Boolean(v.model?.trim());
+  const modelDone = usesDefault ? defaultChain.length > 0 : Boolean(v.model?.trim());
 
   return (
     <FormPage
@@ -396,8 +400,8 @@ export function AgentForm({
               value: "default",
               icon: SparklesIcon,
               title: t("useDefault"),
-              description: options.defaultModels.length ? (
-                <span className="font-mono wrap-anywhere">{chainLabel(options.defaultModels)}</span>
+              description: defaultChain.length ? (
+                <span className="font-mono wrap-anywhere">{chainLabel(defaultChain)}</span>
               ) : (
                 <span className="text-warning">{t("defaultNotSet")}</span>
               ),
@@ -412,8 +416,8 @@ export function AgentForm({
         />
 
         {usesDefault ? (
-          options.defaultModels.length ? (
-            <p className="text-xs text-muted-foreground">{t.rich("defaultHint", { link: link("/settings") })}</p>
+          defaultChain.length ? (
+            <p className="text-xs text-muted-foreground">{t.rich("defaultHint", { role, link: link("/settings") })}</p>
           ) : (
             <p className="flex items-center gap-1.5 text-xs text-warning">
               <TriangleAlertIcon className="size-3.5 shrink-0" aria-hidden />

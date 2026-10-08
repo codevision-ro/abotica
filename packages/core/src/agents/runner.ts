@@ -32,6 +32,7 @@ import { buildInstructions, type DeferredToolGroup, loadRunContext, type RunCont
 import { withRecall } from "../memory/memory-budget";
 import { recallForRun } from "../memory/memory-recall";
 import { FallbackModel } from "../models/fallback-model";
+import { modelRole, roleDefaultEffort } from "../models/model-role";
 import { inheritedEffort } from "../models/reasoning";
 import type { McpToolSource } from "./mcp";
 import { loadMcpTools, type McpConnection } from "./mcp-runtime";
@@ -275,7 +276,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       effort: inheritedEffort(
         ctx.conversation?.reasoningEffort,
         ctx.agent.reasoningEffort,
-        ctx.settings.defaultReasoningEffort,
+        roleDefaultEffort(ctx.settings, modelRole(ctx.agent, ctx.isManager)),
       ),
       onFallback: (e) => logEventInBackground(runId, "fallback", e),
       onRetry: (e) => logEventInBackground(runId, "retry", e),
@@ -321,8 +322,10 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
     // conversation on every step, and the one on the instructions caches tools and system prompt,
     // which the agent's other conversations share. Other providers cache prefixes on their own.
     // Both stay when a compaction replaces the messages: the top-level one is a request option.
+    // OpenAI routes requests with the same key to the same cache: the conversation's steps and runs share it.
     const ttl = cacheTtl(ctx);
     const cacheOptions = { anthropic: { cacheControl: { type: "ephemeral", ttl } } } as const;
+    const requestOptions = { ...cacheOptions, openai: { promptCacheKey: conversationId } };
     const instructions = await buildInstructions(ctx, deferredGroups(ctx, deferred, mcpSources));
     const compactor = createCompactor({
       ctx,
@@ -392,7 +395,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       const result = streamText({
         model,
         instructions: { role: "system", content: instructions, providerOptions: cacheOptions },
-        providerOptions: cacheOptions,
+        providerOptions: requestOptions,
         messages: [...summaryMessages(prompt), ...(await toModel(prompt.messages))],
         tools,
         toolApproval: approvalPolicy(ctx, mcpSources),

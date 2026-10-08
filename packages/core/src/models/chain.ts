@@ -1,4 +1,5 @@
-import type { agents, ModelRef } from "@abotica/db";
+import { type agents, db, type ModelRef, projects } from "@abotica/db";
+import { eq } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import {
   type CatalogModel,
@@ -9,21 +10,27 @@ import {
   PROVIDERS,
   type ProviderId,
 } from "./catalog";
+import { type ModelRole, type RoleModelSettings, roleDefaultModels } from "./model-role";
 import { isProviderConfigured } from "./providers";
-import type { AppSettings } from "../platform/settings";
 
 type AgentModelFields = Pick<typeof agents.$inferSelect, "provider" | "model" | "fallbacks">;
 
 /** True when the agent has no model of its own and follows the default from settings. */
 export const usesDefaultModel = (agent: AgentModelFields) => !agent.provider || !agent.model;
 
-/** The ordered model chain an agent runs on: its own, or the default from settings. */
-export function resolveModelChain(agent: AgentModelFields, settings: AppSettings): ModelRef[] {
-  if (usesDefaultModel(agent)) return settings.defaultModels;
+/** The ordered model chain an agent runs on: its own, or its role's default from settings (see modelRole). */
+export function resolveModelChain(agent: AgentModelFields, settings: RoleModelSettings, role: ModelRole): ModelRef[] {
+  if (usesDefaultModel(agent)) return roleDefaultModels(settings, role);
   return [{ provider: agent.provider!, model: agent.model! }, ...agent.fallbacks];
 }
 
-/** No model on the agent and no default model in settings. */
+/** Whether the agent leads at least one project, which makes it a manager (see modelRole). */
+export async function managesProject(agentId: string): Promise<boolean> {
+  const [row] = await db.select({ id: projects.id }).from(projects).where(eq(projects.managerAgentId, agentId)).limit(1);
+  return Boolean(row);
+}
+
+/** No model on the agent and no default model for its role in settings. */
 export class NoModelError extends UserError {
   constructor() {
     super("errors.noModel");

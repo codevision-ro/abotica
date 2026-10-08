@@ -3,9 +3,11 @@ import {
   PROVIDER_IDS,
   PROVIDERS,
   type CatalogModel,
+  consumptionOf,
   getCatalog,
   getSettings,
   isProviderConfigured,
+  type ModelConsumption,
   searchJournals,
 } from "@abotica/core";
 import type { ReasoningEffort, ReasoningSupport } from "@abotica/core/models/reasoning";
@@ -42,14 +44,22 @@ export type ModelOption = {
   /** Reasoning efforts it accepts, per the catalog; null when it does not reason. */
   reasoning: ReasoningSupport | null;
   cost: { input: number; output: number } | null;
+  /** From the list price, so a plan model shows what it takes of the plan's limit; null without a price. */
+  consumption: ModelConsumption | null;
 };
 
 export type AgentFormOptions = {
   providers: ProviderOption[];
   /** Default chain from settings, used by agents with no model of their own. */
   defaultModels: { provider: string; model: string }[];
+  /** The super agent's and the managers' defaults; empty follows defaultModels (see roleDefaultModels). */
+  orchestratorModels: { provider: string; model: string }[];
+  managerModels: { provider: string; model: string }[];
   /** Effort from settings, used by agents whose effort is "default". */
   defaultReasoningEffort: ReasoningEffort;
+  /** The super agent's and the managers' efforts; null follows defaultReasoningEffort (see roleDefaultEffort). */
+  orchestratorReasoningEffort: ReasoningEffort | null;
+  managerReasoningEffort: ReasoningEffort | null;
   models: ModelOption[];
   skills: { id: string; name: string; description: string }[];
   mcpServers: {
@@ -182,7 +192,11 @@ export const getAgentFormOptions = query(async (): Promise<AgentFormOptions> => 
   const settings = await getSettings();
   return {
     defaultModels: settings.defaultModels,
+    orchestratorModels: settings.orchestratorModels,
+    managerModels: settings.managerModels,
     defaultReasoningEffort: settings.defaultReasoningEffort,
+    orchestratorReasoningEffort: settings.orchestratorReasoningEffort,
+    managerReasoningEffort: settings.managerReasoningEffort,
     providers: PROVIDER_IDS.map((id, i) => ({ id, label: PROVIDERS[id].label, configured: configured[i] ?? false })),
     models: catalog
       .filter((m) => m.toolCall)
@@ -193,6 +207,7 @@ export const getAgentFormOptions = query(async (): Promise<AgentFormOptions> => 
         contextWindow: m.contextWindow,
         reasoning: m.reasoning,
         cost: m.cost ? { input: m.cost.input, output: m.cost.output } : null,
+        consumption: consumptionOf(m.listPrice),
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     skills: skillRows,

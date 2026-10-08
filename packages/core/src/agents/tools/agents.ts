@@ -19,15 +19,18 @@ import { z } from "zod";
 import { createAgentConfig, updateAgentConfig, versionNotes } from "../agent-config";
 import { audit } from "../../platform/audit";
 import { addProjectMembers } from "../../projects/projects";
-import { assertProviderUsable, usesDefaultModel } from "../../models/chain";
+import { assertProviderUsable, managesProject, usesDefaultModel } from "../../models/chain";
+import { type ModelRole, modelRole, roleDefaultModels } from "../../models/model-role";
 import type { RunContext } from "../context";
 import { REASONING_EFFORTS } from "../../models/reasoning";
 import { defaultPermissions } from "../permissions";
 import { actorOf, agentBySlug, blankToUndefined, errorResult, optionalText, type ToolFactory } from "./shared";
 
-/** An explicit model keeps the default chain behind it, so the agent survives provider outages. */
-const fallbacksFor = (ctx: RunContext, primary: ModelRef): ModelRef[] =>
-  ctx.settings.defaultModels.filter((m) => m.provider !== primary.provider || m.model !== primary.model);
+/** An explicit model keeps its role's default chain behind it, so the agent survives provider outages. */
+const fallbacksFor = (ctx: RunContext, primary: ModelRef, role: ModelRole): ModelRef[] =>
+  roleDefaultModels(ctx.settings, role).filter((m) => m.provider !== primary.provider || m.model !== primary.model);
+
+const modelLabel = (m: ModelRef | undefined) => (m ? `${m.provider}/${m.model}` : "not set");
 
 /** Validates a provider/model pair from a tool call; null means the default models. */
 async function pickModel(
@@ -53,7 +56,7 @@ async function managedAgent(slug: string) {
 }
 
 export const agentTools: Record<string, ToolFactory> = {
-  agent_list: () =>
+  agent_list: (ctx) =>
     tool({
       description:
         "List the available agents with their roles, models, projects (manager: true where they lead it), skills and MCP servers. Use it before delegating.",
@@ -71,11 +74,15 @@ export const agentTools: Record<string, ToolFactory> = {
           .select({ id: projects.id, managerAgentId: projects.managerAgentId })
           .from(projects)
           .where(isNotNull(projects.managerAgentId));
+        const managers = new Set(led.map((l) => l.managerAgentId));
         return rows.map((a) => ({
           slug: a.slug,
           name: a.name,
           role: a.role,
-          model: usesDefaultModel(a) ? "default" : `${a.provider}/${a.model}`,
+          // "default" with the model it resolves to, since each role has its own default.
+          model: usesDefaultModel(a)
+            ? `default (${modelLabel(roleDefaultModels(ctx.settings, modelRole(a, managers.has(a.id)))[0])})`
+            : `${a.provider}/${a.model}`,
           orchestrator: a.isOrchestrator,
           projects: a.projects.map((p) => ({
             id: p.project.id,
@@ -91,7 +98,7 @@ export const agentTools: Record<string, ToolFactory> = {
   agent_create: (ctx) =>
     tool({
       description:
-        "Create a new agent (requires the user's approval). By default the agent uses the default model; pick a provider and a model only if the role needs something else, and only from the available models. With projectIds it joins those projects' teams, where their managers can delegate to it.",
+        "Create a new agent (requires the user's approval). By default the agent uses the agents' default model; pick a provider and a model only if the role needs something else, and only from the available models. With projectIds it joins those projects' teams, where their managers can delegate to it.",
       inputSchema: z.object({
         name: z.string().min(2),
         role: z.string().min(3),
@@ -120,7 +127,8 @@ export const agentTools: Record<string, ToolFactory> = {
             systemPrompt: input.systemPrompt,
             provider: picked.ref?.provider ?? null,
             model: picked.ref?.model ?? null,
-            fallbacks: picked.ref ? fallbacksFor(ctx, picked.ref) : [],
+            // A new agent manages no project yet.
+            fallbacks: picked.ref ? fallbacksFor(ctx, picked.ref, "agent") : [],
             reasoningEffort: "default",
             permissions: defaultPermissions({ isOrchestrator: false, isManager: false }),
             limits: DEFAULT_AGENT_LIMITS,
@@ -175,7 +183,7 @@ export const agentTools: Record<string, ToolFactory> = {
           : picked.ref && {
               provider: picked.ref.provider,
               model: picked.ref.model,
-              fallbacks: fallbacksFor(ctx, picked.ref),
+              fallbacks: fallbacksFor(ctx, picked.ref, modelRole(agent, await managesProject(agent.id))),
             };
         const result = await updateAgentConfig(
           agent.id,

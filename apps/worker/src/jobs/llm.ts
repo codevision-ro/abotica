@@ -3,6 +3,8 @@ import {
   estimateCost,
   FallbackModel,
   getSettings,
+  managesProject,
+  modelRole,
   NoAllowedProviderError,
   NoModelError,
   projectProviderPolicy,
@@ -15,10 +17,11 @@ import { generateText } from "ai";
 type Agent = typeof agents.$inferSelect;
 
 /**
- * One-shot LLM call for background jobs (journals, digests, consolidation), on the agent's own model
- * chain limited to the providers `projectId` allows: the project whose data the prompt carries, null
- * for none. Recorded as a "system" run of that project so its cost shows up in tracking and its budget.
- * Null, without a call, once the global monthly budget or the project's is reached.
+ * One-shot LLM call for background jobs (journals, digests, consolidation), on the agent's model chain
+ * (its own or its role's default) limited to the providers `projectId` allows: the project whose data
+ * the prompt carries, null for none. Recorded as a "system" run of that project so its cost shows up
+ * in tracking and its budget. Null, without a call, once the global monthly budget or the project's
+ * is reached.
  */
 export async function systemCompletion(input: {
   agent: Agent;
@@ -28,7 +31,8 @@ export async function systemCompletion(input: {
   prompt: string;
 }) {
   const { agent, projectId, purpose, instructions, prompt } = input;
-  const fullChain = resolveModelChain(agent, await getSettings());
+  const role = modelRole(agent, await managesProject(agent.id));
+  const fullChain = resolveModelChain(agent, await getSettings(), role);
   if (!fullChain.length) throw new NoModelError();
   const chain = allowedModelChain(await projectProviderPolicy(projectId), fullChain);
   if (!chain.length) throw new NoAllowedProviderError();

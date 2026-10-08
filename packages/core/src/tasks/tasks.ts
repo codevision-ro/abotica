@@ -298,6 +298,12 @@ export function isActiveTaskRunConflict(error: unknown): boolean {
   return false;
 }
 
+/**
+ * A task moved out of the backlog was started, settled or moved by hand: it no longer waits for a place
+ * (delegation-slots.ts), so it is never started later.
+ */
+export const leavesBacklog = (status: TaskStatus | undefined): boolean => status !== undefined && status !== "backlog";
+
 export async function updateTask(
   id: string,
   patch: Partial<
@@ -321,6 +327,7 @@ export async function updateTask(
   if (!before) throw new Error(`Task ${id} not found`);
 
   const values: Partial<Task> = { ...patch };
+  if (leavesBacklog(patch.status)) values.waitingForSlotSince = null;
   if (patch.status && patch.status !== before.status) {
     values.completedAt = patch.status === "done" ? new Date() : null;
     if (patch.position === undefined) values.position = await nextPosition(before.projectId, patch.status);

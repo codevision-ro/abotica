@@ -219,6 +219,12 @@
       "closed": "Pull request-ul {label} al task-ului \"{title}\" a fost închis fără merge. {url}"
     }
   },
+  "slots": {
+    "waiting": "Așteaptă un loc liber",
+    "waitingTitle": "Așteaptă un loc liber: pornește singur când se termină unul dintre celelalte task-uri delegate",
+    "waitingHint": "Doar câteva task-uri delegate din aceeași conversație rulează în același timp (Setări > General). Acesta pornește singur când se termină unul dintre ele; Rulează acum îl pornește imediat.",
+    "startFailed": "Acest task a așteptat un loc liber și nu a putut porni când s-a eliberat unul: {reason}. Rezolvă cauza, apoi pornește-l din nou."
+  },
   "wakeups": {
     "title": "Așteaptă",
     "condition": {

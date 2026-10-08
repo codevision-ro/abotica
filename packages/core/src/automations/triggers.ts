@@ -5,7 +5,8 @@ import { UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
 import { loadDelegationProject } from "../tasks/delegation";
 import { env } from "../infra/env";
-import { type Run, startRun, startTaskRun } from "../runs/runs";
+import { type Run, startRun } from "../runs/runs";
+import { startDelegatedTask } from "../tasks/delegation-slots";
 import { TaskCircuitOpenError, unblockedDependents } from "../tasks/tasks";
 import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-rules";
 import { usesWebhook } from "./trigger-events";
@@ -218,7 +219,8 @@ export async function handleTaskEvent(taskId: string, event: "created" | "done")
     for (const next of await unblockedDependents(task.id)) {
       if (!next.assigneeAgentId || next.status !== "backlog") continue;
       try {
-        await startTaskRun(next.id);
+        // A delegated one takes a place of its delegator's conversation, or waits for one.
+        await startDelegatedTask(next.id);
       } catch (error) {
         if (error instanceof TaskCircuitOpenError) {
           console.warn(`[triggers] task ${next.id} not started after ${task.id}: its runs keep failing`);

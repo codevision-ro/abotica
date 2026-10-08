@@ -10,6 +10,7 @@ import {
   FileIcon,
   FileTextIcon,
   FolderIcon,
+  HourglassIcon,
   InfoIcon,
   Link2Icon,
   ListChecksIcon,
@@ -200,6 +201,7 @@ export function TaskDetail({
             />
           </div>
           {task.failures.open && <FailingRunsNotice failures={task.failures.failures} reason={task.failures.reason} />}
+          {task.waitingForSlotSince && <WaitingForSlotNotice />}
         </header>
 
         <div className="grid items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_20rem] @3xl:grid-rows-[auto_auto_1fr]">
@@ -278,6 +280,18 @@ function FailingRunsNotice({ failures, reason }: { failures: number; reason: str
         {reason && <p>{reason}</p>}
         <p className="text-muted-foreground">{t("circuitOpenHint")}</p>
       </AlertDescription>
+    </Alert>
+  );
+}
+
+/** Delegated while its conversation had no free place: it starts on its own, or now with Run now. */
+function WaitingForSlotNotice() {
+  const t = useTranslations("tasks.slots");
+  return (
+    <Alert>
+      <HourglassIcon />
+      <AlertTitle>{t("waiting")}</AlertTitle>
+      <AlertDescription>{t("waitingHint")}</AlertDescription>
     </Alert>
   );
 }

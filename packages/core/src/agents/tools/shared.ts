@@ -106,4 +106,6 @@ export const taskSummary = (t: Task) => ({
   projectId: t.projectId,
   assigneeAgentId: t.assigneeAgentId,
   deadline: t.deadline?.toISOString() ?? null,
+  // Delegated while too many of its round ran: it starts on its own, nobody needs to start it.
+  ...(t.waitingForSlotSince ? { waitingForFreePlace: true } : {}),
 });

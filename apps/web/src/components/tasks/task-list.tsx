@@ -9,7 +9,7 @@ import { PriorityBadge, TaskStatusBadge, useStatusLabels } from "@/components/ap
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { BoardTask } from "@/server/queries/tasks";
-import { ActiveRunDot, TaskAssignee, TaskAssigneeAvatar, TaskDeadline } from "./task-card";
+import { ActiveRunDot, TaskAssignee, TaskAssigneeAvatar, TaskDeadline, WaitingForSlotBadge } from "./task-card";
 import { TaskStatusIcon } from "./task-icons";
 import { PRIORITY_RANK, rememberOverlayBase, useTaskParams } from "./task-meta";
 
@@ -56,6 +56,7 @@ export function TaskList({ tasks }: { tasks: BoardTask[] }) {
                 <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
                   <PriorityBadge priority={task.priority} />
                   <TaskDeadline deadline={task.deadline} status={task.status} />
+                  {task.waitingForSlotSince && <WaitingForSlotBadge />}
                   {task.subtaskTotal > 0 && (
                     <span className="inline-flex items-center gap-1 tabular">
                       <ListChecksIcon className="size-3.5" />
@@ -118,7 +119,10 @@ export function TaskList({ tasks }: { tasks: BoardTask[] }) {
                 </div>
               </TableCell>
               <TableCell>
-                <TaskStatusBadge status={task.status} />
+                <div className="flex items-center gap-1.5">
+                  <TaskStatusBadge status={task.status} />
+                  {task.waitingForSlotSince && <WaitingForSlotBadge />}
+                </div>
               </TableCell>
               <TableCell>
                 <PriorityBadge priority={task.priority} />

@@ -5,6 +5,7 @@ import {
   conversations,
   db,
   mcpServers,
+  type ModelRef,
   projectAgents,
   projectMcpServers,
   projects,
@@ -347,11 +348,16 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
 
   if (agent.isOrchestrator) {
     const available = await availableProviders();
-    const defaults = settings.defaultModels.map((m) => `${m.provider}/${m.model}`).join(" -> ") || "not set";
+    const chain = (models: ModelRef[]) => models.map((m) => `${m.provider}/${m.model}`).join(" -> ") || "not set";
+    const roleDefault = (models: ModelRef[]) => (models.length ? chain(models) : "same as the agents' default");
     sections.push(
       [
         "# Available models",
-        `Default model (primary, then fallbacks): ${defaults}. New agents use it unless you pick something else.`,
+        "Default models (primary, then fallbacks) for agents without a model of their own, by role:",
+        `- Agents: ${chain(settings.defaultModels)}. New agents use it unless you pick something else.`,
+        `- Managers (agents that manage a project): ${roleDefault(settings.managerModels)}.`,
+        `- You, the super agent: ${roleDefault(settings.orchestratorModels)}.`,
+        "An agent that becomes a project's manager switches to the managers' default.",
         available.length
           ? "Providers with a configured API key (newest models):"
           : "No provider has an API key configured.",

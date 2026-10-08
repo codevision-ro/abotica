@@ -3,6 +3,7 @@ import { generateId, type UIMessage } from "ai";
 import { and, asc, desc, eq, inArray, isNull, lt, notExists, sql } from "@abotica/db/orm";
 import { getTranslator } from "@abotica/i18n";
 import { fullModelChain } from "../agents/model-chain";
+import { managesProject } from "../models/chain";
 import { inputPath } from "../agents/workspace-paths";
 import {
   type DelegationReportMetadata,
@@ -18,6 +19,7 @@ import { enqueueDelegationReport, notify } from "../infra/queues";
 import { ConversationBusyError, type Run, startContinuation } from "../runs/runs";
 import { getSettings, settingsLocale } from "../platform/settings";
 import { addTaskComment, updateTask } from "./tasks";
+import { startWaitingTasks } from "./delegation-slots";
 import { neutralizeMarkers, wrapUntrusted } from "../agents/untrusted";
 import { newMarkerId } from "../agents/untrusted-id";
 import type { DelegationProject } from "./team-rules";
@@ -163,15 +165,16 @@ type Delegator = { run: typeof runs.$inferSelect; agent: typeof agents.$inferSel
  * chain must be left. Its project is the one loadRunContext gives it: the super agent works in none.
  */
 async function delegatorMayRead({ run, agent }: Delegator, conversationId: string, settled: Settled[]): Promise<boolean> {
-  const [[conversation], settings] = await Promise.all([
+  const [[conversation], settings, isManager] = await Promise.all([
     db.select().from(conversations).where(eq(conversations.id, conversationId)),
     getSettings(),
+    managesProject(agent.id),
   ]);
   const policy = combinePolicies(
     await runProviderPolicy(agent.isOrchestrator ? null : run.projectId, conversationId),
     await projectsProviderPolicy(settled.flatMap((t) => (t.projectId ? [t.projectId] : []))),
   );
-  return !deniesEveryModel(policy, fullModelChain({ agent, settings, conversation: conversation ?? null }));
+  return !deniesEveryModel(policy, fullModelChain({ agent, settings, conversation: conversation ?? null, isManager }));
 }
 
 /**
@@ -227,9 +230,10 @@ async function blockOwnTask({ run, agent }: Delegator, settled: Settled[]): Prom
 
 /**
  * Called after every run. When the run worked on a delegated task, the tasks delegated from the same
- * conversation are reported back together once none of them is still running: the result arrives as a
- * notice and the delegating agent continues there to tell the user. A task waiting for an approval does
- * not hold the others back; it is reported on its own once it settles.
+ * conversation are reported back together once none of them is still running or waiting for a place
+ * (delegation-slots.ts): the result arrives as a notice and the delegating agent continues there to tell
+ * the user. A task waiting for an approval does not hold the others back; it is reported on its own once
+ * it settles.
  *
  * Delegation nests: a manager working on the super agent's task delegates subtasks from its task's
  * conversation. Their report continues that conversation on the same task, so when the manager settles
@@ -245,15 +249,17 @@ export async function reportDelegatedTasks(finished: Run): Promise<Run | null> {
     .where(eq(tasks.id, finished.taskId));
   const conversationId = origin?.delegator.conversationId;
   if (!origin || !conversationId) return null;
+  // The place this run held goes to the next waiting task first, which then keeps the round open.
+  await startWaitingTasks(conversationId);
 
-  const unreported = (
-    await db
-      .select({ id: tasks.id })
-      .from(tasks)
-      .innerJoin(runs, eq(runs.id, tasks.delegatedByRunId))
-      .where(and(eq(runs.conversationId, conversationId), isNull(tasks.reportedAt)))
-  ).map((t) => t.id);
-  if (!unreported.length) return null;
+  const round = await db
+    .select({ id: tasks.id, waitingForSlotSince: tasks.waitingForSlotSince })
+    .from(tasks)
+    .innerJoin(runs, eq(runs.id, tasks.delegatedByRunId))
+    .where(and(eq(runs.conversationId, conversationId), isNull(tasks.reportedAt)));
+  if (!round.length) return null;
+  if (round.some((t) => t.waitingForSlotSince)) return null; // it starts once a place frees up
+  const unreported = round.map((t) => t.id);
   const [working] = await db
     .select({ id: runs.id })
     .from(runs)

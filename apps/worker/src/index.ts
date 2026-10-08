@@ -1,10 +1,11 @@
 import path from "node:path";
-import { env, setDefaultUploadsRoot, subscribe } from "@abotica/core";
+import { env, getSettings, importLegacyEnv, setDefaultUploadsRoot, subscribe } from "@abotica/core";
 import { prepareBuiltinMcpServers } from "@abotica/core/agents/mcp-runtime";
 import { encryptLegacyMcpCredentials } from "@abotica/core/mcp-servers";
 import { startPreviewServer } from "@abotica/core/preview-server";
 import { closeSandbox, initSandbox } from "@abotica/core/sandbox-runtime";
-import { defaultLocale, getTranslator, locales } from "@abotica/i18n";
+import { defaultLocale, getTranslator } from "@abotica/i18n";
+import type { Worker } from "bullmq";
 import { startDelegationReportsWorker } from "./jobs/delegation-reports";
 import { reapRuns, startMaintenanceWorker, registerMaintenanceSchedules } from "./jobs/maintenance";
 import { startNotificationsWorker } from "./jobs/notifications";
@@ -12,8 +13,8 @@ import { describeSandbox, startSandboxWorker } from "./jobs/sandbox";
 import { startSchedulesWorker } from "./jobs/schedules";
 import { startTaskEventsWorker } from "./jobs/task-events";
 import { abortAllRuns, abortRun, activeRunCount, drainRuns, startRunsWorker } from "./runtime";
-import { botTranslator, getBot } from "./telegram/bot";
-import { registerHandlers } from "./telegram/handlers";
+import { botTranslator } from "./telegram/bot";
+import { closeBot, reloadBot } from "./telegram/bot-lifecycle";
 
 // Stored files live in the uploads folder the web app serves; without UPLOADS_DIR that is its .data/uploads.
 setDefaultUploadsRoot(path.resolve(process.cwd(), "../web/.data/uploads"));
@@ -36,7 +37,16 @@ async function main() {
   // Runs a crashed worker left behind; ones a live worker still holds are left to it. A failure here
   // must not keep the worker from starting: the periodic reaper tries again.
   await reapRuns().catch((error: unknown) => console.error("[runs] recovering runs at start failed:", error));
-  const concurrency = env().RUN_CONCURRENCY;
+
+  // Telegram, the Ollama address, the embedding provider and the run concurrency used to be set in .env;
+  // what is still only there moves to Settings, once, before anything reads them.
+  try {
+    const imported = await importLegacyEnv();
+    if (imported.length) console.log(`[settings] imported ${imported.join(", ")} from .env into Settings`);
+  } catch (error) {
+    console.error("[settings] importing the .env values failed:", error);
+  }
+  const concurrency = (await getSettings()).runConcurrency;
 
   // Before the runs worker starts, so the first runs already get their workspace tools.
   try {
@@ -58,8 +68,9 @@ async function main() {
   const previews = await startPreviewServer();
   console.log(`[previews] ${env().PREVIEW_URL} served on port ${env().PREVIEW_PORT}`);
 
+  const runsWorker = startRunsWorker(concurrency);
   const workers = [
-    startRunsWorker(concurrency),
+    runsWorker,
     startSchedulesWorker(),
     startMaintenanceWorker(),
     startNotificationsWorker(),
@@ -71,31 +82,18 @@ async function main() {
   await registerMaintenanceSchedules();
 
   // The kill switch stops everything running here; a cancel stops one run, wherever it is executing.
+  // A Telegram token saved or removed in Settings restarts or stops the bot.
   const unsubscribe = subscribe((event) => {
     if (event.type === "kill-switch" && event.active) {
       if (event.reason) abortAllRuns(event.reason, "kill_switch");
       else void botTranslator().then((t) => abortAllRuns(t("errors.run.stoppedByKillSwitch"), "kill_switch"));
     }
     if (event.type === "run.cancel") abortRun(event.runId, event.reason, event.kind);
+    if (event.type === "telegram.config-changed") void reloadBot();
+    if (event.type === "settings.updated") void applyRunConcurrency(runsWorker);
   });
 
-  const bot = getBot();
-  if (bot) {
-    registerHandlers(bot);
-    // Command names stay the same in every language; only the descriptions are translated.
-    // The default list is English; Telegram clients set to another supported language get theirs.
-    for (const locale of locales) {
-      const t = getTranslator(locale);
-      const commands = (["status", "tasks", "new", "stop", "resume"] as const).map((command) => ({
-        command,
-        description: t(`telegram.commands.${command}`),
-      }));
-      await bot.api.setMyCommands(commands, locale === defaultLocale ? {} : { language_code: locale });
-    }
-    void bot.start({ onStart: (me) => console.log(`[telegram] @${me.username} started`) });
-  } else {
-    console.warn("[telegram] TELEGRAM_BOT_TOKEN is missing, the bot will not start");
-  }
+  await reloadBot();
 
   console.log(`[worker] started (concurrency ${concurrency})`);
 
@@ -107,7 +105,7 @@ async function main() {
     try {
       // No new work: polling stops (bot.api keeps working, so stopped runs still deliver their
       // Telegram reply) and the workers fetch no more jobs; each close() resolves once its jobs end.
-      const botStopped = bot?.stop().catch((error: unknown) => console.error("[telegram] stopping:", error));
+      const botStopped = closeBot().catch((error: unknown) => console.error("[telegram] stopping:", error));
       const closed = workers.map((w) => w.close());
       const running = activeRunCount();
       if (running) console.log(`[worker] waiting up to ${drainMs / 1000}s for ${running} run(s) to finish`);
@@ -126,6 +124,21 @@ async function main() {
   shutdown = stop;
   process.on("SIGINT", () => void stop(0, env().WORKER_SHUTDOWN_DRAIN_MS));
   process.on("SIGTERM", () => void stop(0, env().WORKER_SHUTDOWN_DRAIN_MS));
+}
+
+/**
+ * Applies the run concurrency saved in Settings without a restart. BullMQ reads it before fetching each
+ * job: a lower value lets the runs in progress finish, a higher one starts more once a place is free.
+ */
+async function applyRunConcurrency(worker: Worker) {
+  try {
+    const { runConcurrency } = await getSettings();
+    if (worker.concurrency === runConcurrency) return;
+    worker.concurrency = runConcurrency;
+    console.log(`[worker] run concurrency is now ${runConcurrency}`);
+  } catch (error) {
+    console.error("[worker] applying the run concurrency failed:", error);
+  }
 }
 
 /** Why runs still going at shutdown were stopped, in the language from Settings (English if that cannot be read). */

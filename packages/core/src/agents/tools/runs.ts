@@ -7,7 +7,8 @@ import { z } from "zod";
 import { audit } from "../../platform/audit";
 import { answersUser, loadDelegationProject, MAX_REDELEGATIONS, redelegateTask } from "../../tasks/delegation";
 import { deleteFile, readFileBytes, saveFile } from "../../files/files";
-import { cancelRun, startTaskRun } from "../../runs/runs";
+import { cancelRun } from "../../runs/runs";
+import { startDelegatedTask } from "../../tasks/delegation-slots";
 import {
   activeTaskRun,
   createTask,
@@ -109,7 +110,11 @@ const circuitOpen = (taskId: string, streak: FailureStreak) => ({
 });
 
 const DELEGATE_BASE =
-  "Hand a task to an agent and start it right away (or once its dependencies are done). Write a complete description: the agent does not see your conversation or your workspace, so pass the files it needs in files. To retry or reassign an existing task (e.g. a blocked one), send its taskId instead of a title and description. When the work finishes you get its result here automatically, with the files it produced: do not poll for it.";
+  "Hand a task to an agent and start it right away (or once its dependencies are done, or once a place frees up when too many of your delegated tasks run at once). Write a complete description: the agent does not see your conversation or your workspace, so pass the files it needs in files. To retry or reassign an existing task (e.g. a blocked one), send its taskId instead of a title and description. When the work finishes you get its result here automatically, with the files it produced: do not poll for it.";
+
+/** Every place of the conversation is taken (see tasks/delegation-slots.ts): the task starts on its own. */
+const QUEUED =
+  "Too many of your delegated tasks are running; this one starts on its own when one of them finishes. Do not start it again.";
 
 export const runTools: Record<string, ToolFactory> = {
   delegate_task: (ctx) =>
@@ -240,7 +245,8 @@ export const runTools: Record<string, ToolFactory> = {
           return { taskId, started: false, waitingFor: open.map((o) => o.id), ...handedOver };
         }
         try {
-          const run = await startTaskRun(taskId, { parentRunId: ctx.run.id });
+          const run = await startDelegatedTask(taskId, { parentRunId: ctx.run.id });
+          if (!run) return { taskId, started: false, queued: QUEUED, ...handedOver };
           return { taskId, runId: run.id, started: true, ...handedOver };
         } catch (error) {
           // A parallel call started the same task first.

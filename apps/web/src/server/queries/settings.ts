@@ -5,8 +5,11 @@ import {
   getCatalog,
   getSettings,
   getSubscriptionStatus,
+  getTelegramBotStatus,
   isKillSwitchActive,
   isSubscriptionProviderId,
+  type ModelRole,
+  modelRole,
   PROVIDER_IDS,
   PROVIDER_KEY_SECRET,
   type ProviderConnection,
@@ -14,6 +17,7 @@ import {
   PROVIDERS,
   type ProviderId,
   type SubscriptionStatus,
+  TELEGRAM_TOKEN_SECRET,
 } from "@abotica/core";
 import { agents, auditLogs, db, projects, secrets } from "@abotica/db";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "@abotica/db/orm";
@@ -88,13 +92,19 @@ export const listVaultSecrets = query(async () => {
 
 export type VaultSecretRow = Awaited<ReturnType<typeof listVaultSecrets>>[number];
 
-/** Agents without a model of their own, which follow the default models. */
-export const getInheritingAgentCount = query(async (): Promise<number> => {
-  const [row] = await db
-    .select({ n: count() })
-    .from(agents)
-    .where(and(isNull(agents.provider), eq(agents.isTemplate, false)));
-  return row?.n ?? 0;
+/** Agents without a model of their own, by the role whose default they follow (see modelRole). */
+export const getInheritingAgentCount = query(async (): Promise<Record<ModelRole, number>> => {
+  const [rows, led] = await Promise.all([
+    db
+      .select({ id: agents.id, isOrchestrator: agents.isOrchestrator })
+      .from(agents)
+      .where(and(isNull(agents.provider), eq(agents.isTemplate, false))),
+    db.selectDistinct({ id: projects.managerAgentId }).from(projects).where(isNotNull(projects.managerAgentId)),
+  ]);
+  const managers = new Set(led.map((l) => l.id));
+  const counts: Record<ModelRole, number> = { orchestrator: 0, manager: 0, agent: 0 };
+  for (const row of rows) counts[modelRole(row, managers.has(row.id))]++;
+  return counts;
 });
 
 export const listProjectOptions = query(async () => {
@@ -128,22 +138,34 @@ export const getAuditLogPage = query(async (filter: { actor?: string; entityType
   };
 });
 
+/** Settings > Telegram: the stored configuration (never the token itself) and what the worker's bot reports. */
 export const getTelegramStatus = query(async () => {
-  const allowed = (process.env.TELEGRAM_ALLOWED_USER_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const topics = await db
-    .select({ id: projects.id, name: projects.name, status: projects.status, topicId: projects.telegramTopicId })
-    .from(projects)
-    .where(isNotNull(projects.telegramTopicId))
-    .orderBy(asc(projects.name));
-  const [all] = await db.select({ n: count() }).from(projects);
+  const [[token], current, bot, topics, [all]] = await Promise.all([
+    db
+      .select({ projectId: secrets.projectId, updatedAt: secrets.updatedAt })
+      .from(secrets)
+      .where(eq(secrets.name, TELEGRAM_TOKEN_SECRET)),
+    getSettings(),
+    getTelegramBotStatus().catch(() => null),
+    db
+      .select({ id: projects.id, name: projects.name, status: projects.status, topicId: projects.telegramTopicId })
+      .from(projects)
+      .where(isNotNull(projects.telegramTopicId))
+      .orderBy(asc(projects.name)),
+    db.select({ n: count() }).from(projects),
+  ]);
+  // A token bound to a project is not the bot's (see getSecret).
+  const tokenUpdatedAt = token?.projectId === null ? token.updatedAt : null;
   return {
-    tokenSet: Boolean(process.env.TELEGRAM_BOT_TOKEN),
-    allowedUserIds: allowed,
-    notifyChatId: process.env.TELEGRAM_NOTIFY_CHAT_ID || null,
+    /** When the bot token last changed; null without one. */
+    tokenUpdatedAt,
+    allowedUserIds: current.telegramAllowedUserIds,
+    notifyChatId: current.telegramNotifyChatId,
+    /** What the worker's bot reports; null while it starts, or when no worker runs it. */
+    bot,
     topics,
     projectCount: all?.n ?? 0,
   };
 });
+
+export type TelegramStatus = Awaited<ReturnType<typeof getTelegramStatus>>;

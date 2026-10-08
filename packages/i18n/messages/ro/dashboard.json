@@ -37,7 +37,8 @@
     },
     "telegram": {
       "title": "Configurează Telegram",
-      "description": "Setează <code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_ALLOWED_USER_IDS</code> și <code>TELEGRAM_NOTIFY_CHAT_ID</code> în fișierul .env, apoi repornește worker-ul."
+      "description": "Creează un bot cu @BotFather, lipește-i tokenul și adaugă ID-ul tău de utilizator Telegram.",
+      "cta": "Configurează"
     },
     "agent": {
       "title": "Creează primul agent",

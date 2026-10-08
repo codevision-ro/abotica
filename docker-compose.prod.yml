@@ -8,7 +8,8 @@ name: abotica-prod
 x-app-environment: &app-environment
   DATABASE_URL: postgres://abotica:${POSTGRES_PASSWORD:-abotica}@postgres:5432/abotica
   REDIS_URL: redis://redis:6379
-  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  # The host as the containers reach it: localhost addresses set in the app (Ollama) go there.
+  HOST_GATEWAY: host.docker.internal
   UPLOADS_DIR: /data/uploads
 
 x-app-env: &app-env
@@ -192,8 +193,8 @@ services:
       web: { condition: service_started }
       worker: { condition: service_started }
 
-  # Local embeddings: set OLLAMA_BASE_URL=http://ollama:11434 and EMBEDDING_PROVIDER=ollama,
-  # then pull the model once: docker compose -f docker-compose.prod.yml exec ollama ollama pull nomic-embed-text
+  # Local embeddings: pull the model once (docker compose exec ollama ollama pull nomic-embed-text), then
+  # in Settings > AI providers set the Ollama address to http://ollama:11434 and the embeddings to Ollama.
   ollama:
     profiles: [ollama]
     image: ollama/ollama:latest

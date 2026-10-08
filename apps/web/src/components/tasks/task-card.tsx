@@ -3,11 +3,11 @@
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarClockIcon, FolderIcon, ListChecksIcon, MessageSquareIcon, UserIcon } from "lucide-react";
+import { CalendarClockIcon, FolderIcon, HourglassIcon, ListChecksIcon, MessageSquareIcon, UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
-import { PriorityBadge } from "@/components/app/status-badge";
+import { PriorityBadge, ToneBadge } from "@/components/app/status-badge";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 import type { BoardTask } from "@/server/queries/tasks";
@@ -68,6 +68,17 @@ export function ActiveRunDot({ label, className }: { label: string; className?: 
       <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
       <span className="relative inline-flex size-2 rounded-full bg-primary" />
     </span>
+  );
+}
+
+/** A delegated task waiting for a free place among its conversation's delegated tasks; it starts on its own. */
+export function WaitingForSlotBadge() {
+  const t = useTranslations("tasks.slots");
+  return (
+    <ToneBadge tone="muted" title={t("waitingTitle")}>
+      <HourglassIcon className="size-3" aria-hidden />
+      {t("waiting")}
+    </ToneBadge>
   );
 }
 
@@ -146,6 +157,7 @@ export function TaskCard({
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
         <PriorityBadge priority={task.priority} />
         <TaskDeadline deadline={task.deadline} status={task.status} />
+        {task.waitingForSlotSince && <WaitingForSlotBadge />}
         {task.pullRequests.map((pr) => (
           <PullRequestBadge key={pr.id} pr={pr} />
         ))}

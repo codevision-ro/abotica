@@ -89,6 +89,14 @@ describe("startTaskRun with the circuit breaker open", () => {
   });
 });
 
+describe("startTaskRun and the places for delegated work", () => {
+  it("starts the user's forced start of a task waiting for a place right away, out of the backlog", async () => {
+    await startPastBreaker({ force: true });
+    // Never held for a place; leaving the backlog drops the task's wait (leavesBacklog).
+    expect(updateTask).toHaveBeenCalledWith("t1", { status: "in_progress" }, "system");
+  });
+});
+
 describe("startTaskRun and the pull requests' fix rounds", () => {
   it("resets them on the user's start: a person stepped in", async () => {
     await startPastBreaker({ force: true });

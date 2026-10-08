@@ -15,6 +15,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { updateAppSettings } from "@/server/actions/settings";
 
+/** Same as RUN_CONCURRENCY_MAX in core, which a client component cannot import. */
+const RUN_CONCURRENCY_MAX = 20;
+
 const TIMEZONES = [
   "Europe/Bucharest",
   "Europe/Chisinau",
@@ -46,6 +49,8 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
   const tc = useTranslations("common.actions");
   const router = useRouter();
   const [journalDays, setJournalDays] = useState(String(initial.journalDays));
+  const [parallelDelegations, setParallelDelegations] = useState(String(initial.parallelDelegations));
+  const [runConcurrency, setRunConcurrency] = useState(String(initial.runConcurrency));
   const [memoryRequiresApproval, setMemoryRequiresApproval] = useState(initial.memoryRequiresApproval);
   const [pinnedTokens, setPinnedTokens] = useState(String(initial.memoryPinnedTokens));
   const [recallTokens, setRecallTokens] = useState(String(initial.memoryRecallTokens));
@@ -57,13 +62,17 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
 
   const days = Number(journalDays);
   const daysInvalid = !Number.isInteger(days) || days < 1 || days > 30;
+  const parallel = Number(parallelDelegations);
+  const parallelInvalid = !Number.isInteger(parallel) || parallel < 1 || parallel > 10;
+  const concurrency = Number(runConcurrency);
+  const concurrencyInvalid = !Number.isInteger(concurrency) || concurrency < 1 || concurrency > RUN_CONCURRENCY_MAX;
   const pinned = Number(pinnedTokens);
   const pinnedInvalid = pinnedTokens.trim() === "" || !Number.isInteger(pinned) || pinned < 0 || pinned > 20_000;
   const recall = Number(recallTokens);
   const recallInvalid = recallTokens.trim() === "" || !Number.isInteger(recall) || recall < 0 || recall > 8_000;
   const budgetValue = budget.trim() === "" ? null : Number(budget.replace(",", "."));
   const budgetInvalid = budgetValue !== null && (!Number.isFinite(budgetValue) || budgetValue <= 0);
-  const invalid = daysInvalid || pinnedInvalid || recallInvalid || budgetInvalid;
+  const invalid = daysInvalid || parallelInvalid || concurrencyInvalid || pinnedInvalid || recallInvalid || budgetInvalid;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +80,8 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
     startTransition(async () => {
       const res = await updateAppSettings({
         journalDays: days,
+        parallelDelegations: parallel,
+        runConcurrency: concurrency,
         memoryRequiresApproval,
         memoryPinnedTokens: pinned,
         memoryRecallTokens: recall,
@@ -102,6 +113,42 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
               value={journalDays}
               onChange={(e) => setJournalDays(e.target.value)}
               aria-invalid={daysInvalid}
+              className="sm:w-28"
+            />
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-invalid={parallelInvalid}>
+            <FieldContent>
+              <FieldLabel htmlFor="parallel-delegations">{t("parallelDelegations")}</FieldLabel>
+              <FieldDescription>{t("parallelDelegationsHint")}</FieldDescription>
+            </FieldContent>
+            <Input
+              id="parallel-delegations"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={10}
+              value={parallelDelegations}
+              onChange={(e) => setParallelDelegations(e.target.value)}
+              aria-invalid={parallelInvalid}
+              className="sm:w-28"
+            />
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-invalid={concurrencyInvalid}>
+            <FieldContent>
+              <FieldLabel htmlFor="run-concurrency">{t("runConcurrency")}</FieldLabel>
+              <FieldDescription>{t("runConcurrencyHint", { max: RUN_CONCURRENCY_MAX })}</FieldDescription>
+            </FieldContent>
+            <Input
+              id="run-concurrency"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={RUN_CONCURRENCY_MAX}
+              value={runConcurrency}
+              onChange={(e) => setRunConcurrency(e.target.value)}
+              aria-invalid={concurrencyInvalid}
               className="sm:w-28"
             />
           </Field>
