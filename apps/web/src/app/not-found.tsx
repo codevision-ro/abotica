@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Logo } from "@/components/app/logo";
+import { LogoFull } from "@/components/app/logo";
 import { Button } from "@/components/ui/button";
 
 /** Unmatched URLs outside the app shell; missing records inside the app use `(app)/not-found.tsx`. */
@@ -13,7 +13,7 @@ export default function NotFound() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_50%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent)] dark:bg-[radial-gradient(55%_45%_at_50%_0%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent)]"
       />
       <div className="relative z-10 flex max-w-sm flex-col items-center gap-6 text-center">
-        <Logo className="size-11 rounded-xl shadow-md shadow-primary/20" />
+        <LogoFull />
         <div className="space-y-1.5">
           <p className="tabular text-sm font-medium text-muted-foreground">404</p>
           <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>

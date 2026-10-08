@@ -23,6 +23,6 @@ export function proxy(request: NextRequest) {
 // auth/callback is reached on 127.0.0.1, where the session cookie of another host is not sent: its single-use state authenticates it.
 export const config = {
   matcher: [
-    "/((?!api/auth|api/webhooks|api/health|api/files|auth/callback|login|signup|2fa|_next/static|_next/image|favicon.ico|icon|apple-icon).*)",
+    "/((?!api/auth|api/webhooks|api/health|api/files|auth/callback|login|signup|2fa|_next/static|_next/image|favicon.ico|icon|apple-icon|logo/).*)",
   ],
 };

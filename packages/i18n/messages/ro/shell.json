@@ -1,7 +1,6 @@
 {
   "tagline": "Agenți AI, proiecte, task-uri și memorie, coordonate de un super agent.",
   "sidebar": {
-    "subtitle": "Agenți AI",
     "badgeTooltip": "{title} ({count})",
     "theme": "Temă",
     "themeLight": "Luminoasă",

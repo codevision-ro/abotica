@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Logo } from "@/components/app/logo";
+import { Logo, Wordmark } from "@/components/app/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -81,10 +81,7 @@ export function AppSidebar({ user, badges, update }: Props) {
             <SidebarMenuButton size="lg" className="rounded-lg hover:bg-transparent active:bg-transparent" asChild>
               <Link href="/" onClick={closeOnMobile}>
                 <Logo />
-                <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate font-semibold tracking-tight">Abotica</span>
-                  <span className="truncate text-xs text-muted-foreground">{t("subtitle")}</span>
-                </div>
+                <Wordmark className="h-[27px]!" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

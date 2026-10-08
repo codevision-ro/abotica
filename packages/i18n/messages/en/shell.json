@@ -1,7 +1,6 @@
 {
   "tagline": "AI agents, projects, tasks and memory, coordinated by a super agent.",
   "sidebar": {
-    "subtitle": "AI agents",
     "badgeTooltip": "{title} ({count})",
     "theme": "Theme",
     "themeLight": "Light",
