@@ -263,5 +263,14 @@
       "stopped": "Task \"{title}\": a wait of its agent stopped.\n{items}",
       "notWoken": "Task \"{title}\": what its agent waited for happened, but the agent was not started: {reason}."
     }
+  },
+  "automation": {
+    "fromSchedule": "Started by a schedule. The result goes to {agent}.",
+    "fromTrigger": "Started by a trigger. The result goes to {agent}.",
+    "nobody": "nobody",
+    "payload": "Data the trigger received:",
+    "payloadReference": "(the data the trigger received, in the comment below)",
+    "nothingNew": "Nothing new: the result needs nobody's attention, so nobody was told. It stays here, in the output.",
+    "reviewDescription": "Check what {agent} delivered for this schedule or trigger (the subtask), then report the outcome."
   }
 }

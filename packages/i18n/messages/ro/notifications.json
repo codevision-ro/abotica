@@ -33,5 +33,11 @@
   },
   "update": {
     "available": "🆕 Abotica {version} e disponibilă (rulezi {current}). Ce s-a schimbat: {url}\nPentru update, rulează din nou comanda de instalare; setările și datele rămân."
-  }
+  },
+  "reportsInbox": {
+    "project": "{project}: rapoarte",
+    "general": "Rapoarte"
+  },
+  "taskBlocked": "⛔ **{agent}**: task-ul \"{task}\" e blocat și are nevoie de tine.",
+  "openTask": "Deschide task-ul"
 }

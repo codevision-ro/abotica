@@ -33,5 +33,11 @@
   },
   "update": {
     "available": "🆕 Abotica {version} is available (you run {current}). What changed: {url}\nTo update, run the install command again; your settings and data stay."
-  }
+  },
+  "reportsInbox": {
+    "project": "{project}: reports",
+    "general": "Reports"
+  },
+  "taskBlocked": "⛔ **{agent}**: task \"{task}\" is blocked and needs you.",
+  "openTask": "Open the task"
 }

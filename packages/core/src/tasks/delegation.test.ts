@@ -103,3 +103,20 @@ describe("reportMessage", () => {
     expect(textOf(reportMessage([report], "own-1"))).toContain("say so in your own task's output");
   });
 });
+
+describe("reportMessage for work a schedule or trigger fired", () => {
+  it("says the work comes from an automation, not a delegation", async () => {
+    const { reportMessage } = await load();
+    const text = textOf(reportMessage([settled({ id: "t1" })], null, { fromAutomation: true }));
+    expect(text).toContain("Work a schedule or trigger started has finished");
+    expect(text).not.toContain("you delegated");
+  });
+
+  it("lets an own task that is such work end with nothingNew", async () => {
+    const { reportMessage } = await load();
+    const quiet = textOf(reportMessage([settled({ id: "t1" })], "own-1", { fromAutomation: true, ownTaskQuiet: true }));
+    expect(quiet).toContain("finish your own task own-1");
+    expect(quiet).toContain("nothingNew: true");
+    expect(textOf(reportMessage([settled({ id: "t1" })], "own-1"))).not.toContain("nothingNew");
+  });
+});

@@ -31,3 +31,11 @@ export function notifyChatOf(settings: {
   const id = settings.telegramNotifyChatId ?? settings.telegramAllowedUserIds[0];
   return id === undefined ? null : Number(id);
 }
+
+/**
+ * The conversation key of a chat: one conversation per chat, and per forum topic or reply thread.
+ * Project topics are no exception: the super agent answers there too.
+ */
+export function telegramConversationKey(chatId: number, threadId: number | null | undefined): string {
+  return threadId ? `${chatId}:${threadId}` : `${chatId}`;
+}

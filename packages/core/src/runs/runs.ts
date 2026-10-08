@@ -164,7 +164,9 @@ const taskHeader = (task: TaskRow) =>
 const finishLines = (task: TaskRow) => [
   task.delegatedByRunId
     ? "When you finish, call task_update with status 'review' and put the full result in output. The agent that delegated the task reviews it and decides whether it is done."
-    : "When you finish, call task_update with status 'review' (or 'done' if it needs no review) and put the full result in output.",
+    : task.reportsUp
+      ? "A schedule or trigger started this task, and its result goes up on its own to whoever oversees the work (the project's manager, or the super agent). When you finish, call task_update with status 'review' and the full result in output. Only when the task is a routine check and it found nothing new and nothing wrong, call task_update with nothingNew: true and the output instead: the task is done, the output stays on it, and nobody is told. Anything the task asked you to produce (a text, a list, data, a report) is a result and goes up with 'review', and so does every finding. A problem never ends quietly: when you are blocked or something failed, set 'blocked' with a task_comment."
+      : "When you finish, call task_update with status 'review' (or 'done' if it needs no review) and put the full result in output.",
 ];
 
 const authorOf = (c: { kind: string; agent: string | null }) => (c.kind === "agent" ? (c.agent ?? "agent") : c.kind);
@@ -314,7 +316,7 @@ async function roundBrief(taskId: string, agentId: string, round: PreviousRound)
  */
 export async function startTaskRun(
   taskId: string,
-  opts: { parentRunId?: string | null; force?: boolean } = {},
+  opts: { parentRunId?: string | null; force?: boolean; trigger?: RunTrigger } = {},
 ): Promise<Run> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) throw new UserError("tasks.errors.notFound");
@@ -330,7 +332,7 @@ export async function startTaskRun(
   await updateTask(taskId, { status: "in_progress" }, "system");
   const start = {
     agentId: task.assigneeAgentId,
-    trigger: opts.parentRunId ? ("delegation" as const) : ("task" as const),
+    trigger: opts.trigger ?? (opts.parentRunId ? ("delegation" as const) : ("task" as const)),
     taskId,
     projectId: task.projectId,
     parentRunId: opts.parentRunId ?? null,

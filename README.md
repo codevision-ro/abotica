@@ -146,6 +146,7 @@ To update, run the same command again. To install with Docker by hand, or withou
 **Automation**
 - Schedules: cron or one-shot, with a timezone, a preview of the next runs and "run now".
 - Triggers: webhooks (for example inbound email from your email provider), task created, task done.
+- A schedule or trigger of a manager or a specialist runs as a task and reports up like delegated work: a specialist's result goes to the project's manager, who reviews it, then to the super agent, who tells you. A routine result with nothing new ends at the agent that did it, on the task page, and nobody is messaged. A task you give a manager or a specialist yourself tells you on Telegram once it is ready, blocked or failed. A repeating schedule does not fire again while its previous task is still being worked on.
 - Webhooks can require signed requests (Standard Webhooks or GitHub signatures) and are rate limited.
 - Kill switch that stops every running agent, from the web or Telegram.
 

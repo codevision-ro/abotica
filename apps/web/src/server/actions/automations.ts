@@ -9,15 +9,12 @@ import {
   deleteTriggerSigningSecret as deleteSigningSecret,
   regenerateTriggerToken as rotateTriggerToken,
   saveTrigger as saveTriggerRow,
+  runScheduleNow,
   setTriggerEnabled as setTriggerRowEnabled,
-  startRun,
   updateSchedule as updateScheduleRow,
 } from "@abotica/core";
 import { isValidCron } from "@abotica/core/cron";
 import { TRIGGER_EVENT_VALUES } from "@abotica/core/trigger-events";
-import { UserError } from "@abotica/i18n";
-import { db, schedules } from "@abotica/db";
-import { eq } from "@abotica/db/orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isTimeZone, zonedLocalToDate } from "@/lib/time-zone";
@@ -103,15 +100,7 @@ export const deleteSchedule = action(z.object({ id: z.string().uuid() }), async 
 });
 
 export const startScheduleRun = action(z.object({ id: z.string().uuid() }), async ({ id }) => {
-  const [schedule] = await db.select().from(schedules).where(eq(schedules.id, id));
-  if (!schedule) throw new UserError("automations.errors.scheduleNotFound");
-  const run = await startRun({
-    agentId: schedule.agentId,
-    trigger: "schedule",
-    input: schedule.prompt,
-    projectId: schedule.projectId,
-    title: schedule.name,
-  });
+  const run = await runScheduleNow(id);
   await audit({
     actor: "user",
     action: "schedule.run-started",

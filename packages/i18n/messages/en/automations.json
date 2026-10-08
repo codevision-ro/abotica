@@ -174,7 +174,8 @@
     "scheduleNotFound": "The schedule does not exist",
     "triggerNotFound": "The trigger does not exist",
     "triggerNotWebhook": "The trigger does not use a webhook",
-    "agentNotOnTeam": "The agent is no longer on the project's team, so the automation did not run"
+    "agentNotOnTeam": "The agent is no longer on the project's team, so the automation did not run",
+    "previousStillWorking": "The previous run of this schedule is still being worked on. Try again once it is done."
   },
   "validation": {
     "nameRequired": "Name is required",

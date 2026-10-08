@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { agents, db, tasks, triggers } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
-import { UserError } from "@abotica/i18n";
+import { getTranslator, UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
+import { getSettings, settingsLocale } from "../platform/settings";
 import { loadDelegationProject } from "../tasks/delegation";
 import { env } from "../infra/env";
-import { type Run, startRun } from "../runs/runs";
+import type { Run } from "../runs/runs";
 import { startDelegatedTask } from "../tasks/delegation-slots";
 import { TaskCircuitOpenError, unblockedDependents } from "../tasks/tasks";
 import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-rules";
@@ -14,6 +15,7 @@ import { encrypt } from "../platform/vault";
 import { newSigningSecret } from "./webhook-signature";
 import { newMarkerId } from "../agents/untrusted-id";
 import { type UntrustedSource, wrapUntrusted } from "../agents/untrusted";
+import { startAutomationWork } from "./automation-work";
 
 export type Trigger = typeof triggers.$inferSelect;
 type TriggerValues = Pick<typeof triggers.$inferInsert, "name" | "agentId" | "projectId" | "event" | "prompt" | "enabled">;
@@ -149,8 +151,9 @@ export function renderTriggerInput(prompt: string, payload: string, source: Untr
 }
 
 /**
- * Starts the run for a fired trigger. `projectId` defaults to the trigger's project; `subject`
- * (e.g. the task title) is added to the run title after the trigger name.
+ * Starts what a fired trigger does (startAutomationWork): the super agent's run, or a task for a manager
+ * or a specialist that reports up. `projectId` defaults to the trigger's project; `subject` (e.g. the
+ * task title) is added to the title after the trigger name.
  */
 export async function fireTrigger(
   trigger: Trigger,
@@ -160,14 +163,22 @@ export async function fireTrigger(
   const projectId = opts.projectId === undefined ? trigger.projectId : opts.projectId;
   await assertWorksIn(trigger.agentId, projectId);
   const webhook = usesWebhook(trigger.event);
-  return startRun({
+  // Task events carry the task's output, which its agent wrote and may quote pages or files in.
+  const source = webhook ? "webhook" : "task-output";
+  const t = getTranslator(settingsLocale(await getSettings()));
+  const run = await startAutomationWork({
     agentId: trigger.agentId,
-    trigger: webhook ? "webhook" : "event",
-    // Task events carry the task's output, which its agent wrote and may quote pages or files in.
-    input: renderTriggerInput(trigger.prompt, payload, webhook ? "webhook" : "task-output"),
     projectId,
     title: opts.subject ? `${trigger.name}: ${opts.subject}` : trigger.name,
+    trigger: webhook ? "webhook" : "event",
+    runInput: renderTriggerInput(trigger.prompt, payload, source),
+    description: trigger.prompt.replaceAll("{{payload}}", () => t("tasks.automation.payloadReference")),
+    data: `${t("tasks.automation.payload")}\n${wrapUntrusted(payload, { source, id: newMarkerId() })}`,
+    triggerId: trigger.id,
   });
+  // Only a schedule skips a fire; a trigger always starts its work.
+  if (!run) throw new Error(`Trigger ${trigger.id} started nothing`);
+  return run;
 }
 
 /** Raised when an automation's agent may not work in the project its run would work in. */
@@ -196,10 +207,13 @@ export async function handleTaskEvent(taskId: string, event: "created" | "done")
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) return; // deleted since the event was queued
   const name = event === "created" ? "task.created" : "task.done";
-  const rows = await db
-    .select()
-    .from(triggers)
-    .where(and(eq(triggers.event, name), eq(triggers.enabled, true)));
+  // Work an automation fired fires none: a trigger whose own task fired it again would never stop.
+  const rows = task.reportsUp
+    ? []
+    : await db
+        .select()
+        .from(triggers)
+        .where(and(eq(triggers.event, name), eq(triggers.enabled, true)));
   // The job runs once (a retry would fire the others again), so one failure must not stop the rest.
   for (const trigger of rows) {
     if (trigger.projectId && trigger.projectId !== task.projectId) continue;

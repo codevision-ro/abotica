@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTelegramChatId, notifyChatOf, parseTelegramUserIds } from "./telegram-ids";
+import { isTelegramChatId, notifyChatOf, parseTelegramUserIds, telegramConversationKey } from "./telegram-ids";
 
 describe("parseTelegramUserIds", () => {
   it("reads ids separated by commas, spaces or new lines, without duplicates", () => {
@@ -35,5 +35,13 @@ describe("notifyChatOf", () => {
     expect(notifyChatOf({ telegramNotifyChatId: "-100123", telegramAllowedUserIds: [42] })).toBe(-100123);
     expect(notifyChatOf({ telegramNotifyChatId: null, telegramAllowedUserIds: [42, 7] })).toBe(42);
     expect(notifyChatOf({ telegramNotifyChatId: null, telegramAllowedUserIds: [] })).toBeNull();
+  });
+});
+
+describe("telegramConversationKey", () => {
+  it("keys a conversation by chat, and by topic or thread inside it", () => {
+    expect(telegramConversationKey(-100, undefined)).toBe("-100");
+    expect(telegramConversationKey(-100, null)).toBe("-100");
+    expect(telegramConversationKey(-100, 42)).toBe("-100:42");
   });
 });

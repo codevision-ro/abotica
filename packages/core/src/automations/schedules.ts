@@ -4,7 +4,8 @@ import { UserError } from "@abotica/i18n";
 import { isValidCron, normalizeCron } from "./cron";
 import { type ScheduleJob, schedulesQueue } from "../infra/queues";
 import { redis } from "../infra/redis";
-import { startRun } from "../runs/runs";
+import type { Run } from "../runs/runs";
+import { startAutomationWork } from "./automation-work";
 import type { Delegator } from "../tasks/team-rules";
 import { AgentNotOnTeamError, assertAutomationAgent, assertWorksIn } from "./triggers";
 
@@ -103,6 +104,35 @@ export async function deleteSchedule(id: string): Promise<void> {
 const startedKey = (jobId: string) => `abotica:schedule-job:${jobId}:started`;
 const STARTED_TTL_SECONDS = 7 * 24 * 3600;
 
+/** Starts the schedule's work (startAutomationWork); null when a repeating one skipped the fire. */
+function startScheduleWork(schedule: Schedule, manual: boolean): Promise<Run | null> {
+  return startAutomationWork({
+    agentId: schedule.agentId,
+    projectId: schedule.projectId,
+    title: schedule.name,
+    trigger: "schedule",
+    runInput: schedule.prompt,
+    description: schedule.prompt,
+    scheduleId: schedule.id,
+    repeats: schedule.kind === "cron",
+    manual,
+  });
+}
+
+/**
+ * The user's "Run now": the same work a timed fire starts. Refused while the schedule's previous task
+ * is still being worked on, and when its agent may not work in its project.
+ */
+export async function runScheduleNow(id: string): Promise<Run> {
+  const [schedule] = await db.select().from(schedules).where(eq(schedules.id, id));
+  if (!schedule) throw new UserError("automations.errors.scheduleNotFound");
+  await assertWorksIn(schedule.agentId, schedule.projectId);
+  const run = await startScheduleWork(schedule, true);
+  // A manual start is refused, never skipped, so there is always a run here.
+  if (!run) throw new Error(`Schedule ${id} started nothing`);
+  return run;
+}
+
 /**
  * Runs a fired schedule job. A failed job is retried; the first attempt to start the run claims the
  * job, so a retry after the run started (e.g. the lastRunAt update failed) does not start another.
@@ -119,22 +149,18 @@ export async function fireSchedule(job: { id?: string; repeatJobKey?: string; da
     return;
   }
   const key = job.id ? startedKey(job.id) : null;
+  let started = true;
   if (!key || (await redis().set(key, "1", "EX", STARTED_TTL_SECONDS, "NX")) === "OK") {
     try {
-      await startRun({
-        agentId: schedule.agentId,
-        trigger: "schedule",
-        input: schedule.prompt,
-        projectId: schedule.projectId,
-        title: schedule.name,
-      });
+      started = (await startScheduleWork(schedule, false)) !== null;
     } catch (error) {
       if (key) await redis().del(key);
       throw error;
     }
   }
+  // A skipped fire ran nothing: the last run stays the one before it.
   await db
     .update(schedules)
-    .set({ lastRunAt: new Date(), ...(schedule.kind === "once" ? { enabled: false } : {}) })
+    .set({ ...(started ? { lastRunAt: new Date() } : {}), ...(schedule.kind === "once" ? { enabled: false } : {}) })
     .where(eq(schedules.id, schedule.id));
 }

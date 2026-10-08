@@ -263,5 +263,14 @@
       "stopped": "Task-ul \"{title}\": o așteptare a agentului său s-a oprit.\n{items}",
       "notWoken": "Task-ul \"{title}\": s-a întâmplat ce aștepta agentul lui, dar agentul nu a fost pornit: {reason}."
     }
+  },
+  "automation": {
+    "fromSchedule": "Pornit de o programare. Rezultatul merge la {agent}.",
+    "fromTrigger": "Pornit de un declanșator. Rezultatul merge la {agent}.",
+    "nobody": "nimeni",
+    "payload": "Datele primite de declanșator:",
+    "payloadReference": "(datele primite de declanșator, în comentariul de mai jos)",
+    "nothingNew": "Nimic nou: rezultatul nu are nevoie de atenția nimănui, așa că nu a fost anunțat nimeni. Rămâne aici, în rezultat.",
+    "reviewDescription": "Verifică ce a livrat {agent} pentru această programare sau acest declanșator (subtask-ul), apoi raportează rezultatul."
   }
 }

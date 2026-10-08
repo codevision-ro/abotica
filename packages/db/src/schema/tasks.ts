@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./_shared";
 import { agents } from "./agents";
+import { schedules, triggers } from "./automation";
 import { commentAuthor, taskPriority, taskStatus, taskWakeupKind, taskWakeupPausedReason, taskWakeupStatus } from "./enums";
 import { projects } from "./projects";
 import { runs } from "./runs";
@@ -42,6 +43,16 @@ export const tasks = pgTable(
     delegatedByRunId: uuid().references((): AnyPgColumn => runs.id, { onDelete: "set null" }),
     /** When the result was reported back to the delegating conversation. */
     reportedAt: timestamp({ withTimezone: true }),
+    /**
+     * Work a schedule or trigger fired for a manager or a specialist: no run delegated it, so its result
+     * goes up the hierarchy on its own, to the project's manager or the super agent (core
+     * tasks/automation-rules.ts). Kept when the schedule or trigger is deleted, unlike the links below.
+     */
+    reportsUp: boolean().notNull().default(false),
+    /** The schedule that fired the task, if any. */
+    scheduleId: uuid().references(() => schedules.id, { onDelete: "set null" }),
+    /** The trigger that fired the task, if any. */
+    triggerId: uuid().references(() => triggers.id, { onDelete: "set null" }),
     /** Times the delegating agent sent the task back on its own; capped so review loops end with the user. */
     redelegations: integer().notNull().default(0),
     /**
@@ -58,6 +69,9 @@ export const tasks = pgTable(
     index().on(t.assigneeAgentId),
     index().on(t.delegatedByRunId),
     index().on(t.parentId),
+    index()
+      .on(t.scheduleId)
+      .where(sql`${t.scheduleId} is not null`),
     index()
       .on(t.waitingForSlotSince)
       .where(sql`${t.waitingForSlotSince} is not null`),

@@ -11,11 +11,12 @@ import {
   type Tx,
 } from "@abotica/db";
 import { and, count, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from "@abotica/db/orm";
-import { UserError } from "@abotica/i18n";
+import { getTranslator, UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { enqueueTaskEvent } from "../infra/queues";
 import { claimFiles, fileIdsOwnedBy, removeFileBytes, type StoredFile } from "../files/files";
 import type { RunFailureKind } from "../runs/run-failures";
+import { getSettings, settingsLocale } from "../platform/settings";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskStatus = Task["status"];
@@ -53,6 +54,8 @@ export async function createTask(
     dependsOn?: string[];
     /** The run delegating the task; its conversation gets the result back. */
     delegatedByRunId?: string | null;
+    /** Work a schedule or trigger fired: the task reports up the hierarchy on its own (tasks.reportsUp). */
+    automation?: { scheduleId?: string | null; triggerId?: string | null };
   },
   actor = "user",
 ): Promise<Task> {
@@ -79,6 +82,9 @@ export async function createTask(
         position: await nextPosition(input.projectId ?? null, status, tx),
         createdBy: actor,
         delegatedByRunId: input.delegatedByRunId ?? null,
+        reportsUp: Boolean(input.automation),
+        scheduleId: input.automation?.scheduleId ?? null,
+        triggerId: input.automation?.triggerId ?? null,
       })
       .returning();
     if (!row) throw new Error("Task insert failed");
@@ -370,6 +376,20 @@ export async function updateTask(
 
 /** Who writes a comment: the user, an agent, or the platform itself (e.g. a note about a failed run). */
 type CommentAuthor = "user" | "system" | { agentId: string };
+
+/**
+ * Ends work a schedule or trigger started whose result needs nobody's attention: done, with its output,
+ * and marked reported, so it goes nowhere (tasks/delegation.ts reports only unreported tasks). A comment
+ * says so on the task, where the output stays.
+ */
+export async function finishWithNothingNew(taskId: string, output: string | null, actor: string): Promise<Task> {
+  // Reported first: a report of the task settling done must find nothing to send.
+  await db.update(tasks).set({ reportedAt: new Date() }).where(eq(tasks.id, taskId));
+  const task = await updateTask(taskId, { status: "done", ...(output !== null ? { output } : {}) }, actor);
+  const t = getTranslator(settingsLocale(await getSettings()));
+  await addTaskComment(taskId, t("tasks.automation.nothingNew"), "system");
+  return task;
+}
 
 export async function addTaskComment(taskId: string, body: string, author: CommentAuthor) {
   const [comment] = await db

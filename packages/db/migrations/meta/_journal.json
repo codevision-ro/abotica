@@ -92,6 +92,13 @@
       "when": 1791475190773,
       "tag": "0012_agent_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791487369287,
+      "tag": "0013_automation_tasks",
+      "breakpoints": true
     }
   ]
 }

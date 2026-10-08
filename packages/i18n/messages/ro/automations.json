@@ -174,7 +174,8 @@
     "scheduleNotFound": "Programarea nu există",
     "triggerNotFound": "Triggerul nu există",
     "triggerNotWebhook": "Triggerul nu folosește webhook",
-    "agentNotOnTeam": "Agentul nu mai face parte din echipa proiectului, așa că automatizarea nu a rulat"
+    "agentNotOnTeam": "Agentul nu mai face parte din echipa proiectului, așa că automatizarea nu a rulat",
+    "previousStillWorking": "Rularea anterioară a acestei programări e încă în lucru. Încearcă din nou după ce se termină."
   },
   "validation": {
     "nameRequired": "Numele e obligatoriu",

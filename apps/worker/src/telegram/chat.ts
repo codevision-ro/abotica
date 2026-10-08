@@ -1,9 +1,8 @@
-import { type Conversation, createConversation, getOrchestrator } from "@abotica/core";
+import { type Conversation, createConversation, getOrchestrator, telegramConversationKey } from "@abotica/core";
 import { conversations, db } from "@abotica/db";
 import { and, desc, eq, isNull } from "@abotica/db/orm";
 import type { Context } from "grammy";
 import { botTranslator } from "./bot";
-import { externalIdOf } from "./routing";
 
 /**
  * The chat's conversation with the super agent, who answers in every chat and topic (a new one when
@@ -12,7 +11,7 @@ import { externalIdOf } from "./routing";
  */
 export async function currentConversation(ctx: Context, fresh = false): Promise<Conversation> {
   const agentId = (await getOrchestrator()).id;
-  const externalId = externalIdOf(ctx.chat!.id, ctx.msg?.message_thread_id);
+  const externalId = telegramConversationKey(ctx.chat!.id, ctx.msg?.message_thread_id);
   if (!fresh) {
     const [existing] = await db
       .select()

@@ -11,6 +11,7 @@ import {
   awaitingReportTo,
   createTask,
   deleteTask,
+  finishWithNothingNew,
   TASK_PRIORITIES,
   TASK_STATUSES,
   updateTask,
@@ -19,6 +20,8 @@ import { listTaskPullRequests } from "../../tasks/pull-requests";
 import { DEFAULT_MAX_FIRES, MAX_FIRES_LIMIT, WAKEUP_KINDS } from "../../tasks/wakeup-rules";
 import { armWakeup, listTaskWakeups, type WakeupRequest } from "../../tasks/wakeups";
 import { SETTLED_TASK_STATUSES } from "../../tasks/delegation-report";
+import { nothingNewRefusal } from "../../tasks/automation-rules";
+import { reportTargetAgent } from "../../tasks/automation-target";
 import { clipUntrusted, hasUntrusted } from "../untrusted";
 import { inputPath } from "../workspace-paths";
 import {
@@ -243,20 +246,42 @@ export const taskTools: Record<string, ToolFactory> = {
         title: optionalText(),
         description: optionalText(),
         deadline: optionalDateTime(),
+        nothingNew: z
+          .boolean()
+          .optional()
+          .describe(
+            "Only for work a schedule or trigger started, when it was a routine check that found nothing new and nothing wrong: ends the task as done, with output, and nobody is told. Anything produced or found goes up with status 'review'.",
+          ),
       }),
-      execute: async ({ taskId, status, output, priority, title, description, deadline }) => {
+      execute: async ({ taskId, status, output, priority, title, description, deadline, nothingNew }) => {
         const found = await visibleTask(ctx, taskId);
         if ("error" in found) return found;
-        // Whoever delegated a task decides when it is done: the super agent, or the manager that handed it on.
-        if (status === "done" && found.delegatedByRunId && ctx.agent.kind !== "orchestrator") {
-          const [delegator] = await db
-            .select({ agentId: runs.agentId })
-            .from(runs)
-            .where(eq(runs.id, found.delegatedByRunId));
-          if (delegator?.agentId !== ctx.agent.id) {
+        if (nothingNew) {
+          const refused = nothingNewRefusal(found, ctx.agent.id);
+          if (refused) return { error: refused };
+          if (status && status !== "done" && status !== "review") {
+            return { error: "nothingNew ends the task as done: leave out status, or set 'done'." };
+          }
+          return taskSummary(await finishWithNothingNew(taskId, output ?? null, actorOf(ctx)));
+        }
+        // Whoever gave a task decides when it is done: the super agent, the manager that handed it on, or
+        // for work a schedule or trigger started, the agent above its assignee.
+        if (status === "done" && ctx.agent.kind !== "orchestrator") {
+          if (found.delegatedByRunId) {
+            const [delegator] = await db
+              .select({ agentId: runs.agentId })
+              .from(runs)
+              .where(eq(runs.id, found.delegatedByRunId));
+            if (delegator?.agentId !== ctx.agent.id) {
+              return {
+                error:
+                  "This task was delegated to you: set status 'review'. The agent that delegated it decides whether it is done.",
+              };
+            }
+          } else if (found.reportsUp && (await reportTargetAgent(found))?.agent.id !== ctx.agent.id) {
             return {
               error:
-                "This task was delegated to you: set status 'review'. The agent that delegated it decides whether it is done.",
+                "A schedule or trigger started this task and its result goes up on its own: set status 'review', or nothingNew: true when it needs nobody's attention.",
             };
           }
         }

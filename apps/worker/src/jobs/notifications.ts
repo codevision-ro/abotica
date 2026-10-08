@@ -1,6 +1,6 @@
 import { createRedis, env, type NotificationJob, QUEUE } from "@abotica/core";
-import { agents, approvals, conversations, db, projects, runs, tasks } from "@abotica/db";
-import { eq } from "@abotica/db/orm";
+import { agents, approvals, conversations, db, projects, runs, taskComments, tasks } from "@abotica/db";
+import { and, desc, eq } from "@abotica/db/orm";
 import { Worker } from "bullmq";
 import { InlineKeyboard } from "grammy";
 import { botTranslator, getBot, notifyChatId } from "../telegram/bot";
@@ -97,34 +97,44 @@ async function handle(job: NotificationJob) {
     return;
   }
 
-  // Only the super agent's own runs notify: the others report up the hierarchy (see runFinishedNotice).
+  // The super agent's own runs notify, and the user's own tasks; the rest reports up (see runFinishedNotice).
   if (job.kind === "run-finished") {
     const [row] = await db
-      .select({
-        run: runs,
-        agent: agents.name,
-        kind: agents.kind,
-        task: tasks.title,
-        delegatedByRunId: tasks.delegatedByRunId,
-      })
+      .select({ run: runs, agent: agents.name, kind: agents.kind, task: tasks })
       .from(runs)
       .leftJoin(agents, eq(agents.id, runs.agentId))
       .leftJoin(tasks, eq(tasks.id, runs.taskId))
       .where(eq(runs.id, job.runId));
-    const notice = row && runFinishedNotice(row.run, row.kind);
+    const notice = row && runFinishedNotice(row.run, row.kind, row.task);
     if (!row || !notice) return;
-    if (row.delegatedByRunId && (await delegatedFromTelegram(row.delegatedByRunId))) return;
+    const { task } = row;
+    if (task?.delegatedByRunId && (await delegatedFromTelegram(task.delegatedByRunId))) return;
     const target = await targetFor(row.run.projectId);
     if (!target) return;
-    const subject = row.task ? "task" : row.run.trigger === "schedule" ? "schedule" : "run";
-    const values = { agent: row.agent ?? t("runs.agentChip.deleted"), task: row.task ?? "" };
+    const subject = task ? "task" : row.run.trigger === "schedule" ? "schedule" : "run";
+    const values = { agent: row.agent ?? t("runs.agentChip.deleted"), task: task?.title ?? "" };
+    const link = task ? `\n\n[${t("notifications.openTask")}](${new URL(`/tasks/${task.id}`, env().APP_URL)})` : "";
     if (notice === "failed") {
-      await sendMarkdown(bot, target, `${t(`notifications.runFailed.${subject}`, values)}\n${row.run.error ?? ""}`);
-    } else {
+      await sendMarkdown(bot, target, `${t(`notifications.runFailed.${subject}`, values)}\n${row.run.error ?? ""}${link}`);
+    } else if (notice === "blocked") {
+      // Why it is blocked: what the agent wrote last on the task.
+      const [reason] = await db
+        .select({ body: taskComments.body })
+        .from(taskComments)
+        .where(and(eq(taskComments.taskId, task!.id), eq(taskComments.authorKind, "agent")))
+        .orderBy(desc(taskComments.createdAt))
+        .limit(1);
       await sendMarkdown(
         bot,
         target,
-        `${t(`notifications.runSucceeded.${subject}`, values)}\n\n${preview(row.run.output ?? "", 3_000)}`,
+        `${t("notifications.taskBlocked", values)}${reason ? `\n\n${preview(reason.body, 1_500)}` : ""}${link}`,
+      );
+    } else {
+      const result = task?.output ?? row.run.output ?? "";
+      await sendMarkdown(
+        bot,
+        target,
+        `${t(`notifications.runSucceeded.${subject}`, values)}\n\n${preview(result, 3_000)}${link}`,
       );
     }
   }
