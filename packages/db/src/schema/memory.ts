@@ -52,6 +52,11 @@ export const memories = pgTable(
     supersededBy: uuid().references((): AnyPgColumn => memories.id, { onDelete: "set null" }),
     /** Ephemeral entries end here: hidden from agents at once, deleted by the weekly cleanup. */
     expiresAt: timestamp({ withTimezone: true }),
+    /**
+     * The agent run that wrote this version (memory_save, memory_update); null: the user or consolidation.
+     * A run is told which entries were written in its own conversation (see writtenInConversation).
+     */
+    runId: uuid().references(() => runs.id, { onDelete: "set null" }),
     recallCount: integer().notNull().default(0),
     lastRecalledAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
@@ -64,6 +69,9 @@ export const memories = pgTable(
       .where(sql`${t.pinned}`),
     index("memories_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
     index("memories_search_idx").using("gin", t.search),
+    index("memories_run_idx")
+      .on(t.runId)
+      .where(sql`${t.runId} is not null`),
   ],
 );
 

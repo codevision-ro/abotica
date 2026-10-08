@@ -18,7 +18,7 @@ import type { ManagedSandboxSession } from "@abotica/sandbox";
 import type { UIMessage } from "ai";
 import { recentJournals } from "../memory/memory";
 import { anyExternal, EXTERNAL_NOTE, markExternal } from "../memory/memory-budget";
-import { notePromptMemoryUse, pinnedMemories } from "../memory/memory-recall";
+import { notePromptMemoryUse, pinnedMemories, writtenInConversation } from "../memory/memory-recall";
 import { availableProviders } from "../models/chain";
 import { localeEnglishNames, UserError } from "@abotica/i18n";
 import { type RunRepo, runRepos } from "../projects/repos";
@@ -327,10 +327,9 @@ export type DeferredToolGroup = { source: string; names: string[] };
 export async function buildInstructions(ctx: RunContext, deferredTools: DeferredToolGroup[] = []): Promise<string> {
   const { agent, project, settings } = ctx;
   // Memory and journals of the run's project only, never of the agent's other projects.
-  const memory = await pinnedMemories(
-    { agentId: agent.id, projectId: ctx.projectId, notesProjectId: ctx.notesProjectId },
-    settings.memoryPinnedTokens,
-  );
+  const reader = { agentId: agent.id, projectId: ctx.projectId, notesProjectId: ctx.notesProjectId };
+  const memory = await pinnedMemories(reader, settings.memoryPinnedTokens);
+  const written = ctx.run.conversationId ? await writtenInConversation(ctx.run.conversationId, reader) : [];
   // While all memory is here, nothing is recalled or searched: being in a run's prompt is its use.
   if (memory.all) {
     notePromptMemoryUse([...memory.global, ...memory.craft, ...memory.team, ...memory.notes].map((m) => m.id));
@@ -496,6 +495,20 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
               ...memory.notes.map(entryLine),
             ]
           : []),
+      ].join("\n"),
+    );
+  }
+
+  // Per conversation too. The entries are also in the memory above (or recalled), unmarked so that section
+  // stays the same in every conversation; without this the agent took what it saved a minute ago for an
+  // older rule it had ignored.
+  if (written.length) {
+    sections.push(
+      [
+        "# Memory written in this chat",
+        "You saved or changed these entries earlier in this conversation: they were not in memory in this wording before it.",
+        ...(anyExternal(written) ? [EXTERNAL_NOTE] : []),
+        ...written.map(entryLine),
       ].join("\n"),
     );
   }

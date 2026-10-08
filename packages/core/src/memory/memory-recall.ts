@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { db, memories, memoryRecalls, messages, type Tx } from "@abotica/db";
+import { db, memories, memoryRecalls, messages, runs, type Tx } from "@abotica/db";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "@abotica/db/orm";
 import { CHARS_PER_TOKEN } from "../agents/compaction";
 import { projectProviderPolicy } from "../models/provider-policy";
@@ -63,6 +63,24 @@ export async function pinnedMemories(reader: MemoryReader, budgetTokens: number)
     team: ofLayer("team"),
     notes: ofLayer("mine"),
   };
+}
+
+/** Entries a conversation's prompt lists as written in it, newest first. */
+const WRITTEN_IN_CONVERSATION_LIMIT = 20;
+
+/**
+ * The entries the run may read whose current version an agent run of this conversation wrote (saved, or
+ * changed with memory_update). The prompt lists them apart, so the agent does not take what it saved a
+ * minute ago for a rule that was there before.
+ */
+export async function writtenInConversation(conversationId: string, reader: MemoryReader) {
+  return db
+    .select({ id: memories.id, content: memories.content, origin: memories.origin })
+    .from(memories)
+    .innerJoin(runs, eq(runs.id, memories.runId))
+    .where(and(eq(runs.conversationId, conversationId), memoriesVisibleTo(reader)))
+    .orderBy(desc(memories.createdAt), memories.id)
+    .limit(WRITTEN_IN_CONVERSATION_LIMIT);
 }
 
 /** Search results a recall picks from before its budget cut. */

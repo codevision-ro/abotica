@@ -538,16 +538,23 @@ describe("updateMemory", () => {
 
   it("edits the user's own entry in place, also for an agent", async () => {
     state.owned = [{ ...ENTRY, origin: "owner" }];
-    await updateMemory("m1", "Deploys go to Hetzner.", { origin: "agent", retention: "ephemeral" });
+    await updateMemory("m1", "Deploys go to Hetzner.", { origin: "agent", retention: "ephemeral", runId: "r1" });
     expect(state.inserted).toEqual([]);
     expect(state.updated).toEqual([
-      expect.objectContaining({ content: "Deploys go to Hetzner.", retention: "ephemeral", expiresAt: expect.any(Date) }),
+      expect.objectContaining({
+        content: "Deploys go to Hetzner.",
+        retention: "ephemeral",
+        expiresAt: expect.any(Date),
+        runId: "r1",
+      }),
     ]);
   });
 
-  it("keeps the origin and status of the user's own edit", async () => {
+  it("keeps the origin and status of the user's own edit, which no agent run wrote", async () => {
     const result = await updateMemory("m1", "Deploys go to Hetzner.");
-    expect(state.updated).toEqual([{ content: "Deploys go to Hetzner.", embedding: state.embedding, flagReason: null }]);
+    expect(state.updated).toEqual([
+      { content: "Deploys go to Hetzner.", embedding: state.embedding, flagReason: null, runId: null },
+    ]);
     expect(result).toEqual({ id: "m1", heldBecause: null });
   });
 

@@ -209,6 +209,7 @@ export const memoryTools: Record<string, ToolFactory> = {
               origin: writeOrigin(ctx),
               status: ctx.settings.memoryRequiresApproval ? "pending" : "active",
               retention,
+              runId: ctx.run.id,
             },
             { actor: actorOf(ctx), ...runSecrets(ctx) },
           ),
@@ -270,6 +271,7 @@ export const memoryTools: Record<string, ToolFactory> = {
             ...(ctx.settings.memoryRequiresApproval && { status: "pending" }),
             retention,
             agentId: ctx.agent.id,
+            runId: ctx.run.id,
             ...runSecrets(ctx),
           }),
         );

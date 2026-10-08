@@ -108,6 +108,8 @@ export type MemoryInput = {
   /** The day the fact became true (YYYY-MM-DD); null: the day it is stored. */
   validFrom?: string | null;
   pinned?: boolean;
+  /** The agent run that writes it; null: the user or consolidation. */
+  runId?: string | null;
 };
 
 /** Secret values the caller knows beyond the vault's, which a write must not store (a run's repository tokens). */
@@ -151,6 +153,7 @@ async function insertMemory(input: MemoryInput, checked: StoredWrite, embedding:
       validFrom,
       expiresAt: expiryFor(retention, validFrom, new Date()),
       pinned: input.pinned ?? false,
+      runId: input.runId ?? null,
     })
     .returning();
   return row!;
@@ -483,6 +486,8 @@ export async function updateMemory(
       origin?: Memory["origin"];
       retention?: Memory["retention"];
       agentId?: string;
+      /** The agent run that writes the new content; left out, the content is the user's. */
+      runId?: string;
     } = {},
 ): Promise<{ id: string; heldBecause: string | null }> {
   const [memory] = await ownedMemories([id], opts.owner);
@@ -502,6 +507,7 @@ export async function updateMemory(
         origin: opts.origin,
         retention: opts.retention ?? memory!.retention,
         pinned: memory!.pinned,
+        runId: opts.runId ?? null,
       },
       checked,
       embedding,
@@ -522,6 +528,7 @@ export async function updateMemory(
       content: checked.content,
       embedding,
       flagReason: checked.flagReason,
+      runId: opts.runId ?? null,
       ...(opts.origin && { origin: opts.origin }),
       ...(checked.status && { status: checked.status }),
       ...(opts.retention && {

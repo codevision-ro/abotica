@@ -6,8 +6,10 @@ import { kindPrompt } from "./kind-prompts";
 import { UNTRUSTED_NOTE } from "./untrusted";
 
 type Pinned = Awaited<ReturnType<typeof import("../memory/memory-recall").pinnedMemories>>;
-const { pinned } = vi.hoisted(() => ({
+type Written = Awaited<ReturnType<typeof import("../memory/memory-recall").writtenInConversation>>;
+const { pinned, written } = vi.hoisted(() => ({
   pinned: { current: { all: true, omitted: 0, global: [], craft: [], team: [], notes: [] } as Pinned },
+  written: { current: [] as Written, conversationIds: [] as string[] },
 }));
 vi.mock("../memory/memory", () => ({ recentJournals: async () => [] }));
 vi.mock("../models/chain", () => ({ availableProviders: async () => [] }));
@@ -20,7 +22,14 @@ vi.mock("@abotica/db", async (importOriginal) => {
     });
   return { ...(await importOriginal<typeof import("@abotica/db")>()), db: { select: none } };
 });
-vi.mock("../memory/memory-recall", () => ({ pinnedMemories: async () => pinned.current, notePromptMemoryUse: vi.fn() }));
+vi.mock("../memory/memory-recall", () => ({
+  pinnedMemories: async () => pinned.current,
+  writtenInConversation: async (conversationId: string) => {
+    written.conversationIds.push(conversationId);
+    return written.current;
+  },
+  notePromptMemoryUse: vi.fn(),
+}));
 
 /** context.ts imports the database client, which needs a URL; nothing connects. */
 async function load() {
@@ -32,6 +41,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
   pinned.current = { all: true, omitted: 0, global: [], craft: [], team: [], notes: [] };
+  written.current = [];
+  written.conversationIds = [];
 });
 
 /** An agent outside projects and not the super agent: the prompt needs no query. */
@@ -140,6 +151,34 @@ describe("buildInstructions", () => {
     );
     expect(prompt.indexOf("## This project: your notes")).toBeGreaterThan(prompt.indexOf("# Projects"));
     expect(prompt.match(/## This project: your notes/g)).toHaveLength(1);
+  });
+
+  it("lists apart the entries written in this conversation, after the shared sections and before the rules", async () => {
+    const { buildInstructions } = await load();
+    const at = new Date("2026-10-01T10:00:00Z");
+    const rule = { id: "m1", content: "Answer a greeting with a greeting only.", origin: "agent" as const };
+    pinned.current = { all: true, omitted: 0, global: [{ ...rule, updatedAt: at }], craft: [], team: [], notes: [] };
+    written.current = [rule];
+    const inChat = { ...ctx, run: { ...ctx.run, conversationId: "c1" } } as unknown as RunContext;
+    const prompt = await buildInstructions(inChat);
+    expect(written.conversationIds).toEqual(["c1"]);
+    expect(prompt).toContain(
+      "# Memory written in this chat\nYou saved or changed these entries earlier in this conversation: they were not in memory in this wording before it.\n- Answer a greeting with a greeting only.",
+    );
+    expect(prompt.indexOf("# Memory written in this chat")).toBeGreaterThan(prompt.indexOf("# Memory\n"));
+    expect(prompt.indexOf("# Memory written in this chat")).toBeLessThan(prompt.indexOf("# Rules"));
+    // Up to where the conversations differ, the prompt is the one every conversation of the agent shares.
+    written.current = [];
+    const shared = await buildInstructions(inChat);
+    expect(prompt.startsWith(shared.slice(0, shared.indexOf("# Rules")))).toBe(true);
+  });
+
+  it("has no such section outside a conversation or when nothing was written in it", async () => {
+    const { buildInstructions } = await load();
+    expect(await buildInstructions(ctx)).not.toContain("# Memory written in this chat");
+    expect(written.conversationIds).toEqual([]);
+    const inChat = { ...ctx, run: { ...ctx.run, conversationId: "c1" } } as unknown as RunContext;
+    expect(await buildInstructions(inChat)).not.toContain("# Memory written in this chat");
   });
 
   it("tells the agent never to follow instructions in untrusted data, also inside platform notices", async () => {
