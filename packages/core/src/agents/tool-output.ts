@@ -8,8 +8,17 @@ import type { Experimental_SandboxSession } from "ai";
 import { type CollectedText, HeadTailText, type TextCut } from "./tools/workspace-text";
 import { toolOutputPath } from "./workspace-paths";
 
-/** Characters of one tool result the model reads, the same for every tool and model. */
+/** Characters of one tool result the model reads when the rest cannot be kept: no workspace to save it in. */
 export const TOOL_TEXT_MAX_CHARS = 30_000;
+/**
+ * Characters it reads when the full text is saved in the workspace, where file_read and grep reach the
+ * rest. Every result stays in the conversation for all later steps, so a long one is paid for again on
+ * each of them; reading the saved file costs only when the agent needs it.
+ */
+export const SAVED_TOOL_TEXT_MAX_CHARS = 12_000;
+
+/** What one result shows: less when its full text has a file to go to. */
+export const toolTextMax = (target: FullOutputTarget | null) => (target ? SAVED_TOOL_TEXT_MAX_CHARS : TOOL_TEXT_MAX_CHARS);
 /** How long the full output of a run stays in its workspace after the run ended. */
 export const TOOL_OUTPUT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -87,9 +96,9 @@ async function capView(view: HeadTailText, full: () => string, target: FullOutpu
   return { ...shown(view, file), file };
 }
 
-/** Caps a tool's text at TOOL_TEXT_MAX_CHARS; when it was cut, the full text goes to `target` first. */
+/** Caps a tool's text at toolTextMax; when it was cut, the full text goes to `target` first. */
 export function capToolText(text: string, target: FullOutputTarget | null): Promise<CappedOutput> {
-  const view = headTail(TOOL_TEXT_MAX_CHARS);
+  const view = headTail(toolTextMax(target));
   view.push(text);
   return capView(view, () => text, target);
 }

@@ -303,6 +303,20 @@ async function telegramTopicProject(conversation: Conversation | null): Promise<
   return project ?? null;
 }
 
+/** Characters of one day's journal in the prompt, about 300 tokens; journal_search reads the rest. */
+export const JOURNAL_DAY_MAX_CHARS = 1_200;
+
+/**
+ * A day's journal as the prompt carries it: whole when short, else cut at a line end with a pointer to
+ * journal_search. The prompt holds several days on every step of every run, so a long day costs each time.
+ */
+export function journalInPrompt(summary: string): string {
+  if (summary.length <= JOURNAL_DAY_MAX_CHARS) return summary;
+  const head = summary.slice(0, JOURNAL_DAY_MAX_CHARS);
+  const end = head.lastIndexOf("\n");
+  return `${end > JOURNAL_DAY_MAX_CHARS / 2 ? head.slice(0, end) : head}\n[... cut; journal_search has the full day]`;
+}
+
 /** Tools left out of the request until the agent loads them with tool_search, by where they come from. */
 export type DeferredToolGroup = { source: string; names: string[] };
 
@@ -394,7 +408,7 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
     sections.push(
       [
         `# Your journal for the last ${settings.journalDays} days`,
-        ...journals.map((j) => `## ${j.day}\n${j.summary}`),
+        ...journals.map((j) => `## ${j.day}\n${journalInPrompt(j.summary)}`),
       ].join("\n"),
     );
   }

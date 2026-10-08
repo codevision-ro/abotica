@@ -291,3 +291,24 @@ describe("buildInstructions", () => {
     expect(notePromptMemoryUse).not.toHaveBeenCalled();
   });
 });
+
+describe("journalInPrompt", () => {
+  it("keeps a short day whole", async () => {
+    const { journalInPrompt } = await import("./context");
+    expect(journalInPrompt("**What I did**\nShort day.")).toBe("**What I did**\nShort day.");
+  });
+
+  it("cuts a long day at a line end and points to journal_search", async () => {
+    const { journalInPrompt, JOURNAL_DAY_MAX_CHARS } = await import("./context");
+    const day = Array.from({ length: 60 }, (_, i) => `- line ${i} ${"x".repeat(30)}`).join("\n");
+    const text = journalInPrompt(day);
+    expect(text.length).toBeLessThan(JOURNAL_DAY_MAX_CHARS + 60);
+    expect(text.endsWith("\n[... cut; journal_search has the full day]")).toBe(true);
+    expect(
+      text
+        .split("\n")
+        .slice(0, -1)
+        .every((line) => /^- line \d+ x{30}$/.test(line)),
+    ).toBe(true);
+  });
+});

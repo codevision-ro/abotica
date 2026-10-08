@@ -17,7 +17,7 @@ import { GLOBAL_SECRETS } from "../platform/vault";
 import { PROXY_MANAGED_KEY } from "./mcp-routes";
 import { loadMcpTools, McpToolError, type McpRunOptions } from "./mcp-runtime";
 import { bashWorkspace } from "./test-workspace";
-import { TOOL_TEXT_MAX_CHARS } from "./tool-output";
+import { SAVED_TOOL_TEXT_MAX_CHARS, TOOL_TEXT_MAX_CHARS } from "./tool-output";
 import { wrapUntrusted } from "./untrusted";
 import { markerId } from "./untrusted-id";
 import { wrapUntrustedResults } from "./untrusted-results";
@@ -497,7 +497,7 @@ describe("loadMcpTools in a run's workspace", () => {
 
     it("returns results within the limit byte for byte", async () => {
       const parts: ContentPart[] = [
-        { type: "text", text: "a".repeat(TOOL_TEXT_MAX_CHARS - 10) },
+        { type: "text", text: "a".repeat(SAVED_TOOL_TEXT_MAX_CHARS - 10) },
         image,
         { type: "text", text: "b".repeat(10) },
       ];
@@ -521,9 +521,9 @@ describe("loadMcpTools in a run's workspace", () => {
       expect(written.get(file)).toBe(`${"h".repeat(100_000)}\n${"t".repeat(100_000)}`);
       expect(output.content.map((part) => part.type)).toEqual(["text", "image"]);
       const text = (output.content[0] as { text: string }).text;
-      expect(text.length).toBeLessThan(TOOL_TEXT_MAX_CHARS + 200);
+      expect(text.length).toBeLessThan(SAVED_TOOL_TEXT_MAX_CHARS + 200);
       expect(text).toBe(
-        `${"h".repeat(15_000)}\n[... 170001 characters cut. Full output in your workspace: ${file} ...]\n${"t".repeat(15_000)}`,
+        `${"h".repeat(6_000)}\n[... 188001 characters cut. Full output in your workspace: ${file} ...]\n${"t".repeat(6_000)}`,
       );
       expect(output.content[1]).toEqual(image);
     });

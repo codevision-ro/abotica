@@ -8,7 +8,7 @@ import { logRunEvent } from "../../runs/run-lifecycle";
 import type { Agent, RunContext } from "../context";
 import { builtinPermission } from "../permissions";
 import { nestedRepoInstructions } from "../repo-instructions";
-import { capStreamText, fullOutputTarget, TOOL_TEXT_MAX_CHARS } from "../tool-output";
+import { capStreamText, fullOutputTarget, SAVED_TOOL_TEXT_MAX_CHARS } from "../tool-output";
 import { blankToUndefined, clip, errorResult, type ToolFactory } from "./shared";
 import { TOOL_CATALOG } from "./tool-catalog";
 import { applyEdit, collectText, decodeText, readAtMost, sliceLines } from "./workspace-text";
@@ -99,8 +99,9 @@ const shellInput = (ctx: RunContext) =>
   });
 
 /**
- * Runs a shell command in the run's workspace and collects its output, cut to TOOL_TEXT_MAX_CHARS
- * per stream; a cut stream is saved in full (up to FULL_OUTPUT_BYTES) and its file named.
+ * Runs a shell command in the run's workspace and collects its output, cut to SAVED_TOOL_TEXT_MAX_CHARS
+ * per stream (the workspace is there to keep the rest); a cut stream is saved in full (up to
+ * FULL_OUTPUT_BYTES) and its file named.
  */
 function runShell(
   ctx: RunContext,
@@ -122,8 +123,8 @@ function runShell(
     }, seconds * 1000);
     // Saving the output happens after the timer: the command is over, so it cannot count as timed out.
     const [stdout, stderr, { exitCode }] = await Promise.all([
-      collectText(proc.stdout, TOOL_TEXT_MAX_CHARS, FULL_OUTPUT_BYTES),
-      collectText(proc.stderr, TOOL_TEXT_MAX_CHARS, FULL_OUTPUT_BYTES),
+      collectText(proc.stdout, SAVED_TOOL_TEXT_MAX_CHARS, FULL_OUTPUT_BYTES),
+      collectText(proc.stderr, SAVED_TOOL_TEXT_MAX_CHARS, FULL_OUTPUT_BYTES),
       proc.wait(),
     ]).finally(() => clearTimeout(timer));
     const workspace = { sandbox, runId: ctx.run.id };

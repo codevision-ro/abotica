@@ -50,7 +50,14 @@ export const TOOL_CATALOG: ToolInfo[] = [
     description: "Full task: description, output, comments, subtasks, runs",
     group: "tasks",
   },
-  { name: "task_create", label: "Create tasks", description: "Create tasks and subtasks", group: "tasks" },
+  // Work is handed on with delegate_task, so creating a task directly is rare: loaded on demand.
+  {
+    name: "task_create",
+    label: "Create tasks",
+    description: "Create tasks and subtasks",
+    group: "tasks",
+    deferred: true,
+  },
   { name: "task_update", label: "Update tasks", description: "Change status, output, priority, deadline", group: "tasks" },
   {
     name: "task_delete",
@@ -67,6 +74,8 @@ export const TOOL_CATALOG: ToolInfo[] = [
     description:
       "End its run and be woken at a time, when a pull request's checks finish or it merges, when subtasks are done or another task reaches a status",
     group: "tasks",
+    // The largest definition, and delegated work reports back by itself: loaded on demand.
+    deferred: true,
   },
   { name: "web_fetch", label: "Read web pages", description: "Fetch and read the content of a URL", group: "web" },
   {

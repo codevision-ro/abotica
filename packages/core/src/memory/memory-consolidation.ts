@@ -77,7 +77,7 @@ export function journalPrompt(input: {
 }) {
   return {
     instructions: [
-      `You write the daily journal of an AI agent, in the first person, in ${input.language}. Be concise and concrete.`,
+      `You write the daily journal of an AI agent, in the first person, in ${input.language}. Be concise and concrete: at most 150 words, the decisions and what is still open first among what you keep.`,
       scopeLine(input.project),
       `Today is ${input.day} (time zone ${input.timezone}). ${NO_RELATIVE_DATES}`,
     ].join(" "),

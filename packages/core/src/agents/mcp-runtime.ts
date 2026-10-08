@@ -42,13 +42,7 @@ import { resolveMcpRoutes } from "./mcp-routes";
 import { SandboxMcpTransport } from "./mcp-sandbox-transport";
 import { mcpToolDefault, mcpToolHint } from "./permissions";
 import { type SecretRedactor, secretRedactor } from "./redact";
-import {
-  capToolText,
-  type FullOutputTarget,
-  fullOutputTarget,
-  TOOL_TEXT_MAX_CHARS,
-  type ToolOutputWorkspace,
-} from "./tool-output";
+import { capToolText, type FullOutputTarget, fullOutputTarget, toolTextMax, type ToolOutputWorkspace } from "./tool-output";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
 import { wrapUntrusted } from "./untrusted";
 import { markerId } from "./untrusted-id";
@@ -278,14 +272,14 @@ function modelOutput(slug: string, onUntrusted: (() => void) | undefined) {
 }
 
 /**
- * Caps the text parts of a result together at TOOL_TEXT_MAX_CHARS. Over it, they become one part in
+ * Caps the text parts of a result together at toolTextMax. Over it, they become one part in
  * place of the first, cut in the middle, so its lines match the saved full text; other parts keep
  * their order. A result within the limit comes back as it is.
  */
 async function capResult(result: McpCallResult, target: FullOutputTarget | null): Promise<McpCallResult> {
   if (!("content" in result) || !Array.isArray(result.content)) return result;
   const texts = result.content.flatMap((part) => (part.type === "text" ? [part.text] : []));
-  if (texts.reduce((sum, text) => sum + text.length, 0) <= TOOL_TEXT_MAX_CHARS) return result;
+  if (texts.reduce((sum, text) => sum + text.length, 0) <= toolTextMax(target)) return result;
   const { text } = await capToolText(texts.join("\n"), target);
   const first = result.content.findIndex((part) => part.type === "text");
   const content = result.content.flatMap((part, i) =>

@@ -6,6 +6,7 @@ import {
   cutNotice,
   expiredToolOutputs,
   fullOutputTarget,
+  SAVED_TOOL_TEXT_MAX_CHARS,
   saveFullOutput,
   TOOL_OUTPUT_RETENTION_MS,
   TOOL_TEXT_MAX_CHARS,
@@ -135,9 +136,11 @@ describe("capToolText", () => {
     const file = `tool-output/${RUN_ID}/c1.txt`;
     expect(capped.file).toBe(file);
     expect(written.get(file)).toBe(long);
-    expect(capped.text).toContain(`[... 20000 characters cut. Full output in your workspace: ${file} ...]`);
-    expect(capped.text.startsWith("h".repeat(15_000))).toBe(true);
-    expect(capped.text.endsWith("t".repeat(15_000))).toBe(true);
+    // With a file for the rest, a result shows less: it is paid for again on every later step.
+    expect(capped.text).toContain(`[... 38000 characters cut. Full output in your workspace: ${file} ...]`);
+    expect(capped.text.startsWith("h".repeat(6_000))).toBe(true);
+    expect(capped.text.endsWith("t".repeat(6_000))).toBe(true);
+    expect(capped.text.length).toBeLessThan(SAVED_TOOL_TEXT_MAX_CHARS + 200);
   });
 
   it("cuts without a file when the run has no workspace", async () => {

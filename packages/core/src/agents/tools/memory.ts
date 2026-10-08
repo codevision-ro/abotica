@@ -63,7 +63,7 @@ const retention = z
   .enum(MEMORY_RETENTIONS)
   .optional()
   .describe(
-    `How long the fact holds: permanent (the user's preferences and habits, true indefinitely), durable (the default: decisions, project knowledge, configuration, valid for months) or ephemeral (temporary arrangements that change within weeks; forgotten after ${EPHEMERAL_DAYS} days).`,
+    `permanent: the user's lasting preferences; durable (default): decisions and knowledge valid for months; ephemeral: arrangements that change within weeks, forgotten after ${EPHEMERAL_DAYS} days.`,
   );
 
 /** Asked of every write: memory is read days or months later. */
@@ -155,9 +155,8 @@ export const memoryTools: Record<string, ToolFactory> = {
   memory_save: (ctx) =>
     tool({
       description: [
-        "Save a fact to memory. Do not save intermediate steps, and never secrets (keys, tokens, passwords). To correct an existing entry use memory_update instead of saving a second one.",
+        "Save a durable fact: no intermediate steps, never secrets. To correct an entry, use memory_update.",
         ABSOLUTE_DATES,
-        "Say how long it holds with retention.",
         ctx.projectId
           ? "scope: mine (the default) for what you learned working on this project, read only by you and only here; team for decisions, conventions and facts the whole team must share; craft for your methods, tools and lessons that hold in any project, never names of projects, clients or sites."
           : ctx.agent.kind === "orchestrator"
@@ -249,11 +248,9 @@ export const memoryTools: Record<string, ToolFactory> = {
   memory_update: (ctx) =>
     tool({
       description: [
-        "Replace the content of a memory entry that is wrong or outdated. Get the id from memory_search. Write the complete new content, not a diff.",
+        "Replace a wrong or outdated entry (id from memory_search) with its complete new content. It returns the new entry's id; the old one stays as history.",
         ABSOLUTE_DATES,
-        "Set retention when how long it holds changed; left out, it keeps the entry's. An entry agents wrote keeps its old version as history: the update returns the id of the new entry.",
-        ctx.projectId &&
-          "The entry keeps its scope: mine and team stay in this project; craft holds only what applies in any project, never names of projects, clients or sites.",
+        ctx.projectId && "The entry keeps its scope; craft never names projects, clients or sites.",
       ]
         .filter(Boolean)
         .join(" "),

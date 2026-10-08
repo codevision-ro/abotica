@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { finalResponse, terminalResponse, toPlanRequest } from "./chatgpt-request";
+import { finalResponse, planHeaders, terminalResponse, toPlanRequest } from "./chatgpt-request";
 
 const sse = (...events: object[]) =>
   new Response(events.map((e) => `event: x\r\ndata: ${JSON.stringify(e)}\r\n\r\n`).join(""), {
@@ -92,5 +92,20 @@ describe("finalResponse", () => {
 
   it("ignores events that do not end the response", () => {
     expect(terminalResponse({ type: "response.output_text.delta" })).toBeNull();
+  });
+});
+
+describe("planHeaders", () => {
+  it("routes the prompt cache by the conversation's key, as ChatGPT takes it from session-id", () => {
+    const headers = planHeaders({ prompt_cache_key: "conv-1" }, { authorization: "Bearer t" });
+    expect(headers.get("session-id")).toBe("conv-1");
+    expect(headers.get("thread-id")).toBe("conv-1");
+    expect(headers.get("authorization")).toBe("Bearer t");
+  });
+
+  it("adds nothing without a key", () => {
+    const headers = planHeaders({}, { authorization: "Bearer t" });
+    expect(headers.has("session-id")).toBe(false);
+    expect(headers.get("authorization")).toBe("Bearer t");
   });
 });

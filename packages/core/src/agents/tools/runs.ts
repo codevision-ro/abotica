@@ -121,7 +121,7 @@ const circuitOpen = (taskId: string, streak: FailureStreak) => ({
 
 /** The mechanics of delegating; whom to delegate to and what a brief holds is in the kind prompts. */
 const DELEGATE =
-  "Hand a task to an agent and start it right away (or once its dependencies are done, or once a place frees up when too many of your delegated tasks run at once). The agent sees neither your conversation nor your workspace: the description holds what it needs, files the files. To retry or reassign an existing task (e.g. a blocked one), send its taskId instead of a title and description. When the work finishes, its result arrives here as an automatic notice with the files it produced: end your turn after delegating and do not poll.";
+  "Hand a task to an agent; it starts now, or once its dependencies are done or a place frees up. The agent sees neither your conversation nor your workspace: the description holds what it needs, files the files. To retry or reassign a task, send its taskId instead of a title and description. Its result comes back here as an automatic notice: do not poll.";
 
 /**
  * Said with every started delegation, at the moment the model decides what to do next: agents kept
@@ -150,11 +150,11 @@ export const runTools: Record<string, ToolFactory> = {
         userAsked: z
           .boolean()
           .default(false)
-          .describe("With taskId: true only when the user asked you in this conversation to retry or reassign the task"),
+          .describe("With taskId: true only when the user asked in this conversation for the retry"),
         files: z
           .preprocess(blankToUndefined, z.array(z.string().trim().min(1)).default([]))
           .describe(
-            "Paths of files in your workspace the agent needs (e.g. inputs/1a2b3c4d/contract.pdf for a file the user attached, or one you made), at most 50 MB each. The agent finds them in its workspace's inputs. With taskId, a file named like one you handed over before replaces it.",
+            "Workspace paths of files the agent needs (e.g. inputs/1a2b3c4d/contract.pdf), at most 50 MB each; it finds them in its inputs. With taskId, a file of the same name replaces the one handed over before.",
           ),
       }),
       execute: async (input, { abortSignal, experimental_sandbox: sandbox }) => {
