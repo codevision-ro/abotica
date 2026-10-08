@@ -16,15 +16,15 @@ import {
 import { tool } from "ai";
 import { and, eq, inArray, isNotNull } from "@abotica/db/orm";
 import { z } from "zod";
-import { createAgentConfig, updateAgentConfig, versionNotes } from "../agent-config";
+import { createAgentConfig, createAgentFromTemplate, updateAgentConfig, versionNotes } from "../agent-config";
 import { audit } from "../../platform/audit";
 import { addProjectMembers } from "../../projects/projects";
-import { assertProviderUsable, managesProject, usesDefaultModel } from "../../models/chain";
+import { assertProviderUsable, usesDefaultModel } from "../../models/chain";
 import { type ModelRole, modelRole, roleDefaultModels } from "../../models/model-role";
 import type { RunContext } from "../context";
 import { REASONING_EFFORTS } from "../../models/reasoning";
 import { defaultPermissions } from "../permissions";
-import { actorOf, agentBySlug, blankToUndefined, errorResult, optionalText, type ToolFactory } from "./shared";
+import { actorOf, agentBySlug, blankToUndefined, clip, errorResult, optionalText, type ToolFactory } from "./shared";
 
 /** An explicit model keeps its role's default chain behind it, so the agent survives provider outages. */
 const fallbacksFor = (ctx: RunContext, primary: ModelRef, role: ModelRole): ModelRef[] =>
@@ -59,7 +59,7 @@ export const agentTools: Record<string, ToolFactory> = {
   agent_list: (ctx) =>
     tool({
       description:
-        "List the available agents with their roles, models, projects (manager: true where they lead it), skills and MCP servers. Use it before delegating.",
+        "List the available agents with their kind (orchestrator, manager, specialist), roles, models, projects (manager: true where they lead it), skills and MCP servers. Use it before delegating.",
       inputSchema: z.object({}),
       execute: async () => {
         const rows = await db.query.agents.findMany({
@@ -74,16 +74,15 @@ export const agentTools: Record<string, ToolFactory> = {
           .select({ id: projects.id, managerAgentId: projects.managerAgentId })
           .from(projects)
           .where(isNotNull(projects.managerAgentId));
-        const managers = new Set(led.map((l) => l.managerAgentId));
         return rows.map((a) => ({
           slug: a.slug,
           name: a.name,
           role: a.role,
           // "default" with the model it resolves to, since each role has its own default.
           model: usesDefaultModel(a)
-            ? `default (${modelLabel(roleDefaultModels(ctx.settings, modelRole(a, managers.has(a.id)))[0])})`
+            ? `default (${modelLabel(roleDefaultModels(ctx.settings, modelRole(a))[0])})`
             : `${a.provider}/${a.model}`,
-          orchestrator: a.isOrchestrator,
+          kind: a.kind,
           projects: a.projects.map((p) => ({
             id: p.project.id,
             name: p.project.name,
@@ -95,54 +94,120 @@ export const agentTools: Record<string, ToolFactory> = {
       },
     }),
 
+  template_list: () =>
+    tool({
+      description:
+        "List the agent templates agent_create can start from: each holds a profession (its prompt), a role, tools, skills and MCP servers.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const rows = await db.query.agents.findMany({
+          where: (a, { eq }) => eq(a.isTemplate, true),
+          with: {
+            skills: { with: { skill: { columns: { slug: true } } } },
+            mcpServers: { with: { mcpServer: { columns: { slug: true } } } },
+          },
+          orderBy: (a, { asc }) => asc(a.name),
+        });
+        return rows.map((t) => ({
+          slug: t.slug,
+          name: t.name,
+          role: t.role,
+          kind: t.kind,
+          profession: clip(t.systemPrompt, 400),
+          skills: t.skills.map((s) => s.skill.slug),
+          mcpServers: t.mcpServers.map((m) => m.mcpServer.slug),
+        }));
+      },
+    }),
+
   agent_create: (ctx) =>
     tool({
       description:
-        "Create a new agent (requires the user's approval). By default the agent uses the agents' default model; pick a provider and a model only if the role needs something else, and only from the available models. With projectIds it joins those projects' teams, where their managers can delegate to it.",
+        "Create a new agent (requires the user's approval). Prefer a template that fits (template_list): the agent gets its profession, role, tools, skills and MCP servers. Otherwise write its profession: who it is professionally and how it does its work, the same in every project (niche, language and audience come from the project). Never write hierarchy or team rules into it: the platform adds those for the agent's kind. Without a template the agent is a specialist; a manager comes from the project manager template, when the user asks for one. The agent uses its role's default model unless you pick a provider and a model, only from the available models. With projectIds a specialist joins those projects' teams.",
       inputSchema: z.object({
-        name: z.string().min(2),
-        role: z.string().min(3),
-        systemPrompt: z.string().min(20),
+        templateSlug: optionalText().describe("A template from template_list"),
+        name: optionalText().describe("Required without a template; with one, defaults to the template's name"),
+        role: optionalText().describe("Required without a template; with one, replaces the template's role"),
+        profession: optionalText().describe("Required without a template; with one, replaces the template's profession"),
         provider: z
           .string()
           .optional()
           .describe("Leave empty so the agent uses the default model. Only providers from the available models list."),
         model: z.string().optional().describe("Required only if you pick a provider"),
-        projectIds: z.array(z.string().uuid()).default([]).describe("Projects whose team the agent joins"),
+        projectIds: z.array(z.string().uuid()).default([]).describe("Projects whose team the specialist joins"),
       }),
       execute: async (input) => {
+        const name = input.name?.trim();
+        const role = input.role?.trim();
+        const profession = input.profession?.trim();
+        if (name !== undefined && name.length < 2) return { error: "The name needs at least 2 characters" };
+        if (profession !== undefined && profession.length < 20) {
+          return { error: "The profession needs at least 20 characters" };
+        }
+        const template = input.templateSlug ? await agentBySlug(input.templateSlug) : undefined;
+        if (input.templateSlug && !template?.isTemplate) {
+          return { error: `Template ${input.templateSlug} does not exist. Use template_list.` };
+        }
+        if (!template && (!name || !role || role.length < 3 || !profession)) {
+          return { error: "Without a template, send name, role (at least 3 characters) and profession" };
+        }
+        const kind = template?.kind ?? "specialist";
+        const projectIds = [...new Set(input.projectIds)];
+        if (kind !== "specialist" && projectIds.length) {
+          return { error: "A manager joins only the projects it leads: make it a project's manager with project_update." };
+        }
         const picked = await pickModel(input.provider, input.model);
         if ("error" in picked) return picked;
-        const projectIds = [...new Set(input.projectIds)];
         const found = projectIds.length
           ? await db.select({ id: projects.id }).from(projects).where(inArray(projects.id, projectIds))
           : [];
         const missing = projectIds.filter((id) => !found.some((p) => p.id === id));
         if (missing.length) return { error: `Unknown projects: ${missing.join(", ")}. Use project_list.` };
-        const agent = await createAgentConfig(
-          {
-            name: input.name,
-            role: input.role,
-            avatar: DEFAULT_AGENT_AVATAR,
-            systemPrompt: input.systemPrompt,
-            provider: picked.ref?.provider ?? null,
-            model: picked.ref?.model ?? null,
-            // A new agent manages no project yet.
-            fallbacks: picked.ref ? fallbacksFor(ctx, picked.ref, "agent") : [],
-            reasoningEffort: "default",
-            permissions: defaultPermissions({ isOrchestrator: false, isManager: false }),
-            limits: DEFAULT_AGENT_LIMITS,
-          },
-          {},
-          { note: (await versionNotes()).initial },
-        );
-        await audit({ actor: actorOf(ctx), action: "agent.created", entityType: "agent", entityId: agent.id });
-        // Joining through the team rules audits each project's team change.
-        for (const projectId of projectIds) await addProjectMembers(projectId, [agent.id], { actor: actorOf(ctx) });
+        const modelRef = picked.ref && {
+          provider: picked.ref.provider,
+          model: picked.ref.model,
+          fallbacks: fallbacksFor(ctx, picked.ref, modelRole({ kind })),
+        };
+        let agent;
+        try {
+          if (template) {
+            // Core writes the "agent.created" audit entry here.
+            agent = await createAgentFromTemplate(template.slug, { name, actor: actorOf(ctx) });
+            const changes = {
+              ...(role && { role }),
+              ...(profession && { systemPrompt: profession }),
+              ...modelRef,
+            };
+            if (Object.keys(changes).length) agent = (await updateAgentConfig(agent.id, changes)).agent;
+          } else {
+            agent = await createAgentConfig(
+              {
+                name: name!,
+                role: role!,
+                avatar: DEFAULT_AGENT_AVATAR,
+                systemPrompt: profession!,
+                provider: modelRef?.provider ?? null,
+                model: modelRef?.model ?? null,
+                fallbacks: modelRef?.fallbacks ?? [],
+                reasoningEffort: "default",
+                permissions: defaultPermissions({ kind }),
+                limits: DEFAULT_AGENT_LIMITS,
+              },
+              {},
+              { note: (await versionNotes()).initial },
+            );
+            await audit({ actor: actorOf(ctx), action: "agent.created", entityType: "agent", entityId: agent.id });
+          }
+          // Joining through the team rules audits each project's team change.
+          for (const projectId of projectIds) await addProjectMembers(projectId, [agent.id], { actor: actorOf(ctx) });
+        } catch (error) {
+          return errorResult(error);
+        }
         return {
           slug: agent.slug,
           id: agent.id,
-          model: picked.ref ? `${picked.ref.provider}/${picked.ref.model}` : "default",
+          kind: agent.kind,
+          model: usesDefaultModel(agent) ? "default" : `${agent.provider}/${agent.model}`,
         };
       },
     }),
@@ -150,12 +215,14 @@ export const agentTools: Record<string, ToolFactory> = {
   agent_update: (ctx) =>
     tool({
       description:
-        "Change an agent (requires the user's approval): name, role, system prompt, model or reasoning effort. Only the fields you send change; the system prompt is replaced as a whole, so send the complete new text. Every change is a new version the user can roll back. Permissions, limits and budget stay with the user.",
+        "Change an agent (requires the user's approval): name, role, profession, model or reasoning effort. Only the fields you send change; the profession is replaced as a whole, so send the complete new text, without hierarchy or team rules (the platform adds those for the agent's kind). Every change is a new version the user can roll back. Permissions, limits and budget stay with the user.",
       inputSchema: z.object({
         agentSlug: z.string(),
         name: optionalText(),
         role: optionalText(),
-        systemPrompt: optionalText(),
+        profession: optionalText().describe(
+          "A specialist's profession; for a manager or the super agent, additional instructions (normally none)",
+        ),
         useDefaultModel: z.boolean().default(false).describe("Switch the agent to the default models"),
         provider: z
           .string()
@@ -173,8 +240,8 @@ export const agentTools: Record<string, ToolFactory> = {
         if (!agent) return { error: `Agent ${input.agentSlug} does not exist. Use agent_list.` };
         if (input.name !== undefined && input.name.trim().length < 2)
           return { error: "The name needs at least 2 characters" };
-        if (input.systemPrompt !== undefined && input.systemPrompt.trim().length < 20) {
-          return { error: "The system prompt needs at least 20 characters" };
+        if (input.profession !== undefined && input.profession.trim().length < 20) {
+          return { error: "The profession needs at least 20 characters" };
         }
         const picked = input.useDefaultModel ? { ref: null } : await pickModel(input.provider, input.model);
         if ("error" in picked) return picked;
@@ -183,14 +250,14 @@ export const agentTools: Record<string, ToolFactory> = {
           : picked.ref && {
               provider: picked.ref.provider,
               model: picked.ref.model,
-              fallbacks: fallbacksFor(ctx, picked.ref, modelRole(agent, await managesProject(agent.id))),
+              fallbacks: fallbacksFor(ctx, picked.ref, modelRole(agent)),
             };
         const result = await updateAgentConfig(
           agent.id,
           {
             ...(input.name !== undefined && { name: input.name.trim() }),
             ...(input.role !== undefined && { role: input.role.trim() }),
-            ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
+            ...(input.profession !== undefined && { systemPrompt: input.profession }),
             ...(input.reasoningEffort && { reasoningEffort: input.reasoningEffort }),
             ...modelChange,
           },

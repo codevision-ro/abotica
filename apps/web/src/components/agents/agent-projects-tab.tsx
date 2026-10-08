@@ -1,3 +1,4 @@
+import type { AgentKind } from "@abotica/db";
 import { ArrowRightIcon, BookOpenIcon, ChevronRightIcon, FolderKanbanIcon } from "lucide-react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
@@ -13,14 +14,17 @@ import { type AgentProject, listAgentProjects } from "@/server/queries/agents";
  * The projects an agent is on: one card each, with its role there and what it did and learned there.
  * Its own (profession) memory stays on the Memory tab.
  */
-export async function AgentProjectsTab({ agentId }: { agentId: string }) {
+export async function AgentProjectsTab({ agentId, kind }: { agentId: string; kind: AgentKind }) {
   const [projects, t] = await Promise.all([listAgentProjects(agentId), getTranslations("agents.projects")]);
+  // A manager's projects are the ones it leads.
+  const leads = kind === "manager";
+  const description = leads ? t("ledDescription") : t("description");
 
   if (!projects.length) {
     return (
-      <SectionCard icon={FolderKanbanIcon} title={t("title")} description={t("description")} flush>
+      <SectionCard icon={FolderKanbanIcon} title={t("title")} description={description} flush>
         <SectionEmpty>
-          {t.rich("empty", {
+          {t.rich(leads ? "ledEmpty" : "empty", {
             link: (chunks) => <SectionEmptyLink href="/projects">{chunks}</SectionEmptyLink>,
           })}
         </SectionEmpty>
@@ -30,17 +34,26 @@ export async function AgentProjectsTab({ agentId }: { agentId: string }) {
 
   return (
     <section aria-label={t("title")} className="flex flex-col gap-4">
-      <p className="text-sm text-pretty text-muted-foreground">{t("description")}</p>
+      <p className="text-sm text-pretty text-muted-foreground">{description}</p>
       <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {projects.map((p) => (
-          <ProjectCard key={p.id} agentId={agentId} project={p} />
+          // A manager leads every project listed: no badge to repeat it.
+          <ProjectCard key={p.id} agentId={agentId} project={p} managerBadge={!leads} />
         ))}
       </ul>
     </section>
   );
 }
 
-async function ProjectCard({ agentId, project }: { agentId: string; project: AgentProject }) {
+async function ProjectCard({
+  agentId,
+  project,
+  managerBadge,
+}: {
+  agentId: string;
+  project: AgentProject;
+  managerBadge: boolean;
+}) {
   const t = await getTranslations("agents.projects");
   const teamHref = `/projects/${project.id}?tab=team`;
   return (
@@ -60,7 +73,7 @@ async function ProjectCard({ agentId, project }: { agentId: string; project: Age
           >
             {project.name}
           </Link>
-          {project.isManager && <ManagerBadge />}
+          {managerBadge && project.isManager && <ManagerBadge />}
           {project.status !== "active" && <ProjectStatusBadge status={project.status} />}
         </div>
       </div>

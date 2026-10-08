@@ -11,6 +11,7 @@ import {
   mcpToolHint,
   mcpToolKey,
   mcpToolDefault,
+  mcpRunPermission,
   mcpToolPermission,
   sanitizePermissions,
 } from "./permissions";
@@ -28,9 +29,9 @@ const orchestratorOnly = pick((t) => !!t.orchestratorOnly && !t.alwaysAsk && !t.
 const managerTool = pick((t) => !!t.orchestratorOnly && !!t.managers);
 const askByDefault = pick((t) => t.defaultPermission === "ask" && !t.orchestratorOnly);
 
-const worker = { isOrchestrator: false, isManager: false };
-const manager = { isOrchestrator: false, isManager: true };
-const orchestrator = { isOrchestrator: true, isManager: false };
+const specialist = { kind: "specialist" } as const;
+const manager = { kind: "manager" } as const;
+const orchestrator = { kind: "orchestrator" } as const;
 
 describe("clampPermission", () => {
   it("turns allow into ask for always-ask tools only", () => {
@@ -44,18 +45,18 @@ describe("clampPermission", () => {
 describe("builtinPermission", () => {
   it("denies unknown tools and tools missing from the map", () => {
     expect(builtinPermission({ nope: "allow" }, "nope", orchestrator)).toBe("deny");
-    expect(builtinPermission({}, plain.name, worker)).toBe("deny");
+    expect(builtinPermission({}, plain.name, specialist)).toBe("deny");
   });
 
   it("denies orchestrator-only tools to other agents", () => {
     const permissions = { [orchestratorOnly.name]: "allow" } as const;
-    expect(builtinPermission(permissions, orchestratorOnly.name, worker)).toBe("deny");
+    expect(builtinPermission(permissions, orchestratorOnly.name, specialist)).toBe("deny");
     expect(builtinPermission(permissions, orchestratorOnly.name, orchestrator)).toBe("allow");
   });
 
   it("gives manager tools to managers, at their default unless stored otherwise", () => {
-    expect(builtinPermission({}, managerTool.name, worker)).toBe("deny");
-    expect(builtinPermission({ [managerTool.name]: "allow" }, managerTool.name, worker)).toBe("deny");
+    expect(builtinPermission({}, managerTool.name, specialist)).toBe("deny");
+    expect(builtinPermission({ [managerTool.name]: "allow" }, managerTool.name, specialist)).toBe("deny");
     expect(builtinPermission({}, managerTool.name, manager)).toBe(managerTool.defaultPermission ?? "allow");
     expect(builtinPermission({ [managerTool.name]: "deny" }, managerTool.name, manager)).toBe("deny");
     expect(builtinPermission({ [managerTool.name]: "ask" }, managerTool.name, manager)).toBe("ask");
@@ -152,8 +153,8 @@ describe("MCP tool hints", () => {
 
 describe("defaultPermissions", () => {
   it("covers only the tools the agent can have", () => {
-    expect(Object.keys(defaultPermissions(worker))).not.toContain(orchestratorOnly.name);
-    expect(Object.keys(defaultPermissions(worker))).not.toContain(managerTool.name);
+    expect(Object.keys(defaultPermissions(specialist))).not.toContain(orchestratorOnly.name);
+    expect(Object.keys(defaultPermissions(specialist))).not.toContain(managerTool.name);
     expect(Object.keys(defaultPermissions(manager))).toContain(managerTool.name);
     expect(Object.keys(defaultPermissions(manager))).not.toContain(orchestratorOnly.name);
     expect(Object.keys(defaultPermissions(orchestrator))).toHaveLength(TOOL_CATALOG.length);
@@ -175,12 +176,13 @@ describe("sanitizePermissions", () => {
       unknown_tool: "allow",
       [orchestratorOnly.name]: "allow",
     };
-    expect(sanitizePermissions(input, worker)).toEqual({ [plain.name]: "allow" });
+    expect(sanitizePermissions(input, specialist)).toEqual({ [plain.name]: "allow" });
   });
 
-  it("keeps manager tool entries, denials included, for every agent but the orchestrator", () => {
-    expect(sanitizePermissions({ [managerTool.name]: "deny" }, worker)).toEqual({ [managerTool.name]: "deny" });
+  it("keeps a manager's manager tool entries, denials included, and drops them for specialists", () => {
+    expect(sanitizePermissions({ [managerTool.name]: "deny" }, manager)).toEqual({ [managerTool.name]: "deny" });
     expect(sanitizePermissions({ [managerTool.name]: "allow" }, manager)).toEqual({ [managerTool.name]: "allow" });
+    expect(sanitizePermissions({ [managerTool.name]: "allow" }, specialist)).toEqual({});
     expect(sanitizePermissions({ [managerTool.name]: "deny" }, orchestrator)).toEqual({});
   });
 
@@ -199,10 +201,27 @@ describe("sanitizePermissions", () => {
       "mcp:": "allow",
       "mcp:-x": "allow",
     };
-    expect(sanitizePermissions(input, worker)).toEqual({
+    expect(sanitizePermissions(input, specialist)).toEqual({
       "mcp:*": "deny",
       "mcp:my-server": "ask",
       "mcp:my-server/some tool": "allow",
     });
+  });
+});
+
+describe("mcpRunPermission", () => {
+  const source = (tool: string, readOnly: boolean) =>
+    ({ serverSlug: "site", tool, defaultPermission: "allow", readOnly }) as const;
+  const projectOnly = new Set(["site"]);
+
+  it("gives a manager only the read-only tools of a server it has through its project", () => {
+    expect(mcpRunPermission({}, source("list", true), projectOnly)).toBe("allow");
+    expect(mcpRunPermission({}, source("update", false), projectOnly)).toBe("deny");
+    expect(mcpRunPermission({ "mcp:site": "allow" }, source("update", false), projectOnly)).toBe("deny");
+  });
+
+  it("keeps an entry the agent has for that tool, and leaves other servers alone", () => {
+    expect(mcpRunPermission({ "mcp:site/update": "ask" }, source("update", false), projectOnly)).toBe("ask");
+    expect(mcpRunPermission({}, source("update", false), new Set())).toBe("allow");
   });
 });

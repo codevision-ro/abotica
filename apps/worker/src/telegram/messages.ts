@@ -88,9 +88,9 @@ async function showProgress(bot: Bot, ctx: Context, runId: string) {
 }
 
 /**
- * Appends the message to the chat's conversation and starts the agent the conversation belongs to:
- * the project's manager in a project topic, the super agent anywhere else. The Telegram message it
- * came from is kept in its metadata, so the worker can react to it when a running run takes it in.
+ * Appends the message to the chat's conversation and starts the super agent on it. The Telegram
+ * message it came from is kept in its metadata, so the worker can react to it when a running run
+ * takes it in.
  */
 async function handleUserMessage(bot: Bot, ctx: Context, message: UIMessage, conversation: Conversation) {
   const origin: TelegramOrigin | null = ctx.msg ? { chatId: ctx.chat!.id, messageId: ctx.msg.message_id } : null;
@@ -114,14 +114,10 @@ async function handleUserMessage(bot: Bot, ctx: Context, message: UIMessage, con
   }
 }
 
-/**
- * Text, voice, photos and documents become user messages for the agent that answers in the chat. The
- * conversation is resolved before any download, so a topic without a manager costs nothing.
- */
+/** Text, voice, photos and documents become user messages for the super agent, in every chat and topic. */
 export function registerMessageHandlers(bot: Bot) {
   bot.on("message:text", async (ctx) => {
     const conversation = await currentConversation(ctx);
-    if (!conversation) return;
     await handleUserMessage(
       bot,
       ctx,
@@ -135,7 +131,6 @@ export function registerMessageHandlers(bot: Bot) {
     const name = ctx.message.audio?.file_name ?? (await botTranslator())("telegram.fileDefaultName");
     if (await refuseTooLarge(ctx, name, media.file_size)) return;
     const conversation = await currentConversation(ctx);
-    if (!conversation) return;
     // The recording is the project's data: it goes to the transcription provider only if the project allows it.
     if (!providerAllowed(await projectProviderPolicy(conversation.projectId), TRANSCRIPTION_PROVIDER)) {
       return ctx.reply((await botTranslator())("telegram.voiceNotAllowed"));
@@ -207,7 +202,6 @@ async function handleFiles(bot: Bot, items: Context[]) {
   for (const a of attachments) if (await refuseTooLarge(ctx, a.name, a.size)) return;
 
   const conversation = await currentConversation(ctx);
-  if (!conversation) return;
   const parts: UIMessage["parts"] = [];
   for (const a of attachments) {
     const { data } = await download(bot, a.fileId);

@@ -2,7 +2,7 @@
 
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import { MEMORY_MAX_LENGTH } from "@abotica/core/limits";
-import { Plus } from "lucide-react";
+import { FolderKanban, Globe, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -26,6 +26,9 @@ import { createMemory } from "@/server/actions/memory";
 type Option = { id: string; name: string; avatar?: AgentAvatarValue | null };
 type Scope = "global" | "project" | "agent";
 
+/** The agent-level choice that writes the agent's global memory instead of a note on one project. */
+const ALL_PROJECTS = "__all";
+
 export function CreateMemoryDialog({
   agents,
   projects,
@@ -48,6 +51,9 @@ export function CreateMemoryDialog({
   const [scope, setScope] = useState<Scope>(defaultScope);
   const [projectId, setProjectId] = useState(defaultProjectId ?? "");
   const [agentId, setAgentId] = useState(defaultAgentId ?? "");
+  // Empty: the agent's global memory; a project: its note on that project.
+  const noteProjectDefault = defaultScope === "agent" ? (defaultProjectId ?? "") : "";
+  const [noteProjectId, setNoteProjectId] = useState(noteProjectDefault);
   const [content, setContent] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -56,6 +62,7 @@ export function CreateMemoryDialog({
       setScope(defaultScope);
       setProjectId(defaultProjectId ?? "");
       setAgentId(defaultAgentId ?? "");
+      setNoteProjectId(noteProjectDefault);
       setContent("");
     }
     setOpen(next);
@@ -67,7 +74,7 @@ export function CreateMemoryDialog({
       const res = await createMemory({
         scope,
         content,
-        projectId: scope === "project" ? projectId || null : null,
+        projectId: scope === "project" ? projectId || null : scope === "agent" ? noteProjectId || null : null,
         agentId: scope === "agent" ? agentId || null : null,
       });
       if (!res.ok) return void toast.error(res.error);
@@ -143,6 +150,34 @@ export function CreateMemoryDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              </Field>
+            )}
+            {scope === "agent" && projects.length > 0 && (
+              <Field>
+                <FieldLabel htmlFor="memory-agent-project">{t("dialog.agentProject")}</FieldLabel>
+                <Select
+                  value={noteProjectId || ALL_PROJECTS}
+                  onValueChange={(v) => setNoteProjectId(v === ALL_PROJECTS ? "" : v)}
+                >
+                  <SelectTrigger id="memory-agent-project" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-w-[calc(100vw-2rem)]">
+                    <SelectItem value={ALL_PROJECTS} className="*:[span]:last:min-w-0">
+                      <Globe className="text-muted-foreground" />
+                      <span className="truncate">{t("dialog.allProjects")}</span>
+                    </SelectItem>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="*:[span]:last:min-w-0">
+                        <FolderKanban className="text-muted-foreground" />
+                        <span className="truncate">{p.name}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {noteProjectId ? t("dialog.agentProjectHelp.one") : t("dialog.agentProjectHelp.all")}
+                </FieldDescription>
               </Field>
             )}
             <Field>

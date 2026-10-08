@@ -1,7 +1,7 @@
-import { agents, conversations, db, messages, runs, taskComments, taskDependencies, tasks } from "@abotica/db";
+import { agents, conversations, db, messages, runs, taskComments, taskDependencies, taskEvents, tasks } from "@abotica/db";
 import { UserError } from "@abotica/i18n";
 import { generateId, type UIMessage } from "ai";
-import { and, asc, eq, inArray } from "@abotica/db/orm";
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from "@abotica/db/orm";
 import { createConversation } from "./conversations";
 import { inputPath } from "../agents/workspace-paths";
 import { publish } from "../infra/events";
@@ -152,6 +152,23 @@ export async function startContinuation(input: Parameters<typeof startRun>[0]): 
   }
 }
 
+type TaskRow = typeof tasks.$inferSelect;
+
+const taskHeader = (task: TaskRow) =>
+  `ID: ${task.id} · Priority: ${task.priority}${task.deadline ? ` · Deadline: ${task.deadline.toISOString()}` : ""}`;
+
+/**
+ * How the brief ends, in a new conversation or a continued one: where the result goes. How to escalate
+ * when blocked is in the assignee's kind prompt.
+ */
+const finishLines = (task: TaskRow) => [
+  task.delegatedByRunId
+    ? "When you finish, call task_update with status 'review' and put the full result in output. The agent that delegated the task reviews it and decides whether it is done."
+    : "When you finish, call task_update with status 'review' (or 'done' if it needs no review) and put the full result in output.",
+];
+
+const authorOf = (c: { kind: string; agent: string | null }) => (c.kind === "agent" ? (c.agent ?? "agent") : c.kind);
+
 /** Builds the brief an agent gets for a task: description, dependency outputs, files and comments. */
 async function taskBrief(taskId: string): Promise<string> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
@@ -168,12 +185,7 @@ async function taskBrief(taskId: string): Promise<string> {
     .where(eq(taskComments.taskId, taskId))
     .orderBy(asc(taskComments.createdAt));
 
-  const lines = [
-    `# Task: ${task.title}`,
-    `ID: ${task.id} · Priority: ${task.priority}${task.deadline ? ` · Deadline: ${task.deadline.toISOString()}` : ""}`,
-    "",
-    task.description || "(no description)",
-  ];
+  const lines = [`# Task: ${task.title}`, taskHeader(task), "", task.description || "(no description)"];
   if (deps.length) {
     lines.push("", "## Results of the tasks this one depends on");
     for (const d of deps) lines.push(`### ${d.title}`, d.output ?? "(no output)");
@@ -186,15 +198,110 @@ async function taskBrief(taskId: string): Promise<string> {
   }
   if (comments.length) {
     lines.push("", "## Comments");
-    for (const c of comments) lines.push(`- ${c.kind === "agent" ? (c.agent ?? "agent") : c.kind}: ${c.body}`);
+    for (const c of comments) lines.push(`- ${authorOf(c)}: ${c.body}`);
   }
-  lines.push(
-    "",
-    task.delegatedByRunId
-      ? "When you finish, call task_update with status 'review' and put the full result in output. The agent that delegated the task reviews it and decides whether it is done."
-      : "When you finish, call task_update with status 'review' (or 'done' if it needs no review) and put the full result in output.",
-    "If you are blocked, set status 'blocked' and explain why in a comment.",
-  );
+  lines.push("", ...finishLines(task));
+  return lines.join("\n");
+}
+
+/** The conversation a task's assignee worked on it in, to continue: `since` is when its latest run there started. */
+type PreviousRound = { conversationId: string; since: Date; compacted: boolean };
+
+/**
+ * The conversation of the agent's latest run on the task, when it can take the task again: an internal
+ * one that still exists and has no run going (one waiting for an approval continues there later).
+ * Continuing it keeps what the agent did in earlier rounds: its subtasks, briefs and files.
+ */
+async function previousRound(taskId: string, agentId: string): Promise<PreviousRound | null> {
+  const [last] = await db
+    .select({ conversationId: runs.conversationId, createdAt: runs.createdAt })
+    .from(runs)
+    .innerJoin(conversations, eq(conversations.id, runs.conversationId))
+    .where(and(eq(runs.taskId, taskId), eq(runs.agentId, agentId), eq(conversations.channel, "internal")))
+    .orderBy(desc(runs.createdAt))
+    .limit(1);
+  if (!last?.conversationId) return null;
+  const { conversationId } = last;
+  const [[busy], [compaction]] = await Promise.all([
+    db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(and(eq(runs.conversationId, conversationId), inArray(runs.status, ["queued", "running", "waiting_approval"])))
+      .limit(1),
+    db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversationId), sql`${messages.metadata}->>'kind' = 'compaction'`))
+      .limit(1),
+  ]);
+  if (busy) return null;
+  return { conversationId, since: last.createdAt, compacted: Boolean(compaction) };
+}
+
+/**
+ * The message that gives a task back to the agent in the conversation it worked on it before: the brief
+ * is already there, so only what changed since its latest run there. A compacted conversation may have
+ * lost the details of the brief to the summary: it gets the full brief again.
+ */
+async function roundBrief(taskId: string, agentId: string, round: PreviousRound): Promise<string> {
+  const intro =
+    "The task was given back to you. Your earlier work on it is above in this conversation: continue from there.";
+  if (round.compacted) return `${intro}\n\n${await taskBrief(taskId)}`;
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!task) throw new Error(`Task ${taskId} not found`);
+  const { since } = round;
+  const [described, deps, newFiles, comments] = await Promise.all([
+    db
+      .select({ id: taskEvents.id })
+      .from(taskEvents)
+      .where(
+        and(
+          eq(taskEvents.taskId, taskId),
+          eq(taskEvents.type, "updated"),
+          gt(taskEvents.createdAt, since),
+          sql`${taskEvents.data} -> 'description' is not null`,
+        ),
+      )
+      .limit(1),
+    // Dependencies done since then; the earlier ones were in the first brief.
+    db
+      .select({ title: tasks.title, output: tasks.output })
+      .from(taskDependencies)
+      .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
+      .where(and(eq(taskDependencies.taskId, taskId), gt(tasks.completedAt, since))),
+    listFiles({ taskId }),
+    // Its own comments the agent knows; the user's, other agents' and the platform's (a wakeup) it does not.
+    db
+      .select({ body: taskComments.body, kind: taskComments.authorKind, agent: agents.slug })
+      .from(taskComments)
+      .leftJoin(agents, eq(agents.id, taskComments.authorAgentId))
+      .where(
+        and(
+          eq(taskComments.taskId, taskId),
+          gt(taskComments.createdAt, since),
+          or(isNull(taskComments.authorAgentId), ne(taskComments.authorAgentId, agentId)),
+        ),
+      )
+      .orderBy(asc(taskComments.createdAt)),
+  ]);
+  const lines = [`# Task: ${task.title}`, taskHeader(task), "", intro];
+  if (described.length)
+    lines.push("", "## Description (changed since your previous run)", task.description || "(no description)");
+  if (deps.length) {
+    lines.push("", "## Results of the tasks this one depends on, done since your previous run");
+    for (const d of deps) lines.push(`### ${d.title}`, d.output ?? "(no output)");
+  }
+  // Handed over since then (a replaced file has a new id, so a new path); the agent's own files it knows.
+  const handed = newFiles.filter((f) => f.createdAt > since && f.agentId !== agentId);
+  if (handed.length) {
+    lines.push("", "## New files of the task (copied into your workspace)");
+    for (const f of handed) lines.push(`- ${f.name} (${f.mimeType}): ${inputPath(f)}`);
+  }
+  if (comments.length) {
+    lines.push("", "## New comments");
+    for (const c of comments) lines.push(`- ${authorOf(c)}: ${c.body}`);
+  } else lines.push("", "No new comments since your previous run.");
+  lines.push("", ...finishLines(task));
   return lines.join("\n");
 }
 
@@ -202,7 +309,8 @@ async function taskBrief(taskId: string): Promise<string> {
  * Starts the run of a task's assignee. Refuses a task that is missing, unassigned, waiting for its
  * dependencies, already has an active run (TaskBusyError) or whose runs keep failing
  * (TaskCircuitOpenError). `force` is the user's start: it goes past the circuit breaker, and resets it
- * and the automatic fix rounds of the task's pull requests.
+ * and the automatic fix rounds of the task's pull requests. A task the assignee worked on before
+ * continues in that conversation (previousRound), so a send-back or a wakeup keeps its earlier work.
  */
 export async function startTaskRun(
   taskId: string,
@@ -220,15 +328,31 @@ export async function startTaskRun(
     if (streak.open) throw new TaskCircuitOpenError(taskId, streak);
   }
   await updateTask(taskId, { status: "in_progress" }, "system");
-  return startRun({
+  const start = {
     agentId: task.assigneeAgentId,
-    trigger: opts.parentRunId ? "delegation" : "task",
-    input: await taskBrief(taskId),
+    trigger: opts.parentRunId ? ("delegation" as const) : ("task" as const),
     taskId,
     projectId: task.projectId,
     parentRunId: opts.parentRunId ?? null,
-    title: task.title,
-  });
+  };
+  const round = await previousRound(taskId, task.assigneeAgentId);
+  if (round) {
+    const message: UIMessage = {
+      id: generateId(),
+      role: "user",
+      parts: [{ type: "text", text: await roundBrief(taskId, task.assigneeAgentId, round) }],
+    };
+    try {
+      return await startRun({ ...start, conversationId: round.conversationId, message });
+    } catch (error) {
+      // No run was made for the message: it must not stay for the active run's follow-up to answer.
+      const refused = error instanceof ConversationBusyError || error instanceof TaskBusyError;
+      if (refused) await db.delete(messages).where(eq(messages.id, message.id));
+      // A run started there meanwhile: the task starts in a conversation of its own, as before.
+      if (!(error instanceof ConversationBusyError)) throw error;
+    }
+  }
+  return startRun({ ...start, input: await taskBrief(taskId), title: task.title });
 }
 
 /** Runs not finished yet (queued, running or waiting for approval), with their agent's name (null once deleted). */
@@ -278,7 +402,7 @@ export async function cancelConversationRuns(conversationId: string, reason: str
 /** The super agent: the single orchestrator that talks to the user. */
 export async function getOrchestrator() {
   const agent = await db.query.agents.findFirst({
-    where: (a, { and, eq }) => and(eq(a.isOrchestrator, true), eq(a.enabled, true)),
+    where: (a, { and, eq }) => and(eq(a.kind, "orchestrator"), eq(a.enabled, true)),
     orderBy: (a, { asc }) => asc(a.createdAt),
   });
   if (!agent) throw new UserError("errors.noOrchestrator");

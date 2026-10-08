@@ -1,7 +1,7 @@
 import "server-only";
 import { getSettings, type Trigger, WEBHOOK_EVENTS } from "@abotica/core";
 import { agents, db, projects, schedules, triggers } from "@abotica/db";
-import { and, asc, desc, eq, inArray, sql } from "@abotica/db/orm";
+import { and, asc, eq, inArray, sql } from "@abotica/db/orm";
 import { getLocale } from "next-intl/server";
 import { publicQuery, query } from "@/server/query";
 
@@ -11,7 +11,7 @@ export const getAutomationOptions = query(async () => {
       .select({ id: agents.id, name: agents.name, avatar: agents.avatar })
       .from(agents)
       .where(and(eq(agents.isTemplate, false), eq(agents.enabled, true)))
-      .orderBy(desc(agents.isOrchestrator), asc(agents.name)),
+      .orderBy(asc(agents.kind), asc(agents.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
     getSettings(),
   ]);

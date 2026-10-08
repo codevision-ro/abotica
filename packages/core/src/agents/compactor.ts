@@ -86,10 +86,7 @@ export const summaryMessages = (history: ConversationHistory): ModelMessage[] =>
  * Facts drawn from untrusted data (`readUntrusted`) are saved as untrusted, as the run's own would be.
  */
 function flushTool(ctx: RunContext, readUntrusted: boolean): Tool | null {
-  const permission = builtinPermission(ctx.agent.permissions, "memory_save", {
-    isOrchestrator: ctx.agent.isOrchestrator,
-    isManager: ctx.isManager,
-  });
+  const permission = builtinPermission(ctx.agent.permissions, "memory_save", ctx.agent);
   if (permission === "deny") return null;
   const pending = permission === "ask" || ctx.settings.memoryRequiresApproval;
   return memoryTools.memory_save!({

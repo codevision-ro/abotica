@@ -24,10 +24,8 @@ const TEXT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 export const WORKSPACE_TOOL_NAMES = TOOL_CATALOG.filter((t) => t.group === "workspace" && !t.needsRepos).map((t) => t.name);
 
 /** Workspace tools the agent's permissions do not deny. */
-export function workspaceToolsOf(agent: Pick<Agent, "permissions" | "isOrchestrator">): string[] {
-  // No workspace tool is a manager tool, so managing a project changes nothing here.
-  const opts = { isOrchestrator: agent.isOrchestrator, isManager: false };
-  return WORKSPACE_TOOL_NAMES.filter((name) => builtinPermission(agent.permissions, name, opts) !== "deny");
+export function workspaceToolsOf(agent: Pick<Agent, "permissions" | "kind">): string[] {
+  return WORKSPACE_TOOL_NAMES.filter((name) => builtinPermission(agent.permissions, name, agent) !== "deny");
 }
 
 const NO_SANDBOX = { error: "The workspace is not available in this run." };

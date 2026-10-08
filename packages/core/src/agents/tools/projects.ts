@@ -60,13 +60,13 @@ export const projectTools: Record<string, ToolFactory> = {
   project_create: (ctx) =>
     tool({
       description:
-        "Create a new project. It gets its own manager, created from the project manager template, unless you name an existing agent as manager. Add specialists to the team with agentSlugs; you never join a project yourself.",
+        "Create a new project. It gets its own manager, created from the project manager template, unless you name an existing manager (one may lead several projects). Add specialists to the team with agentSlugs; you never join a project yourself.",
       inputSchema: z.object({
         name: z.string().min(2),
         description: z.string().default(""),
         goals: z.string().default(""),
-        agentSlugs: z.array(z.string()).default([]).describe("Team members besides the manager"),
-        managerSlug: optionalText().describe("An existing agent to lead the project; leave empty to create one"),
+        agentSlugs: z.array(z.string()).default([]).describe("Specialists on the team"),
+        managerSlug: optionalText().describe("An existing manager to lead the project; leave empty to create one"),
       }),
       execute: async ({ name, description, goals, agentSlugs, managerSlug }) => {
         const [members, manager] = await Promise.all([
@@ -95,14 +95,14 @@ export const projectTools: Record<string, ToolFactory> = {
   project_update: (ctx) =>
     tool({
       description:
-        "Change a project: name, description, goals, status (active, paused, archived), its manager and its team. Only the fields you send change. The manager cannot be removed from the team: choose another manager first. You never join a project yourself. Budget, allowed providers and credentials stay with the user.",
+        "Change a project: name, description, goals, status (active, paused, archived), its manager and its team of specialists. Only the fields you send change. The manager cannot be removed from the team: choose another manager first. You never join a project yourself. Budget, allowed providers and credentials stay with the user.",
       inputSchema: z.object({
         projectId: z.string().uuid(),
         name: optionalText(),
         description: optionalText(),
         goals: optionalText(),
         status: z.enum(PROJECT_STATUSES as [string, ...string[]]).optional(),
-        managerSlug: optionalText().describe("Make this agent the manager; it joins the team"),
+        managerSlug: optionalText().describe("Make this manager lead the project; the previous one leaves its team"),
         addAgentSlugs: z.array(z.string()).default([]),
         removeAgentSlugs: z.array(z.string()).default([]),
       }),

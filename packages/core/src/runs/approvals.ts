@@ -46,6 +46,19 @@ async function claimContinuation(runId: string): Promise<"claimed" | "running" |
 }
 
 /**
+ * What the model reads for a call the user rejected. Without it the SDK says only "Tool call execution
+ * denied.", which an agent cannot tell from a missing permission, so it asks the user for access instead
+ * of reporting the user's no.
+ */
+export function rejectionText(reason?: string): string {
+  return [
+    "The user rejected this call when asked for approval",
+    reason?.trim() ? `, saying: ${reason.trim()}` : "",
+    ". It was not run. Do not retry it or work around it: report it to whoever gave you the task (the user, in a conversation with them).",
+  ].join("");
+}
+
+/**
  * Records a decision. When the last pending approval of a run is decided, a continuation
  * run starts on the same conversation: approved tools execute, denied ones are reported.
  */
@@ -64,7 +77,12 @@ export async function decideApproval(
   const [run] = await db.select().from(runs).where(eq(runs.id, approval.runId));
   if (!run?.conversationId) return { approval, continued: false };
 
-  await patchApprovalPart(run.conversationId, approval.approvalId, approved, opts.reason);
+  await patchApprovalPart(
+    run.conversationId,
+    approval.approvalId,
+    approved,
+    approved ? opts.reason : rejectionText(opts.reason),
+  );
   await audit({
     actor: opts.actor ?? "user",
     action: approved ? "approval.approved" : "approval.rejected",

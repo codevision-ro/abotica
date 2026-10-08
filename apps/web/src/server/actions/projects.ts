@@ -7,6 +7,7 @@ import {
   audit,
   createAgentFromTemplate,
   createProject as createProjectRow,
+  createProjectManager as createManager,
   deleteKnowledgeItem as removeKnowledgeItem,
   deleteProject as deleteProjectRow,
   ensureProjectManager as ensureManager,
@@ -52,20 +53,26 @@ function revalidateTeam(projectId: string) {
   revalidatePath("/chat", "layout");
 }
 
-/** Core creates the manager from its template; `memberIds` are the specialists the project starts with. */
-export const createProject = action(projectInput.extend({ memberIds: z.array(uuid).default([]) }), async (input) => {
-  const project = await createProjectRow(input);
-  await audit({
-    actor: "user",
-    action: "project.created",
-    entityType: "project",
-    entityId: project.id,
-    data: { name: input.name },
-  });
-  // The manager is a new agent: the agent list changes too.
-  revalidateTeam(project.id);
-  return { id: project.id };
-});
+/**
+ * `managerAgentId` is a manager that leads it (it may lead other projects too); without one, core
+ * creates the manager from its template. `memberIds` are the specialists the project starts with.
+ */
+export const createProject = action(
+  projectInput.extend({ memberIds: z.array(uuid).default([]), managerAgentId: uuid.optional() }),
+  async (input) => {
+    const project = await createProjectRow(input);
+    await audit({
+      actor: "user",
+      action: "project.created",
+      entityType: "project",
+      entityId: project.id,
+      data: { name: input.name },
+    });
+    // A new manager, or one that now leads this project, changes the agent list too.
+    revalidateTeam(project.id);
+    return { id: project.id };
+  },
+);
 
 export const updateProject = action(
   // The sandbox policy is validated by core's parser, which names the bad domain or package.
@@ -90,7 +97,7 @@ export const setProjectStatus = action(
   },
 );
 
-/* Team: core keeps the manager a member and refuses agents that cannot join (templates, the super agent). */
+/* Team: core keeps the manager a member, lets only managers lead and only specialists join. */
 
 const member = z.object({ projectId: uuid, agentId: uuid });
 
@@ -102,6 +109,12 @@ export const setProjectManager = action(member, async ({ projectId, agentId }) =
 /** Creates a manager from the project manager template, for a project that has none. */
 export const ensureProjectManager = action(z.object({ projectId: uuid }), async ({ projectId }) => {
   await ensureManager(projectId);
+  revalidateTeam(projectId);
+});
+
+/** Replaces the project's manager with a new one from the project manager template. */
+export const createProjectManager = action(z.object({ projectId: uuid }), async ({ projectId }) => {
+  await createManager(projectId);
   revalidateTeam(projectId);
 });
 

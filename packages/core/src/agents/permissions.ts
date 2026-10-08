@@ -1,5 +1,5 @@
 /** Tool permission rules. Pure and client-safe: no database or server imports. */
-import type { ToolPermission, ToolPermissions } from "@abotica/db";
+import type { AgentKind, ToolPermission, ToolPermissions } from "@abotica/db";
 import { builtinMcp } from "../mcp/mcp-builtins";
 import { TOOL_CATALOG, type ToolInfo } from "./tools/tool-catalog";
 
@@ -25,22 +25,25 @@ export function clampPermission(tool: ToolInfo | undefined, permission: ToolPerm
   return tool?.alwaysAsk && permission === "allow" ? "ask" : permission;
 }
 
-/** Who the permissions are for: the super agent, a project manager, or another agent. */
-export type PermissionSubject = { isOrchestrator: boolean; isManager: boolean };
+/** Who the permissions are for: the super agent, a manager or a specialist (see agents.kind). */
+export type PermissionSubject = { kind: AgentKind };
 
-/** Orchestrator-only tools are out of reach, except the ones managers get while they manage a project. */
+/** Orchestrator-only tools are out of reach of everyone else, except the ones managers get too. */
 function unavailable(tool: ToolInfo, opts: PermissionSubject): boolean {
-  return Boolean(tool.orchestratorOnly) && !opts.isOrchestrator && !(tool.managers && opts.isManager);
+  return Boolean(tool.orchestratorOnly) && opts.kind !== "orchestrator" && !(tool.managers && opts.kind === "manager");
 }
 
-/** Manager tools keep their entries for every other agent: there "deny" is stored, absence means the default. */
-const keepsDenial = (tool: ToolInfo, opts: PermissionSubject) => Boolean(tool.managers) && !opts.isOrchestrator;
+/**
+ * A manager's manager tools keep their entries: there "deny" is stored and absence means the default,
+ * so a specialist made manager can lead a project right away.
+ */
+const keepsDenial = (tool: ToolInfo, opts: PermissionSubject) => Boolean(tool.managers) && opts.kind === "manager";
 
 const defaultOf = (tool: ToolInfo) => clampPermission(tool, tool.defaultPermission ?? "allow");
 
 /**
- * Effective permission of a built-in tool; missing or unavailable tools are denied. A manager tool
- * without an entry starts at its default, so an agent made manager can lead the project right away.
+ * Effective permission of a built-in tool; missing or unavailable tools are denied. A manager's manager
+ * tool without an entry starts at its default (see keepsDenial).
  */
 export function builtinPermission(permissions: ToolPermissions, name: string, opts: PermissionSubject): ToolPermission {
   const tool = TOOL_BY_NAME.get(name);
@@ -107,6 +110,21 @@ export function mcpToolPermission(
   return permissions[mcpToolKey(serverSlug, tool)] ?? mcpServerPermission(permissions, serverSlug, toolDefault);
 }
 
+/**
+ * Effective permission of an MCP tool in a run. On a server in `readOnlyServers` (one a project's
+ * manager has only through the project), a tool its hints do not mark read-only is denied unless the
+ * agent has an entry for that very tool: unknown hints count as not read-only.
+ */
+export function mcpRunPermission(
+  permissions: ToolPermissions,
+  source: { serverSlug: string; tool: string; defaultPermission: ToolPermission; readOnly: boolean },
+  readOnlyServers: ReadonlySet<string>,
+): ToolPermission {
+  const own = permissions[mcpToolKey(source.serverSlug, source.tool)];
+  if (readOnlyServers.has(source.serverSlug) && !source.readOnly && own === undefined) return "deny";
+  return mcpToolPermission(permissions, source.serverSlug, source.tool, source.defaultPermission);
+}
+
 /** Permissions of a new agent: every tool it can have, at the tool's default (always-ask tools ask). */
 export function defaultPermissions(opts: PermissionSubject): ToolPermissions {
   const out: ToolPermissions = {};
@@ -123,9 +141,9 @@ const isPermission = (value: unknown): value is ToolPermission =>
   typeof value === "string" && (TOOL_PERMISSIONS as readonly string[]).includes(value);
 
 /**
- * Drops unknown keys and invalid values, removes built-in tools the agent cannot have, stores
- * built-in denials as absence and clamps always-ask tools. Manager tools stay for every agent other
- * than the orchestrator, denials included: whether the agent manages a project changes over time.
+ * Drops unknown keys and invalid values, removes built-in tools the agent's kind cannot have, stores
+ * built-in denials as absence (a manager's manager tools excepted, see keepsDenial) and clamps
+ * always-ask tools.
  */
 export function sanitizePermissions(input: Record<string, unknown>, opts: PermissionSubject): ToolPermissions {
   const out: ToolPermissions = {};

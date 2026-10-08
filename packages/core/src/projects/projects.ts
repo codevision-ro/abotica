@@ -7,7 +7,7 @@ import { projectWorkspaceKey, requestWorkspaceRemoval } from "../sandbox/sandbox
 import { parseSandboxPolicy } from "../sandbox/sandbox-policy";
 import { slugify } from "../platform/slug";
 import { fileIdsOwnedBy, removeFileBytes } from "../files/files";
-import { isAssignable, MANAGER_TEMPLATE_SLUG } from "../tasks/team-rules";
+import { canJoinTeam, canLeadProject, MANAGER_TEMPLATE_SLUG } from "../tasks/team-rules";
 
 export type Project = typeof projects.$inferSelect;
 type Agent = typeof agents.$inferSelect;
@@ -37,15 +37,30 @@ async function uniqueProjectSlug(name: string): Promise<string> {
 
 type TeamOptions = { actor?: string };
 
-/** Loads the agents and throws unless every one exists and may join a project (see isAssignable). */
-async function assignableAgents(ids: string[]): Promise<Agent[]> {
+/** Loads the agents and throws unless every one exists and may join a project's team (see canJoinTeam). */
+async function teamMembers(ids: string[]): Promise<Agent[]> {
   const unique = [...new Set(ids)];
   if (!unique.length) return [];
   const rows = await db.select().from(agents).where(inArray(agents.id, unique));
   if (rows.length !== unique.length) throw new UserError("team.errors.agentNotFound");
-  const refused = rows.find((a) => !isAssignable(a));
-  if (refused) throw new UserError("team.errors.notAssignable", { name: refused.name });
+  const refused = rows.find((a) => !canJoinTeam(a));
+  if (refused) {
+    const key = refused.kind === "manager" ? "team.errors.managerNotMember" : "team.errors.notAssignable";
+    throw new UserError(key, { name: refused.name });
+  }
   return rows;
+}
+
+/** Loads the agent and throws unless it exists and may lead a project (see canLeadProject). */
+async function projectLead(id: string): Promise<Agent> {
+  const [agent] = await db.select().from(agents).where(eq(agents.id, id));
+  if (!agent) throw new UserError("team.errors.agentNotFound");
+  if (!canLeadProject(agent)) {
+    throw new UserError(agent.kind === "manager" ? "team.errors.notAssignable" : "team.errors.notManager", {
+      name: agent.name,
+    });
+  }
+  return agent;
 }
 
 async function projectById(id: string, tx: Tx | typeof db = db): Promise<Project> {
@@ -60,8 +75,9 @@ const teamChanged = (projectId: string, actor: string | undefined, data: Record<
 const managerName = (projectName: string) => `${projectName} Manager`;
 
 /**
- * Creates a project with its team. Without `managerAgentId` its manager is created from the
- * project manager template; null leaves the project without one. The manager is always a member.
+ * Creates a project with its team of specialists. Without `managerAgentId` its manager is created
+ * from the project manager template; with one, that manager (which may lead other projects too)
+ * leads it; null leaves the project without one. The manager is always a member.
  */
 export async function createProject(
   input: Pick<ProjectFields, "name"> &
@@ -71,7 +87,8 @@ export async function createProject(
   const { memberIds = [], managerAgentId, ...rest } = input;
   const fields = validSandbox(rest);
   const slug = await uniqueProjectSlug(fields.name);
-  await assignableAgents(managerAgentId ? [...memberIds, managerAgentId] : memberIds);
+  await teamMembers(memberIds);
+  if (managerAgentId) await projectLead(managerAgentId);
   const { project, created } = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(projects)
@@ -79,10 +96,7 @@ export async function createProject(
       .returning();
     const created =
       managerAgentId === undefined
-        ? await insertAgentFromTemplate(tx, MANAGER_TEMPLATE_SLUG, {
-            name: managerName(fields.name),
-            projectId: row!.id,
-          })
+        ? await insertAgentFromTemplate(tx, MANAGER_TEMPLATE_SLUG, { name: managerName(fields.name) })
         : null;
     const managerId = created?.id ?? managerAgentId ?? null;
     const team = [...new Set(managerId ? [...memberIds, managerId] : memberIds)];
@@ -121,12 +135,20 @@ export async function updateProject(id: string, patch: Partial<ProjectFields>): 
   return project;
 }
 
-/** Makes an agent the project's manager; it joins the team if it was not on it. */
+/**
+ * Makes a manager the project's manager; it joins the team, and the previous manager, which is on the
+ * team only of the projects it leads, leaves it.
+ */
 export async function setProjectManager(projectId: string, agentId: string, opts: TeamOptions = {}): Promise<Project> {
   const before = await projectById(projectId);
-  await assignableAgents([agentId]);
+  await projectLead(agentId);
   if (before.managerAgentId === agentId) return before;
   const project = await db.transaction(async (tx) => {
+    if (before.managerAgentId) {
+      await tx
+        .delete(projectAgents)
+        .where(and(eq(projectAgents.projectId, projectId), eq(projectAgents.agentId, before.managerAgentId)));
+    }
     await tx.insert(projectAgents).values({ projectId, agentId }).onConflictDoNothing();
     const [row] = await tx.update(projects).set({ managerAgentId: agentId }).where(eq(projects.id, projectId)).returning();
     return row!;
@@ -142,11 +164,27 @@ export async function setProjectManager(projectId: string, agentId: string, opts
 export async function ensureProjectManager(projectId: string, opts: TeamOptions = {}): Promise<Project> {
   const before = await projectById(projectId);
   if (before.managerAgentId) return before;
+  return newManager(before, opts);
+}
+
+/**
+ * Gives the project a new manager created from the project manager template, replacing the one it
+ * has (which leaves the team, as in setProjectManager). For an explicit request (a button).
+ */
+export async function createProjectManager(projectId: string, opts: TeamOptions = {}): Promise<Project> {
+  return newManager(await projectById(projectId), opts);
+}
+
+async function newManager(before: Project, opts: TeamOptions): Promise<Project> {
+  const projectId = before.id;
   const { project, created } = await db.transaction(async (tx) => {
-    const created = await insertAgentFromTemplate(tx, MANAGER_TEMPLATE_SLUG, {
-      name: managerName(before.name),
-      projectId,
-    });
+    const created = await insertAgentFromTemplate(tx, MANAGER_TEMPLATE_SLUG, { name: managerName(before.name) });
+    if (before.managerAgentId) {
+      await tx
+        .delete(projectAgents)
+        .where(and(eq(projectAgents.projectId, projectId), eq(projectAgents.agentId, before.managerAgentId)));
+    }
+    await tx.insert(projectAgents).values({ projectId, agentId: created.id });
     const [row] = await tx
       .update(projects)
       .set({ managerAgentId: created.id })
@@ -161,14 +199,14 @@ export async function ensureProjectManager(projectId: string, opts: TeamOptions 
     entityId: created.id,
     data: { templateSlug: MANAGER_TEMPLATE_SLUG, projectId },
   });
-  await teamChanged(projectId, opts.actor, { manager: created.id, previousManager: null });
+  await teamChanged(projectId, opts.actor, { manager: created.id, previousManager: before.managerAgentId });
   return project;
 }
 
-/** Adds agents to the team; agents already on it are skipped. */
+/** Adds specialists to the team; agents already on it are skipped. */
 export async function addProjectMembers(projectId: string, agentIds: string[], opts: TeamOptions = {}): Promise<void> {
   await projectById(projectId);
-  const members = await assignableAgents(agentIds);
+  const members = await teamMembers(agentIds);
   if (!members.length) return;
   const added = await db
     .insert(projectAgents)

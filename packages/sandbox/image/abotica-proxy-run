@@ -18,6 +18,7 @@ const { readFileSync } = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const { constants, endianness } = require("node:os");
+const { pipeline } = require("node:stream");
 
 const [command, ...args] = process.argv.slice(2);
 if (!command) {
@@ -73,6 +74,14 @@ function fromOwnUid(socket) {
   return false;
 }
 
+// Streams are joined with pipeline(), never Readable#pipe: pipe() compares its destination with
+// process.stdout, and that first read opens fd 1 as a non-blocking pipe. The child inherits fd 1
+// (the same open file, so the same flag), and an MCP server that writes it with blocking calls
+// (Python's stdio transport) then fails with EAGAIN on an answer larger than the pipe's free
+// buffer: the answer is lost and the call never returns. pipeline() destroys both sides on an
+// error; the callback has nothing left to do.
+const join = (from, to) => pipeline(from, to, () => {});
+
 if (!upstreamUrl) run(null);
 else {
   const upstream = new URL(upstreamUrl);
@@ -94,7 +103,7 @@ else {
         { host: upstream.hostname, port: upstreamPort, method: req.method, path: req.url, headers, agent },
         (up) => {
           res.writeHead(up.statusCode ?? 502, up.statusMessage, up.headers);
-          up.pipe(res);
+          join(up, res);
         },
       );
     } catch {
@@ -106,7 +115,7 @@ else {
       if (!res.headersSent) res.writeHead(502);
       res.end();
     });
-    req.pipe(out);
+    join(req, out);
   });
 
   // HTTPS and other tunnels: the CONNECT request goes upstream with the credentials, then both sides
@@ -117,8 +126,8 @@ else {
       if (auth) lines.push(`Proxy-Authorization: ${auth}`);
       up.write(`${lines.join("\r\n")}\r\n\r\n`);
       if (head.length) up.write(head);
-      up.pipe(client);
-      client.pipe(up);
+      join(up, client);
+      join(client, up);
     });
     const close = () => {
       up.destroy();

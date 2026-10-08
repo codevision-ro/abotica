@@ -88,6 +88,39 @@ export function journalPrompt(input: {
 /** An existing entry as consolidation shows it to the model. */
 export type ConsolidationEntry = { content: string; validFrom: string | null; createdAt: Date };
 
+/** The existing entries a consolidation prompt shows, with small integer ids instead of their UUIDs. */
+const existingLines = (existing: readonly ConsolidationEntry[]) =>
+  existing.map((entry, i) =>
+    JSON.stringify({ id: i + 1, fact: entry.content, since: entry.validFrom ?? dayOf(entry.createdAt) }),
+  );
+
+/** How a consolidation answers, shared by the project and the craft prompts so one parser reads both. */
+function answerFormat(existing: readonly ConsolidationEntry[], noun: string, known: readonly string[] = []): string[] {
+  const shown = existingLines(existing);
+  return [
+    `Dates: each journal's heading is the day it was written. Resolve every relative date ("today", "yesterday", "next week", "last Friday", in any language) against that day. ${NO_RELATIVE_DATES}`,
+    "",
+    "Existing memory, to compare each one with by id:",
+    ...(shown.length ? shown : ["(empty)"]),
+    "",
+    // Kept in the agent's other layers (the team's memory, its craft, the user's rules), which the
+    // embedding check misses when the same fact is worded in another language or bundled with others.
+    ...(known.length
+      ? [
+          `Already known in other memory layers: never restate these as a new ${noun}, in any language or wording:`,
+          ...known.map((k) => `- ${k}`),
+          "",
+        ]
+      : []),
+    "Answer with one JSON object per line and nothing else (no Markdown, no code fence):",
+    '{"fact": "...", "retention": "durable", "validFrom": "YYYY-MM-DD", "contradicts": [], "duplicates": null}',
+    `- validFrom: the day the ${noun} became true, resolved against the day of its journal.`,
+    `- duplicates: the id of the existing entry that already states the same information with the same values; the ${noun} is then not stored again. Otherwise null.`,
+    `- contradicts: the ids of existing entries the ${noun} makes wrong (the same subject with another value, date or decision). Entries that differ in a number, a date or a qualifier are contradicted, never duplicates.`,
+    'If there is nothing worth keeping, answer "NONE".',
+  ];
+}
+
 /**
  * The prompt that turns journals into memory facts. Existing entries go in with small integer ids
  * (1, 2, ...) instead of their UUIDs, which a model copies wrong (mem0's anti-hallucination step);
@@ -98,10 +131,9 @@ export function consolidationPrompt(input: {
   project: string | null | undefined;
   journals: readonly { day: string; summary: string }[];
   existing: readonly ConsolidationEntry[];
+  /** What other memory layers already hold, to leave out (see answerFormat). */
+  known?: readonly string[];
 }) {
-  const existing = input.existing.map((entry, i) =>
-    JSON.stringify({ id: i + 1, fact: entry.content, since: entry.validFrom ?? dayOf(entry.createdAt) }),
-  );
   return {
     instructions: [
       "You maintain the long-term memory of an AI agent from its daily journals.",
@@ -114,24 +146,52 @@ export function consolidationPrompt(input: {
       "- Novel: it adds something memory does not already hold.",
       "- Important: losing it would cause rework or lose a preference, a rule or a decision.",
       "- Persistent: it stays useful for at least two weeks.",
-      "No intermediate steps or task progress.",
+      "Leave out the state of the work: task status and progress, open to-dos and next steps, plans or proposals waiting for a decision, and ids of tasks or runs. Keep what will still be true and useful in two weeks: preferences, rules, decisions taken, how things are set up and how they behave.",
+      // Outside projects, the name is what sends a project's fact to the notes on it (applyConsolidationOutsideProjects).
+      ...(input.project ? [] : ["A fact about one project names the project."]),
       "",
       "The retention of each fact:",
       '- "permanent": the user\'s core preferences, traits and habits, true indefinitely.',
       '- "durable": project knowledge, decisions, technical discoveries and configuration, valid for months.',
       '- "ephemeral": temporary decisions and arrangements that may change within weeks (a deploy freeze this sprint, who covers a task this week).',
       "",
-      `Dates: each journal's heading is the day it was written. Resolve every relative date ("today", "yesterday", "next week", "last Friday", in any language) against that day. ${NO_RELATIVE_DATES}`,
+      ...answerFormat(input.existing, "fact", input.known),
       "",
-      "Existing memory, to compare each fact with by id:",
-      ...(existing.length ? existing : ["(empty)"]),
+      ...input.journals.map((j) => `## ${j.day}\n${j.summary}`),
+    ].join("\n"),
+  };
+}
+
+/**
+ * The prompt that distils, from an agent's journals of one project, the lessons of its craft that hold
+ * in any project: its profession improves while project facts stay with the project. `existing` is the
+ * agent's own memory (its craft), which the lessons are compared with like facts. The project is named
+ * only so the model knows what to leave out; namedProject still checks every lesson before it is stored.
+ */
+export function craftLessonsPrompt(input: {
+  language: string;
+  project: string;
+  role: string;
+  journals: readonly { day: string; summary: string }[];
+  existing: readonly ConsolidationEntry[];
+  /** What other memory layers already hold, to leave out (see answerFormat). */
+  known?: readonly string[];
+}) {
+  return {
+    instructions: [
+      `You maintain the craft knowledge of an AI agent${input.role ? ` whose role is: ${input.role}` : ""}. It works on several projects for different clients; its craft knowledge is what it brings to every one of them.`,
+      `The journals below cover only its work on the project "${input.project}".`,
+      `Write the lessons in ${input.language}.`,
+    ].join(" "),
+    prompt: [
+      "Extract only the lessons of the craft that would hold in any project, for any client: methods and techniques that worked or failed, how tools and platforms behave, pitfalls, quality checks worth doing, ways of working that saved time.",
+      "Leave out everything specific to this project: its client, site, brand, product, audience, people, content, numbers, decisions, conventions, rules and preferences. A preference of this client or user is not a lesson of the craft, even if it is a good one. Task progress is not a lesson either.",
+      "Write each lesson generically, so it reads the same in any project: never a name of a project, client, site, domain, product or person.",
+      "When you are not sure a lesson holds in any project, leave it out. Most journals hold none; answering NONE is normal.",
       "",
-      "Answer with one JSON object per line and nothing else (no Markdown, no code fence):",
-      '{"fact": "...", "retention": "durable", "validFrom": "YYYY-MM-DD", "contradicts": [], "duplicates": null}',
-      "- validFrom: the day the fact became true, resolved against the day of its journal.",
-      "- duplicates: the id of the existing entry that already states the same information with the same values; the fact is then not stored again. Otherwise null.",
-      "- contradicts: the ids of existing entries the fact makes wrong (the same subject with another value, date or decision). Entries that differ in a number, a date or a qualifier are contradicted, never duplicates.",
-      'If there is nothing worth keeping, answer "NONE".',
+      'The retention of each lesson: "durable" for a lesson of the craft, "ephemeral" for one tied to a tool version or a temporary condition (an API quirk that may be fixed).',
+      "",
+      ...answerFormat(input.existing, "lesson", input.known),
       "",
       ...input.journals.map((j) => `## ${j.day}\n${j.summary}`),
     ].join("\n"),

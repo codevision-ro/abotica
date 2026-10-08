@@ -24,9 +24,10 @@ import { secretRedactor } from "./redact";
 
 /**
  * Where a runtime MCP tool comes from, kept because the `<slug>__<tool>` name cannot be reversed
- * safely, with what it starts at when the agent set nothing for it (permissions.ts `mcpToolDefault`).
+ * safely, with what it starts at when the agent set nothing for it (permissions.ts `mcpToolDefault`)
+ * and whether its hints mark it read-only.
  */
-export type McpToolSource = { serverSlug: string; tool: string; defaultPermission: ToolPermission };
+export type McpToolSource = { serverSlug: string; tool: string; defaultPermission: ToolPermission; readOnly: boolean };
 
 export type McpTestResult = { ok: boolean; tools: McpToolInfo[]; error?: string };
 

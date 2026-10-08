@@ -72,8 +72,9 @@
     "subtitlePlan": "Planul {plan} · {account}",
     "subtitleNone": "Neconectat",
     "keyReplacesPlan": "Salvarea unei chei deconectează planul {plan}: {provider} se conectează într-un singur fel.",
+    "anthropicCredits": "Ai Claude Max sau Team? Planul include credite API lunare: leagă o organizație Console din claude.ai, la Settings > Billing, apoi creează o cheie în acea organizație. <link>Cum funcționează</link>",
     "plan": {
-      "description": "Agenții rulează pe modelele incluse în abonamentul {plan}, fără cost per token. Embeddings pentru memorie și transcrierea vocală au nevoie de cheie API, deci nu sunt disponibile pe plan.",
+      "description": "Agenții rulează pe modelele incluse în abonamentul {plan}, fără cost per token. Transcrierea vocală are nevoie de cheie API, deci nu este disponibilă pe plan.",
       "planReplacesKey": "Conectarea planului șterge cheia API salvată.",
       "connect": "Continue with {plan}",
       "account": "Autentificat ca <strong>{account}</strong>",
@@ -105,10 +106,15 @@
   "embeddings": {
     "title": "Embeddings",
     "description": "Ce transformă memoria, jurnalele și cunoștințele în vectori, ca agenții să le găsească după sens. Transcrierea mesajelor vocale folosește mereu OpenAI cu cheie API.",
+    "localName": "modelul integrat",
+    "localTitle": "Integrat (local, fără cheie)",
+    "localHint": "Un model multilingv pe care workerul îl rulează singur: gratuit, nimic nu pleacă de pe calculatorul tău. Se descarcă o singură dată, aproximativ 280 MB.",
     "openaiHint": "text-embedding-3-small. Are nevoie de o cheie API OpenAI: planul ChatGPT nu îl acoperă.",
     "ollamaHint": "nomic-embed-text pe serverul tău Ollama: gratuit, și nimic nu pleacă de pe calculatorul tău.",
     "readiness": {
       "ready": "Gata de folosit",
+      "localLoading": "Workerul încarcă modelul integrat (se descarcă o singură dată, aproximativ 280 MB). Până e gata, căutarea găsește după cuvinte cheie.",
+      "localFailed": "Workerul nu a putut încărca modelul integrat. Încearcă din nou la următorul embedding; verifică logurile workerului dacă problema rămâne.",
       "noOpenaiKey": "Adaugă o cheie API OpenAI la Provideri AI: planul ChatGPT nu acoperă embeddings.",
       "ollamaUnreachable": "Ollama nu răspunde la <mono>{url}</mono>. Pornește-l sau schimbă adresa din cardul providerului Ollama.",
       "ollamaModelMissing": "Ollama răspunde, dar lipsește modelul de embeddings. Descarcă-l o dată: <mono>ollama pull nomic-embed-text</mono>"
@@ -126,8 +132,8 @@
     "inheriting": "{count, plural, one {Acum îl folosește # agent.} few {Acum îl folosesc # agenți.} other {Acum îl folosesc # de agenți.}}",
     "roles": {
       "agent": {
-        "title": "Agenți",
-        "description": "Agenții care nu conduc un proiect, plus managerii și super agentul acolo unde nu au setările lor."
+        "title": "Specialiști",
+        "description": "Specialiștii, plus managerii și super agentul acolo unde nu au setările lor."
       },
       "orchestrator": {
         "title": "Super agent",
@@ -135,12 +141,12 @@
       },
       "manager": {
         "title": "Manager",
-        "description": "Agenții care conduc cel puțin un proiect."
+        "description": "Managerii, care conduc proiecte."
       }
     },
-    "sameAsAgents": "La fel ca agenții",
+    "sameAsAgents": "La fel ca specialiștii",
     "chooseModels": "Alege modele",
-    "useAgents": "Folosește modelele agenților",
+    "useAgents": "Folosește modelele specialiștilor",
     "addModel": "Adaugă model",
     "pickModelEachRow": "Alege un model pe fiecare rând",
     "saved": "Modelele implicite au fost salvate"
@@ -169,7 +175,12 @@
   },
   "general": {
     "title": "General",
-    "description": "Limba, comportamentul agenților, digest-ul și bugetul.",
+    "description": "Limba, instrucțiunile pentru toți agenții, comportamentul agenților, digest-ul și bugetul.",
+    "instructionsTitle": "Instrucțiuni pentru toți agenții",
+    "instructionsDescription": "Intră în promptul de sistem al fiecărui agent: super agentul, managerii de proiect și specialiștii. Spune cine ești, ce ton vrei și regulile care se aplică mereu. Gol: nu se adaugă nimic.",
+    "instructionsPlaceholder": "Ex: Conduc o mică agenție web. Răspunde scurt și la obiect. Nu șterge niciodată date fără să mă întrebi.",
+    "instructionsFooter": "Promptul de sistem al fiecărui agent",
+    "instructionsLength": "{count, number} / {max, number}",
     "agentsTitle": "Agenți",
     "agentsDescription": "Cât din jurnal și din memorie citesc agenții, dacă amintirile lor au nevoie de aprobarea ta și câtă muncă rulează în același timp.",
     "digestTitle": "Digest și fus orar",
@@ -473,7 +484,7 @@
       "unreachable": "Nu am putut contacta Telegram ca să verific tokenul. Încearcă din nou peste câteva momente."
     },
     "topicsTitle": "Topic-uri pe proiect",
-    "topicsDescription": "Proiectele cu telegramTopicId primesc notificările în topic-ul lor, iar mesajele scrise acolo rulează în contextul proiectului.",
+    "topicsDescription": "Proiectele cu telegramTopicId primesc notificările în topic-ul lor. Super agentul răspunde la mesajele scrise acolo și știe de ce proiect ține topic-ul.",
     "topicsEmpty": "Niciun proiect nu are topic configurat ({count, plural, one {# proiect} few {# proiecte} other {# de proiecte}} în total). Setează ID-ul topic-ului din pagina proiectului.",
     "topic": "topic {id}",
     "projectStatus": {
@@ -567,6 +578,7 @@
     "nameFormat": "Numele poate conține doar litere mari, cifre și _",
     "valueRequired": "Valoarea este obligatorie",
     "pickModelEachRow": "Alege un model pe fiecare rând",
-    "atLeastOneModel": "Adaugă cel puțin un model"
+    "atLeastOneModel": "Adaugă cel puțin un model",
+    "agentInstructionsTooLong": "Instrucțiunile sunt prea lungi"
   }
 }

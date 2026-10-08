@@ -110,9 +110,11 @@ services:
     # default: Postgres, Redis, providers. sandbox: the egress proxy (port 3128) for sandbox containers.
     # docker-api: the only way to docker-proxy.
     networks: [default, sandbox, docker-api]
-    # Agents delete tasks, and with them their attachments.
+    # Agents delete tasks, and with them their attachments. The built-in embedding model is downloaded
+    # once into `models` (about 280 MB, MODELS_DIR in the image) and kept across updates.
     volumes:
       - uploads:/data/uploads
+      - models:/data/models
     # The preview server answers it once the worker is up and reaches Postgres and Redis.
     healthcheck:
       test:
@@ -261,6 +263,7 @@ volumes:
   postgres:
   redis:
   uploads:
+  models:
   ollama:
   caddy-data:
   caddy-config:

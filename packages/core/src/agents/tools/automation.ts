@@ -26,7 +26,7 @@ type Timing = Pick<typeof schedules.$inferSelect, "kind" | "cron" | "runAt">;
 /** The calling agent, held to the delegation rules for whom it may make runs of. */
 const delegatorOf = (ctx: RunContext): Delegator => ({
   id: ctx.agent.id,
-  isOrchestrator: ctx.agent.isOrchestrator,
+  kind: ctx.agent.kind,
   managedProjectIds: ctx.managedProjectIds,
 });
 

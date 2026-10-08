@@ -1,5 +1,12 @@
 import path from "node:path";
-import { env, getSettings, importLegacyEnv, setDefaultUploadsRoot, subscribe } from "@abotica/core";
+import {
+  env,
+  getSettings,
+  importLegacyEnv,
+  setDefaultUploadsRoot,
+  settleEmbeddingProvider,
+  subscribe,
+} from "@abotica/core";
 import { prepareBuiltinMcpServers } from "@abotica/core/agents/mcp-runtime";
 import { encryptLegacyMcpCredentials } from "@abotica/core/mcp-servers";
 import { startPreviewServer } from "@abotica/core/preview-server";
@@ -7,6 +14,7 @@ import { closeSandbox, initSandbox } from "@abotica/core/sandbox-runtime";
 import { defaultLocale, getTranslator } from "@abotica/i18n";
 import type { Worker } from "bullmq";
 import { startDelegationReportsWorker } from "./jobs/delegation-reports";
+import { startEmbeddingsWorker } from "./jobs/embeddings";
 import { reapRuns, startMaintenanceWorker, registerMaintenanceSchedules } from "./jobs/maintenance";
 import { startNotificationsWorker } from "./jobs/notifications";
 import { describeSandbox, startSandboxWorker } from "./jobs/sandbox";
@@ -46,6 +54,10 @@ async function main() {
   } catch (error) {
     console.error("[settings] importing the .env values failed:", error);
   }
+  // Installs from before the built-in embedding model became the default keep the provider their vectors are of.
+  await settleEmbeddingProvider().catch((error: unknown) =>
+    console.error("[embeddings] settling the embedding provider failed:", error),
+  );
   const concurrency = (await getSettings()).runConcurrency;
 
   // Before the runs worker starts, so the first runs already get their workspace tools.
@@ -77,6 +89,7 @@ async function main() {
     startTaskEventsWorker(),
     startDelegationReportsWorker(),
     startSandboxWorker(),
+    startEmbeddingsWorker(),
   ];
   for (const w of workers) w.on("failed", (job, err) => console.error(`[${w.name}] job ${job?.id} failed:`, err.message));
   await registerMaintenanceSchedules();

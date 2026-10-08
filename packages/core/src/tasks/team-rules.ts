@@ -1,17 +1,46 @@
 /**
- * Who may join a project and who may hand work to whom. Pure, so the rules are testable without a
- * database; projects.ts, the delegate_task tool, schedules and triggers load the rows and apply them.
+ * Who may join a project, who may lead one, what an agent's kind may change to and who may hand work
+ * to whom. Pure, so the rules are testable without a database; projects.ts, agent-config.ts, the
+ * delegate_task tool, schedules and triggers load the rows and apply them.
  */
+import type { AgentKind } from "@abotica/db";
+
+export type { AgentKind };
 
 /** The template every new project's manager is created from. */
 export const MANAGER_TEMPLATE_SLUG = "template-project-manager";
 
-/** The super agent stays global and templates are blueprints: neither joins a project. */
-export const isAssignable = (agent: { enabled: boolean; isTemplate: boolean; isOrchestrator: boolean }) =>
-  agent.enabled && !agent.isTemplate && !agent.isOrchestrator;
+export const isOrchestrator = (agent: { kind: AgentKind }) => agent.kind === "orchestrator";
 
-/** The agent giving the work: the super agent, or an agent with the projects it manages. */
-export type Delegator = { id: string; isOrchestrator: boolean; managedProjectIds: string[] };
+type TeamCandidate = { enabled: boolean; isTemplate: boolean; kind: AgentKind };
+
+/**
+ * May join a project's team as a member: an enabled specialist. The super agent stays global, a
+ * manager is on the team only of the projects it leads, and templates are blueprints.
+ */
+export const canJoinTeam = (agent: TeamCandidate) => agent.enabled && !agent.isTemplate && agent.kind === "specialist";
+
+/** May be chosen as a project's manager: an enabled manager, which may already lead other projects. */
+export const canLeadProject = (agent: TeamCandidate) => agent.enabled && !agent.isTemplate && agent.kind === "manager";
+
+/** Where the agent stands before its kind changes: projects it leads, and teams it is on without leading them. */
+export type KindChange = { from: AgentKind; to: AgentKind; managedProjects: number; memberProjects: number };
+
+/**
+ * Null when the agent may change kind, else the message key of the refusal. There is one super agent,
+ * whose kind never changes; a manager keeps its kind while it leads a project, and a specialist becomes
+ * a manager only off every team, since a manager joins only the projects it leads.
+ */
+export function kindChangeError(change: KindChange): string | null {
+  if (change.from === change.to) return null;
+  if (change.from === "orchestrator" || change.to === "orchestrator") return "agents.errors.kindOrchestrator";
+  if (change.from === "manager" && change.managedProjects > 0) return "agents.errors.kindLeadsProject";
+  if (change.to === "manager" && change.memberProjects > 0) return "agents.errors.kindOnTeam";
+  return null;
+}
+
+/** The agent giving the work: the super agent, or a manager with the projects it leads. */
+export type Delegator = { id: string; kind: AgentKind; managedProjectIds: string[] };
 
 /** The project a delegated task belongs to, with its team. */
 export type DelegationProject = {
@@ -22,7 +51,7 @@ export type DelegationProject = {
   memberIds: string[];
 };
 
-export type DelegationTarget = { id: string; slug: string; isOrchestrator: boolean };
+export type DelegationTarget = { id: string; slug: string; kind: AgentKind };
 
 type Rule<T> = { ok: true; value: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -38,7 +67,12 @@ export function delegationProjectId(
   requested: string | null,
 ): Rule<string | null> {
   const projectId = requested ?? runProjectId;
-  if (delegator.isOrchestrator) return { ok: true, value: projectId };
+  if (delegator.kind === "orchestrator") return { ok: true, value: projectId };
+  if (delegator.kind === "specialist") {
+    return fail(
+      "Specialists do not delegate. When the work needs someone else, set your task to 'blocked' with a task_comment saying what is needed.",
+    );
+  }
   if (runProjectId && projectId !== runProjectId) {
     return fail("You can delegate only within the project of this run.");
   }
@@ -64,8 +98,8 @@ export function checkDelegationTarget(
   project: DelegationProject | null,
 ): Rule<null> {
   if (target.id === delegator.id) return fail("You cannot delegate to yourself: do the work in this run instead.");
-  if (target.isOrchestrator) return fail("The super agent does not take delegated tasks.");
-  if (delegator.isOrchestrator) {
+  if (target.kind === "orchestrator") return fail("The super agent does not take delegated tasks.");
+  if (delegator.kind === "orchestrator") {
     if (!project || project.managerAgentId === target.id) return { ok: true, value: null };
     if (!project.managerAgentId) {
       return fail(
@@ -73,12 +107,16 @@ export function checkDelegationTarget(
       );
     }
     return fail(
-      `Work in project ${project.name} goes to its manager, ${project.managerSlug}: delegate to ${project.managerSlug} and say in the description which team member should do what, if it matters.`,
+      `Work in project ${project.name} goes to its manager, ${project.managerSlug}: delegate to ${project.managerSlug} with the outcome wanted; the manager decides who on the team does what.`,
     );
   }
-  if (!project || project.managerAgentId !== delegator.id) return fail("You can delegate only in projects you manage.");
-  if (!project.memberIds.includes(target.id)) {
-    return fail(`${target.slug} is not on the ${project.name} team. Delegate to a team member or do it yourself.`);
+  if (delegator.kind !== "manager" || !project || project.managerAgentId !== delegator.id) {
+    return fail("You can delegate only in projects you manage.");
+  }
+  if (!project.memberIds.includes(target.id) || target.kind !== "specialist") {
+    return fail(
+      `${target.slug} is not on the ${project.name} team. Delegate to a team member, or say in your report which specialist the team lacks.`,
+    );
   }
   return { ok: true, value: null };
 }
@@ -102,8 +140,8 @@ export function checkAutomationTarget(
  * agent works outside projects (see loadRunContext), so a project changes nothing for it.
  */
 export function worksIn(
-  agent: { id: string; isOrchestrator: boolean },
+  agent: { id: string; kind: AgentKind },
   project: Pick<DelegationProject, "managerAgentId" | "memberIds">,
 ): boolean {
-  return agent.isOrchestrator || project.managerAgentId === agent.id || project.memberIds.includes(agent.id);
+  return agent.kind === "orchestrator" || project.managerAgentId === agent.id || project.memberIds.includes(agent.id);
 }

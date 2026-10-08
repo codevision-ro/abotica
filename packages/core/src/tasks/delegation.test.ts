@@ -95,4 +95,11 @@ describe("reportMessage", () => {
     expect(message.metadata).toMatchObject({ kind: "delegation-report", tasks: [{ id: "t1", projectId: "p1" }] });
     expect(textOf(message)).toContain("finish your own task own-1");
   });
+
+  it("asks the user, or the delegator's own task, for what needs the user's decision", async () => {
+    const { reportMessage } = await load();
+    const report = settled({ id: "t1", output: "x" });
+    expect(textOf(reportMessage([report], null))).toContain("leave it in review and ask the user");
+    expect(textOf(reportMessage([report], "own-1"))).toContain("say so in your own task's output");
+  });
 });

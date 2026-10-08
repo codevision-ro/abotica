@@ -1,4 +1,5 @@
-import { LayoutTemplateIcon, PlusIcon } from "lucide-react";
+import { MANAGER_TEMPLATE_SLUG } from "@abotica/core";
+import { CrownIcon, LayoutTemplateIcon, type LucideIcon, PlusIcon, SparklesIcon, UsersIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
@@ -15,8 +16,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3";
 
+/** The agents by kind: the super agent, the managers, the specialists, then the templates. */
 export default async function AgentsPage() {
   const [{ agents, templates }, t] = await Promise.all([getAgentList(), getTranslations("agents.list")]);
+  const orchestrator = agents.filter((a) => a.kind === "orchestrator");
+  const managers = agents.filter((a) => a.kind === "manager");
+  const specialists = agents.filter((a) => a.kind === "specialist");
+  const emptyLink = (href: string) =>
+    function EmptyLink(chunks: React.ReactNode) {
+      return <SectionEmptyLink href={href}>{chunks}</SectionEmptyLink>;
+    };
 
   return (
     <PageBody>
@@ -32,28 +41,65 @@ export default async function AgentsPage() {
         }
       />
 
-      {agents.length ? (
-        <div className={GRID}>
-          {agents.map((a) => (
-            <AgentCard key={a.id} agent={a} />
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-xl border border-dashed px-4 py-4 text-sm text-muted-foreground">
-          {t.rich("empty", { link: (chunks) => <SectionEmptyLink href="/agents/new">{chunks}</SectionEmptyLink> })}
-        </p>
+      {orchestrator.length > 0 && (
+        <AgentGroup
+          id="agents-orchestrator"
+          icon={SparklesIcon}
+          title={t("groups.orchestrator.title")}
+          description={t("groups.orchestrator.description")}
+        >
+          <div className={GRID}>
+            {orchestrator.map((a) => (
+              <AgentCard key={a.id} agent={a} />
+            ))}
+          </div>
+        </AgentGroup>
       )}
 
-      <section aria-labelledby="agent-templates" className="flex flex-col gap-4 pt-2">
-        <div className="flex items-center gap-3">
-          <SectionIcon icon={LayoutTemplateIcon} />
-          <div className="min-w-0 space-y-0.5">
-            <h2 id="agent-templates" className="text-base leading-snug font-semibold tracking-tight">
-              {t("templates.title")}
-            </h2>
-            <p className="text-sm text-muted-foreground">{t("templates.description")}</p>
+      <AgentGroup
+        id="agents-managers"
+        icon={CrownIcon}
+        title={t("groups.managers.title")}
+        description={t("groups.managers.description")}
+      >
+        {managers.length ? (
+          <div className={GRID}>
+            {managers.map((a) => (
+              <AgentCard key={a.id} agent={a} />
+            ))}
           </div>
-        </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {t.rich("groups.managers.empty", { link: emptyLink(`/agents/new?template=${MANAGER_TEMPLATE_SLUG}`) })}
+          </p>
+        )}
+      </AgentGroup>
+
+      <AgentGroup
+        id="agents-specialists"
+        icon={UsersIcon}
+        title={t("groups.specialists.title")}
+        description={t("groups.specialists.description")}
+      >
+        {specialists.length ? (
+          <div className={GRID}>
+            {specialists.map((a) => (
+              <AgentCard key={a.id} agent={a} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {t.rich("groups.specialists.empty", { link: emptyLink("/agents/new") })}
+          </p>
+        )}
+      </AgentGroup>
+
+      <AgentGroup
+        id="agent-templates"
+        icon={LayoutTemplateIcon}
+        title={t("templates.title")}
+        description={t("templates.description")}
+      >
         {templates.length ? (
           <div className={GRID}>
             {templates.map((tpl) => (
@@ -63,7 +109,36 @@ export default async function AgentsPage() {
         ) : (
           <p className="text-sm text-muted-foreground">{t("templates.empty")}</p>
         )}
-      </section>
+      </AgentGroup>
     </PageBody>
+  );
+}
+
+function AgentGroup({
+  id,
+  icon,
+  title,
+  description,
+  children,
+}: {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-4 pt-2 first-of-type:pt-0">
+      <div className="flex items-center gap-3">
+        <SectionIcon icon={icon} />
+        <div className="min-w-0 space-y-0.5">
+          <h2 id={id} className="text-base leading-snug font-semibold tracking-tight">
+            {title}
+          </h2>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }

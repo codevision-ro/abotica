@@ -60,13 +60,12 @@ function redacting(original: Tool, secrets: string[]): Tool {
 
 export function builtinTools(ctx: RunContext): ToolSet {
   const out: ToolSet = {};
-  const opts = { isOrchestrator: ctx.agent.isOrchestrator, isManager: ctx.isManager };
   // The tokens never enter the workspace; this catches one that got there another way (a URL saved with it).
   const secrets = ctx.repos.map((r) => r.token);
   // Denied tools are left out entirely, so the model never sees them.
   for (const { name, group, needsRepos } of TOOL_CATALOG) {
     const factory = factories[name];
-    if (!factory || builtinPermission(ctx.agent.permissions, name, opts) === "deny") continue;
+    if (!factory || builtinPermission(ctx.agent.permissions, name, ctx.agent) === "deny") continue;
     // Without a sandbox for this run the workspace tools could only fail; the prompt explains why.
     if (group === "workspace" && !ctx.sandbox) continue;
     if (needsRepos && !ctx.repos.length) continue;

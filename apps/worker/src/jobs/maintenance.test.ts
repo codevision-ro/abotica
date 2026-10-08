@@ -55,7 +55,11 @@ vi.mock("@abotica/core", async (importOriginal) => ({
   embedText: async () => null,
   projectProviderPolicy: async () => null,
   consolidationCandidates: vi.fn(),
+  knownElsewhere: vi.fn(),
   applyConsolidation: vi.fn(),
+  applyConsolidationOutsideProjects: vi.fn(),
+  applyCraftLessons: vi.fn(),
+  craftLessonsAllowed: async () => true,
   promoteRecalledMemories: vi.fn(),
   deleteExpiredMemories: vi.fn(),
 }));
@@ -80,7 +84,9 @@ beforeEach(() => {
   state.written = [];
   state.consolidated = [];
   vi.mocked(core.consolidationCandidates).mockResolvedValue([]);
+  vi.mocked(core.knownElsewhere).mockResolvedValue([]);
   vi.mocked(core.applyConsolidation).mockResolvedValue({ added: 1, held: 0, restated: 0, dropped: 0 });
+  vi.mocked(core.applyConsolidationOutsideProjects).mockResolvedValue({ added: 1, held: 0, restated: 0, dropped: 0 });
   vi.mocked(core.promoteRecalledMemories).mockResolvedValue(0);
   vi.mocked(core.deleteExpiredMemories).mockResolvedValue(0);
 });
@@ -122,8 +128,44 @@ describe("consolidate", () => {
 
     await consolidate();
     expect(state.consolidated).toEqual([]);
-    expect(core.applyConsolidation).not.toHaveBeenCalled();
+    expect(core.applyConsolidationOutsideProjects).not.toHaveBeenCalled();
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("tried again next time"));
+  });
+
+  it("writes a project journal's facts to the agent's notes on the project, its craft lessons to its craft", async () => {
+    state.journals = [{ ...journal("j1", "a1"), projectId: "p1" }];
+    vi.mocked(systemCompletion).mockResolvedValue(FACT);
+    vi.mocked(core.applyCraftLessons).mockResolvedValue({ added: 0, held: 0, restated: 0, dropped: 0 });
+
+    await consolidate();
+    expect(vi.mocked(core.applyConsolidation).mock.calls[0]![0]).toEqual({
+      scope: "agent",
+      agentId: "a1",
+      projectId: "p1",
+    });
+    expect(vi.mocked(core.consolidationCandidates).mock.calls.map(([target]) => target)).toEqual([
+      { scope: "agent", agentId: "a1", projectId: "p1" },
+      { scope: "agent", agentId: "a1", projectId: null },
+    ]);
+    expect(core.applyCraftLessons).toHaveBeenCalledWith("a1", "p1", expect.any(Array), [], "system");
+  });
+
+  it("compares a journal outside projects with the agent's craft, and routes its facts by the project they name", async () => {
+    state.journals = [journal("j1", "a1")];
+    vi.mocked(systemCompletion).mockResolvedValue(FACT);
+
+    await consolidate();
+    expect(vi.mocked(core.consolidationCandidates).mock.calls.map(([target]) => target)).toEqual([
+      { scope: "agent", agentId: "a1", projectId: null },
+    ]);
+    expect(core.applyConsolidationOutsideProjects).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "a1" }),
+      [expect.objectContaining({ content: "Deploys go to Hetzner." })],
+      [],
+      "system",
+    );
+    expect(core.applyConsolidation).not.toHaveBeenCalled();
+    expect(core.applyCraftLessons).not.toHaveBeenCalled();
   });
 
   it('marks the journals consolidated when the answer is "NONE"', async () => {

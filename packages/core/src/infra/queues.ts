@@ -10,6 +10,7 @@ export const QUEUE = {
   taskEvents: "task-events",
   delegationReports: "delegation-reports",
   sandbox: "sandbox",
+  embeddings: "embeddings",
 } as const;
 
 type McpServer = typeof mcpServers.$inferSelect;
@@ -52,6 +53,9 @@ export type TaskEventJob = { taskId: string; event: "created" | "done" | "status
 /** A run ended: the tasks delegated with its task are reported back to the delegator once all settled. */
 export type DelegationReportJob = { runId: string };
 
+/** Texts for the worker to embed with the built-in model (models/local-embeddings.ts); returns the vectors. */
+export type EmbeddingJob = { texts: string[] };
+
 /** Connects to a stdio MCP server in the worker and lists its tools (the registry "Test" action). */
 export type SandboxJob = { kind: "mcp-test"; server: McpServer; timeoutMs?: number };
 
@@ -64,7 +68,7 @@ export type NotificationJob =
 
 const globalForQueues = globalThis as unknown as {
   aboticaQueues?: Map<string, Queue>;
-  aboticaSandboxEvents?: Promise<QueueEvents>;
+  aboticaQueueEvents?: Map<string, Promise<QueueEvents>>;
 };
 
 function queue<T>(name: string): Queue<T> {
@@ -90,18 +94,28 @@ export const schedulesQueue = () => queue<ScheduleJob>(QUEUE.schedules);
 export const maintenanceQueue = () => queue<MaintenanceJob>(QUEUE.maintenance);
 /** Work only the worker can do because it owns the sandbox; callers wait for the result. */
 export const sandboxQueue = () => queue<SandboxJob>(QUEUE.sandbox);
-/** Completion events of the sandbox queue, for callers that wait for a job's result. */
-export function sandboxQueueEvents(): Promise<QueueEvents> {
-  globalForQueues.aboticaSandboxEvents ??= (async () => {
-    const events = new QueueEvents(QUEUE.sandbox, { connection: createRedis() });
-    await events.waitUntilReady();
-    return events;
-  })().catch((error: unknown) => {
-    globalForQueues.aboticaSandboxEvents = undefined;
-    throw error;
-  });
-  return globalForQueues.aboticaSandboxEvents;
+/** Completion events of a queue, for callers that wait for a job's result. */
+function queueEvents(name: string): Promise<QueueEvents> {
+  globalForQueues.aboticaQueueEvents ??= new Map();
+  const events = globalForQueues.aboticaQueueEvents;
+  let ready = events.get(name);
+  if (!ready) {
+    ready = (async () => {
+      const e = new QueueEvents(name, { connection: createRedis() });
+      await e.waitUntilReady();
+      return e;
+    })().catch((error: unknown) => {
+      events.delete(name);
+      throw error;
+    });
+    events.set(name, ready);
+  }
+  return ready;
 }
+export const sandboxQueueEvents = () => queueEvents(QUEUE.sandbox);
+/** Embedding with the built-in model, which only the worker loads; callers wait for the vectors. */
+export const embeddingsQueue = () => queue<EmbeddingJob>(QUEUE.embeddings);
+export const embeddingsQueueEvents = () => queueEvents(QUEUE.embeddings);
 const notificationsQueue = () => queue<NotificationJob>(QUEUE.notifications);
 const taskEventsQueue = () => queue<TaskEventJob>(QUEUE.taskEvents);
 const delegationReportsQueue = () => queue<DelegationReportJob>(QUEUE.delegationReports);

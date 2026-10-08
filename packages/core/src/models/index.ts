@@ -1,6 +1,7 @@
 export * from "./catalog";
 export * from "./chain";
 export { FallbackModel } from "./fallback-model";
+export * from "./local-embeddings";
 export * from "./model-ratings";
 export * from "./model-stats";
 export * from "./model-role";

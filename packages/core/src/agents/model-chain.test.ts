@@ -19,19 +19,20 @@ const settings = {
   orchestratorModels: [],
   managerModels: MANAGERS,
 } as unknown as RunContext["settings"];
-const agent = { provider: null, model: null, fallbacks: [], isOrchestrator: false } as unknown as RunContext["agent"];
+const agentOf = (kind: string) => ({ provider: null, model: null, fallbacks: [], kind }) as unknown as RunContext["agent"];
+const agent = agentOf("manager");
 
 describe("fullModelChain", () => {
   it("runs a manager on default on the managers' chain", async () => {
     const { fullModelChain } = await load();
-    expect(fullModelChain({ agent, settings, conversation: null, isManager: true })).toEqual(MANAGERS);
-    expect(fullModelChain({ agent, settings, conversation: null, isManager: false })).toEqual(AGENTS);
+    expect(fullModelChain({ agent, settings, conversation: null })).toEqual(MANAGERS);
+    expect(fullModelChain({ agent: agentOf("specialist"), settings, conversation: null })).toEqual(AGENTS);
   });
 
   it("puts the conversation's override before the role's chain, once", async () => {
     const { fullModelChain } = await load();
     const conversation = { modelOverride: { provider: "deepseek", model: "chat" } } as RunContext["conversation"];
-    expect(fullModelChain({ agent, settings, conversation, isManager: true })).toEqual([
+    expect(fullModelChain({ agent, settings, conversation })).toEqual([
       { provider: "deepseek", model: "chat" },
       { provider: "openai", model: "gpt" },
     ]);

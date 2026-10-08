@@ -29,7 +29,7 @@ export const webhookUrl = (token: string) => new URL(`/api/webhooks/${token}`, e
  */
 export async function assertAutomationAgent(agentId: string, projectId: string | null, by?: Delegator): Promise<void> {
   const [agent] = await db
-    .select({ id: agents.id, slug: agents.slug, isTemplate: agents.isTemplate, isOrchestrator: agents.isOrchestrator })
+    .select({ id: agents.id, slug: agents.slug, isTemplate: agents.isTemplate, kind: agents.kind })
     .from(agents)
     .where(eq(agents.id, agentId));
   if (!agent) throw new UserError("automations.errors.agentNotFound");
@@ -185,7 +185,7 @@ export class AgentNotOnTeamError extends UserError {
 export async function assertWorksIn(agentId: string, projectId: string | null): Promise<void> {
   if (!projectId) return;
   const [[agent], project] = await Promise.all([
-    db.select({ id: agents.id, isOrchestrator: agents.isOrchestrator }).from(agents).where(eq(agents.id, agentId)),
+    db.select({ id: agents.id, kind: agents.kind }).from(agents).where(eq(agents.id, agentId)),
     loadDelegationProject(projectId),
   ]);
   if (!agent || !project || !worksIn(agent, project)) throw new AgentNotOnTeamError();

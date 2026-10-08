@@ -1,10 +1,10 @@
 import { db, journals, knowledgeChunks, memories, settings, type Tx } from "@abotica/db";
-import { and, asc, count, eq, gt, isNotNull, isNull, sql } from "@abotica/db/orm";
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, or, sql } from "@abotica/db/orm";
 import { publish } from "../infra/events";
 import { maintenanceQueue } from "../infra/queues";
-import { projectProviderPolicy, providerAllowed } from "../models/provider-policy";
-import type { EmbeddingProvider } from "../models/providers";
-import { getSettings } from "../platform/settings";
+import { embeddingAllowed, projectProviderPolicy } from "../models/provider-policy";
+import { type EmbeddingProvider, embeddingProvider } from "../models/providers";
+import { getSettings, storedSettings } from "../platform/settings";
 import {
   advanceReindex,
   type ReindexRow,
@@ -28,7 +28,7 @@ export type { ReindexState } from "./embedding-reindex-plan";
 
 /** The settings row of the re-embedding in progress; there is none when nothing is left to do. */
 const STATE_KEY = "embeddings_reindex";
-/** Rows per embedding request: well within what either provider takes at once. */
+/** Rows per embedding request: well within what any provider takes at once. */
 const BATCH_SIZE = 64;
 
 const TABLES = {
@@ -67,15 +67,15 @@ async function rowCount(): Promise<number> {
  */
 export async function changeEmbeddingProvider(provider: EmbeddingProvider): Promise<ReindexState | null> {
   if ((await getSettings()).embeddingProvider === provider) return null;
+  return startEmbeddingReindex(provider);
+}
+
+async function startEmbeddingReindex(provider: EmbeddingProvider): Promise<ReindexState> {
   const state = startReindex(provider, await rowCount(), new Date());
   await db.transaction(async (tx) => {
     // The state row first: a batch locks it before writing vectors, so the two never wait on each other.
     await saveState(tx, state);
-    // Merged in place, so a setting saved at the same moment is not overwritten with an older copy.
-    await tx
-      .insert(settings)
-      .values({ key: "app", value: { embeddingProvider: provider } })
-      .onConflictDoUpdate({ target: settings.key, set: { value: sql`${settings.value} || excluded.value` } });
+    await saveProvider(tx, provider);
     await tx
       .update(memories)
       .set({ embedding: null, updatedAt: sql`${memories.updatedAt}` })
@@ -86,6 +86,31 @@ export async function changeEmbeddingProvider(provider: EmbeddingProvider): Prom
   await requestReindex();
   await publish({ type: "embeddings.reindex" });
   return state;
+}
+
+/** Merged in place, so a setting saved at the same moment is not overwritten with an older copy. */
+async function saveProvider(tx: Tx, provider: EmbeddingProvider): Promise<void> {
+  await tx
+    .insert(settings)
+    .values({ key: "app", value: { embeddingProvider: provider } })
+    .onConflictDoUpdate({ target: settings.key, set: { value: sql`${settings.value} || excluded.value` } });
+}
+
+/**
+ * The provider of an install from before the built-in model became the default, where a provider never
+ * saved in Settings meant OpenAI; run at the worker's start. Vectors already stored are OpenAI's, so it
+ * stays on OpenAI. Rows without any vector mean OpenAI never embedded (no API key): they are embedded
+ * with the built-in model. Without rows, or with the provider saved, there is nothing to settle.
+ */
+export async function settleEmbeddingProvider(): Promise<void> {
+  if ("embeddingProvider" in (await storedSettings())) return;
+  const embedded = await Promise.all(
+    [memories, journals, knowledgeChunks].map((table) =>
+      db.select({ id: table.id }).from(table).where(isNotNull(table.embedding)).limit(1),
+    ),
+  );
+  if (embedded.some((rows) => rows.length)) return void (await db.transaction((tx) => saveProvider(tx, "openai")));
+  if (await rowCount()) await startEmbeddingReindex("local");
 }
 
 /** Asks the worker for a slice of the re-embedding now, rather than at its next scheduled one. */
@@ -118,7 +143,7 @@ async function batchRows(state: ReindexState): Promise<(ReindexRow & { text: str
 /** The projects among `rows` whose provider policy allows `provider`. */
 async function allowingProjects(rows: readonly ReindexRow[], provider: EmbeddingProvider): Promise<Set<string>> {
   const ids = [...new Set(rows.flatMap((r) => (r.projectId ? [r.projectId] : [])))];
-  const allowed = await Promise.all(ids.map(async (id) => providerAllowed(await projectProviderPolicy(id), provider)));
+  const allowed = await Promise.all(ids.map(async (id) => embeddingAllowed(await projectProviderPolicy(id), provider)));
   return new Set(ids.filter((_, i) => allowed[i]));
 }
 
@@ -206,4 +231,53 @@ export async function reindexSlice(ms: number): Promise<boolean> {
   }
   await publish({ type: "embeddings.reindex" });
   return more;
+}
+
+/**
+ * Embeds rows written without a vector while no re-embedding runs: the provider could not embed at
+ * the time (the worker was down, the built-in model still downloading, a key missing). Rows of a
+ * project whose policy does not allow the provider stay without one, by design. Returns how many it
+ * embedded; a provider that still cannot embed leaves them for the next pass, quietly.
+ */
+export async function backfillEmbeddings(): Promise<number> {
+  if (await getReindexState()) return 0;
+  const provider = await embeddingProvider();
+  let done = 0;
+  for (const [name, t] of Object.entries(TABLES) as [ReindexTable, (typeof TABLES)[ReindexTable]][]) {
+    // The projects with rows waiting, checked once each, so rows a policy keeps out never crowd the batch.
+    const waiting = await db
+      .selectDistinct({ projectId: t.projectId })
+      .from(t.table)
+      .where(and(isNull(t.table.embedding), isNotNull(t.projectId)));
+    const allowing = await allowingProjects(
+      waiting.map((w) => ({ id: "", projectId: w.projectId, embedded: false })),
+      provider,
+    );
+    const rows = await db
+      .select({ id: t.id, text: t.text })
+      .from(t.table)
+      .where(
+        and(
+          isNull(t.table.embedding),
+          allowing.size ? or(isNull(t.projectId), inArray(t.projectId, [...allowing])) : isNull(t.projectId),
+        ),
+      )
+      .orderBy(asc(t.id))
+      .limit(BATCH_SIZE);
+    if (!rows.length) continue;
+    let vectors: number[][];
+    try {
+      vectors = await embedWith(
+        provider,
+        rows.map((r) => r.text),
+      );
+    } catch {
+      return done;
+    }
+    await db.transaction(async (tx) => {
+      for (const [i, row] of rows.entries()) await writeEmbedding(tx, name, row.id, vectors[i]!);
+    });
+    done += rows.length;
+  }
+  return done;
 }

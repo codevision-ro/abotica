@@ -28,7 +28,7 @@ import {
   skills,
   toAgentAvatar,
 } from "@abotica/db";
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from "@abotica/db/orm";
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "@abotica/db/orm";
 import { getMemberActivity } from "./projects";
 import { query } from "@/server/query";
 
@@ -80,13 +80,13 @@ export type AgentFormOptions = {
 };
 
 export const getAgentList = query(async () => {
-  const rows = await db.select().from(agents).orderBy(desc(agents.isOrchestrator), asc(agents.name));
+  const rows = await db.select().from(agents).orderBy(asc(agents.kind), asc(agents.name));
   const ids = rows.map((a) => a.id);
   if (!ids.length) return { agents: [], templates: [] };
 
   const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const since30 = new Date(Date.now() - 30 * 86_400_000);
-  const [stats, assigned] = await Promise.all([
+  const [stats, assigned, led] = await Promise.all([
     db
       .select({
         agentId: runs.agentId,
@@ -102,6 +102,11 @@ export const getAgentList = query(async () => {
       .innerJoin(projects, eq(projects.id, projectAgents.projectId))
       .where(inArray(projectAgents.agentId, ids))
       .orderBy(asc(projects.name)),
+    db
+      .select({ agentId: projects.managerAgentId, id: projects.id, name: projects.name })
+      .from(projects)
+      .where(inArray(projects.managerAgentId, ids))
+      .orderBy(asc(projects.name)),
   ]);
   const running = await db
     .selectDistinct({ agentId: runs.agentId })
@@ -115,7 +120,10 @@ export const getAgentList = query(async () => {
     runs7d: statsBy.get(a.id)?.runs7d ?? 0,
     cost30d: statsBy.get(a.id)?.cost30d ?? 0,
     running: runningSet.has(a.id),
-    projects: assigned.filter((p) => p.agentId === a.id).map((p) => ({ id: p.id, name: p.name })),
+    // A manager's projects are the ones it leads; a specialist's, the teams it is on.
+    projects: (a.kind === "manager" ? led : assigned)
+      .filter((p) => p.agentId === a.id)
+      .map((p) => ({ id: p.id, name: p.name })),
   }));
   return { agents: enriched.filter((a) => !a.isTemplate), templates: enriched.filter((a) => a.isTemplate) };
 });
@@ -132,12 +140,7 @@ export const getAgentRelations = query(async (agentId: string) => {
 export const getAgent = query(async (id: string) => {
   const [agent] = await db.select().from(agents).where(eq(agents.id, id));
   if (!agent) return null;
-  const [relations, managed] = await Promise.all([
-    getAgentRelations(id),
-    db.select({ id: projects.id }).from(projects).where(eq(projects.managerAgentId, id)),
-  ]);
-  /** Managing a project gives the agent the manager tools (delegation). */
-  return { agent, ...relations, isManager: managed.length > 0 };
+  return { agent, ...(await getAgentRelations(id)) };
 });
 
 export const getTemplateBySlug = query(async (slug: string) => {
@@ -242,7 +245,8 @@ export const getAgentVersionSnapshot = query(async (agentId: string, version: nu
 
 /**
  * The projects an agent is on, for its Projects tab: whether it manages each one and what it did there
- * (project memories it wrote, journal days, open tasks, latest run). Projects it manages come first.
+ * (team entries it wrote and its own notes on the project, journal days, open tasks, latest run). Projects
+ * it manages come first.
  */
 export const listAgentProjects = query(async (agentId: string) => {
   const rows = await db
@@ -252,9 +256,17 @@ export const listAgentProjects = query(async (agentId: string) => {
       status: projects.status,
       isManager: sql<boolean>`${projects.managerAgentId} is not distinct from ${agentId}`,
     })
-    .from(projectAgents)
-    .innerJoin(projects, eq(projects.id, projectAgents.projectId))
-    .where(eq(projectAgents.agentId, agentId))
+    .from(projects)
+    // The projects it leads (a manager's) and the teams it is on (a specialist's).
+    .where(
+      or(
+        eq(projects.managerAgentId, agentId),
+        inArray(
+          projects.id,
+          db.select({ id: projectAgents.projectId }).from(projectAgents).where(eq(projectAgents.agentId, agentId)),
+        ),
+      ),
+    )
     .orderBy(desc(sql`${projects.managerAgentId} is not distinct from ${agentId}`), asc(projects.name));
   const ids = rows.map((p) => p.id);
   const [activity, learned] = await Promise.all([
@@ -270,7 +282,8 @@ export const listAgentProjects = query(async (agentId: string) => {
           .from(memories)
           .where(
             and(
-              eq(memories.scope, "project"),
+              // Team entries it wrote and its own notes on the project.
+              inArray(memories.scope, ["project", "agent"]),
               eq(memories.status, "active"),
               eq(memories.agentId, agentId),
               inArray(memories.projectId, ids),

@@ -8,7 +8,22 @@
     "title": "Agenți",
     "description": "Echipa ta de agenți: model, tool-uri, permisiuni și activitate.",
     "newAgent": "Agent nou",
-    "empty": "Niciun agent încă. <link>Creează unul</link> de la zero sau pornește de la un template de mai jos.",
+    "groups": {
+      "orchestrator": {
+        "title": "Super agent",
+        "description": "Punctul tău de contact, pe web și pe Telegram. Deleagă munca managerilor."
+      },
+      "managers": {
+        "title": "Manageri",
+        "description": "Fiecare conduce unul sau mai multe proiecte: planifică, dă sarcini specialiștilor din echipele lui și verifică rezultatele.",
+        "empty": "Niciun manager încă. Un proiect nou creează unul, sau <link>pornește de la template-ul Manager de proiect</link>."
+      },
+      "specialists": {
+        "title": "Specialiști",
+        "description": "Ei fac munca, cu aceeași profesie în fiecare proiect din care fac parte.",
+        "empty": "Niciun specialist încă. <link>Creează unul</link> de la zero sau pornește de la un template de mai jos."
+      }
+    },
     "templates": {
       "title": "Template-uri",
       "description": "Puncte de plecare pentru agenți noi.",
@@ -20,18 +35,28 @@
     "runningNow": "Rulează acum",
     "running": "Rulează",
     "noProjects": "Niciun proiect atribuit",
+    "leads": "Conduce {projects}",
+    "leadsNone": "Nu conduce încă niciun proiect",
     "runs7d": "<b>{count}</b> {count, plural, one {rulare} few {rulări} other {de rulări}} în 7 zile",
     "cost30d": "<b>{cost}</b> în 30 de zile",
     "use": "Folosește",
     "defaultModel": "Model implicit",
-    "orchestrator": "Orchestrator",
+    "kinds": {
+      "orchestrator": "Super agent",
+      "manager": "Manager",
+      "specialist": "Specialist"
+    },
     "template": "Template"
   },
   "new": {
     "back": "Agenți",
     "title": "Agent nou",
     "startFrom": "Pornește de la",
-    "blank": "Gol"
+    "blank": "Gol",
+    "groups": {
+      "specialist": "Specialist",
+      "manager": "Manager"
+    }
   },
   "detail": {
     "back": "Agenți",
@@ -111,16 +136,39 @@
     "namePlaceholder": "Numele agentului",
     "role": "Rol",
     "rolePlaceholder": "Ce face, ex: Research și sinteză",
-    "instructionsTitle": "Instrucțiuni",
-    "instructionsDescription": "Cine este agentul, ce trebuie să obțină, cum lucrează și ce să evite.",
-    "systemPrompt": "System prompt",
-    "promptPlaceholder": "Ești un [rol] pentru [echipă sau companie].\n\nScop: ce trebuie să obțină agentul.\nCum lucrezi: pași, surse folosite, ton și formatul răspunsului.\nLimite: ce nu ai voie să faci sau să decizi singur.",
+    "kindTitle": "Tip",
+    "kindDescription": "Locul lui în echipă. Îl poți schimba cât timp nu face parte din nicio echipă și nu conduce niciun proiect.",
+    "kindTemplateDescription": "Locul lui în echipă. Tipul unui template e fix; un agent creat din el îl poate schimba.",
+    "kinds": {
+      "orchestrator": {
+        "title": "Super agent",
+        "description": "Punctul tău de contact: deleagă munca managerilor."
+      },
+      "manager": {
+        "title": "Manager",
+        "description": "Conduce proiecte: planifică, dă sarcini echipei și verifică rezultatele. Nu face el munca."
+      },
+      "specialist": {
+        "title": "Specialist",
+        "description": "Face munca, cu profesia lui, în fiecare proiect din care face parte. Nu deleagă."
+      }
+    },
+    "roleTitle": "Rolul în echipă: stabilit de Abotica",
+    "roleSummary": "Ce îi spune Abotica {kind, select, orchestrator {super agentului} manager {fiecărui manager} other {fiecărui specialist}} despre locul lui în echipă și cum lucrează",
+    "instructionsTitle": "Profesie",
+    "instructionsDescription": "Cine este agentul ca profesionist și cum își face treaba, la fel în fiecare proiect. Cum lucrează cu managerul și cu echipa vine de la platformă.",
+    "systemPrompt": "Promptul profesiei",
+    "promptPlaceholder": "Ești un [profesie]: [ce acoperi].\n\nCum lucrezi: metode, surse, standard de calitate și formatul rezultatului.\nLimite: ce nu faci și nu decizi niciodată singur.",
+    "additionalTitle": "Instrucțiuni suplimentare (opțional)",
+    "additionalDescription": "Abotica îi spune deja acestui agent cine este în echipă și cum lucrează; adaugă doar ce ții tu să facă altfel.",
+    "additionalPrompt": "Instrucțiuni suplimentare",
+    "additionalNone": "Niciuna",
     "characters": "{count, plural, one {# caracter} few {# caractere} other {# de caractere}}",
     "modelTitle": "Model",
     "modelDescription": "Modelul pe care rulează agentul.",
     "useDefault": "Modelul implicit",
     "defaultNotSet": "Nesetat încă",
-    "defaultHint": "{role, select, orchestrator {Modelul implicit al super agentului.} manager {Modelul implicit al managerilor, pentru că acest agent conduce un proiect.} other {Modelul implicit al agenților.}} Se schimbă din <link>Setări → Provideri AI</link> pentru toți agenții care îl folosesc.",
+    "defaultHint": "{role, select, orchestrator {Modelul implicit al super agentului.} manager {Modelul implicit al managerilor, pentru că acest agent este manager.} other {Modelul implicit al specialiștilor.}} Se schimbă din <link>Setări → Provideri AI</link> pentru toți agenții care îl folosesc.",
     "defaultMissing": "Modelul implicit nu e setat: <link>setează-l în Setări → Provideri AI</link>",
     "useCustom": "Alege un model",
     "useCustomDescription": "Un provider și un model doar pentru acest agent.",
@@ -133,12 +181,17 @@
     "toolsTitle": "Tool-uri",
     "skillsProjectsTitle": "Skill-uri și proiecte",
     "skillsProjectsDescription": "Instrucțiuni reutilizabile pe care le urmează și proiectele în care poate lucra.",
+    "skillsLedDescription": "Instrucțiuni reutilizabile pe care le urmează și proiectele pe care le conduce.",
     "skills": "Skill-uri",
     "skillsDescription": "Apasă ca să adaugi sau să elimini; ține cursorul deasupra pentru descriere.",
     "noSkills": "Niciun skill activ. <link>Adaugă skill-uri</link>",
     "projects": "Proiecte",
     "projectsDescription": "Echipele din care face parte, ca specialist. Cine conduce un proiect se stabilește în tabul Echipă al proiectului.",
     "noProjects": "Niciun proiect. <link>Creează un proiect</link>",
+    "ledProjects": "Proiecte conduse",
+    "ledProjectsDescription": "Cine conduce un proiect se schimbă în tabul Echipă al proiectului.",
+    "ledCount": "{count, plural, =0 {Niciunul} one {# proiect} few {# proiecte} other {# de proiecte}}",
+    "ledNone": "Nu conduce încă niciun proiect. Alege-l ca manager în tabul Echipă al unui proiect (<link>vezi proiectele</link>).",
     "advancedTitle": "Avansat",
     "fallbackChain": "Lanț de fallback",
     "fallbackDescription": "Dacă un provider pică sau atinge rate limit, rularea continuă pe următorul, cu același context.",
@@ -205,7 +258,7 @@
     },
     "builtinTitle": "Tool-uri incluse",
     "orchestratorGroup": "{group} (doar super agent)",
-    "managerGroup": "{group} (cât timp conduce un proiect)",
+    "managerGroup": "{group} (uneltele unui manager)",
     "controlFor": "Permisiune pentru {name}",
     "groupControlFor": "Permisiune pentru toate tool-urile din {group}",
     "alwaysAsk": "Așteaptă mereu aprobarea ta, nu poate rula singur",
@@ -321,7 +374,7 @@
       "name": "Nume",
       "role": "Rol",
       "avatar": "Avatar",
-      "systemPrompt": "System prompt",
+      "systemPrompt": "Prompt",
       "provider": "Provider",
       "model": "Model",
       "fallbacks": "Fallback-uri",
@@ -389,6 +442,9 @@
     "notFound": "Agentul nu există",
     "orchestratorDisable": "Super agentul nu poate fi dezactivat",
     "orchestratorDelete": "Super agentul nu poate fi șters",
+    "kindOrchestrator": "Există un singur super agent: tipul lui nu se schimbă și niciun alt agent nu poate deveni super agent",
+    "kindLeadsProject": "{name} conduce proiecte. Alege alt manager pentru ele înainte să îl faci specialist",
+    "kindOnTeam": "{name} face parte din echipe de proiect. Scoate-l din ele înainte să îl faci manager: un manager face parte doar din proiectele pe care le conduce",
     "versionNotFound": "Versiunea v{version} nu există"
   },
   "validation": {
@@ -408,6 +464,8 @@
     "title": "Proiecte",
     "description": "Echipele de proiect din care face parte acest agent. Profesia lui (instrucțiuni, skill-uri, unelte) e aceeași peste tot; ce învață într-un proiect rămâne la acel proiect.",
     "empty": "Nu face parte încă din nicio echipă de proiect. Adaugă-l din tabul Echipă al unui proiect (<link>vezi proiectele</link>) sau din Configurare.",
+    "ledDescription": "Proiectele pe care le conduce: planifică munca, dă sarcini echipei și verifică rezultatele. Ce învață într-un proiect rămâne la acel proiect.",
+    "ledEmpty": "Nu conduce încă niciun proiect. Alege-l ca manager în tabul Echipă al unui proiect (<link>vezi proiectele</link>).",
     "learned": "{count, plural, one {Ce a învățat aici: # amintire} few {Ce a învățat aici: # amintiri} other {Ce a învățat aici: # de amintiri}}",
     "openTeam": "Deschide echipa",
     "openJournal": "Jurnal"

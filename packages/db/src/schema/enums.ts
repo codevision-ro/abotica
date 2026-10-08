@@ -1,5 +1,11 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
+/**
+ * Where an agent stands in the hierarchy: the one super agent (talks to the user), a manager (leads one
+ * or more projects) or a specialist (does the work, shared across projects). Templates have one too.
+ */
+export const agentKind = pgEnum("agent_kind", ["orchestrator", "manager", "specialist"]);
+
 export const projectStatus = pgEnum("project_status", ["active", "paused", "archived"]);
 
 export const taskStatus = pgEnum("task_status", ["backlog", "in_progress", "blocked", "review", "done"]);

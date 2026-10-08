@@ -28,7 +28,7 @@ type RoleDefaults = Pick<
 >;
 
 /**
- * The defaults by role (see modelRole), from the widest to the narrowest: the agents' chain and effort
+ * The defaults by role (see modelRole), from the widest to the narrowest: the specialists' chain and effort
  * are required, and the managers and the super agent follow them while theirs are empty. One save for all.
  */
 export function DefaultModelsForm({
@@ -55,7 +55,7 @@ export function DefaultModelsForm({
   const [orchestratorEffort, setOrchestratorEffort] = useState(initial.orchestratorReasoningEffort);
   const [pending, startTransition] = useTransition();
   const agentsChain = chain.filter((m) => m.model.trim());
-  // The agents' default also serves the roles whose saved chain is empty.
+  // The specialists' default also serves the roles whose saved chain is empty.
   const agentsUsing =
     inheritingAgents.agent +
     (initial.managerModels.length ? 0 : inheritingAgents.manager) +
@@ -194,8 +194,8 @@ function EffortFor({
 }
 
 /**
- * A role's defaults, each optional: an empty chain runs on the agents' models, a null effort follows the
- * agents' effort.
+ * A role's defaults, each optional: an empty chain runs on the specialists' models, a null effort follows the
+ * specialists' effort.
  */
 function RoleDefault({
   icon,

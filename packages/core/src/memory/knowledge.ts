@@ -1,9 +1,10 @@
 import { db, files, knowledgeChunks, knowledgeItems } from "@abotica/db";
-import { and, cosineDistance, eq, ilike, inArray, isNotNull, sql } from "@abotica/db/orm";
+import { and, cosineDistance, desc, eq, inArray, isNotNull, sql } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { isTextFile } from "../files/file-types";
 import { claimFiles, getFile, readFileBytes, removeFileBytes } from "../files/files";
 import { embedText, embedTexts } from "./memory";
+import { orTsQuery } from "./memory-ranking";
 import { nearestFirst } from "./memory-search";
 import { projectProviderPolicy, projectsProviderPolicy } from "../models/provider-policy";
 import { readTextCapped, SafeFetchError, safeFetch } from "../platform/safe-fetch";
@@ -148,8 +149,30 @@ export async function indexKnowledgeItem(itemId: string): Promise<number> {
 }
 
 /**
+ * Romanian letters with diacritics (the comma and the cedilla forms of s and t) and their bare forms:
+ * agents often type without them. The unaccent extension is not installed, so both the query and the
+ * searched text fold these.
+ */
+const DIACRITICS = "ăâîșțşţ";
+const BARE = "aaistst";
+
+/** Lowercase text with DIACRITICS replaced by their bare letters. */
+const foldDiacritics = (text: string) => text.replace(/[ăâîșțşţ]/gu, (letter) => BARE[DIACRITICS.indexOf(letter)]!);
+
+/**
+ * The keyword search's tsquery, for `to_tsquery('simple', ...)`: any topic word of the query (as memory
+ * search builds it, see orTsQuery), folded like the searched text. Null when no word carries a topic.
+ */
+export function knowledgeTsQuery(query: string): string | null {
+  const words = orTsQuery(query);
+  return words && foldDiacritics(words);
+}
+
+/**
  * The query is embedded only when every searched project allows the embedding provider: a query may
  * carry a project's data, and a project that does not allow it has no embeddings to match anyway.
+ * Without an embedding the chunks that hold any of the query's topic words, in their item's title or
+ * their own text, come first by keyword rank, as in memory search: a query needs only some of its words.
  */
 export async function searchKnowledge(query: string, projectIds: string[], limit = 6) {
   if (!projectIds.length) return [];
@@ -168,11 +191,19 @@ export async function searchKnowledge(query: string, projectIds: string[], limit
     );
     return found.map((r) => r.row);
   }
+  const words = knowledgeTsQuery(query);
+  if (!words) return [];
+  // Computed per search: the chunks of the searched projects are few, so no stored column or index.
+  const text = sql`to_tsvector('simple', translate(lower(${knowledgeItems.title} || ' ' || ${knowledgeChunks.content}), ${DIACRITICS}, ${BARE}))`;
+  const tsQuery = sql`to_tsquery('simple', ${words})`;
+  // Unlabelled positions count 1, not the default 0.1, as in memory search: one matched word ranks 1.
+  const rank = sql<number>`ts_rank_cd('{1,1,1,1}', ${text}, ${tsQuery})`;
   return db
     .select(columns)
     .from(knowledgeChunks)
     .innerJoin(knowledgeItems, eq(knowledgeItems.id, knowledgeChunks.itemId))
-    .where(and(inArray(knowledgeChunks.projectId, projectIds), ilike(knowledgeChunks.content, `%${query}%`)))
+    .where(and(inArray(knowledgeChunks.projectId, projectIds), sql`${text} @@ ${tsQuery}`))
+    .orderBy(desc(rank), knowledgeChunks.itemId, knowledgeChunks.position)
     .limit(limit);
 }
 

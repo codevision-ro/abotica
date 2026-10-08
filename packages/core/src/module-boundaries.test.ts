@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
  * They and everything they import must stay free of server-only code (database, Redis, env, node:*).
  */
 const CLIENT_SAFE = [
+  "agents/kind-prompts",
   "agents/permissions",
   "agents/tools/tool-catalog",
   "agents/untrusted",

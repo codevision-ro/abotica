@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redelegateTask } from "../../tasks/delegation";
-import { activeTaskRun, taskFailureStreak, TaskCircuitOpenError } from "../../tasks/tasks";
+import { activeTaskRun, createTask, taskFailureStreak, TaskCircuitOpenError } from "../../tasks/tasks";
 import { startDelegatedTask } from "../../tasks/delegation-slots";
 import { runTools } from "./runs";
 
@@ -75,7 +75,7 @@ vi.mock("./shared", async (importOriginal) => ({
 
 const ctx = {
   run: { id: "manager-run", conversationId: "c1" },
-  agent: { id: "manager", slug: "manager", isOrchestrator: false },
+  agent: { id: "manager", slug: "manager", kind: "manager" },
   managedProjectIds: [],
   projectId: null,
 };
@@ -108,7 +108,12 @@ describe("delegate_task and the task's circuit breaker", () => {
   });
 
   it("starts a task whose breaker is closed", async () => {
-    expect(await delegate("worker")).toEqual({ taskId: "t1", runId: "run-2", started: true });
+    expect(await delegate("worker")).toEqual({
+      taskId: "t1",
+      runId: "run-2",
+      started: true,
+      next: expect.stringMatching(/end your turn \(no task_wait/),
+    });
     expect(startDelegatedTask).toHaveBeenCalledWith("t1", { parentRunId: "manager-run" });
   });
 
@@ -131,5 +136,34 @@ describe("delegate_task with every place of the conversation taken", () => {
     expect(result).toMatchObject({ taskId: "t1", started: false });
     expect(result.queued).toContain("starts on its own when one of them finishes. Do not start it again.");
     expect(result.runId).toBeUndefined();
+  });
+});
+
+describe("delegate_task from a run on a task of its own", () => {
+  const delegateNew = (run: { id: string; conversationId: string; taskId?: string }) => {
+    const tool = runTools.delegate_task!({ ...ctx, run } as never);
+    const input = {
+      agentSlug: "worker",
+      title: "Draft the landing page",
+      description: "Write the copy for the landing page.",
+      priority: "medium",
+      dependsOnTaskIds: [],
+      userAsked: false,
+      files: [],
+    };
+    return tool.execute!(input, { toolCallId: "call_1", messages: [], context: {} }) as Promise<Record<string, unknown>>;
+  };
+
+  beforeEach(() => vi.mocked(createTask).mockResolvedValue({ id: "t2" } as never));
+
+  it("makes the new task a subtask of it, in the same project", async () => {
+    // The own task (TASK) and the new one are both outside any project here.
+    await delegateNew({ id: "manager-run", conversationId: "c1", taskId: "own-1" });
+    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ parentId: "own-1" }), expect.anything());
+  });
+
+  it("leaves the parent out without a task of its own", async () => {
+    await delegateNew({ id: "manager-run", conversationId: "c1" });
+    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ parentId: null }), expect.anything());
   });
 });

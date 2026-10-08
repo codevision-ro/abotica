@@ -14,6 +14,7 @@
     "@abotica/core": "workspace:*",
     "@abotica/db": "workspace:*",
     "@abotica/i18n": "workspace:*",
+    "@huggingface/transformers": "^4.3.1",
     "ai": "catalog:",
     "bullmq": "catalog:",
     "grammy": "^1.46.0",

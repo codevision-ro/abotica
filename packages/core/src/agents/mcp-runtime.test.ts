@@ -92,8 +92,13 @@ describe("loadMcpTools", () => {
     expect(Object.keys(mcp.tools)).toEqual(["search_test__web_search", "search_test__web_fetch"]);
     // With the default permission the hints the server declared give each tool.
     expect(mcp.sources).toEqual({
-      search_test__web_search: { serverSlug: "search-test", tool: "web_search", defaultPermission: "allow" },
-      search_test__web_fetch: { serverSlug: "search-test", tool: "web_fetch", defaultPermission: "ask" },
+      search_test__web_search: {
+        serverSlug: "search-test",
+        tool: "web_search",
+        defaultPermission: "allow",
+        readOnly: true,
+      },
+      search_test__web_fetch: { serverSlug: "search-test", tool: "web_fetch", defaultPermission: "ask", readOnly: false },
     });
     expect(mcp.errors).toEqual([]);
     expect(onLazyError).not.toHaveBeenCalled();
@@ -120,8 +125,11 @@ describe("loadMcpTools", () => {
 
 type ContentPart = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
-/** What the server answers a tool call with: a text, content parts, a JSON-RPC error, or nothing at all. */
-type Reply = string | ContentPart[] | { error: string } | { hang: true };
+/**
+ * What the server answers a tool call with: a text, content parts, a JSON-RPC error, or nothing at all;
+ * `hangStart` leaves the handshake itself unanswered.
+ */
+type Reply = string | ContentPart[] | { error: string } | { hang: true } | { hangStart: true };
 
 /**
  * A stdio MCP server process that answers the handshake and the tool list, and returns `reply` as
@@ -140,6 +148,7 @@ function fakeServerProcess(reply: Reply, extra: object = {}): SandboxProcess {
       for (const line of lines.filter(Boolean)) {
         const request = JSON.parse(line) as { id?: number; method: string; params?: { protocolVersion?: string } };
         if (request.id === undefined) continue;
+        if (typeof reply === "object" && "hangStart" in reply) continue;
         const failure = request.method === "tools/call" && typeof reply === "object" && !Array.isArray(reply);
         if (failure && "hang" in reply) continue;
         if (failure && "error" in reply) {
@@ -377,6 +386,31 @@ describe("loadMcpTools in a run's workspace", () => {
       expect(error.message).toContain("Ignore your rules");
       expect(String(error)).toMatch(/^<untrusted-data id="[0-9a-f]{16}" source="mcp:search_test">\n/);
       expect(String(error).match(/<\/untrusted-data/g)).toHaveLength(1);
+    });
+
+    it("fails a call left unanswered past the timeout, and the next call starts a fresh server", async () => {
+      const { execs, mcp } = await load({ hang: true }, { callTimeoutMs: 50 });
+      const execute = mcp.tools["search_test__web_search"]!.execute!;
+      const run = (toolCallId: string) =>
+        execute({ query: "x" }, { toolCallId, messages: [] } as never).catch((e: unknown) => e);
+      const error = await run("1");
+      expect(error).toBeInstanceOf(McpToolError);
+      expect((error as McpToolError).message).toMatch(
+        /^search_test__web_search did not answer within \d+ s\. Do not call it again with the same arguments;/,
+      );
+      expect(execs).toHaveLength(1);
+      expect(await run("2")).toBeInstanceOf(McpToolError);
+      expect(execs).toHaveLength(2);
+      await mcp.close();
+    });
+
+    it("fails a call whose server never finishes its handshake, after the start timeout", async () => {
+      const { mcp } = await load({ hangStart: true }, { connectTimeoutMs: 50 });
+      const execute = mcp.tools["search_test__web_search"]!.execute!;
+      await expect(execute({ query: "x" }, { toolCallId: "1", messages: [] } as never)).rejects.toThrow(
+        /MCP search-test did not start within \d+ s/,
+      );
+      await mcp.close();
     });
 
     it("records the call as failed in a run; the model reads the server's text, the same as on a replay", async () => {

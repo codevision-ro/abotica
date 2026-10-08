@@ -5,7 +5,7 @@ export type ToolInfo = {
   description: string;
   group: "memory" | "tasks" | "web" | "workspace" | "orchestration";
   orchestratorOnly?: boolean;
-  /** With orchestratorOnly: project managers get it too (an agent that manages at least one project). */
+  /** With orchestratorOnly: managers (kind "manager") get it too. */
   managers?: boolean;
   /** Never runs without approval: the agent can be set to ask or deny, not allow. */
   alwaysAsk?: boolean;
@@ -21,7 +21,7 @@ export const TOOL_CATALOG: ToolInfo[] = [
   {
     name: "memory_search",
     label: "Search memory",
-    description: "Semantic search across global, project and own memory",
+    description: "Semantic search across global, team and own memory",
     group: "memory",
   },
   { name: "memory_save", label: "Save to memory", description: "Write durable facts to memory", group: "memory" },
@@ -145,6 +145,14 @@ export const TOOL_CATALOG: ToolInfo[] = [
     orchestratorOnly: true,
   },
   {
+    name: "template_list",
+    label: "List templates",
+    description: "See the agent templates new agents start from",
+    group: "orchestration",
+    orchestratorOnly: true,
+    deferred: true,
+  },
+  {
     name: "agent_create",
     label: "Create agents",
     description: "Create new agents (requires approval)",
@@ -156,7 +164,7 @@ export const TOOL_CATALOG: ToolInfo[] = [
   {
     name: "agent_update",
     label: "Edit agents",
-    description: "Change an agent's prompt, role or model (requires approval)",
+    description: "Change an agent's profession, role or model (requires approval)",
     group: "orchestration",
     orchestratorOnly: true,
     alwaysAsk: true,

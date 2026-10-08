@@ -1,5 +1,5 @@
 import path from "node:path";
-import { agents, db, messages, runEvents, runs } from "@abotica/db";
+import { agents, db, messages, projectAgents, projects, runEvents, runs } from "@abotica/db";
 import { and, asc, eq, inArray, isNotNull, type SQL } from "@abotica/db/orm";
 import type { UIMessage } from "ai";
 import { inputPath } from "../src/agents/workspace-paths";
@@ -87,7 +87,7 @@ const workspaceTools = {
   file_share: "allow",
 } as const;
 
-const created = { agents: [] as string[], conversations: [] as string[], tasks: [] as string[] };
+const created = { agents: [] as string[], conversations: [] as string[], tasks: [] as string[], projects: [] as string[] };
 let failed = false;
 const check = (ok: boolean, label: string) => {
   console.log(ok ? "ok  " : "FAIL", label);
@@ -146,9 +146,10 @@ async function delegationScenario() {
         slug: "e2e-orchestrator",
         name: "E2E orchestrator",
         ...model,
-        isOrchestrator: true,
+        // A manager, since there is one super agent: it delegates to its project's team.
+        kind: "manager",
         permissions: { ...workspaceTools, delegate_task: "allow", task_get: "allow", task_update: "allow" },
-        systemPrompt: "You are a test orchestrator. Always use tools when asked. Be brief.",
+        systemPrompt: "Always use tools when asked. Be brief.",
       },
       {
         slug: "e2e-delegate",
@@ -160,12 +161,22 @@ async function delegationScenario() {
     ])
     .returning();
   created.agents.push(orchestrator!.id, delegate!.id);
+  const [project] = await db
+    .insert(projects)
+    .values({ name: "E2E delegation", slug: `e2e-delegation-${Date.now()}`, managerAgentId: orchestrator!.id })
+    .returning();
+  created.projects.push(project!.id);
+  await db.insert(projectAgents).values([
+    { projectId: project!.id, agentId: orchestrator!.id },
+    { projectId: project!.id, agentId: delegate!.id },
+  ]);
 
   // The user's message with an attached file, as the web chat sends it.
   const conversation = await createConversation({
     agentId: orchestrator!.id,
     channel: "internal",
     title: "E2E delegation",
+    projectId: project!.id,
   });
   created.conversations.push(conversation.id);
   const upload = await saveFile({
@@ -192,7 +203,13 @@ async function delegationScenario() {
     } satisfies UIMessage,
     conversation.id,
   );
-  const run = await startRun({ agentId: orchestrator!.id, trigger: "chat", conversationId: conversation.id, message });
+  const run = await startRun({
+    agentId: orchestrator!.id,
+    trigger: "chat",
+    conversationId: conversation.id,
+    projectId: project!.id,
+    message,
+  });
   const first = await printRun("orchestrator", run.id);
   check(first.result.status === "succeeded", "orchestrator run succeeded");
 
@@ -244,6 +261,7 @@ try {
   for (const id of new Set([...created.conversations, ...runConversations.map((r) => r.id!)])) {
     await deleteConversation(id);
   }
+  for (const id of created.projects) await db.delete(projects).where(eq(projects.id, id));
   for (const id of created.agents) await db.delete(agents).where(eq(agents.id, id));
   process.exit(failed ? 1 : 0);
 }

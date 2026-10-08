@@ -1,8 +1,9 @@
 import { EMBEDDING_DIMENSIONS, db, journals, memories, type ModelRef } from "@abotica/db";
 import { embed, embedMany } from "ai";
-import { and, desc, eq, gt, gte, inArray, isNull, ne, notInArray, or, sql, type SQL } from "@abotica/db/orm";
+import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
+import { getSettings } from "../platform/settings";
 import {
   CONFLICTS_WITH_OWNER,
   CONSOLIDATION_CANDIDATES,
@@ -13,23 +14,28 @@ import {
   planFact,
   type RelatedEntry,
 } from "./memory-consolidation";
+import { type MemoryReader, notesProject } from "./memory-scope";
 import { hybridSearchJournals, hybridSearchMemories } from "./memory-search";
 import {
   checkMemoryWrite,
   type CheckedWrite,
   heldBecause,
   MemorySecretError,
+  namedProject,
+  projectNamed,
+  projectsOfAgent,
   sameMemory,
   similarMemories,
   type SimilarMemory,
 } from "./memory-write-gate";
 import {
   ANY_PROVIDER,
+  embeddingAllowed,
   projectProviderPolicy,
   projectsClosedTo,
-  providerAllowed,
   type ProviderPolicy,
 } from "../models/provider-policy";
+import { embedLocal } from "../models/local-embeddings";
 import { type EmbeddingProvider, embeddingModel, embeddingProvider } from "../models/providers";
 
 export type Memory = typeof memories.$inferSelect;
@@ -42,9 +48,11 @@ const providerOptions = { openai: { dimensions: EMBEDDING_DIMENSIONS } };
  * null when the embedding provider is not allowed for it or not reachable; search is then by keyword only.
  */
 export async function embedText(text: string, policy: ProviderPolicy): Promise<number[] | null> {
-  if (!providerAllowed(policy, await embeddingProvider())) return null;
+  const provider = await embeddingProvider();
+  if (!embeddingAllowed(policy, provider)) return null;
   try {
-    const { model } = await embeddingModel();
+    if (provider === "local") return (await embedLocal([text]))[0]!;
+    const { model } = await embeddingModel(provider);
     const { embedding } = await embed({ model, value: text, providerOptions });
     return embedding;
   } catch (error) {
@@ -56,7 +64,7 @@ export async function embedText(text: string, policy: ProviderPolicy): Promise<n
 export async function embedTexts(texts: string[], policy: ProviderPolicy): Promise<(number[] | null)[]> {
   if (!texts.length) return [];
   const provider = await embeddingProvider();
-  if (!providerAllowed(policy, provider)) return texts.map(() => null);
+  if (!embeddingAllowed(policy, provider)) return texts.map(() => null);
   try {
     return await embedWith(provider, texts);
   } catch (error) {
@@ -66,22 +74,25 @@ export async function embedTexts(texts: string[], policy: ProviderPolicy): Promi
 }
 
 /**
- * Embeds with `provider`, throwing when it cannot (no key, server down): the re-embedding after a provider
- * change waits and tries again, where a write goes on without embeddings (embedTexts).
+ * Embeds with `provider`, throwing when it cannot (no key, server down, the built-in model still
+ * loading): the re-embedding after a provider change waits and tries again, where a write goes on
+ * without embeddings (embedTexts).
  */
 export async function embedWith(provider: EmbeddingProvider, texts: string[]): Promise<number[][]> {
   if (!texts.length) return [];
+  if (provider === "local") return embedLocal(texts);
   const { model } = await embeddingModel(provider);
   const { embeddings } = await embedMany({ model, values: texts, providerOptions });
   return embeddings;
 }
 
-/** Project memory is the project's data; global and agent memory are not tied to one. */
+/** Team memory and an agent's notes on a project are the project's data; global memory and craft are not tied to one. */
 const memoryPolicy = (memory: { scope: MemoryScope; projectId?: string | null }) =>
-  memory.scope === "project" ? projectProviderPolicy(memory.projectId ?? null) : Promise.resolve(ANY_PROVIDER);
+  memory.scope !== "global" && memory.projectId ? projectProviderPolicy(memory.projectId) : Promise.resolve(ANY_PROVIDER);
 
 /**
- * For scope "project", `agentId` is the author (null: the user); for scope "agent", the owner.
+ * For scope "project" (team memory), `agentId` is the author (null: the user); for scope "agent", the
+ * owner, and `projectId` the project of the agent's notes (null: its craft, read in every project).
  * `origin` is whose content it is (see memoryOrigin), `source` how it was written.
  */
 export type MemoryInput = {
@@ -129,7 +140,7 @@ async function insertMemory(input: MemoryInput, checked: StoredWrite, embedding:
     .values({
       scope: input.scope,
       content: checked.content,
-      projectId: input.scope === "project" ? input.projectId : null,
+      projectId: input.scope === "global" ? null : (input.projectId ?? null),
       agentId: input.scope === "global" ? null : (input.agentId ?? null),
       source,
       origin: input.origin,
@@ -148,9 +159,12 @@ async function insertMemory(input: MemoryInput, checked: StoredWrite, embedding:
 /** What storing a consolidated fact did. */
 export type FactOutcome = "added" | "held" | "restated" | "dropped";
 
-/** The memory consolidation writes to: a project's, written by the agent, or the agent's own. */
-export type ConsolidationTarget =
-  { scope: "project"; projectId: string; agentId: string } | { scope: "agent"; agentId: string };
+/**
+ * The memory consolidation writes to: always the agent's own, its notes on the journals' project or,
+ * for journals outside projects (and craft lessons), its craft (null); a fact of those that names a project
+ * goes to the notes on it (see applyConsolidationOutsideProjects). Team memory gets only explicit saves.
+ */
+export type ConsolidationTarget = { scope: "agent"; agentId: string; projectId: string | null };
 
 /** A consolidated entry stated again: fresher in search and counted as used. Its text stays as it is. */
 const refreshMemory = (id: string) =>
@@ -161,11 +175,13 @@ const refreshMemory = (id: string) =>
 
 /**
  * Stores a fact extracted by consolidation. `origin` is "untrusted" when a journal it came from had read
- * untrusted content: the fact then waits for approval. `replaces` are the entries it contradicts (see
- * replaceEntries); `conflictsWithOwner` holds it for approval, since an entry the user wrote is never
- * replaced without the user. A fact the same memory already holds (by embedding, or by text without one)
- * is not stored again and never rewords that entry: a trusted one refreshes a consolidated entry. A fact
- * holding a secret is dropped.
+ * untrusted content: the fact is stored active unless the scan flags it or `memoryRequiresApproval` is on
+ * (see decideMemoryWrite). `replaces` are the entries it contradicts (see replaceEntries);
+ * `conflictsWithOwner` holds it for approval, since an entry the user wrote is never replaced without the
+ * user. A fact the same memory already holds (by embedding, or by text without one) is not stored again
+ * and never rewords that entry: a trusted one refreshes a consolidated entry. A fact for the agent's notes
+ * on a project that the project's team memory already holds is not stored either. A fact holding a secret
+ * is dropped.
  */
 export async function rememberFact(
   input: ConsolidationTarget & {
@@ -178,7 +194,8 @@ export async function rememberFact(
   },
 ): Promise<FactOutcome> {
   const { replaces = [], conflictsWithOwner = false, ...rest } = input;
-  const fact: MemoryInput = { ...rest, source: "consolidation" };
+  const held = input.origin === "untrusted" && (await getSettings()).memoryRequiresApproval;
+  const fact: MemoryInput = { ...rest, source: "consolidation", status: held ? "pending" : "active" };
   const checked = await checkInput(fact, {}).catch((error: unknown) => {
     if (!(error instanceof MemorySecretError)) throw error;
     console.warn(`[memory] consolidation dropped a fact holding ${error.reasons.join(", ")}`);
@@ -187,9 +204,14 @@ export async function rememberFact(
   if (!checked) return "dropped";
   const embedding = await embedText(checked.content, await memoryPolicy(input));
   // Only what agents read counts: replaced, expired and pending entries are not restated by a fact.
-  const { duplicate } = await similarMemories(and(sameMemory(input), current()), checked.content, embedding);
+  // Notes on a project are read with its team memory: a fact the team memory holds is not repeated there.
+  const team = input.projectId ? sameMemory({ scope: "project", projectId: input.projectId }) : undefined;
+  const where = and(team ? or(sameMemory(input), team) : sameMemory(input), current());
+  const { duplicate } = await similarMemories(where, checked.content, embedding);
   if (duplicate) {
-    if (duplicate.source === "consolidation" && checked.status === "active") await refreshMemory(duplicate.id);
+    if (duplicate.source === "consolidation" && input.origin === "system" && checked.status === "active") {
+      await refreshMemory(duplicate.id);
+    }
     return "restated";
   }
   const write: StoredWrite = conflictsWithOwner
@@ -233,6 +255,82 @@ export async function applyConsolidation(
 }
 
 /**
+ * Applies the facts consolidated from an agent's journals outside projects. Its craft is read in every
+ * project, so a fact that names a project never goes there: it goes to the agent's notes on that project
+ * when the agent works on it (the super agent works on all of them), and is dropped otherwise. The rest
+ * goes to its craft as usual. `related` are the craft entries the prompt showed; a fact sent to notes is
+ * compared with those notes by rememberFact instead.
+ */
+export async function applyConsolidationOutsideProjects(
+  agent: { id: string; kind: string },
+  facts: readonly ConsolidatedFact[],
+  related: readonly RelatedEntry[],
+  origin: "system" | "untrusted",
+): Promise<Record<FactOutcome, number>> {
+  const every = await projectsOfAgent(agent.id, null, true);
+  const members = agent.kind === "orchestrator" ? null : new Set((await projectsOfAgent(agent.id, null)).map((p) => p.id));
+  const counts: Record<FactOutcome, number> = { added: 0, held: 0, restated: 0, dropped: 0 };
+  const craft: ConsolidatedFact[] = [];
+  for (const fact of facts) {
+    const named = projectNamed(fact.content, every);
+    if (!named) {
+      craft.push(fact);
+      continue;
+    }
+    if (members && !members.has(named.projectId)) {
+      counts.dropped++;
+      continue;
+    }
+    const outcome = await rememberFact({
+      scope: "agent",
+      agentId: agent.id,
+      projectId: named.projectId,
+      content: fact.content,
+      origin,
+      retention: fact.retention,
+      validFrom: fact.validFrom,
+    });
+    counts[outcome]++;
+  }
+  const done = await applyConsolidation({ scope: "agent", agentId: agent.id, projectId: null }, craft, related, origin);
+  for (const outcome of Object.keys(counts) as FactOutcome[]) counts[outcome] += done[outcome];
+  return counts;
+}
+
+/**
+ * Whether the lessons distilled from a project's journals may reach the agent's craft memory, which is
+ * read in its other projects: not for a project restricted to some providers, whose data must not reach
+ * the others in any form.
+ */
+export async function craftLessonsAllowed(projectId: string): Promise<boolean> {
+  return (await projectProviderPolicy(projectId)).allowed === null;
+}
+
+/**
+ * Applies the craft lessons distilled from an agent's journals of `projectId` (see craftLessonsPrompt)
+ * to the agent's own memory. A lesson that still names one of the agent's projects is dropped, as
+ * memory_save refuses it: the prompt asks for generic lessons, this makes sure of it. A lesson never
+ * becomes permanent here: permanence is earned by use (promoteRecalledMemories).
+ */
+export async function applyCraftLessons(
+  agentId: string,
+  projectId: string,
+  lessons: readonly ConsolidatedFact[],
+  related: readonly RelatedEntry[],
+  origin: "system" | "untrusted",
+): Promise<Record<FactOutcome, number>> {
+  const projects = await projectsOfAgent(agentId, projectId);
+  const generic = lessons
+    .filter((lesson) => !namedProject(lesson.content, projects))
+    .map((lesson) => ({
+      ...lesson,
+      retention: lesson.retention === "permanent" ? ("durable" as const) : lesson.retention,
+    }));
+  const counts = await applyConsolidation({ scope: "agent", agentId, projectId: null }, generic, related, origin);
+  return { ...counts, dropped: counts.dropped + lessons.length - generic.length };
+}
+
+/**
  * The current entries of the memory consolidation writes to that are closest to its journals, for the
  * model to compare its facts with: a hybrid search per journal (with the embedding the journal already
  * has), taken in turns so each journal's nearest entries are in.
@@ -257,8 +355,49 @@ export async function consolidationCandidates(
 }
 
 /**
- * Who a memory write is for: an agent's page, a project's page, or none for the memory page.
- * With an owner, entries of other agents or projects are refused as not found.
+ * What the agent's other memory layers already hold that is closest to its journals, for consolidation to
+ * leave out (see consolidationPrompt's `known`). For notes on a project: the user's rules, the project's
+ * team memory and the agent's craft. For the craft (and the super agent, whose project-less journals are
+ * routed to its notes on each project): the user's rules, and for the super agent every project's team
+ * memory and its own notes.
+ */
+export async function knownElsewhere(
+  target: ConsolidationTarget,
+  journalRows: readonly { summary: string; embedding: number[] | null }[],
+  opts: { everyProject?: boolean } = {},
+): Promise<string[]> {
+  const layers = target.projectId
+    ? or(
+        sameMemory({ scope: "global" }),
+        sameMemory({ scope: "project", projectId: target.projectId }),
+        sameMemory({ scope: "agent", agentId: target.agentId, projectId: null }),
+      )
+    : opts.everyProject
+      ? or(
+          sameMemory({ scope: "global" }),
+          eq(memories.scope, "project"),
+          and(eq(memories.scope, "agent"), eq(memories.agentId, target.agentId), isNotNull(memories.projectId)),
+        )
+      : sameMemory({ scope: "global" });
+  const where = and(layers, current());
+  const found = await Promise.all(
+    journalRows.map((j) =>
+      hybridSearchMemories(j.summary, { vector: j.embedding, where, limit: CONSOLIDATION_CANDIDATES }),
+    ),
+  );
+  const picked = new Map<string, string>();
+  for (let rank = 0; found.some((rows) => rank < rows.length); rank++) {
+    for (const row of found.flatMap((rows) => rows[rank] ?? [])) {
+      if (picked.size < CONSOLIDATION_CANDIDATES && !picked.has(row.id)) picked.set(row.id, row.content);
+    }
+  }
+  return [...picked.values()];
+}
+
+/**
+ * Who a memory write is for: an agent's page (its craft and its notes on every project), a project's page
+ * (its team memory and every agent's notes on it), or none for the memory page. With an owner, entries of
+ * other agents or projects are refused as not found.
  */
 export type MemoryOwner = { agentId: string } | { projectId: string };
 
@@ -268,7 +407,7 @@ function ownedBy(owner: MemoryOwner | undefined) {
   if (!owner) return undefined;
   return "agentId" in owner
     ? and(eq(memories.scope, "agent"), eq(memories.agentId, owner.agentId))
-    : and(eq(memories.scope, "project"), eq(memories.projectId, owner.projectId));
+    : and(ne(memories.scope, "global"), eq(memories.projectId, owner.projectId));
 }
 
 /** Throws unless every id exists and belongs to the owner. */
@@ -324,13 +463,13 @@ export async function saveMemory(
   const { duplicate, related } = await similarMemories(and(sameMemory(input), current()), checked.content, embedding);
   if (duplicate) return { duplicateOf: duplicate };
   const memory = await auditCreated(await insertMemory(input, checked, embedding), opts);
-  return { memory, related, heldBecause: heldBecause(checked, input.origin) };
+  return { memory, related, heldBecause: heldBecause(checked) };
 }
 
 /**
  * Replaces an entry's content, checked like a new write. `origin` is whose the new content is; left
  * out (the user's own edit), the entry keeps its origin and is not held. `status` sends an edited entry
- * back for approval when agents' writes need it; untrusted or flagged content always goes back.
+ * back for approval when agents' writes need it; flagged content always goes back.
  * An agent's edit of an active entry agents wrote (see keepsHistory) keeps the old text: a new entry
  * written by `agentId` replaces it (see replaceEntries) and its id is returned. Returns why the entry now
  * waits for approval, null when it does not.
@@ -357,7 +496,7 @@ export async function updateMemory(
         scope: memory!.scope,
         content: checked.content,
         projectId: memory!.projectId,
-        // A project entry's author is who wrote this version; an agent entry stays its owner's.
+        // A team entry's author is who wrote this version; an agent entry stays its owner's.
         agentId: memory!.scope === "project" ? (opts.agentId ?? null) : memory!.agentId,
         source: "agent",
         origin: opts.origin,
@@ -375,7 +514,7 @@ export async function updateMemory(
       data: auditData(row, { origin: opts.origin, replaces: id, ...opts.data }),
     });
     await replaceEntries(row, [id], actor);
-    return { id: row.id, heldBecause: heldBecause(checked, origin) };
+    return { id: row.id, heldBecause: heldBecause(checked) };
   }
   await db
     .update(memories)
@@ -398,7 +537,7 @@ export async function updateMemory(
     entityId: id,
     data: auditData(memory!, { ...(opts.origin && { origin: opts.origin }), ...opts.data }),
   });
-  return { id, heldBecause: heldBecause(checked, origin) };
+  return { id, heldBecause: heldBecause(checked) };
 }
 
 /**
@@ -534,12 +673,18 @@ async function reviewed(
   return ids;
 }
 
-/** The memory of each scope a run may read: global, the agent's own, and its project's (if any). */
-function visibleScopes(agentId: string, projectId: string | null) {
+/**
+ * The memory of each layer a run may read (see memoryVisibleTo): global, the agent's craft, its notes on
+ * the run's project (or the super agent's notes project), and that project's team memory.
+ */
+function visibleScopes(reader: MemoryReader) {
+  const notes = notesProject(reader);
+  const own = and(eq(memories.scope, "agent"), eq(memories.agentId, reader.agentId));
   return {
     global: eq(memories.scope, "global"),
-    agent: and(eq(memories.scope, "agent"), eq(memories.agentId, agentId)),
-    project: projectId ? and(eq(memories.scope, "project"), eq(memories.projectId, projectId)) : undefined,
+    craft: and(own, isNull(memories.projectId)),
+    notes: notes ? and(own, eq(memories.projectId, notes)) : undefined,
+    team: reader.projectId ? and(eq(memories.scope, "project"), eq(memories.projectId, reader.projectId)) : undefined,
   };
 }
 
@@ -552,24 +697,27 @@ const current = () =>
   );
 
 /** Memories a run may read (see memoryVisibleTo). */
-function visibleTo(agentId: string, projectId: string | null) {
-  const scopes = visibleScopes(agentId, projectId);
-  return and(current(), or(scopes.global, scopes.agent, scopes.project));
+function visibleTo(reader: MemoryReader) {
+  const scopes = visibleScopes(reader);
+  return and(current(), or(scopes.global, scopes.craft, scopes.notes, scopes.team));
 }
 
 /** For the memory a run gets in its prompt (memory-recall.ts). */
 export { current as currentMemories, visibleTo as memoriesVisibleTo };
 
 /** Hybrid search (see hybridSearchMemories) over the memories a run may read. */
-export async function searchMemories(query: string, opts: { agentId: string; projectId: string | null; limit?: number }) {
-  // A query made inside a project may carry its data.
-  const vector = await embedText(query, await projectProviderPolicy(opts.projectId));
-  const found = await hybridSearchMemories(query, {
-    vector,
-    where: visibleTo(opts.agentId, opts.projectId),
-    limit: opts.limit ?? 8,
-  });
-  return found.map((m) => ({ id: m.id, scope: m.scope, content: m.content, updatedAt: m.updatedAt }));
+export async function searchMemories(query: string, opts: MemoryReader & { limit?: number }) {
+  // A query made inside a project, or about the super agent's notes on one, may carry its data.
+  const vector = await embedText(query, await projectProviderPolicy(notesProject(opts)));
+  const found = await hybridSearchMemories(query, { vector, where: visibleTo(opts), limit: opts.limit ?? 8 });
+  return found.map((m) => ({
+    id: m.id,
+    scope: m.scope,
+    projectId: m.projectId,
+    content: m.content,
+    updatedAt: m.updatedAt,
+    origin: m.origin,
+  }));
 }
 
 /**

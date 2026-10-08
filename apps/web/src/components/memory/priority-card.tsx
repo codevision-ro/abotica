@@ -1,24 +1,37 @@
-import { BookOpen, Bot, ChevronRight, FolderKanban, Globe, History, Layers, type LucideIcon } from "lucide-react";
+import {
+  BookOpen,
+  Bot,
+  ChevronRight,
+  FolderKanban,
+  Globe,
+  History,
+  Layers,
+  type LucideIcon,
+  NotebookPen,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment } from "react";
 import { SectionIcon, sectionCardClass } from "@/components/app/section-card";
 import { cn } from "@/lib/utils";
 
 /** Labels come from memory.priority.levels.<key>. */
-const LEVELS: { key: "global" | "project" | "agent" | "journal" | "raw"; icon: LucideIcon }[] = [
+const LEVELS: { key: "global" | "project" | "agent" | "agentProject" | "journal" | "raw"; icon: LucideIcon }[] = [
   { key: "global", icon: Globe },
   { key: "project", icon: FolderKanban },
   { key: "agent", icon: Bot },
+  { key: "agentProject", icon: NotebookPen },
   { key: "journal", icon: BookOpen },
   { key: "raw", icon: History },
 ];
 
-/** On conflict the more specific level wins, left to right. */
-const PRECEDENCE = ["project", "agent", "global"] as const;
+/**
+ * On conflict, left to right: the team memory (the project's decisions agreed with the user), the user's
+ * global rules, the agent's notes on the project, then its craft. Labels come from memory.priority.precedence.
+ */
+const PRECEDENCE = ["team", "global", "agentProject", "agentGlobal"] as const;
 
 export function PriorityCard() {
   const t = useTranslations("memory.priority");
-  const ts = useTranslations("memory.scopes");
   return (
     <section aria-labelledby="memory-priority" className={cn(sectionCardClass, "min-w-0")}>
       <div className="flex items-center gap-3 px-4 py-3">
@@ -39,7 +52,7 @@ export function PriorityCard() {
                   i === 0 ? "bg-primary/10 text-primary dark:bg-primary/20" : "bg-muted text-foreground/80",
                 )}
               >
-                {ts(s)}
+                {t(`precedence.${s}`)}
               </li>
             </Fragment>
           ))}

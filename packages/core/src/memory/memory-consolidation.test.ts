@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   consolidationPrompt,
+  craftLessonsPrompt,
   expiryFor,
   invalidationTime,
   journalPrompt,
@@ -69,6 +70,13 @@ describe("consolidationPrompt", () => {
       expect(prompt.prompt).toContain(field);
     }
     for (const retention of ['"permanent"', '"durable"', '"ephemeral"']) expect(prompt.prompt).toContain(retention);
+  });
+
+  it("leaves out the state of the work, and asks facts outside projects to name their project", () => {
+    expect(prompt.prompt).toMatch(/Leave out the state of the work: task status .* ids of tasks or runs/);
+    expect(prompt.prompt).toContain("A fact about one project names the project.");
+    const inProject = consolidationPrompt({ language: "English", project: "Shop", journals: [], existing: [] });
+    expect(inProject.prompt).not.toContain("names the project");
   });
 
   it("says when memory holds nothing to compare with", () => {
@@ -261,5 +269,56 @@ describe("promotable", () => {
     expect(promotable({ ...stats, origin: "untrusted", searchRecalls: 10, distinctQueries: 10 })).toBe(false);
     expect(promotable({ ...stats, retention: "ephemeral" })).toBe(false);
     expect(promotable({ ...stats, retention: "permanent" })).toBe(false);
+  });
+});
+
+describe("craftLessonsPrompt", () => {
+  const prompt = craftLessonsPrompt({
+    language: "English",
+    project: "Shop",
+    role: "SEO specialist",
+    journals: [{ day: "2026-10-08", summary: "Titles under 60 characters kept their full text in results." }],
+    existing: [
+      { content: "Check the SERP before writing a brief.", validFrom: null, createdAt: new Date("2026-10-01T09:00:00Z") },
+    ],
+  });
+
+  it("names the project only as the scope to leave out, and the role whose craft it keeps", () => {
+    expect(prompt.instructions).toContain('only its work on the project "Shop"');
+    expect(prompt.instructions).toContain("whose role is: SEO specialist");
+    expect(prompt.prompt).toMatch(/Leave out everything specific to this project/);
+    expect(prompt.prompt).toMatch(/never a name of a project, client, site/);
+  });
+
+  it("compares lessons with the agent's own entries and answers like a consolidation, so one parser reads it", () => {
+    expect(prompt.prompt).toContain('{"id":1,"fact":"Check the SERP before writing a brief.","since":"2026-10-01"}');
+    for (const field of ['"retention"', '"validFrom"', '"contradicts"', '"duplicates"']) {
+      expect(prompt.prompt).toContain(field);
+    }
+    expect(prompt.prompt).not.toContain('"permanent"');
+    expect(
+      parseConsolidation('{"fact": "Short titles keep their full text.", "retention": "durable"}', 1).facts,
+    ).toHaveLength(1);
+  });
+});
+
+describe("consolidation and what other layers already hold", () => {
+  const journals = [{ day: "2026-10-08", summary: "Publishing pace confirmed." }];
+
+  it("lists them as already known, to leave out in any language", () => {
+    const prompt = consolidationPrompt({
+      language: "English",
+      project: "Shop",
+      journals,
+      existing: [],
+      known: ["Ritm de publicare: 2 articole pe zi."],
+    });
+    expect(prompt.prompt).toContain("never restate these as a new fact, in any language or wording:");
+    expect(prompt.prompt).toContain("- Ritm de publicare: 2 articole pe zi.");
+  });
+
+  it("says nothing about them when there are none", () => {
+    const prompt = consolidationPrompt({ language: "English", project: "Shop", journals, existing: [] });
+    expect(prompt.prompt).not.toContain("Already known in other memory layers");
   });
 });

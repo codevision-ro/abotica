@@ -30,9 +30,9 @@ function targetOf(externalId: string): Target {
 }
 
 /**
- * Sends the final answer of the conversation's agent (the super agent, or a project's manager in its
- * topic) back to the Telegram chat and topic the conversation belongs to. An answer the user already
- * wrote past is held (see holdStaleReply): the follow-up answers everything at once in its place.
+ * Sends the super agent's final answer back to the Telegram chat and topic the conversation belongs
+ * to. An answer the user already wrote past is held (see holdStaleReply): the follow-up answers
+ * everything at once in its place.
  */
 export async function deliverTelegramReply(
   conversation: typeof conversations.$inferSelect,

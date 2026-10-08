@@ -14,7 +14,8 @@ import { enqueueTaskEvent, notify, scheduleWakeupCheck } from "../infra/queues";
 import { getSettings, settingsLocale } from "../platform/settings";
 import { startTaskRun } from "../runs/runs";
 import { pullRequestLabel } from "./pull-requests";
-import { activeTaskRun, addTaskComment, awaitsWakeup, TaskBusyError, updateTask } from "./tasks";
+import { SETTLED_TASK_STATUSES } from "./delegation-report";
+import { activeTaskRun, addTaskComment, awaitingReportTo, awaitsWakeup, TaskBusyError, updateTask } from "./tasks";
 import {
   armedFingerprint,
   decideWakeup,
@@ -326,6 +327,37 @@ async function fireWakeups(task: TaskInfo, firing: Firing[], now: Date): Promise
 }
 
 /**
+ * task_status wakeups on a task their agent delegated, reached a settled status whose report is still to
+ * come: that report brings the result back to the delegating conversation, which continues, so a wake run
+ * would process it a second time in parallel. task_wait refuses such waits; this covers older ones.
+ */
+async function coveredByReport(firing: Firing[]): Promise<Firing[]> {
+  const candidates = firing.filter(
+    ({ rule }) =>
+      rule.kind === "task_status" &&
+      rule.agentId &&
+      rule.condition.taskId &&
+      rule.condition.status &&
+      SETTLED_TASK_STATUSES.includes(rule.condition.status),
+  );
+  const covered: Firing[] = [];
+  for (const f of candidates) {
+    if ((await awaitingReportTo(f.rule.agentId!, [f.rule.condition.taskId!])).length) covered.push(f);
+  }
+  return covered;
+}
+
+/** Wakeups that hold but need no run: counted as fired, so they do not fire again for the same facts. */
+async function consumeWakeups(firing: Firing[], now: Date): Promise<void> {
+  for (const { rule, fingerprint } of firing) {
+    await db
+      .update(taskWakeups)
+      .set(firedState(rule, fingerprint, now))
+      .where(eq(taskWakeups.id, rule.id));
+  }
+}
+
+/**
  * Checks a task's active wakeups and applies what they decide (decideWakeup): fingerprints kept current,
  * stopped ones paused or expired, the ones that hold woken together in one run. A task with a run going
  * is checked again when it ends; a done task waits for nothing, so its wakeups go.
@@ -363,7 +395,10 @@ export async function checkTaskWakeups(taskId: string, now = new Date()): Promis
   }
   // Blocked only when every wakeup of the task stopped: none is left to move it on.
   if (stopped.length) await stopWakeups(task, stopped, stopped.length === rules.length);
-  if (firing.length) await fireWakeups(task, firing, now);
+  const covered = await coveredByReport(firing);
+  if (covered.length) await consumeWakeups(covered, now);
+  const waking = firing.filter((f) => !covered.includes(f));
+  if (waking.length) await fireWakeups(task, waking, now);
   if (stopped.length || firing.length) await publish({ type: "task.updated", taskId, projectId: task.projectId });
 
   // The next look at the ones still waiting; a time already asked for adds no second job.

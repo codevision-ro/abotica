@@ -1,5 +1,4 @@
-import { type agents, db, type ModelRef, projects } from "@abotica/db";
-import { eq } from "@abotica/db/orm";
+import type { agents, ModelRef } from "@abotica/db";
 import { UserError } from "@abotica/i18n";
 import {
   type CatalogModel,
@@ -22,12 +21,6 @@ export const usesDefaultModel = (agent: AgentModelFields) => !agent.provider || 
 export function resolveModelChain(agent: AgentModelFields, settings: RoleModelSettings, role: ModelRole): ModelRef[] {
   if (usesDefaultModel(agent)) return roleDefaultModels(settings, role);
   return [{ provider: agent.provider!, model: agent.model! }, ...agent.fallbacks];
-}
-
-/** Whether the agent leads at least one project, which makes it a manager (see modelRole). */
-export async function managesProject(agentId: string): Promise<boolean> {
-  const [row] = await db.select({ id: projects.id }).from(projects).where(eq(projects.managerAgentId, agentId)).limit(1);
-  return Boolean(row);
 }
 
 /** No model on the agent and no default model for its role in settings. */

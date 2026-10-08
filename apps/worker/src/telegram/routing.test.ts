@@ -1,33 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { routeChat, topicOf } from "./routing";
+import { externalIdOf, runFinishedNotice } from "./routing";
 
-describe("topicOf", () => {
-  it("returns the thread of a forum topic message", () => {
-    expect(topicOf({ is_topic_message: true, message_thread_id: 42 })).toBe(42);
-  });
-
-  it("ignores private chats, the General topic and reply threads outside forums", () => {
-    expect(topicOf(undefined)).toBeNull();
-    expect(topicOf({})).toBeNull();
-    expect(topicOf({ message_thread_id: 7 })).toBeNull();
+describe("externalIdOf", () => {
+  it("keys a conversation by chat, and by topic or thread inside it", () => {
+    expect(externalIdOf(-100, undefined)).toBe("-100");
+    expect(externalIdOf(-100, 42)).toBe("-100:42");
   });
 });
 
-describe("routeChat", () => {
-  it("sends chats without a mapped project to the super agent", () => {
-    expect(routeChat(null)).toEqual({ kind: "orchestrator" });
-    expect(routeChat(undefined)).toEqual({ kind: "orchestrator" });
+describe("runFinishedNotice", () => {
+  it("notifies the super agent's schedule, webhook and task runs", () => {
+    expect(runFinishedNotice({ trigger: "schedule", status: "succeeded" }, "orchestrator")).toBe("succeeded");
+    expect(runFinishedNotice({ trigger: "webhook", status: "failed" }, "orchestrator")).toBe("failed");
   });
 
-  it("sends a project topic to the project's manager, inside the project", () => {
-    expect(routeChat({ id: "p1", name: "Shop", managerAgentId: "m1" })).toEqual({
-      kind: "manager",
-      agentId: "m1",
-      projectId: "p1",
-    });
+  it("never notifies for managers and specialists, nor deleted agents", () => {
+    expect(runFinishedNotice({ trigger: "task", status: "succeeded" }, "manager")).toBeNull();
+    expect(runFinishedNotice({ trigger: "schedule", status: "failed" }, "specialist")).toBeNull();
+    expect(runFinishedNotice({ trigger: "schedule", status: "failed" }, null)).toBeNull();
   });
 
-  it("answers nobody in a project topic without a manager", () => {
-    expect(routeChat({ id: "p1", name: "Shop", managerAgentId: null })).toEqual({ kind: "noManager", project: "Shop" });
+  it("skips system runs and chat answers, but reports a failed chat run", () => {
+    expect(runFinishedNotice({ trigger: "system", status: "failed" }, "orchestrator")).toBeNull();
+    expect(runFinishedNotice({ trigger: "telegram", status: "succeeded" }, "orchestrator")).toBeNull();
+    expect(runFinishedNotice({ trigger: "chat", status: "failed" }, "orchestrator")).toBe("failed");
   });
 });

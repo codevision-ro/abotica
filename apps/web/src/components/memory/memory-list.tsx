@@ -40,7 +40,10 @@ export type MemoryListItem = {
   updatedAt: Date;
   /** The fields below are shown on the memory page, where entries of every owner are mixed. */
   scope?: string;
+  /** A project entry's project; for an agent entry, the project of its note (null: the agent's global memory). */
+  projectId?: string | null;
   projectName?: string | null;
+  agentId?: string | null;
   /** The owner of an agent entry; the author of a project entry (null when the user wrote it). */
   agentName?: string | null;
   agentAvatar?: AgentAvatarValue | null;
@@ -111,7 +114,11 @@ export function MemoryOwnerMedia({ m }: { m: MemoryListItem }) {
 
 function ownerName(m: MemoryListItem, t: ReturnType<typeof useTranslations<"memory.list">>) {
   if (m.scope === "project") return m.projectName ?? t("deletedProject");
-  if (m.scope === "agent") return m.agentName ?? t("deletedAgent");
+  if (m.scope === "agent") {
+    const agent = m.agentName ?? t("deletedAgent");
+    // An agent's note on a project: the project says where it holds.
+    return m.projectId ? `${agent} · ${m.projectName ?? t("deletedProject")}` : agent;
+  }
   return t("allAgents");
 }
 

@@ -106,7 +106,7 @@ export const getTaskOptions = query(async () => {
         assignable: sql<boolean>`${agents.enabled} and not ${agents.isTemplate}`,
       })
       .from(agents)
-      .orderBy(desc(agents.isOrchestrator), asc(agents.name)),
+      .orderBy(asc(agents.kind), asc(agents.name)),
     db
       .select({ id: tasks.id, title: tasks.title, status: tasks.status, parentId: tasks.parentId })
       .from(tasks)

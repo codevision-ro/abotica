@@ -8,7 +8,22 @@
     "title": "Agents",
     "description": "Your agent team: model, tools, permissions and activity.",
     "newAgent": "New agent",
-    "empty": "No agents yet. <link>Create one</link> from scratch or start from a template below.",
+    "groups": {
+      "orchestrator": {
+        "title": "Super agent",
+        "description": "Your point of contact, on the web and on Telegram. It delegates the work to the managers."
+      },
+      "managers": {
+        "title": "Managers",
+        "description": "Each leads one or more projects: it plans, briefs the specialists on its teams and checks the results.",
+        "empty": "No managers yet. A new project creates one, or <link>start from the Project manager template</link>."
+      },
+      "specialists": {
+        "title": "Specialists",
+        "description": "They do the work, with the same profession in every project they are on.",
+        "empty": "No specialists yet. <link>Create one</link> from scratch or start from a template below."
+      }
+    },
     "templates": {
       "title": "Templates",
       "description": "Starting points for new agents.",
@@ -20,18 +35,28 @@
     "runningNow": "Running now",
     "running": "Running",
     "noProjects": "No projects assigned",
+    "leads": "Leads {projects}",
+    "leadsNone": "Leads no project yet",
     "runs7d": "<b>{count}</b> {count, plural, one {run} other {runs}} in 7 days",
     "cost30d": "<b>{cost}</b> in 30 days",
     "use": "Use",
     "defaultModel": "Default model",
-    "orchestrator": "Orchestrator",
+    "kinds": {
+      "orchestrator": "Super agent",
+      "manager": "Manager",
+      "specialist": "Specialist"
+    },
     "template": "Template"
   },
   "new": {
     "back": "Agents",
     "title": "New agent",
     "startFrom": "Start from",
-    "blank": "Blank"
+    "blank": "Blank",
+    "groups": {
+      "specialist": "Specialist",
+      "manager": "Manager"
+    }
   },
   "detail": {
     "back": "Agents",
@@ -111,16 +136,39 @@
     "namePlaceholder": "Agent name",
     "role": "Role",
     "rolePlaceholder": "What it does, e.g. Research and synthesis",
-    "instructionsTitle": "Instructions",
-    "instructionsDescription": "Who the agent is, what it should achieve, how to work and what to avoid.",
-    "systemPrompt": "System prompt",
-    "promptPlaceholder": "You are a [role] for [team or company].\n\nGoal: what the agent should achieve.\nHow to work: steps, sources to use, tone and output format.\nLimits: what it must never do or decide on its own.",
+    "kindTitle": "Kind",
+    "kindDescription": "Where it sits in the team. You can change it while it is on no team and leads no project.",
+    "kindTemplateDescription": "Where it sits in the team. A template's kind is fixed; an agent made from it can change it.",
+    "kinds": {
+      "orchestrator": {
+        "title": "Super agent",
+        "description": "Your point of contact: delegates work to the managers."
+      },
+      "manager": {
+        "title": "Manager",
+        "description": "Leads projects: plans, briefs its team and checks the results. Never does the work itself."
+      },
+      "specialist": {
+        "title": "Specialist",
+        "description": "Does the work, with its profession, in every project it is on. Never delegates."
+      }
+    },
+    "roleTitle": "Role in the team: set by Abotica",
+    "roleSummary": "What Abotica tells {kind, select, orchestrator {the super agent} manager {every manager} other {every specialist}} about its place in the team and how it works",
+    "instructionsTitle": "Profession",
+    "instructionsDescription": "Who the agent is professionally and how it does its work, the same in every project. How it works with its manager and the team comes from the platform.",
+    "systemPrompt": "Profession prompt",
+    "promptPlaceholder": "You are a [profession]: [what you cover].\n\nHow you work: methods, sources, quality bar and output format.\nLimits: what you never do or decide on your own.",
+    "additionalTitle": "Additional instructions (optional)",
+    "additionalDescription": "Abotica already tells this agent who it is in the team and how it works; add only what is specific to how you want it to work.",
+    "additionalPrompt": "Additional instructions",
+    "additionalNone": "None",
     "characters": "{count, plural, one {# character} other {# characters}}",
     "modelTitle": "Model",
     "modelDescription": "The model the agent runs on.",
     "useDefault": "Default model",
     "defaultNotSet": "Not set yet",
-    "defaultHint": "{role, select, orchestrator {The super agent's default.} manager {The managers' default, since this agent manages a project.} other {The agents' default.}} Change it in <link>Settings → AI providers</link> for every agent that uses it.",
+    "defaultHint": "{role, select, orchestrator {The super agent's default.} manager {The managers' default, since this agent is a manager.} other {The specialists' default.}} Change it in <link>Settings → AI providers</link> for every agent that uses it.",
     "defaultMissing": "The default model is not set: <link>set it in Settings → AI providers</link>",
     "useCustom": "Choose a model",
     "useCustomDescription": "A provider and model only for this agent.",
@@ -133,12 +181,17 @@
     "toolsTitle": "Tools",
     "skillsProjectsTitle": "Skills and projects",
     "skillsProjectsDescription": "Reusable instructions it follows and the projects it can work in.",
+    "skillsLedDescription": "Reusable instructions it follows and the projects it leads.",
     "skills": "Skills",
     "skillsDescription": "Click to add or remove; hover for a description.",
     "noSkills": "No active skills. <link>Add skills</link>",
     "projects": "Projects",
     "projectsDescription": "The teams it is on, as a specialist. Who manages a project is set in the project's Team tab.",
     "noProjects": "No projects. <link>Create a project</link>",
+    "ledProjects": "Projects it leads",
+    "ledProjectsDescription": "Who leads a project is changed in the project's Team tab.",
+    "ledCount": "{count, plural, =0 {None} one {# project} other {# projects}}",
+    "ledNone": "Leads no project yet. Choose it as the manager in a project's Team tab (<link>see projects</link>).",
     "advancedTitle": "Advanced",
     "fallbackChain": "Fallback chain",
     "fallbackDescription": "If a provider fails or hits a rate limit, the run continues on the next one with the same context.",
@@ -205,7 +258,7 @@
     },
     "builtinTitle": "Built-in tools",
     "orchestratorGroup": "{group} (super agent only)",
-    "managerGroup": "{group} (while it manages a project)",
+    "managerGroup": "{group} (a manager's tools)",
     "controlFor": "Permission for {name}",
     "groupControlFor": "Permission for every tool in {group}",
     "alwaysAsk": "Always waits for your approval, it cannot run on its own",
@@ -321,7 +374,7 @@
       "name": "Name",
       "role": "Role",
       "avatar": "Avatar",
-      "systemPrompt": "System prompt",
+      "systemPrompt": "Prompt",
       "provider": "Provider",
       "model": "Model",
       "fallbacks": "Fallbacks",
@@ -389,6 +442,9 @@
     "notFound": "This agent does not exist",
     "orchestratorDisable": "The super agent cannot be disabled",
     "orchestratorDelete": "The super agent cannot be deleted",
+    "kindOrchestrator": "There is one super agent: its kind cannot change and no other agent can become one",
+    "kindLeadsProject": "{name} leads projects. Choose another manager for them before making it a specialist",
+    "kindOnTeam": "{name} is on project teams. Take it off them before making it a manager: a manager joins only the projects it leads",
     "versionNotFound": "Version v{version} does not exist"
   },
   "validation": {
@@ -408,6 +464,8 @@
     "title": "Projects",
     "description": "The project teams this agent is on. Its profession (instructions, skills, tools) is the same everywhere; what it learns in a project stays with that project.",
     "empty": "Not on any project team yet. Add it from a project's Team tab (<link>see projects</link>) or under Configuration.",
+    "ledDescription": "The projects it leads: it plans the work there, briefs the team and checks the results. What it learns in a project stays with that project.",
+    "ledEmpty": "Leads no project yet. Choose it as the manager in a project's Team tab (<link>see projects</link>).",
     "learned": "{count, plural, one {What it learned here: # memory} other {What it learned here: # memories}}",
     "openTeam": "Open team",
     "openJournal": "Journal"

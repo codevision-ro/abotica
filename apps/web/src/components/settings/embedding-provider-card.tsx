@@ -1,7 +1,7 @@
 "use client";
 
 import type { EmbeddingProvider, EmbeddingReadiness } from "@abotica/core";
-import { CircleAlert, CircleCheck, Cloud, HardDrive, Save, ScanSearch } from "lucide-react";
+import { CircleAlert, CircleCheck, Cloud, Cpu, HardDrive, Save, ScanSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -15,7 +15,8 @@ import { setEmbeddingProvider } from "@/server/actions/settings";
 import type { EmbeddingStatus } from "@/server/queries/embeddings";
 import { ProviderNotice } from "./provider-notice";
 
-const LABELS: Record<EmbeddingProvider, string> = { openai: "OpenAI", ollama: "Ollama" };
+/** Names of the providers; the built-in model's is translated. */
+const LABELS: Record<Exclude<EmbeddingProvider, "local">, string> = { openai: "OpenAI", ollama: "Ollama" };
 
 const mono = (chunks: React.ReactNode) => <span className="font-mono text-xs">{chunks}</span>;
 
@@ -31,13 +32,14 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
   const [pending, startTransition] = useTransition();
   const changed = choice !== status.provider;
   const { reindex } = status;
+  const label = (provider: EmbeddingProvider) => (provider === "local" ? t("localName") : LABELS[provider]);
 
   function save(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
       const res = await setEmbeddingProvider({ provider: choice });
       if (!res.ok) return void toast.error(res.error);
-      toast.success(t("saved", { provider: LABELS[choice], count: res.data.total }));
+      toast.success(t("saved", { provider: label(choice), count: res.data.total }));
       router.refresh();
     });
   }
@@ -51,6 +53,7 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
           value={choice}
           onValueChange={setChoice}
           options={[
+            { value: "local", icon: Cpu, title: t("localTitle"), description: t("localHint") },
             { value: "openai", icon: Cloud, title: LABELS.openai, description: t("openaiHint") },
             { value: "ollama", icon: HardDrive, title: LABELS.ollama, description: t("ollamaHint") },
           ]}
@@ -66,7 +69,7 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
               )}
               <span className="tabular min-w-0">
                 {t("reindexing", {
-                  provider: LABELS[reindex.provider],
+                  provider: label(reindex.provider),
                   done: Math.min(reindex.done, reindex.total),
                   total: reindex.total,
                 })}
@@ -81,7 +84,7 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
             </p>
           </div>
         )}
-        {changed && <ProviderNotice>{t("changeNotice", { provider: LABELS[choice] })}</ProviderNotice>}
+        {changed && <ProviderNotice>{t("changeNotice", { provider: label(choice) })}</ProviderNotice>}
         <div className="flex justify-end">
           <Button type="submit" disabled={pending || !changed}>
             {pending ? <Spinner /> : <Save />} {tc("save")}
@@ -105,11 +108,15 @@ function Readiness({ readiness, ollamaBaseUrl }: { readiness: EmbeddingReadiness
   }
   return (
     <ProviderNotice tone="warning">
-      {readiness === "no-openai-key"
-        ? t("noOpenaiKey")
-        : readiness === "ollama-unreachable"
-          ? t.rich("ollamaUnreachable", { url: ollamaBaseUrl, mono })
-          : t.rich("ollamaModelMissing", { mono })}
+      {readiness === "local-loading"
+        ? t("localLoading")
+        : readiness === "local-failed"
+          ? t("localFailed")
+          : readiness === "no-openai-key"
+            ? t("noOpenaiKey")
+            : readiness === "ollama-unreachable"
+              ? t.rich("ollamaUnreachable", { url: ollamaBaseUrl, mono })
+              : t.rich("ollamaModelMissing", { mono })}
     </ProviderNotice>
   );
 }

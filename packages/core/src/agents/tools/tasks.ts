@@ -8,6 +8,7 @@ import { listFiles } from "../../files/files";
 import {
   activeTaskRun,
   addTaskComment,
+  awaitingReportTo,
   createTask,
   deleteTask,
   TASK_PRIORITIES,
@@ -17,6 +18,7 @@ import {
 import { listTaskPullRequests } from "../../tasks/pull-requests";
 import { DEFAULT_MAX_FIRES, MAX_FIRES_LIMIT, WAKEUP_KINDS } from "../../tasks/wakeup-rules";
 import { armWakeup, listTaskWakeups, type WakeupRequest } from "../../tasks/wakeups";
+import { SETTLED_TASK_STATUSES } from "../../tasks/delegation-report";
 import { clipUntrusted, hasUntrusted } from "../untrusted";
 import { inputPath } from "../workspace-paths";
 import {
@@ -41,7 +43,7 @@ export const taskTools: Record<string, ToolFactory> = {
   task_list: (ctx) =>
     tool({
       description:
-        "List tasks, optionally filtered by project, status or agent. Use task_get for a task's details and result.",
+        "List tasks, subtasks included (with their parentId), optionally filtered by project, status or agent. Use task_get for a task's details and result.",
       inputSchema: z.object({
         projectId: optionalId(),
         status: z.enum(TASK_STATUSES).optional(),
@@ -66,7 +68,6 @@ export const taskTools: Record<string, ToolFactory> = {
               status ? eq(tasks.status, status) : undefined,
               assignee ? eq(tasks.assigneeAgentId, assignee.id) : undefined,
               search ? ilike(tasks.title, `%${search}%`) : undefined,
-              isNull(tasks.parentId),
             ),
           )
           .orderBy(desc(tasks.updatedAt))
@@ -247,7 +248,7 @@ export const taskTools: Record<string, ToolFactory> = {
         const found = await visibleTask(ctx, taskId);
         if ("error" in found) return found;
         // Whoever delegated a task decides when it is done: the super agent, or the manager that handed it on.
-        if (status === "done" && found.delegatedByRunId && !ctx.agent.isOrchestrator) {
+        if (status === "done" && found.delegatedByRunId && ctx.agent.kind !== "orchestrator") {
           const [delegator] = await db
             .select({ agentId: runs.agentId })
             .from(runs)
@@ -325,6 +326,7 @@ export const taskTools: Record<string, ToolFactory> = {
         "The task stays in progress meanwhile. When it happens you get a new run, with a comment saying what woke you and your notes; read the current state with your tools then.",
         "Asking again for the same condition replaces it, and a task has one timer. To check periodically, set one repeating wait (everyMinutes, or repeat) instead of a new one each run: a wait set again run after run without the user in between is paused as a loop, and the user is told.",
         "Checks already finished when you call it do not count. Call it last, then end your run.",
+        "Never wait on tasks you delegated (delegate_task): their result comes back to you automatically as a notice in the conversation you delegated them from, which then continues. Just end your turn.",
       ].join(" "),
       inputSchema: z.object({
         taskId: optionalId().describe("Defaults to this run's task; it must be assigned to you"),
@@ -403,6 +405,15 @@ type WaitInput = {
   repeat: boolean;
 };
 
+/**
+ * A wait on work this agent delegated: the report already brings it back (tasks/delegation.ts), and a wake
+ * run next to that report's continuation processed the same result twice in parallel.
+ */
+const COMES_BACK_AS_REPORT = {
+  error:
+    "You delegated this work: its result comes back to you automatically as a notice in the conversation you delegated it from, and you continue there. Nothing was set; do not wait for it, just end your turn.",
+};
+
 /** What task_wait waits for, checked against the task: its condition and, for a timer, the first time. */
 async function waitTarget(
   ctx: Parameters<ToolFactory>[0],
@@ -435,8 +446,15 @@ async function waitTarget(
       return { condition: { pullRequestId: pull.id }, at: null };
     }
     case "subtasks_done": {
-      const [subtask] = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.parentId, taskId)).limit(1);
-      if (!subtask) return { error: "This task has no subtasks to wait for." };
+      const subtasks = await db
+        .select({ id: tasks.id, status: tasks.status })
+        .from(tasks)
+        .where(eq(tasks.parentId, taskId));
+      if (!subtasks.length) return { error: "This task has no subtasks to wait for." };
+      // The ones still open all come back to this agent as reports: waking it too would do the work twice.
+      const open = subtasks.filter((s) => s.status !== "done").map((s) => s.id);
+      const reported = await awaitingReportTo(ctx.agent.id, open);
+      if (open.length && reported.length === open.length) return COMES_BACK_AS_REPORT;
       return { condition: {}, at: null };
     }
     case "task_status": {
@@ -444,6 +462,10 @@ async function waitTarget(
       if (input.watchTaskId === taskId) return { error: "A task cannot wait on itself." };
       const watched = await visibleTask(ctx, input.watchTaskId);
       if ("error" in watched) return watched;
+      // A report carries the task once it settles; an earlier status is not reported, so waiting for it is fine.
+      if (SETTLED_TASK_STATUSES.includes(input.status) && (await awaitingReportTo(ctx.agent.id, [watched.id])).length) {
+        return COMES_BACK_AS_REPORT;
+      }
       return { condition: { taskId: watched.id, status: input.status }, at: null };
     }
   }

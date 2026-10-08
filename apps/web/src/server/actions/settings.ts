@@ -33,6 +33,7 @@ import {
   TELEGRAM_TOKEN_SECRET,
   upsertSecret,
 } from "@abotica/core";
+import { AGENT_INSTRUCTIONS_MAX_LENGTH } from "@abotica/core/limits";
 import { REASONING_EFFORTS } from "@abotica/core/models/reasoning";
 import { db, secrets } from "@abotica/db";
 import { locales, UserError } from "@abotica/i18n";
@@ -122,21 +123,24 @@ export const setOllamaBaseUrl = action(
  * Switches what embeds memory, journals and knowledge; the stored embeddings are cleared and made again
  * in the background (see changeEmbeddingProvider).
  */
-export const setEmbeddingProvider = action(z.object({ provider: z.enum(["openai", "ollama"]) }), async ({ provider }) => {
-  const before = await getSettings();
-  const reindex = await changeEmbeddingProvider(provider);
-  if (reindex) {
-    await audit({
-      actor: "user",
-      action: "settings.updated",
-      entityType: "settings",
-      entityId: "app",
-      data: { embeddingProvider: { from: before.embeddingProvider, to: provider }, reembedding: reindex.total },
-    });
-  }
-  revalidatePath("/settings");
-  return { total: reindex?.total ?? 0 };
-});
+export const setEmbeddingProvider = action(
+  z.object({ provider: z.enum(["local", "openai", "ollama"]) }),
+  async ({ provider }) => {
+    const before = await getSettings();
+    const reindex = await changeEmbeddingProvider(provider);
+    if (reindex) {
+      await audit({
+        actor: "user",
+        action: "settings.updated",
+        entityType: "settings",
+        entityId: "app",
+        data: { embeddingProvider: { from: before.embeddingProvider, to: provider }, reembedding: reindex.total },
+      });
+    }
+    revalidatePath("/settings");
+    return { total: reindex?.total ?? 0 };
+  },
+);
 
 const subscriptionId = z
   .enum(SUBSCRIPTION_PROVIDER_IDS as [string, ...string[]])
@@ -244,6 +248,7 @@ export const updateAppSettings = action(
     digestHour: z.number().int().min(0, "settings.validation.digestHour").max(23, "settings.validation.digestHour"),
     timezone: z.string().trim().min(1).refine(isTimeZone, "settings.validation.timezone"),
     monthlyBudgetUsd: z.number().positive("settings.validation.budgetPositive").nullable(),
+    agentInstructions: z.string().trim().max(AGENT_INSTRUCTIONS_MAX_LENGTH, "settings.validation.agentInstructionsTooLong"),
   }),
   async (input) => {
     const before = await getSettings();
@@ -251,7 +256,12 @@ export const updateAppSettings = action(
     const changed = Object.fromEntries(
       (Object.keys(input) as (keyof AppSettings)[])
         .filter((k) => before[k] !== next[k])
-        .map((k) => [k, { from: before[k], to: next[k] }]),
+        // Long free text goes into the log as its length: the setting itself keeps the text.
+        .map((k) =>
+          k === "agentInstructions"
+            ? [k, { fromLength: before[k].length, toLength: next[k].length }]
+            : [k, { from: before[k], to: next[k] }],
+        ),
     );
     if (Object.keys(changed).length) {
       await audit({ actor: "user", action: "settings.updated", entityType: "settings", entityId: "app", data: changed });

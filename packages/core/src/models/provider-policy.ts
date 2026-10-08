@@ -30,6 +30,10 @@ export function combinePolicies(...policies: ProviderPolicy[]): ProviderPolicy {
 export const providerAllowed = (policy: ProviderPolicy, provider: string): boolean =>
   policy.allowed === null || policy.allowed.includes(provider);
 
+/** The built-in embedding model keeps the text on this machine, so every policy allows it. */
+export const embeddingAllowed = (policy: ProviderPolicy, provider: string): boolean =>
+  provider === "local" || providerAllowed(policy, provider);
+
 /** The models of the chain the policy allows, in order. */
 export const allowedModelChain = (policy: ProviderPolicy, chain: ModelRef[]): ModelRef[] =>
   chain.filter((m) => providerAllowed(policy, m.provider));

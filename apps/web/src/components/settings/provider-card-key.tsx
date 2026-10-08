@@ -12,6 +12,9 @@ import type { ProviderStatus } from "@/server/queries/settings";
 import { ProviderNotice } from "./provider-notice";
 import { SecretInput } from "./secret-input";
 
+/** Max and Team plans include monthly API credits, spent through a key from the linked Console organization. */
+const ANTHROPIC_CREDITS_URL = "https://support.claude.com/en/articles/17154008";
+
 /** Saves or replaces a provider's API key; saving switches a provider off its plan. */
 export function ProviderCardKey({ provider, autoFocus }: { provider: ProviderStatus; autoFocus?: boolean }) {
   const t = useTranslations("settings.providers");
@@ -51,6 +54,22 @@ export function ProviderCardKey({ provider, autoFocus }: { provider: ProviderSta
         </div>
         <FieldDescription>{t("storedEncrypted")}</FieldDescription>
       </Field>
+      {provider.id === "anthropic" && !hasKey && (
+        <ProviderNotice>
+          {t.rich("anthropicCredits", {
+            link: (chunks) => (
+              <a
+                href={ANTHROPIC_CREDITS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </a>
+            ),
+          })}
+        </ProviderNotice>
+      )}
       {onPlan && provider.plan && (
         <ProviderNotice>{t("keyReplacesPlan", { plan: provider.plan.label, provider: provider.label })}</ProviderNotice>
       )}

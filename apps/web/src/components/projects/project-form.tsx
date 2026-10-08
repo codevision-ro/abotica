@@ -36,7 +36,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useDirtySnapshot } from "@/hooks/use-dirty-snapshot";
 import { cn } from "@/lib/utils";
 import { createProject, updateProject } from "@/server/actions/projects";
-import type { JoinableAgent } from "@/server/queries/projects";
+import type { JoinableAgent, LeadableAgent } from "@/server/queries/projects";
 
 type ProjectFormValues = {
   name: string;
@@ -68,6 +68,7 @@ export function ProjectForm({
   projectId,
   initial,
   specialists = [],
+  managers = [],
   providers,
   sandboxDefault,
   footer,
@@ -76,6 +77,8 @@ export function ProjectForm({
   initial?: ProjectFormValues;
   /** New project only: agents it can start with besides the manager (the team is edited in its Team tab later). */
   specialists?: JoinableAgent[];
+  /** New project only: managers that can lead it; none chosen creates one from the template. */
+  managers?: LeadableAgent[];
   providers: { id: string; label: string }[];
   /** Default sandbox policy; the Sandbox section shows only when it is given (editing). */
   sandboxDefault?: SandboxPolicy;
@@ -92,6 +95,7 @@ export function ProjectForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [goals, setGoals] = useState(initial?.goals ?? "");
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [managerId, setManagerId] = useState<string | null>(null);
   const [budget, setBudget] = useState(initial?.budgetUsd != null ? String(initial.budgetUsd) : "");
   const [allowed, setAllowed] = useState<string[]>(initial?.allowedProviders ?? []);
   const [topic, setTopic] = useState(initial?.telegramTopicId != null ? String(initial.telegramTopicId) : "");
@@ -108,6 +112,7 @@ export function ProjectForm({
     description,
     goals,
     [...memberIds].sort(),
+    managerId,
     budget,
     [...allowed].sort(),
     topic,
@@ -139,7 +144,7 @@ export function ProjectForm({
     startTransition(async () => {
       const res = projectId
         ? await updateProject({ id: projectId, ...input, ...(sandboxDefault && { sandbox }) })
-        : await createProject({ ...input, memberIds });
+        : await createProject({ ...input, memberIds, managerAgentId: managerId ?? undefined });
       if (!res.ok) {
         setError({ field: null, message: res.error });
         toast.error(res.error);
@@ -162,7 +167,10 @@ export function ProjectForm({
     .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, "").trim())
     .find(Boolean);
   const selectedSpecialists = specialists.filter((a) => memberIds.includes(a.id));
-  const teamSummary = [t("teamManagerSummary"), ...selectedSpecialists.map((a) => a.name)].join(", ");
+  const chosenManager = managers.find((a) => a.id === managerId);
+  const teamSummary = [chosenManager?.name ?? t("teamManagerSummary"), ...selectedSpecialists.map((a) => a.name)].join(
+    ", ",
+  );
   const budgetValue = budget.trim();
   const limitsSummary = [
     budgetValue ? t("budgetSummary", { budget: budgetValue }) : t("noBudget"),
@@ -300,12 +308,28 @@ export function ProjectForm({
 
         {!editing && (
           <FormSection id={SECTIONS.team} icon={UsersIcon} title={t("teamTitle")} description={t("teamDescription")}>
-            <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3 dark:bg-primary/10">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/15">
-                <CrownIcon className="size-4" aria-hidden />
-              </span>
-              <p className="min-w-0 text-sm text-pretty">{t("managerAuto")}</p>
-            </div>
+            {managers.length ? (
+              <FormSubsection title={t("managerTitle")} description={t("managerHint")}>
+                <div role="radiogroup" aria-label={t("managerTitle")} className="flex flex-wrap gap-2">
+                  {managers.map((a) => (
+                    <AgentChip
+                      key={a.id}
+                      agent={a}
+                      single
+                      selected={managerId === a.id}
+                      onSelectedChange={(on) => setManagerId(on ? a.id : null)}
+                    />
+                  ))}
+                </div>
+              </FormSubsection>
+            ) : (
+              <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3 dark:bg-primary/10">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/15">
+                  <CrownIcon className="size-4" aria-hidden />
+                </span>
+                <p className="min-w-0 text-sm text-pretty">{t("managerAuto")}</p>
+              </div>
+            )}
             <FormSubsection
               title={t("specialistsTitle")}
               count={memberIds.length}
@@ -442,20 +466,25 @@ export function ProjectForm({
   );
 }
 
-/** A toggle pill for one agent: its avatar and name, check mark when assigned; the role shows on hover. */
+/**
+ * A toggle pill for one agent: its avatar and name, check mark when assigned; the role shows on hover.
+ * `single`: one of a radio group (picking it again clears the choice).
+ */
 function AgentChip({
   agent,
   selected,
   onSelectedChange,
+  single = false,
 }: {
   agent: JoinableAgent;
   selected: boolean;
   onSelectedChange: (selected: boolean) => void;
+  single?: boolean;
 }) {
   const chip = (
     <button
       type="button"
-      aria-pressed={selected}
+      {...(single ? { role: "radio", "aria-checked": selected } : { "aria-pressed": selected })}
       onClick={() => onSelectedChange(!selected)}
       className={chipVariants({ selected, className: "max-w-64 pl-1.5" })}
     >

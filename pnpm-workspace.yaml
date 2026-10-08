@@ -22,3 +22,5 @@ allowBuilds:
   cpu-features: false
   ssh2: false
   protobufjs: false
+  # Its postinstall only downloads CUDA binaries; the CPU ones ship in the package.
+  onnxruntime-node: false

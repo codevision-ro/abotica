@@ -20,7 +20,7 @@ import {
   updateAgentConfig,
 } from "@abotica/core";
 import { REASONING_EFFORTS } from "@abotica/core/models/reasoning";
-import { agents, agentVersions, db, toAgentAvatar } from "@abotica/db";
+import { AGENT_KINDS, agents, agentVersions, db, toAgentAvatar } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { revalidatePath } from "next/cache";
@@ -51,6 +51,9 @@ const agentFields = z.object({
   name: z.string().trim().min(1, "agents.validation.nameRequired").max(80),
   role: z.string().trim().max(200),
   avatar: agentAvatar,
+  // Core refuses a kind the team rules do not allow (the super agent is one, a manager leading a project stays one).
+  kind: z.enum(AGENT_KINDS),
+  /** A specialist's profession, or a manager's or the super agent's additional instructions. */
   systemPrompt: z.string().max(100_000),
   // Null provider and model: the agent follows the default models from settings.
   provider: z.string().refine(isProviderId, "agents.validation.unknownProvider").nullable(),
@@ -88,22 +91,23 @@ async function syncProjects(agentId: string, projectIds: string[]): Promise<void
 }
 
 /**
- * From a template, core creates the agent (its configuration, skills and MCP servers, a first version
- * naming the template) and the form's edits are saved on top as the next version; otherwise the form's
- * configuration is the first version.
+ * From a template, core creates the agent (its kind, configuration, skills and MCP servers, a first
+ * version naming the template) and the form's edits are saved on top as the next version; otherwise
+ * the form's configuration is the first version.
  */
 export const createAgent = action(
   agentFields.extend({ templateSlug: z.string().regex(SLUG_RE).optional() }),
-  async ({ templateSlug, projectIds, skillIds, mcpServerIds, ...config }) => {
+  async ({ templateSlug, projectIds, skillIds, mcpServerIds, kind, ...config }) => {
+    if (kind === "orchestrator") throw new UserError("agents.errors.kindOrchestrator");
     let id: string;
     if (templateSlug) {
       // Core writes the "agent.created" audit entry here.
       const agent = await createAgentFromTemplate(templateSlug, { name: config.name });
-      await updateAgentConfig(agent.id, { ...config, skillIds, mcpServerIds });
+      await updateAgentConfig(agent.id, { ...config, kind, skillIds, mcpServerIds });
       id = agent.id;
     } else {
       const t = await getTranslations("agents.versionNotes");
-      const agent = await createAgentConfig(config, { skillIds, mcpServerIds }, { note: t("initial") });
+      const agent = await createAgentConfig(config, { skillIds, mcpServerIds }, { note: t("initial"), kind });
       await audit({ actor: "user", action: "agent.created", entityType: "agent", entityId: agent.id });
       id = agent.id;
     }
@@ -116,9 +120,12 @@ export const createAgent = action(
 export const updateAgent = action(
   agentFields.extend({ id: z.uuid(), note: z.string().trim().max(300).optional() }),
   async ({ id, note, projectIds, ...patch }) => {
-    // Team changes first: core may refuse one (leaving a project the agent manages), and then nothing is saved.
-    await syncProjects(id, projectIds);
+    // Core refuses a team change (leaving a project the agent manages, a manager joining a team) or a
+    // change of kind that breaks the team rules, and then nothing more is saved. Teams change first,
+    // except for an agent becoming a specialist, which may join teams only once it is one.
+    if (patch.kind !== "specialist") await syncProjects(id, projectIds);
     const result = await updateAgentConfig(id, patch, { note });
+    if (patch.kind === "specialist") await syncProjects(id, projectIds);
     await audit({
       actor: "user",
       action: "agent.updated",
@@ -134,7 +141,7 @@ export const updateAgent = action(
 export const setAgentEnabled = action(z.object({ id: z.uuid(), enabled: z.boolean() }), async ({ id, enabled }) => {
   const [agent] = await db.select().from(agents).where(eq(agents.id, id));
   if (!agent) throw new UserError("agents.errors.notFound");
-  if (agent.isOrchestrator && !enabled) throw new UserError("agents.errors.orchestratorDisable");
+  if (agent.kind === "orchestrator" && !enabled) throw new UserError("agents.errors.orchestratorDisable");
   await db.update(agents).set({ enabled }).where(eq(agents.id, id));
   await audit({ actor: "user", action: enabled ? "agent.enabled" : "agent.disabled", entityType: "agent", entityId: id });
   revalidateAgent(id);
@@ -147,8 +154,9 @@ export const duplicateAgent = action(z.object({ id: z.uuid() }), async ({ id }) 
     // The copy is a new hire: it joins no projects until it is added to a team.
     const { skillIds, mcpServerIds } = await getAgentRelations(id);
     const rel = { skillIds, mcpServerIds };
-    // Copies are never orchestrators, so orchestrator-only tools are dropped; manager tools stay.
-    const permissions = sanitizePermissions(source.permissions, { isOrchestrator: false, isManager: false });
+    // There is one super agent, so its copy is a specialist; a manager's copy is a manager without projects.
+    const kind = source.kind === "orchestrator" ? "specialist" : source.kind;
+    const permissions = sanitizePermissions(source.permissions, { kind });
     const name = t("copyName", { name: source.name });
     const [copy] = await tx
       .insert(agents)
@@ -157,6 +165,7 @@ export const duplicateAgent = action(z.object({ id: z.uuid() }), async ({ id }) 
         name,
         role: source.role,
         avatar: source.avatar,
+        kind,
         systemPrompt: source.systemPrompt,
         provider: source.provider,
         model: source.model,
@@ -202,11 +211,8 @@ export const restoreAgentVersion = action(
       const before = await currentSnapshot(tx, agent);
       const snap = row.snapshot;
       // Snapshots are stored as jsonb; sanitize them like user input, the catalog may have changed since.
-      // Manager tools are kept for every agent but the super agent, so managing a project does not matter here.
-      const permissions = sanitizePermissions(snap.permissions ?? {}, {
-        isOrchestrator: agent.isOrchestrator,
-        isManager: false,
-      });
+      // The kind is not versioned: the snapshot's permissions are held to the agent's current kind.
+      const permissions = sanitizePermissions(snap.permissions ?? {}, agent);
       const ids = await existingIds(tx, { skillIds: snap.skillIds ?? [], mcpServerIds: snap.mcpServerIds ?? [] });
       const values = {
         name: snap.name,

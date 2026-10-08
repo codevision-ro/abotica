@@ -72,8 +72,9 @@
     "subtitlePlan": "{plan} plan · {account}",
     "subtitleNone": "Not connected",
     "keyReplacesPlan": "Saving a key disconnects your {plan} plan: {provider} is connected one way or the other.",
+    "anthropicCredits": "On Claude Max or Team? The plan includes monthly API credits: link a Console organization in claude.ai under Settings > Billing, then create a key in that organization. <link>How it works</link>",
     "plan": {
-      "description": "Agents run on the models included in your {plan} subscription, with no per-token cost. Memory embeddings and voice transcription need an API key, so they are not available on the plan.",
+      "description": "Agents run on the models included in your {plan} subscription, with no per-token cost. Voice transcription needs an API key, so it is not available on the plan.",
       "planReplacesKey": "Connecting your plan deletes the saved API key.",
       "connect": "Continue with {plan}",
       "account": "Signed in as <strong>{account}</strong>",
@@ -105,10 +106,15 @@
   "embeddings": {
     "title": "Embeddings",
     "description": "What turns memory, journals and knowledge into vectors, so agents find them by meaning. Voice message transcription always uses OpenAI with an API key.",
+    "localName": "the built-in model",
+    "localTitle": "Built-in (local, no key needed)",
+    "localHint": "A multilingual model the worker runs on its own: free, nothing leaves your machine. Downloaded once, about 280 MB.",
     "openaiHint": "text-embedding-3-small. Needs an OpenAI API key: the ChatGPT plan does not cover it.",
     "ollamaHint": "nomic-embed-text on your Ollama server: free, and nothing leaves your machine.",
     "readiness": {
       "ready": "Ready to embed",
+      "localLoading": "The worker is loading the built-in model (downloaded once, about 280 MB). Until it is ready, search matches by keyword.",
+      "localFailed": "The worker could not load the built-in model. It tries again at the next embedding; check the worker logs if this stays.",
       "noOpenaiKey": "Add an OpenAI API key under AI providers: the ChatGPT plan does not cover embeddings.",
       "ollamaUnreachable": "Ollama does not answer at <mono>{url}</mono>. Start it, or change the address on the Ollama provider card.",
       "ollamaModelMissing": "Ollama answers, but the embedding model is missing. Pull it once: <mono>ollama pull nomic-embed-text</mono>"
@@ -126,8 +132,8 @@
     "inheriting": "{count, plural, one {Currently used by # agent.} other {Currently used by # agents.}}",
     "roles": {
       "agent": {
-        "title": "Agents",
-        "description": "Agents that do not manage a project, and the managers and the super agent where theirs are not set."
+        "title": "Specialists",
+        "description": "Specialists, and the managers and the super agent where theirs are not set."
       },
       "orchestrator": {
         "title": "Super agent",
@@ -135,12 +141,12 @@
       },
       "manager": {
         "title": "Manager",
-        "description": "Agents that manage at least one project."
+        "description": "Managers, which lead projects."
       }
     },
-    "sameAsAgents": "Same as agents",
+    "sameAsAgents": "Same as specialists",
     "chooseModels": "Choose models",
-    "useAgents": "Use the agents' models",
+    "useAgents": "Use the specialists' models",
     "addModel": "Add model",
     "pickModelEachRow": "Choose a model on every row",
     "saved": "Default models saved"
@@ -169,7 +175,12 @@
   },
   "general": {
     "title": "General",
-    "description": "Language, agent behavior, digest and budget.",
+    "description": "Language, instructions for all agents, agent behavior, digest and budget.",
+    "instructionsTitle": "Instructions for all agents",
+    "instructionsDescription": "Goes into the system prompt of every agent: the super agent, project managers and specialists. Say who you are, the tone you want and the rules that always hold. Empty: nothing is added.",
+    "instructionsPlaceholder": "E.g. I run a small web agency. Keep answers short and direct. Never delete data without asking me first.",
+    "instructionsFooter": "Every agent's system prompt",
+    "instructionsLength": "{count, number} / {max, number}",
     "agentsTitle": "Agents",
     "agentsDescription": "How much of their journal and memory agents read, whether their memories need your approval and how much work runs at once.",
     "digestTitle": "Digest and time zone",
@@ -473,7 +484,7 @@
       "unreachable": "Telegram could not be reached to check the token. Try again in a moment."
     },
     "topicsTitle": "Project topics",
-    "topicsDescription": "Projects with a telegramTopicId get their notifications in their own topic, and messages written there run in the project context.",
+    "topicsDescription": "Projects with a telegramTopicId get their notifications in their own topic. The super agent answers messages written there, knowing which project the topic belongs to.",
     "topicsEmpty": "No project has a topic configured ({count, plural, one {# project} other {# projects}} in total). Set the topic ID on the project page.",
     "topic": "topic {id}",
     "projectStatus": {
@@ -567,6 +578,7 @@
     "nameFormat": "The name can only contain uppercase letters, digits and _",
     "valueRequired": "Value is required",
     "pickModelEachRow": "Choose a model on every row",
-    "atLeastOneModel": "Add at least one model"
+    "atLeastOneModel": "Add at least one model",
+    "agentInstructionsTooLong": "The instructions are too long"
   }
 }

@@ -24,10 +24,10 @@ Abotica is single-user and runs on your own server or computer, with your own mo
 
 ## Highlights
 
-- **A super agent and real teams.** One point of contact on Telegram and the web. Every project has a manager who delegates within its team, sends work back when it is not good enough and reports the result. Specialists such as a web developer or an SEO agent are shared across projects and keep a separate memory per project.
+- **A super agent and real teams.** Three kinds of agents. The super agent is your one point of contact on Telegram and the web. Managers each lead one or more projects: they plan, delegate within the team, send work back when it is not good enough and report the result, but never produce the work themselves. Specialists such as a web developer or an SEO agent do the work and are shared across projects.
 - **Agents that do the work, not just talk about it.** Each project gets its own Docker workspace. Agents run shell commands there, install packages, start MySQL, PostgreSQL or Redis, and browse and scrape the web. They hand you the results as files or as preview links to the apps they started.
 - **Git-native.** Connect GitHub, GitLab or a self-hosted repository to a project. Each task gets its own worktree and branch, and agents open the pull request. The token never enters the sandbox: git signs in through its egress proxy.
-- **Memory that lasts.** Global, project and agent memory with semantic search, an end-of-day journal per agent and project, and a weekly consolidation of the facts that matter.
+- **Memory that lasts.** Every agent keeps its own memory, globally and per project, next to each project's team memory and the instructions you set for all agents. Semantic search, an end-of-day journal per agent and project, and a weekly consolidation of the facts that matter.
 - **Works while you sleep.** Cron and one-shot schedules, signed webhooks, triggers on task events, and daily and weekly digests on Telegram.
 - **You stay in control.** Approval per tool, budgets per run, per project and per month with Telegram alerts, a kill switch, an audit log and a step-by-step trace of every run. A project can be limited to chosen providers, for example only local Ollama models for sensitive data.
 - **Any model, your keys.** Anthropic, OpenAI (with an API key or your ChatGPT plan), DeepSeek, Kimi and Ollama. Each agent has a fallback chain for rate limits and outages.
@@ -103,13 +103,14 @@ To update, run the same command again. To install with Docker by hand, or withou
 ## Features
 
 **Super agent**
-- One point of contact on Telegram and the web. On the web you can also chat directly with any agent.
+- One point of contact on Telegram and the web, and the only agent that talks on Telegram, in project forum topics too. On the web you can also chat directly with any agent.
 - Global: works on projects through their managers, creates projects and schedules, checks recent runs and their cost.
 - Creates new agents only after your approval.
 - Daily digest at the hour you choose and a weekly digest on Telegram, built from the agents' journals, finished and blocked tasks, failed runs and spend.
 
 **Agents**
-- Name, role, avatar and system prompt, or start from a template.
+- Three kinds: the super agent, managers that lead projects and never produce the work, and specialists that do it and are shared across projects. Abotica tells each kind its place in the team and how it works; your own prompt is a specialist's profession, or optional additional instructions for a manager or the super agent.
+- Name, role, avatar and prompt, or start from a template.
 - A model per agent with a fallback chain. On rate limits, provider errors, outages or a missing key, the run moves to the next model.
 - Reasoning effort per agent, and a model and reasoning override per conversation.
 - Tool permissions per agent (allow, ask or deny), down to single MCP tools.
@@ -118,13 +119,13 @@ To update, run the same command again. To install with Docker by hand, or withou
 
 **Projects**
 - Description, goals, status, an overview of spend against budget and recent runs.
-- A team: a manager created with the project, who answers in its conversations and Telegram topic and delegates within the team. Add specialists from templates, or share them with other projects.
+- A team: a manager that leads it, created with the project from a template or chosen among your managers (one can lead several projects), who answers in the project's conversations on the web and delegates within the team. Add specialists from templates, or share them with other projects.
 - Knowledge base (files, documents, links) with semantic search. The original files are copied into the project workspace.
 - Git repositories (GitHub, GitLab, self-hosted): cloned in the workspace, with a worktree and branch per task and pull or merge requests opened by agents. The token is checked when you add it and never enters the sandbox: git signs in through its egress proxy. The UI warns when the default branch is not protected.
 - Credentials in the vault, used as `{{secret:NAME}}` and never placed in the workspace.
 - Monthly budget: runs are refused once it is reached.
 - Allowed providers. They cover everything that carries the project's data: runs, journals, memory consolidation, the digest, embeddings, voice transcription in its Telegram topic, and task results reported back to whoever delegated them.
-- Optional Telegram forum topic for the project's notifications and conversations.
+- Optional Telegram forum topic: the project's notifications go there, and the super agent answers there knowing which project it is about.
 - Archive, restore, reset the workspace, or delete.
 
 **Tasks**
@@ -134,11 +135,12 @@ To update, run the same command again. To install with Docker by hand, or withou
 - Delegated work goes to review: the delegating agent accepts it or sends it back.
 
 **Memory**
-- Global, project and agent memory, searched semantically with pgvector. A run sees only its own project.
-- What an agent learns on a project is project memory signed by that agent. Its profession (prompt, skills, tools) stays the same everywhere.
+- Every agent has its own global memory and its own memory per project; each project also has a team memory its team shares. Instructions for all agents, set in Settings, apply to every agent.
+- When entries conflict, a project's team memory wins over your global rules, those over an agent's notes on the project, and its notes over its craft.
+- Searched semantically with pgvector, with a built-in multilingual embedding model that needs no API key (OpenAI or Ollama optional). A run sees only its own project. An agent's profession (prompt, skills, tools) stays the same everywhere.
 - Optional approval before memory written by agents becomes active.
 - End-of-day journal per agent and project. Agents read their last N days of journals for the project they work on.
-- Weekly consolidation of durable facts from the journals into long-term memory.
+- Weekly consolidation: an agent's journals of a project become its notes on that project, and the lessons of its craft that hold in any project, stripped of project names, go to its global memory.
 - Full history of runs, messages and tool calls, with search over memory and journals.
 
 **Automation**
@@ -168,7 +170,7 @@ To update, run the same command again. To install with Docker by hand, or withou
 
 **Providers and costs**
 - Anthropic, OpenAI, DeepSeek, Kimi (Moonshot) and Ollama. OpenAI works with an API key or with your ChatGPT plan.
-- Embeddings via OpenAI or Ollama, and voice transcription via OpenAI. Both need an OpenAI API key, not the plan.
+- Embeddings with a built-in multilingual model that runs in the worker (no key, nothing leaves the machine), or via OpenAI or Ollama. Voice transcription via OpenAI. OpenAI embeddings and transcription need an API key, not the plan.
 - Token and cost tracking per agent, project and model.
 - Global and per-project monthly budgets, with Telegram alerts at 80% and 100%.
 

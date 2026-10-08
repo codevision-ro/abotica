@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agents/kind-prompts": "./src/agents/kind-prompts.ts",
     "./agents/mcp-runtime": "./src/agents/mcp-runtime.ts",
     "./agents/permissions": "./src/agents/permissions.ts",
     "./agents/runner": "./src/agents/runner.ts",

@@ -20,7 +20,7 @@ export function registerCommands(bot: Bot) {
   bot.command("start", async (ctx) => ctx.reply((await botTranslator())("telegram.start")));
 
   bot.command("new", async (ctx) => {
-    if (!(await currentConversation(ctx, true))) return;
+    await currentConversation(ctx, true);
     await ctx.reply((await botTranslator())("telegram.newConversation"));
   });
 

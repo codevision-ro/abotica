@@ -1,7 +1,7 @@
 import "server-only";
 import { getTelegramToken, isProviderConfigured, PROVIDER_IDS } from "@abotica/core";
 import { agents, approvals, db, projects, runs, tasks } from "@abotica/db";
-import { and, asc, count, countDistinct, desc, eq, inArray, sql } from "@abotica/db/orm";
+import { and, asc, count, countDistinct, desc, eq, inArray, ne, sql } from "@abotica/db/orm";
 import { getDailyCostByProvider, getMonthCosts } from "./costs";
 import { runRowColumns } from "./runs";
 import { query } from "@/server/query";
@@ -40,7 +40,7 @@ async function onboardingState() {
     db
       .select({ n: count() })
       .from(agents)
-      .where(and(eq(agents.isOrchestrator, false), eq(agents.isTemplate, false))),
+      .where(and(ne(agents.kind, "orchestrator"), eq(agents.isTemplate, false))),
     db.select({ n: count() }).from(projects),
     getTelegramToken().then(Boolean, () => false),
   ]);

@@ -5,8 +5,8 @@ import { allowedModelChain, runProviderPolicy } from "../models/provider-policy"
 import type { RunContext } from "./context";
 
 /** The conversation's model override comes first, then the agent's chain without it. */
-export function fullModelChain(ctx: Pick<RunContext, "agent" | "settings" | "conversation" | "isManager">): ModelRef[] {
-  const chain = resolveModelChain(ctx.agent, ctx.settings, modelRole(ctx.agent, ctx.isManager));
+export function fullModelChain(ctx: Pick<RunContext, "agent" | "settings" | "conversation">): ModelRef[] {
+  const chain = resolveModelChain(ctx.agent, ctx.settings, modelRole(ctx.agent));
   const override = ctx.conversation?.modelOverride;
   if (!override) return chain;
   return [override, ...chain.filter((m) => m.provider !== override.provider || m.model !== override.model)];

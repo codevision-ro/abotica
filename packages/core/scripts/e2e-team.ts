@@ -200,12 +200,12 @@ try {
       projectId,
       budgetTokens: settings.memoryRecallTokens,
     });
-  const seen = await pinnedMemories(specialist.id, project.id, settings.memoryPinnedTokens);
+  const seen = await pinnedMemories({ agentId: specialist.id, projectId: project.id }, settings.memoryPinnedTokens);
   const recalled = await recallIn(project.id);
   const searched = await searchMemories(MARKER, { agentId: specialist.id, projectId: project.id });
   const journal = await recentJournals(specialist.id, project.id, 30);
   check(
-    ![...seen.project, ...seen.agent, ...seen.global].some((m) => m.content.includes(MARKER)),
+    ![...seen.global, ...seen.craft, ...seen.team, ...seen.notes].some((m) => m.content.includes(MARKER)),
     "the memory in the instructions has nothing from the other project",
   );
   check(!recalled.some((m) => m.content.includes(MARKER)), "recall has nothing from the other project");

@@ -112,7 +112,7 @@
     "telegramTitle": "Telegram",
     "topicLabel": "Topic id",
     "topicPlaceholder": "e.g. 42",
-    "topicHint": "A topic from a Telegram forum group: its messages go into the project context and project notifications are sent there.",
+    "topicHint": "A topic from a Telegram forum group: project notifications are sent there, and the super agent answers there about the project.",
     "topicSummary": "Topic {topic}",
     "topicNotSet": "No linked topic",
     "summaryLabel": "Project summary",
@@ -125,11 +125,13 @@
     "submitCreate": "Create project",
     "teamTitle": "Team",
     "teamDescription": "Who works on the project.",
-    "managerAuto": "A project manager is created automatically from the Project manager template. It answers in the project's conversations, and you can hand the role to another team member later.",
+    "managerTitle": "Manager (optional)",
+    "managerHint": "Choose a manager you already have (one can lead several projects), or leave it empty: Abotica creates one from the Project manager template.",
+    "managerAuto": "A project manager is created automatically from the Project manager template. It answers in the project's conversations; you can choose another manager later in the Team tab.",
     "teamManagerSummary": "Manager (created automatically)",
     "specialistsTitle": "Specialists (optional)",
-    "specialistsDescription": "Agents that start on the team. You can add more, or hire new ones, in the project's Team tab.",
-    "noSpecialists": "No agents to add yet. You can hire specialists from templates in the project's Team tab."
+    "specialistsDescription": "Specialists that start on the team. You can add more, or hire new ones, in the project's Team tab.",
+    "noSpecialists": "No specialists to add yet. You can hire them from templates in the project's Team tab."
   },
   "dangerZone": {
     "title": "Danger zone",

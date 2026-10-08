@@ -1,16 +1,22 @@
 import {
   applyConsolidation,
+  applyConsolidationOutsideProjects,
+  applyCraftLessons,
+  backfillEmbeddings,
   checkForUpdates,
   type ConsolidationTarget,
   consolidationCandidates,
   consolidationPrompt,
   costSince,
+  craftLessonsAllowed,
+  craftLessonsPrompt,
   dayBounds,
   deleteExpiredMemories,
   embedText,
   getOrchestrator,
   getSettings,
   journalPrompt,
+  knownElsewhere,
   type MaintenanceJob,
   maintenanceQueue,
   NoAllowedProviderError,
@@ -85,7 +91,10 @@ async function syncTaskPullRequests() {
  * queued at once, behind the maintenance jobs already waiting.
  */
 async function reindexEmbeddings() {
-  if (await reindexSlice(REINDEX_SLICE_MS)) await requestReindex();
+  if (await reindexSlice(REINDEX_SLICE_MS)) return requestReindex();
+  // Nothing to re-embed: fill in the rows written while the provider could not embed.
+  const filled = await backfillEmbeddings();
+  if (filled) console.log(`[memory] embedded ${filled} rows written without a vector`);
 }
 
 /** How long one slice of the re-embedding holds the maintenance queue. */
@@ -260,9 +269,10 @@ async function sendDigest(period: "daily" | "weekly") {
 
 /**
  * Moves the facts worth keeping from the unconsolidated journals into long-term memory: a project journal's
- * facts into the project's memory, written by the agent; a journal outside any project into the agent's
- * own. Each fact comes with how long it holds and the existing entries it restates or replaces (see
- * planFact). Then the weekly upkeep: promotion and expiry.
+ * facts into the agent's own notes on the project (the team memory gets only explicit saves); a journal
+ * outside any project into the agent's craft, except the facts that name a project, which go to its notes
+ * on that project. Each fact comes with how long it holds and the existing
+ * entries it restates or replaces (see planFact). Then the weekly upkeep: promotion and expiry.
  */
 export async function consolidate() {
   await consolidateJournals();
@@ -292,8 +302,11 @@ async function consolidateGroup(
 ) {
   const agent = await db.query.agents.findFirst({ where: (a, { eq }) => eq(a.id, agentId) });
   if (!agent) return;
-  const target: ConsolidationTarget = projectId ? { scope: "project", projectId, agentId } : { scope: "agent", agentId };
-  const related = await consolidationCandidates(target, entries);
+  const target: ConsolidationTarget = { scope: "agent", agentId, projectId };
+  const [related, known] = await Promise.all([
+    consolidationCandidates(target, entries),
+    knownElsewhere(target, entries, { everyProject: agent.kind === "orchestrator" }),
+  ]);
   const output = await systemCompletion({
     agent,
     projectId,
@@ -303,6 +316,7 @@ async function consolidateGroup(
       project: projectId && names.get(projectId),
       journals: entries,
       existing: related,
+      known,
     }),
   }).catch(unlessNoAllowedProvider(`memory consolidation of ${agent.slug}`));
   // Left unconsolidated: they are tried again next time.
@@ -316,12 +330,15 @@ async function consolidateGroup(
   }
   if (parsed.malformed)
     console.warn(`[memory] consolidation of ${agent.slug}: skipped ${parsed.malformed} malformed lines`);
-  // Facts from a day that read untrusted content wait for the user's approval.
+  // Facts from a day that read untrusted content stay untrusted: prompts mark them as from external content.
   const origin = entries.some((j) => j.fromUntrusted) ? "untrusted" : "system";
-  const done = await applyConsolidation(target, parsed.facts, related, origin);
+  const done = projectId
+    ? await applyConsolidation(target, parsed.facts, related, origin)
+    : await applyConsolidationOutsideProjects(agent, parsed.facts, related, origin);
   console.log(
     `[memory] consolidated ${entries.length} journals of ${agent.slug}: ${done.added} added, ${done.held} held for approval, ${done.restated} restated, ${done.dropped} dropped`,
   );
+  if (projectId) await distilCraft(agent, projectId, entries, language, names, origin);
   await db
     .update(journals)
     .set({ consolidated: true })
@@ -331,6 +348,48 @@ async function consolidateGroup(
         entries.map((j) => j.id),
       ),
     );
+}
+
+/**
+ * The second pass of a project journal's consolidation: the lessons of the agent's craft that hold in
+ * any project go to its craft, so its profession improves on every project while the project's facts
+ * stay in its notes on the project. A failure here never keeps the journals from being marked consolidated:
+ * their project facts are stored, and a lesson missed once is learned again from later journals.
+ */
+async function distilCraft(
+  agent: typeof agents.$inferSelect,
+  projectId: string,
+  entries: (typeof journals.$inferSelect)[],
+  language: string,
+  names: Map<string, string>,
+  origin: "system" | "untrusted",
+) {
+  try {
+    if (!(await craftLessonsAllowed(projectId))) return;
+    const target: ConsolidationTarget = { scope: "agent", agentId: agent.id, projectId: null };
+    const related = await consolidationCandidates(target, entries);
+    const output = await systemCompletion({
+      agent,
+      projectId,
+      purpose: "Craft lessons",
+      ...craftLessonsPrompt({
+        language,
+        project: names.get(projectId) ?? "this project",
+        role: agent.role,
+        journals: entries,
+        existing: related,
+      }),
+    }).catch(unlessNoAllowedProvider(`craft lessons of ${agent.slug}`));
+    if (output === null) return;
+    const parsed = parseConsolidation(output, related.length);
+    if (!parsed.facts.length) return;
+    const done = await applyCraftLessons(agent.id, projectId, parsed.facts, related, origin);
+    console.log(
+      `[memory] craft lessons of ${agent.slug}: ${done.added} added, ${done.held} held for approval, ${done.restated} restated, ${done.dropped} dropped`,
+    );
+  } catch (error) {
+    console.error(`[memory] craft lessons of ${agent.slug} failed:`, error);
+  }
 }
 
 export async function registerMaintenanceSchedules() {

@@ -8,7 +8,7 @@
   },
   "memory_search": {
     "label": "Search memory",
-    "description": "Semantic search in global, project and own memory",
+    "description": "Semantic search in global, team and own memory",
     "running": "Searching memory"
   },
   "memory_save": {
@@ -101,6 +101,11 @@
     "description": "Sees the agents and their roles",
     "running": "Listing agents"
   },
+  "template_list": {
+    "label": "List templates",
+    "description": "Sees the agent templates new agents start from",
+    "running": "Listing templates"
+  },
   "agent_create": {
     "label": "Create agents",
     "description": "Creates new agents",
@@ -108,7 +113,7 @@
   },
   "agent_update": {
     "label": "Edit agents",
-    "description": "Changes an agent's prompt, role or model",
+    "description": "Changes an agent's profession, role or model",
     "running": "Editing an agent"
   },
   "registry_list": {

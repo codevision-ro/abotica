@@ -45,11 +45,12 @@ export const createMemory = action(
     })
     .refine((v) => v.scope !== "agent" || !!v.agentId, { message: "memory.validation.chooseAgent", path: ["agentId"] }),
   async ({ scope, projectId, agentId, content }) => {
-    // The user writes it: a project entry has no agent author, an agent entry belongs to its agent.
+    // The user writes it: a project entry has no agent author, an agent entry belongs to its agent (with a
+    // project: the agent's note on that project, read only in its runs there).
     const row = await createMemoryRow({
       scope,
       content,
-      projectId: scope === "project" ? projectId : null,
+      projectId: scope === "global" ? null : (projectId ?? null),
       agentId: scope === "agent" ? agentId : null,
       source: "manual",
       origin: "owner",
@@ -61,6 +62,8 @@ export const createMemory = action(
           ? { projectId: row.projectId }
           : undefined,
     );
+    // An agent's note also shows on its project's page.
+    if (row.scope === "agent" && row.projectId) revalidateMemory({ projectId: row.projectId });
     return { id: row.id };
   },
 );

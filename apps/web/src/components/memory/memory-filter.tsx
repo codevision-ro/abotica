@@ -1,7 +1,7 @@
 "use client";
 
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
-import { Bot, FolderKanban, ShieldCheck } from "lucide-react";
+import { Bot, FolderKanban, Globe, ShieldCheck } from "lucide-react";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 const ALL = "__all";
 
-const ICONS = { agent: Bot, project: FolderKanban, origin: ShieldCheck } as const;
+const ICONS = { agent: Bot, project: FolderKanban, global: Globe, origin: ShieldCheck } as const;
 
 /** Compact filter stored in one query param; it is tinted while a value is chosen. */
 export function ParamSelect({
@@ -26,7 +26,8 @@ export function ParamSelect({
   params: QueryParams;
   label: string;
   allLabel: string;
-  options: { id: string; name: string; avatar?: AgentAvatarValue | null }[];
+  /** `icon` replaces the select's icon on one option, e.g. a globe on a "global only" choice. */
+  options: { id: string; name: string; avatar?: AgentAvatarValue | null; icon?: keyof typeof ICONS }[];
   /** Icon before the "all" choice and on options without an avatar (a name: server pages render this). */
   icon?: keyof typeof ICONS;
   className?: string;
@@ -51,12 +52,19 @@ export function ParamSelect({
           {Icon && <Icon className="text-muted-foreground" />}
           <span className="truncate">{allLabel}</span>
         </SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.id} value={o.id} className="*:[span]:last:min-w-0">
-            {o.avatar ? <AgentAvatar avatar={o.avatar} size="xs" /> : Icon && <Icon className="text-muted-foreground" />}
-            <span className="truncate">{o.name}</span>
-          </SelectItem>
-        ))}
+        {options.map((o) => {
+          const OptionIcon = o.icon ? ICONS[o.icon] : Icon;
+          return (
+            <SelectItem key={o.id} value={o.id} className="*:[span]:last:min-w-0">
+              {o.avatar ? (
+                <AgentAvatar avatar={o.avatar} size="xs" />
+              ) : (
+                OptionIcon && <OptionIcon className="text-muted-foreground" />
+              )}
+              <span className="truncate">{o.name}</span>
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );

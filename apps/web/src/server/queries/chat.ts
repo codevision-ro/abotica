@@ -7,7 +7,6 @@ import {
   getOrchestrator,
   getSettings,
   listFiles,
-  managesProject,
   modelRole,
   resolveModelChain,
   roleDefaultEffort,
@@ -63,10 +62,7 @@ export type ChatModelState = {
   selection: { model: ModelRef | null; reasoningEffort: ReasoningEffort | null };
 };
 
-type AgentRow = Pick<
-  typeof agents.$inferSelect,
-  "id" | "isOrchestrator" | "provider" | "model" | "fallbacks" | "reasoningEffort"
->;
+type AgentRow = Pick<typeof agents.$inferSelect, "id" | "kind" | "provider" | "model" | "fallbacks" | "reasoningEffort">;
 type ConversationRow = Pick<Conversation, "modelOverride" | "reasoningEffort">;
 
 const toOption = (m: CatalogModel): ChatModelOption => ({
@@ -79,13 +75,8 @@ const toOption = (m: CatalogModel): ChatModelOption => ({
 
 /** Everything the chat model picker needs for one conversation. */
 export const getChatModelState = query(async (agent: AgentRow, conversation: ConversationRow): Promise<ChatModelState> => {
-  const [providers, settings, catalog, isManager] = await Promise.all([
-    availableProviders(),
-    getSettings(),
-    getCatalog(),
-    managesProject(agent.id),
-  ]);
-  const role = modelRole(agent, isManager);
+  const [providers, settings, catalog] = await Promise.all([availableProviders(), getSettings(), getCatalog()]);
+  const role = modelRole(agent);
   const primary = resolveModelChain(agent, settings, role)[0];
   const entry = primary && catalog.find((m) => m.provider === primary.provider && m.id === primary.model);
   return {
@@ -153,12 +144,12 @@ export const listChatAgents = query(async () => {
       name: agents.name,
       avatar: agents.avatar,
       role: agents.role,
-      isOrchestrator: agents.isOrchestrator,
+      kind: agents.kind,
       enabled: agents.enabled,
     })
     .from(agents)
     .where(eq(agents.isTemplate, false))
-    .orderBy(desc(agents.isOrchestrator), agents.name);
+    .orderBy(asc(agents.kind), agents.name);
 });
 
 export type ChatAgent = Awaited<ReturnType<typeof listChatAgents>>[number];

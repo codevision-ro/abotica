@@ -1,5 +1,6 @@
+import type { AgentKind } from "@abotica/db";
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
-import { ActivityIcon, FolderKanbanIcon, WalletIcon } from "lucide-react";
+import { ActivityIcon, CrownIcon, FolderKanbanIcon, WalletIcon } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
@@ -32,6 +33,16 @@ export function ModelBadge({ provider, model }: { provider: string | null; model
   );
 }
 
+/** The agent's place in the hierarchy: Super agent, Manager or Specialist. */
+export function KindBadge({ kind }: { kind: AgentKind }) {
+  const t = useTranslations("agents.card.kinds");
+  return (
+    <Badge variant={kind === "orchestrator" ? "default" : "secondary"} className="shrink-0 font-normal">
+      {t(kind)}
+    </Badge>
+  );
+}
+
 type CardAgent = {
   id: string;
   slug: string;
@@ -40,11 +51,12 @@ type CardAgent = {
   avatar: AgentAvatarValue;
   provider: string | null;
   model: string | null;
-  isOrchestrator: boolean;
+  kind: AgentKind;
   enabled: boolean;
   runs7d: number;
   cost30d: number;
   running: boolean;
+  /** A manager's: the projects it leads; a specialist's: the teams it is on. */
   projects: { id: string; name: string }[];
 };
 
@@ -81,12 +93,13 @@ export function AgentCard({ agent }: { agent: CardAgent }) {
   const t = useTranslations("agents.card");
   const fmt = createFormat(useLocale());
   const projects = agent.projects.map((p) => p.name).join(", ");
+  const leads = agent.kind === "manager";
   return (
     <div className={cn(CARD, !agent.enabled && "opacity-70")}>
       <div className="flex items-center gap-3">
         <CardIdentity href={`/agents/${agent.id}`} agent={agent} noRole={t("noRole")} />
         <div className="relative z-10">
-          <AgentEnabledSwitch id={agent.id} enabled={agent.enabled} locked={agent.isOrchestrator} />
+          <AgentEnabledSwitch id={agent.id} enabled={agent.enabled} locked={agent.kind === "orchestrator"} />
         </div>
       </div>
 
@@ -96,16 +109,23 @@ export function AgentCard({ agent }: { agent: CardAgent }) {
             {t("running")}
           </ToneBadge>
         )}
-        {agent.isOrchestrator && <Badge>{t("orchestrator")}</Badge>}
+        <KindBadge kind={agent.kind} />
         <ModelBadge provider={agent.provider} model={agent.model} />
       </div>
 
-      <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-        <FolderKanbanIcon className="size-3.5 shrink-0" aria-hidden />
-        <span className="truncate" title={projects || undefined}>
-          {projects || t("noProjects")}
-        </span>
-      </p>
+      {/* The super agent is global: it works outside projects. */}
+      {agent.kind !== "orchestrator" && (
+        <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {leads ? (
+            <CrownIcon className="size-3.5 shrink-0" aria-hidden />
+          ) : (
+            <FolderKanbanIcon className="size-3.5 shrink-0" aria-hidden />
+          )}
+          <span className="truncate" title={projects || undefined}>
+            {leads ? (projects ? t("leads", { projects }) : t("leadsNone")) : projects || t("noProjects")}
+          </span>
+        </p>
+      )}
 
       <div className="tabular mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
@@ -130,7 +150,7 @@ export function AgentCard({ agent }: { agent: CardAgent }) {
 export function TemplateCard({
   agent,
 }: {
-  agent: Pick<CardAgent, "id" | "slug" | "name" | "role" | "avatar" | "provider" | "model">;
+  agent: Pick<CardAgent, "id" | "slug" | "name" | "role" | "avatar" | "provider" | "model" | "kind">;
 }) {
   const t = useTranslations("agents.card");
   return (
@@ -139,7 +159,8 @@ export function TemplateCard({
         <CardIdentity href={`/agents/${agent.id}`} agent={agent} noRole={t("noRole")} />
       </div>
       <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
-        <div className="flex min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 gap-1.5">
+          <KindBadge kind={agent.kind} />
           <ModelBadge provider={agent.provider} model={agent.model} />
         </div>
         <Button size="sm" variant="outline" className="relative z-10 shrink-0" asChild>

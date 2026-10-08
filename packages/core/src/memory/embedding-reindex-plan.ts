@@ -9,7 +9,7 @@ export type ReindexTable = (typeof REINDEX_TABLES)[number];
 
 /** Where a re-embedding stands. Stored in the settings table, so it goes on after a restart. */
 export type ReindexState = {
-  provider: "openai" | "ollama";
+  provider: "local" | "openai" | "ollama";
   /** When the provider changed: tells this re-embedding from a later one that replaced it. */
   startedAt: string;
   table: ReindexTable;
@@ -18,7 +18,7 @@ export type ReindexState = {
   /** Rows handled so far, embedded or skipped, out of the `total` there were at the start. */
   done: number;
   total: number;
-  /** Why the last batch could not be embedded (no key, server down); null while it goes well. */
+  /** Why the last batch could not be embedded (no key, server down, model loading); null while it goes well. */
   error: string | null;
 };
 

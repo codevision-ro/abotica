@@ -3,7 +3,6 @@ import { generateId, type UIMessage } from "ai";
 import { and, asc, desc, eq, inArray, isNull, lt, notExists, sql } from "@abotica/db/orm";
 import { getTranslator } from "@abotica/i18n";
 import { fullModelChain } from "../agents/model-chain";
-import { managesProject } from "../models/chain";
 import { inputPath } from "../agents/workspace-paths";
 import {
   type DelegationReportMetadata,
@@ -90,6 +89,7 @@ type Settled = typeof tasks.$inferSelect & {
 
 /**
  * `ownTaskId`: the delegating run worked on a task of its own, so it answers to the agent that gave it.
+ * How to judge a report (a manager's at outcome level) is in the delegator's kind prompt, not here.
  * What the agents wrote (outputs and errors) goes in as untrusted data: a worker may have copied an
  * instruction from a page, and this notice speaks with the platform's authority. Titles stay outside
  * the blocks, with marker look-alikes removed.
@@ -115,10 +115,10 @@ export function reportMessage(settled: Settled[], ownTaskId: string | null): UIM
     settled.length === 1 ? "A task you delegated has finished." : "Tasks you delegated have finished.",
     "Review each task in 'review' against what was asked (task_get has the full details), then act:",
     [
-      "- Complete and nothing needs the user's decision: mark it done with task_update. Tasks that depend on it start then.",
+      "- Complete, and nothing in it needs the user's decision (your rules say what does): mark it done with task_update. Tasks that depend on it start then.",
       ownTaskId
-        ? "- Leave it in review and say so in your own task's output when the result goes public or cannot be undone (publishing, sending, deleting, paying), involves a legal or financial judgment, or you doubt it: the user decides."
-        : "- Leave it in review and ask the user when the result goes public or cannot be undone (publishing, sending, deleting, paying), involves a legal or financial judgment, the user asked to see it first, or you doubt it.",
+        ? "- Needs the user's decision, or you doubt it: leave it in review and say so in your own task's output."
+        : "- Needs the user's decision, or you doubt it: leave it in review and ask the user.",
       `- Incomplete or wrong: say what to fix in a task_comment and send it back with delegate_task and its taskId. After ${MAX_REDELEGATIONS} send-backs, ${ownTaskId ? "set your own task to 'blocked' and explain why" : "ask the user instead"}.`,
     ].join("\n"),
     settled.some((t) => t.files.length)
@@ -165,16 +165,15 @@ type Delegator = { run: typeof runs.$inferSelect; agent: typeof agents.$inferSel
  * chain must be left. Its project is the one loadRunContext gives it: the super agent works in none.
  */
 async function delegatorMayRead({ run, agent }: Delegator, conversationId: string, settled: Settled[]): Promise<boolean> {
-  const [[conversation], settings, isManager] = await Promise.all([
+  const [[conversation], settings] = await Promise.all([
     db.select().from(conversations).where(eq(conversations.id, conversationId)),
     getSettings(),
-    managesProject(agent.id),
   ]);
   const policy = combinePolicies(
-    await runProviderPolicy(agent.isOrchestrator ? null : run.projectId, conversationId),
+    await runProviderPolicy(agent.kind === "orchestrator" ? null : run.projectId, conversationId),
     await projectsProviderPolicy(settled.flatMap((t) => (t.projectId ? [t.projectId] : []))),
   );
-  return !deniesEveryModel(policy, fullModelChain({ agent, settings, conversation: conversation ?? null, isManager }));
+  return !deniesEveryModel(policy, fullModelChain({ agent, settings, conversation: conversation ?? null }));
 }
 
 /**

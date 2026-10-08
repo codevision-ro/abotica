@@ -7,7 +7,6 @@ import {
   getOrchestrator,
   getSettings,
   isProviderId,
-  managesProject,
   modelRole,
   resolveModelChain,
   startProjectConversation,
@@ -70,7 +69,7 @@ export const setConversationModel = action(
     const [row] = await db
       .select({
         id: agents.id,
-        isOrchestrator: agents.isOrchestrator,
+        kind: agents.kind,
         provider: agents.provider,
         model: agents.model,
         fallbacks: agents.fallbacks,
@@ -84,7 +83,7 @@ export const setConversationModel = action(
       throw new UserError("chat.model.errors.providerNotConfigured", { provider: model.provider });
     }
 
-    const primary = resolveModelChain(row, await getSettings(), modelRole(row, await managesProject(row.id)))[0];
+    const primary = resolveModelChain(row, await getSettings(), modelRole(row))[0];
     const sameAsAgent = model && primary?.provider === model.provider && primary.model === model.model;
     const modelOverride = model && !sameAsAgent ? { provider: model.provider, model: model.model } : null;
 

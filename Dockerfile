@@ -47,16 +47,22 @@ USER node
 CMD ["sh", "-c", "node_modules/.bin/tsx src/migrate.ts && node_modules/.bin/tsx src/seed.ts"]
 
 # Only the worker and its production dependencies; workspace packages are copied in as TS source.
+# The built-in embedding model's runtime (transformers.js) runs on onnxruntime-node: its macOS and
+# Windows binaries and the browser runtime (onnxruntime-web) are never loaded here, about 350 MB.
 FROM source AS worker-build
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm --filter @abotica/worker deploy --legacy --prod /deploy
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm --filter @abotica/worker deploy --legacy --prod /deploy \
+  && find /deploy/node_modules -type d \( -path '*/onnxruntime-node/bin/napi-v6/darwin' \
+    -o -path '*/onnxruntime-node/bin/napi-v6/win32' -o -path '*/onnxruntime-web/dist' \) -prune -exec rm -rf {} +
 
 # The worker runs from source with tsx (a production dependency of @abotica/worker).
-# As the `node` user: it writes only to the uploads folder and /tmp, and reaches docker-proxy over TCP.
+# As the `node` user: it writes only to the uploads folder, the models folder (the built-in embedding
+# model, downloaded at the first start, not shipped in the image) and /tmp, and reaches docker-proxy
+# over TCP.
 FROM base AS worker
 ARG ABOTICA_VERSION=""
-ENV NODE_ENV=production ABOTICA_VERSION=$ABOTICA_VERSION
+ENV NODE_ENV=production ABOTICA_VERSION=$ABOTICA_VERSION MODELS_DIR=/data/models
 COPY --from=worker-build /deploy ./
-RUN mkdir -p /data/uploads && chown node:node /data/uploads
+RUN mkdir -p /data/uploads /data/models && chown node:node /data/uploads /data/models
 USER node
 CMD ["node_modules/.bin/tsx", "src/index.ts"]
 

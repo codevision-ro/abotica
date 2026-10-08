@@ -1,7 +1,8 @@
 "use client";
 
+import { AGENT_INSTRUCTIONS_MAX_LENGTH } from "@abotica/core/limits";
 import type { AppSettings } from "@abotica/core/settings";
-import { Bot, CalendarClock, Save, Wallet } from "lucide-react";
+import { Bot, CalendarClock, Save, ScrollText, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { updateAppSettings } from "@/server/actions/settings";
 
 /** Same as RUN_CONCURRENCY_MAX in core, which a client component cannot import. */
@@ -48,6 +50,7 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
   const t = useTranslations("settings.general");
   const tc = useTranslations("common.actions");
   const router = useRouter();
+  const [agentInstructions, setAgentInstructions] = useState(initial.agentInstructions);
   const [journalDays, setJournalDays] = useState(String(initial.journalDays));
   const [parallelDelegations, setParallelDelegations] = useState(String(initial.parallelDelegations));
   const [runConcurrency, setRunConcurrency] = useState(String(initial.runConcurrency));
@@ -88,6 +91,7 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
         digestHour: Number(digestHour),
         timezone,
         monthlyBudgetUsd: budgetValue,
+        agentInstructions,
       });
       if (!res.ok) return void toast.error(res.error);
       toast.success(t("saved"));
@@ -97,6 +101,31 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-6">
+      <FormSection
+        id="general-instructions"
+        icon={ScrollText}
+        title={t("instructionsTitle")}
+        description={t("instructionsDescription")}
+      >
+        <div className="overflow-hidden rounded-xl border bg-card shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/20">
+          <Textarea
+            id="agent-instructions"
+            aria-label={t("instructionsTitle")}
+            value={agentInstructions}
+            onChange={(e) => setAgentInstructions(e.target.value)}
+            placeholder={t("instructionsPlaceholder")}
+            maxLength={AGENT_INSTRUCTIONS_MAX_LENGTH}
+            className="max-h-[60vh] min-h-36 resize-none rounded-none border-0 bg-transparent px-4 py-3 text-sm leading-relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
+          <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-4 py-1.5 text-xs text-muted-foreground">
+            <span className="min-w-0 truncate">{t("instructionsFooter")}</span>
+            <span className="tabular shrink-0">
+              {t("instructionsLength", { count: agentInstructions.length, max: AGENT_INSTRUCTIONS_MAX_LENGTH })}
+            </span>
+          </div>
+        </div>
+      </FormSection>
+
       <FormSection id="general-agents" icon={Bot} title={t("agentsTitle")} description={t("agentsDescription")}>
         <FieldGroup>
           <Field orientation="responsive" data-invalid={daysInvalid}>

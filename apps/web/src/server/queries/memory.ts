@@ -79,9 +79,13 @@ type MemoryOrigin = (typeof memoryOrigin.enumValues)[number];
 const isMemoryOrigin = (value: string | undefined): value is MemoryOrigin =>
   (memoryOrigin.enumValues as readonly string[]).includes(value ?? "");
 
+/** `projectId` on the agent level that keeps only the agents' global memory (their craft), no project notes. */
+export const AGENT_GLOBAL_ONLY = "global";
+
 /**
  * Active entries of one level. Entries a newer one replaced are left out unless `history` asks for them
- * too; `neverUsed` keeps the current entries no run has used (see neverUsed).
+ * too; `neverUsed` keeps the current entries no run has used (see neverUsed). On the agent level
+ * `projectId` keeps the agents' notes on that project, or their global memory (AGENT_GLOBAL_ONLY).
  */
 export const listMemories = query(
   async (opts: {
@@ -94,7 +98,8 @@ export const listMemories = query(
     neverUsed?: boolean;
   }) => {
     const where: SQL[] = [eq(memories.scope, opts.scope), eq(memories.status, "active")];
-    if (opts.scope === "project" && isUuid(opts.projectId)) where.push(eq(memories.projectId, opts.projectId));
+    if (opts.scope !== "global" && isUuid(opts.projectId)) where.push(eq(memories.projectId, opts.projectId));
+    if (opts.scope === "agent" && opts.projectId === AGENT_GLOBAL_ONLY) where.push(isNull(memories.projectId));
     if (opts.scope === "agent" && isUuid(opts.agentId)) where.push(eq(memories.agentId, opts.agentId));
     if (isMemoryOrigin(opts.origin)) where.push(eq(memories.origin, opts.origin));
     if (opts.pinned) where.push(eq(memories.pinned, true));
@@ -113,14 +118,15 @@ export const listMemories = query(
 
 /**
  * Every entry of one agent or project, pending first: the memory tab on its page, which shows the
- * replaced ones on demand. A project's entries carry their author (the agent that wrote it; none for the
- * user's own).
+ * replaced ones on demand. An agent's: its global memory and its notes on each project (with the
+ * project). A project's: the team memory, whose entries carry their author (the agent that wrote it;
+ * none for the user's own), and every agent's notes on the project, with their agent.
  */
 export const listOwnerMemories = query(async (owner: { agentId: string } | { projectId: string }) => {
   const where =
     "agentId" in owner
       ? and(eq(memories.scope, "agent"), eq(memories.agentId, owner.agentId))
-      : and(eq(memories.scope, "project"), eq(memories.projectId, owner.projectId));
+      : and(inArray(memories.scope, ["project", "agent"]), eq(memories.projectId, owner.projectId));
   return db
     .select({
       id: memories.id,
@@ -133,10 +139,14 @@ export const listOwnerMemories = query(async (owner: { agentId: string } | { pro
       flagReason: memories.flagReason,
       updatedAt: memories.updatedAt,
       ...lifecycleColumns,
+      projectId: memories.projectId,
+      projectName: projects.name,
+      agentId: memories.agentId,
       agentName: agents.name,
       agentAvatar: agents.avatar,
     })
     .from(memories)
+    .leftJoin(projects, eq(projects.id, memories.projectId))
     .leftJoin(agents, eq(agents.id, memories.agentId))
     .where(where)
     .orderBy(desc(sql`${memories.status} = 'pending'`), desc(memories.updatedAt));

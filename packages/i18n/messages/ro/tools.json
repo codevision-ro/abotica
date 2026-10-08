@@ -8,7 +8,7 @@
   },
   "memory_search": {
     "label": "Caută în memorie",
-    "description": "Căutare semantică în memoria globală, de proiect și proprie",
+    "description": "Căutare semantică în memoria globală, a echipei și proprie",
     "running": "Caută în memorie"
   },
   "memory_save": {
@@ -101,6 +101,11 @@
     "description": "Vede agenții și rolurile lor",
     "running": "Listează agenții"
   },
+  "template_list": {
+    "label": "Listează șabloane",
+    "description": "Vede șabloanele de la care pornesc agenții noi",
+    "running": "Listează șabloanele"
+  },
   "agent_create": {
     "label": "Creează agenți",
     "description": "Creează agenți noi",
@@ -108,7 +113,7 @@
   },
   "agent_update": {
     "label": "Editează agenți",
-    "description": "Schimbă promptul, rolul sau modelul unui agent",
+    "description": "Schimbă profesia, rolul sau modelul unui agent",
     "running": "Editează un agent"
   },
   "registry_list": {

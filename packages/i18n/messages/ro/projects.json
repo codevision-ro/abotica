@@ -112,7 +112,7 @@
     "telegramTitle": "Telegram",
     "topicLabel": "Topic id",
     "topicPlaceholder": "ex: 42",
-    "topicHint": "Un topic dintr-un grup Telegram de tip forum: mesajele din el intră în contextul proiectului, iar notificările proiectului ajung acolo.",
+    "topicHint": "Un topic dintr-un grup Telegram de tip forum: notificările proiectului ajung acolo, iar super agentul răspunde acolo despre proiect.",
     "topicSummary": "Topic {topic}",
     "topicNotSet": "Niciun topic legat",
     "summaryLabel": "Rezumatul proiectului",
@@ -125,11 +125,13 @@
     "submitCreate": "Creează proiectul",
     "teamTitle": "Echipă",
     "teamDescription": "Cine lucrează la proiect.",
-    "managerAuto": "Un manager de proiect este creat automat din șablonul Manager de proiect. El răspunde în conversațiile proiectului, iar rolul îl poți da mai târziu altui membru al echipei.",
+    "managerTitle": "Manager (opțional)",
+    "managerHint": "Alege un manager pe care îl ai deja (unul poate conduce mai multe proiecte) sau lasă gol: Abotica creează unul din șablonul Manager de proiect.",
+    "managerAuto": "Un manager de proiect este creat automat din șablonul Manager de proiect. El răspunde în conversațiile proiectului; poți alege alt manager mai târziu din tabul Echipă.",
     "teamManagerSummary": "Manager (creat automat)",
     "specialistsTitle": "Specialiști (opțional)",
-    "specialistsDescription": "Agenții cu care începe echipa. Poți adăuga alții sau angaja unii noi din tabul Echipă al proiectului.",
-    "noSpecialists": "Niciun agent de adăugat încă. Poți angaja specialiști din șabloane în tabul Echipă al proiectului."
+    "specialistsDescription": "Specialiștii cu care începe echipa. Poți adăuga alții sau angaja unii noi din tabul Echipă al proiectului.",
+    "noSpecialists": "Niciun specialist de adăugat încă. Îi poți angaja din șabloane în tabul Echipă al proiectului."
   },
   "dangerZone": {
     "title": "Zonă periculoasă",

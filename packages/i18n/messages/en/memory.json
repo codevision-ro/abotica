@@ -57,7 +57,10 @@
     "allOrigins": "All origins",
     "history": "Show history",
     "neverUsed": "Never used",
-    "neverUsedHint": "Entries no run has used in the {days} days since they were written. Nothing is deleted on its own."
+    "neverUsedHint": "Entries no run has used in the {days} days since they were written. Nothing is deleted on its own.",
+    "byAgentLayer": "Filter by where it holds",
+    "allAgentLayers": "Global and per project",
+    "agentGlobalOnly": "Global only"
   },
   "empty": "No memories here yet. <add>Add a fact</add> or let agents write memory as they work.",
   "list": {
@@ -100,7 +103,7 @@
     "pinnedOmitted": "{count, plural, one {# pinned entry does not fit and is left out.} other {# pinned entries do not fit and are left out.}}"
   },
   "pending": {
-    "empty": "Nothing to approve. Memories written by agents wait here when <settings>approval is required</settings>, and always when they come from untrusted content or look suspicious.",
+    "empty": "Nothing to approve. Memories written by agents wait here when <settings>approval is required</settings>, and always when they look suspicious.",
     "selectAll": "Select all",
     "selected": "{count} selected",
     "reject": "Reject",
@@ -127,15 +130,25 @@
     "pendingNotice": "{count, plural, one {<b>#</b> memory is waiting} other {<b>#</b> memories are waiting}} for your approval before agents can use them.",
     "agent": {
       "title": "Agent memory",
-      "description": "Lasting facts the agent remembers between runs.",
+      "description": "What the agent keeps between runs: its global memory holds in every project, its notes on a project only in that project's runs.",
       "placeholder": "A lasting fact the agent should know...",
-      "empty": "No agent memories yet."
+      "empty": "No global entries yet.",
+      "ownTitle": "Global",
+      "ownDescription": "Holds in every project and outside projects.",
+      "notesTitle": "Per project",
+      "notesDescription": "What the agent noted while working on a project; it reads them only in that project's runs.",
+      "target": "Where it holds",
+      "targetGlobal": "All projects (global)"
     },
     "project": {
       "title": "Project memory",
-      "description": "Facts, preferences and decisions agents get automatically when they work on the project. They take priority over global memories.",
+      "description": "What agents get when they work on the project: the team memory and each agent's own notes. You can edit, pin and delete all of it.",
       "placeholder": "A fact agents need to know in this project, e.g. The client prefers a formal tone.",
-      "empty": "No project memories yet."
+      "empty": "No team memory yet.",
+      "ownTitle": "Team memory",
+      "ownDescription": "Shared by the whole team: the project's facts, decisions and exceptions agreed with you.",
+      "notesTitle": "Agents' notes",
+      "notesDescription": "What each agent noted for itself on this project; only that agent reads them."
     }
   },
   "dialog": {
@@ -146,13 +159,19 @@
     "scopeHelp": {
       "global": "Read by all agents, in any project.",
       "project": "Read by the agents working in the selected project.",
-      "agent": "Read only by the selected agent, in any project."
+      "agent": "Read only by the selected agent: in every project, or only in the one you choose."
     },
     "project": "Project",
     "chooseProject": "Choose a project",
     "noProjects": "No projects",
     "agent": "Agent",
     "chooseAgent": "Choose an agent",
+    "agentProject": "Holds in",
+    "allProjects": "All projects",
+    "agentProjectHelp": {
+      "all": "The agent's global memory: it reads it in every project and outside projects.",
+      "one": "The agent's note on this project: it reads it only when it works there."
+    },
     "content": "Content",
     "contentPlaceholder": "E.g. The client prefers short reports with the key numbers first.",
     "created": "Memory saved"
@@ -160,22 +179,33 @@
   "priority": {
     "title": "How memory applies",
     "order": "Priority on conflict, highest first",
-    "description": "The more specific level wins on conflict. At the same level, newer information beats older information.",
+    "description": "Team memory holds the project's decisions and exceptions agreed with you. Global memory holds your rules, which beat anything an agent noted for itself. An agent's notes on a project beat its general craft. At the same level, newer beats older.",
+    "precedence": {
+      "team": "Team",
+      "global": "Global",
+      "agentProject": "Agent's notes",
+      "agentGlobal": "Agent's craft"
+    },
     "levels": {
       "global": {
         "name": "Global",
-        "what": "Facts that hold everywhere",
+        "what": "Your rules and preferences, everywhere",
         "who": "All agents"
       },
       "project": {
-        "name": "Project",
-        "what": "Project context and decisions",
-        "who": "The project's agents"
+        "name": "Team memory",
+        "what": "Project decisions and exceptions agreed with you",
+        "who": "The project's whole team"
       },
       "agent": {
-        "name": "Agent",
-        "what": "What the agent learned, long term",
-        "who": "The agent"
+        "name": "Agent's craft",
+        "what": "What the agent learned that holds everywhere",
+        "who": "The agent, in every project"
+      },
+      "agentProject": {
+        "name": "Agent's project notes",
+        "what": "What the agent learned in one project",
+        "who": "The agent, in that project only"
       },
       "journal": {
         "name": "Daily journal",

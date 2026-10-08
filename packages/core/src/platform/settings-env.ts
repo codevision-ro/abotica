@@ -53,7 +53,7 @@ export function settingsFromEnv(
   }
 
   const embedding = value("EMBEDDING_PROVIDER", "embeddingProvider");
-  if (embedding === "openai" || embedding === "ollama") {
+  if (embedding === "local" || embedding === "openai" || embedding === "ollama") {
     patch.embeddingProvider = embedding;
     imported.push("EMBEDDING_PROVIDER");
   }

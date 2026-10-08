@@ -38,7 +38,7 @@ import type { McpToolSource } from "./mcp";
 import { loadMcpTools, type McpConnection } from "./mcp-runtime";
 import { withModelFiles } from "./message-files";
 import { fullModelChain, modelChain } from "./model-chain";
-import { builtinPermission, mcpToolPermission } from "./permissions";
+import { builtinPermission, mcpRunPermission } from "./permissions";
 import { loadRepoInstructions } from "./repo-instructions";
 import { openRunSandbox } from "./sandbox-session";
 import { answerSegments, createSteering, stepStarts, withUndeliveredNotes } from "./steering";
@@ -81,7 +81,7 @@ function logEventInBackground(runId: string, type: string, data: Record<string, 
  * delegated work) keeps its cache with 1 hour, whose writes cost 2x the input price instead of 1.25x.
  */
 function cacheTtl(ctx: RunContext): CacheTtl {
-  const resumes = ctx.run.trigger === "chat" || ctx.run.trigger === "telegram" || ctx.agent.isOrchestrator || ctx.isManager;
+  const resumes = ctx.run.trigger === "chat" || ctx.run.trigger === "telegram" || ctx.agent.kind !== "specialist";
   return resumes ? "1h" : "5m";
 }
 
@@ -90,12 +90,9 @@ type ToolApproval = NonNullable<Parameters<typeof streamText<ToolSet>>[0]["toolA
 /** Effective permission of a tool in the run's tool set; skill_read and tool_search are always allowed. */
 function toolPermission(ctx: RunContext, mcpSources: Record<string, McpToolSource>, name: string) {
   const source = mcpSources[name];
-  if (source) return mcpToolPermission(ctx.agent.permissions, source.serverSlug, source.tool, source.defaultPermission);
+  if (source) return mcpRunPermission(ctx.agent.permissions, source, ctx.readOnlyMcpServers);
   if (name === "skill_read" || name === TOOL_SEARCH) return "allow";
-  return builtinPermission(ctx.agent.permissions, name, {
-    isOrchestrator: ctx.agent.isOrchestrator,
-    isManager: ctx.isManager,
-  });
+  return builtinPermission(ctx.agent.permissions, name, ctx.agent);
 }
 
 /** Denied tools never reach the model; this only decides between running directly and asking. */
@@ -266,6 +263,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       input: ctx.run.input,
       agentId: ctx.agent.id,
       projectId: ctx.projectId,
+      notesProjectId: ctx.notesProjectId,
       settings: ctx.settings,
     }).catch((error: unknown) => {
       logEventInBackground(runId, "recall-error", { error: errorText(error) });
@@ -276,7 +274,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       effort: inheritedEffort(
         ctx.conversation?.reasoningEffort,
         ctx.agent.reasoningEffort,
-        roleDefaultEffort(ctx.settings, modelRole(ctx.agent, ctx.isManager)),
+        roleDefaultEffort(ctx.settings, modelRole(ctx.agent)),
       ),
       onFallback: (e) => logEventInBackground(runId, "fallback", e),
       onRetry: (e) => logEventInBackground(runId, "retry", e),

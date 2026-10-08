@@ -46,6 +46,8 @@ services:
       HOST_GATEWAY: host.docker.internal
       # The web app's uploads folder, shared so both see the same stored files.
       UPLOADS_DIR: /data/uploads
+      # The built-in embedding model, downloaded once (about 280 MB) and kept across rebuilds.
+      MODELS_DIR: /data/models
       SANDBOX_DOCKER_HOST: tcp://docker-proxy:2375
       SANDBOX_DOCKER_NETWORK: abotica-sandbox
       SANDBOX_IMAGE: abotica-sandbox:latest
@@ -65,6 +67,7 @@ services:
       - ./packages/i18n/messages:/app/packages/i18n/messages:ro
       - ./packages/sandbox/src:/app/packages/sandbox/src:ro
       - ./apps/web/.data/uploads:/data/uploads
+      - models:/data/models
     networks: [default, sandbox, docker-api]
     restart: unless-stopped
     depends_on:
@@ -76,3 +79,4 @@ services:
 volumes:
   postgres:
   redis:
+  models:

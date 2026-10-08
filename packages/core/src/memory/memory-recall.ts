@@ -8,6 +8,7 @@ import type { ConversationHistory } from "../runs/run-messages";
 import { currentMemories, embedText, memoriesVisibleTo, type MemoryOwner } from "./memory";
 import { fitBudget, memoryTokens, type MessageRecall, recallQuery, recallTarget, recallText } from "./memory-budget";
 import { orTsQuery } from "./memory-ranking";
+import { type MemoryLayer, memoryLayer, type MemoryReader, notesProject } from "./memory-scope";
 import { hybridSearchMemories } from "./memory-search";
 
 /**
@@ -18,14 +19,21 @@ import { hybridSearchMemories } from "./memory-search";
 /** An entry's tokens as Postgres counts them: the estimate of memoryTokens (characters, not UTF-16 units). */
 const entryTokens = sql<number>`ceil(char_length(${memories.content})::numeric / ${CHARS_PER_TOKEN})`.mapWith(Number);
 
-const promptColumns = { id: memories.id, scope: memories.scope, content: memories.content, updatedAt: memories.updatedAt };
+const promptColumns = {
+  id: memories.id,
+  scope: memories.scope,
+  projectId: memories.projectId,
+  content: memories.content,
+  origin: memories.origin,
+  updatedAt: memories.updatedAt,
+};
 
 /** Whether all the memory a run may read fits the pinned budget: small installs then get all of it. */
-async function allFit(agentId: string, projectId: string | null, budgetTokens: number): Promise<boolean> {
+async function allFit(reader: MemoryReader, budgetTokens: number): Promise<boolean> {
   const [row] = await db
     .select({ tokens: sql<number>`coalesce(sum(${entryTokens}), 0)`.mapWith(Number) })
     .from(memories)
-    .where(memoriesVisibleTo(agentId, projectId));
+    .where(memoriesVisibleTo(reader));
   return (row?.tokens ?? 0) <= budgetTokens;
 }
 
@@ -35,17 +43,26 @@ async function allFit(agentId: string, projectId: string | null, budgetTokens: n
  * all of them are in (`all`), pinned or not, and there is nothing to recall. The result only changes when
  * those entries change, so the prompt stays the same across the agent's conversations (prompt cache).
  */
-export async function pinnedMemories(agentId: string, projectId: string | null, budgetTokens: number) {
-  const all = await allFit(agentId, projectId, budgetTokens);
+export async function pinnedMemories(reader: MemoryReader, budgetTokens: number) {
+  const all = await allFit(reader, budgetTokens);
   const rows = await db
     .select({ ...promptColumns, tokens: entryTokens })
     .from(memories)
-    .where(and(memoriesVisibleTo(agentId, projectId), all ? undefined : eq(memories.pinned, true)))
+    .where(and(memoriesVisibleTo(reader), all ? undefined : eq(memories.pinned, true)))
     .orderBy(desc(memories.updatedAt), memories.id);
   const { kept, omitted } = all ? { kept: rows, omitted: 0 } : fitBudget(rows, budgetTokens, (m) => m.tokens);
-  const ofScope = (scope: (typeof kept)[number]["scope"]) =>
-    kept.filter((m) => m.scope === scope).map(({ id, content, updatedAt }) => ({ id, content, updatedAt }));
-  return { all, omitted, project: ofScope("project"), agent: ofScope("agent"), global: ofScope("global") };
+  const ofLayer = (layer: MemoryLayer) =>
+    kept
+      .filter((m) => memoryLayer(m) === layer)
+      .map(({ id, content, origin, updatedAt }) => ({ id, content, origin, updatedAt }));
+  return {
+    all,
+    omitted,
+    global: ofLayer("global"),
+    craft: ofLayer("craft"),
+    team: ofLayer("team"),
+    notes: ofLayer("mine"),
+  };
 }
 
 /** Search results a recall picks from before its budget cut. */
@@ -55,16 +72,13 @@ const RECALL_CANDIDATES = 20;
  * The unpinned entries a run may read that match `query`, best first, cut to `budgetTokens`. Nothing for a
  * query without a topic word (a greeting, a thank-you): the nearest entries to "ok, thanks" are noise.
  */
-export async function recallMemories(
-  query: string,
-  opts: { agentId: string; projectId: string | null; budgetTokens: number },
-) {
+export async function recallMemories(query: string, opts: MemoryReader & { budgetTokens: number }) {
   if (opts.budgetTokens <= 0 || !orTsQuery(query)) return [];
-  // A message in a project may carry its data.
-  const vector = await embedText(query, await projectProviderPolicy(opts.projectId));
+  // A message in a project (or in the super agent's topic of one) may carry its data.
+  const vector = await embedText(query, await projectProviderPolicy(notesProject(opts)));
   const found = await hybridSearchMemories(query, {
     vector,
-    where: and(memoriesVisibleTo(opts.agentId, opts.projectId), eq(memories.pinned, false)),
+    where: and(memoriesVisibleTo(opts), eq(memories.pinned, false)),
     limit: RECALL_CANDIDATES,
   });
   return fitBudget(found, opts.budgetTokens, (m) => memoryTokens(m.content)).kept;
@@ -130,11 +144,9 @@ export function notePromptMemoryUse(ids: string[]): void {
  */
 export async function recallForRun(
   history: ConversationHistory,
-  run: {
+  run: MemoryReader & {
     id: string;
     input: string;
-    agentId: string;
-    projectId: string | null;
     settings: Pick<AppSettings, "memoryPinnedTokens" | "memoryRecallTokens">;
   },
 ): Promise<ConversationHistory> {
@@ -143,15 +155,9 @@ export async function recallForRun(
 
   const target = history.messages[index]!;
   const query = recallQuery(target.message, run.input);
-  const searches =
-    run.settings.memoryRecallTokens > 0 && !(await allFit(run.agentId, run.projectId, run.settings.memoryPinnedTokens));
-  const found = searches
-    ? await recallMemories(query, {
-        agentId: run.agentId,
-        projectId: run.projectId,
-        budgetTokens: run.settings.memoryRecallTokens,
-      })
-    : [];
+  const reader: MemoryReader = { agentId: run.agentId, projectId: run.projectId, notesProjectId: run.notesProjectId };
+  const searches = run.settings.memoryRecallTokens > 0 && !(await allFit(reader, run.settings.memoryPinnedTokens));
+  const found = searches ? await recallMemories(query, { ...reader, budgetTokens: run.settings.memoryRecallTokens }) : [];
   // Saved even when empty: a continuation must not search again and change a turn the model has seen,
   // also after recall was turned on or memory outgrew the instructions.
   const recall: MessageRecall = { memoryIds: found.map((m) => m.id), text: recallText(found) };
@@ -172,13 +178,14 @@ export async function recallForRun(
 
 /**
  * How much of the pinned budget the pinned entries take that every run of `owner` gets: the global ones,
- * plus the owner's (null: global only). For the memory pages; a project run also gets its agent's.
+ * plus the owner's: an agent's craft, a project's team memory (null: global only). For the memory pages;
+ * a project run also gets its agent's craft and notes on the project.
  */
 export async function pinnedUsage(owner: MemoryOwner | null, budgetTokens: number) {
   const ownerScope = !owner
     ? undefined
     : "agentId" in owner
-      ? and(eq(memories.scope, "agent"), eq(memories.agentId, owner.agentId))
+      ? and(eq(memories.scope, "agent"), eq(memories.agentId, owner.agentId), isNull(memories.projectId))
       : and(eq(memories.scope, "project"), eq(memories.projectId, owner.projectId));
   const rows = await db
     .select({ tokens: entryTokens })

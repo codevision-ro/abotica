@@ -40,7 +40,7 @@ import {
 } from "./mcp";
 import { resolveMcpRoutes } from "./mcp-routes";
 import { SandboxMcpTransport } from "./mcp-sandbox-transport";
-import { mcpToolDefault } from "./permissions";
+import { mcpToolDefault, mcpToolHint } from "./permissions";
 import { type SecretRedactor, secretRedactor } from "./redact";
 import {
   capToolText,
@@ -78,7 +78,23 @@ export type McpRunOptions = McpConnectOptions & {
   onUntrusted?: () => void;
   /** Redacted from what the servers send back, besides the secrets their connections resolve: the repository tokens. */
   knownSecrets?: readonly string[];
+  /** How long a tool call waits for its answer; MCP_CALL_TIMEOUT_MS when missing. */
+  callTimeoutMs?: number;
+  /** How long a server may take to start and answer the handshake; MCP_CONNECT_TIMEOUT_MS when missing. */
+  connectTimeoutMs?: number;
 };
+
+/**
+ * How long a tool call waits for the server's answer. `@ai-sdk/mcp` has no default, so a server
+ * that never answers would hold the run until its own time limit; past this the call fails instead.
+ */
+export const MCP_CALL_TIMEOUT_MS = 120_000;
+
+/**
+ * How long a server may take to start: long enough for `npx -y` or `uvx` to download it on a first
+ * start, short enough that a server stuck before its handshake does not hold the run.
+ */
+export const MCP_CONNECT_TIMEOUT_MS = 90_000;
 
 /** The only host variables an unsandboxed stdio server gets; the worker's secrets stay out. */
 function hostBaseEnv(): Record<string, string> {
@@ -189,6 +205,36 @@ async function connectMcp(server: McpServer, opts: McpRunOptions): Promise<McpCo
   // Rows serialized before the column existed (or drafts from the form) count as sandboxed.
   if (server.sandboxed === false) return { client: await connectHostStdio(server, env, opts), folder: null };
   return connectSandboxedStdio(server, env, opts);
+}
+
+/**
+ * connectMcp with a deadline. The signal the connection gets aborts only when the deadline passes
+ * before the handshake, so a server that started stays up for the rest of the run; on the deadline its
+ * process or request is stopped, and a connection that still completes late is closed.
+ */
+async function connectWithin(server: McpServer, opts: McpRunOptions): Promise<McpConnected> {
+  const timeoutMs = opts.connectTimeoutMs ?? MCP_CONNECT_TIMEOUT_MS;
+  const deadline = new AbortController();
+  const signal = opts.signal ? AbortSignal.any([opts.signal, deadline.signal]) : deadline.signal;
+  const connecting = connectMcp(server, { ...opts, signal });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      deadline.abort();
+      reject(new Error(`MCP ${server.slug} did not start within ${Math.round(timeoutMs / 1000)} s`));
+    }, timeoutMs);
+  });
+  connecting.then(
+    (late) => {
+      if (deadline.signal.aborted) void late.client.close().catch(() => {});
+    },
+    () => {},
+  );
+  try {
+    return await Promise.race([connecting, timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Tool names are prefixed with the server slug so two servers never collide. */
@@ -312,11 +358,24 @@ function redactError(error: unknown, redactor: SecretRedactor): unknown {
   return new Error(redactor.redact(error instanceof Error ? error.message : String(error)));
 }
 
+/**
+ * A server's connection for the run's calls: made on the first call (or given), and dropped by
+ * `reset` so the next call starts the server again.
+ */
+type ServerConnection = {
+  connect: () => Promise<McpConnected>;
+  reset: (connected: McpConnected) => void;
+};
+
+/** What the model reads when a call outlived the timeout, worded so it does not try the same call again. */
+const callTimeoutText = (tool: string, timeoutMs: number) =>
+  `${tool} did not answer within ${Math.round(timeoutMs / 1000)} s. Do not call it again with the same arguments; use another tool or approach.`;
+
 /** One server's tools, built from its definitions; the server is only connected on a call. */
 function serverTools(
   server: McpServer,
   definitions: McpToolInfo[],
-  connect: () => Promise<McpConnected>,
+  connection: ServerConnection,
   opts: McpRunOptions,
   redactor: SecretRedactor,
 ): Record<string, Tool> {
@@ -324,6 +383,7 @@ function serverTools(
   const toModelOutput = modelOutput(server.slug, opts.onUntrusted);
   // As a replay names it: from the runtime tool name, which is all a stored message keeps.
   const errorSource = `mcp:${prefix(server.slug)}` as const;
+  const timeoutMs = opts.callTimeoutMs ?? MCP_CALL_TIMEOUT_MS;
   for (const definition of definitions) {
     // As `@ai-sdk/mcp` builds it: no extra keys, and an object even when the server lists no properties.
     const schema = (definition.inputSchema ?? { type: "object" }) as JSONSchema7;
@@ -333,16 +393,24 @@ function serverTools(
       inputSchema: jsonSchema({ ...schema, properties: schema.properties ?? {}, additionalProperties: false }),
       execute: async (args, options) => {
         options?.abortSignal?.throwIfAborted();
-        const { client, folder } = await connect();
+        const connected = await connection.connect();
+        const { client, folder } = connected;
+        const timeout = AbortSignal.timeout(timeoutMs);
+        const signal = options?.abortSignal ? AbortSignal.any([options.abortSignal, timeout]) : timeout;
         const result = await client
-          .callTool({
-            name: definition.name,
-            arguments: args as Record<string, unknown>,
-            options: { signal: options?.abortSignal },
-          })
+          .callTool({ name: definition.name, arguments: args as Record<string, unknown>, options: { signal } })
           .catch((error: unknown): McpCallResult => {
             // A cancelled run still stops. Any other failure of the call fails it like an error result.
             if (options?.abortSignal?.aborted) throw error;
+            if (timeout.aborted) {
+              // A stdio server that leaves a call unanswered may be stuck as a whole (one whose writer
+              // died answers nothing more), and later calls would queue behind it: the next call
+              // starts a fresh process. Calls still waiting on this one fail with it. Over HTTP every
+              // request stands alone, so the connection stays.
+              if (server.transport === "stdio") connection.reset(connected);
+              const text = callTimeoutText(`${prefix(server.slug)}__${definition.name}`, timeoutMs);
+              return { isError: true, content: [{ type: "text", text }] };
+            }
             const message = error instanceof Error ? error.message : String(error);
             return { isError: true, content: [{ type: "text", text: message }] };
           });
@@ -372,11 +440,15 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
   const redactor = secretRedactor(runOpts.knownSecrets);
   const opts: McpRunOptions = { ...runOpts, onSecrets: redactor.add };
 
-  /** Connects once; a failed start is retried on the next call rather than remembered. */
-  const lazyClient = (server: McpServer) => {
-    let pending: Promise<McpConnected> | null = null;
-    return () => {
-      pending ??= connectMcp(server, opts).then(
+  /**
+   * Connects once (or starts from `initial`); a failed start is retried on the next call rather than
+   * remembered, and a reset connection is closed and made again on the next call.
+   */
+  const lazyClient = (server: McpServer, initial?: McpConnected): ServerConnection => {
+    let pending: Promise<McpConnected> | null = initial ? Promise.resolve(initial) : null;
+    let current: McpConnected | null = initial ?? null;
+    const connect = () => {
+      pending ??= connectWithin(server, opts).then(
         async (connected) => {
           const { client } = connected;
           // The run ended while the server was starting: nothing would close it later.
@@ -385,6 +457,7 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
             throw new Error("The run has ended");
           }
           clients.push(client);
+          current = connected;
           // The server may have changed since the cache was written; the next run uses the new list.
           const definitions = await listToolDefinitions(client).catch(() => null);
           if (definitions && !sameToolDefinitions(server.tools, definitions)) {
@@ -401,6 +474,16 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
       );
       return pending;
     };
+    const reset = (connected: McpConnected) => {
+      // Only the connection the call used: another call may already have started a new one.
+      if (current !== connected) return;
+      current = null;
+      pending = null;
+      const index = clients.indexOf(connected.client);
+      if (index >= 0) clients.splice(index, 1);
+      void connected.client.close().catch(() => {});
+    };
+    return { connect, reset };
   };
 
   const listings = await Promise.all(
@@ -414,12 +497,16 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
       }
       // No usable cache yet: connect now, list the tools and remember them for the next runs.
       try {
-        const connected = await connectMcp(server, opts);
+        const connected = await connectWithin(server, opts);
         clients.push(connected.client);
         const definitions = await listToolDefinitions(connected.client);
         // The cache only feeds the agent form and later runs; a failed write must never fail this one.
         if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
-        return { server, definitions, tools: serverTools(server, definitions, async () => connected, opts, redactor) };
+        return {
+          server,
+          definitions,
+          tools: serverTools(server, definitions, lazyClient(server, connected), opts, redactor),
+        };
       } catch (error) {
         errors.push({ server: server.slug, error: redactError(error, redactor) });
         return null;
@@ -440,6 +527,7 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
         serverSlug: listing.server.slug,
         tool: name,
         defaultPermission: mcpToolDefault(annotations, listing.server.builtin),
+        readOnly: mcpToolHint(annotations) === "readOnly",
       };
     }
   }

@@ -16,6 +16,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { AgentActions, AgentEnabledSwitch } from "@/components/agents/agent-actions";
+import { KindBadge } from "@/components/agents/agent-card";
 import { AgentForm } from "@/components/agents/agent-form";
 import { AgentProjectsTab } from "@/components/agents/agent-projects-tab";
 import { AgentJournalTab } from "@/components/agents/agent-journal-tab";
@@ -30,7 +31,7 @@ import { OwnedMemories } from "@/components/memory/owned-memories";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
-import { getAgent, getAgentFormOptions } from "@/server/queries/agents";
+import { getAgent, getAgentFormOptions, listAgentProjects } from "@/server/queries/agents";
 import { getPinnedUsage, listOwnerMemories } from "@/server/queries/memory";
 
 const TABS = ["config", "versions", "journal", "memory", "projects", "runs", "schedules"] as const;
@@ -59,10 +60,10 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
     getTranslations("agents"),
   ]);
   if (!data) notFound();
-  const { agent, skillIds, mcpServerIds, projectIds, isManager } = data;
+  const { agent, skillIds, mcpServerIds, projectIds } = data;
 
   // The super agent and templates never join a project, so they have no Projects tab.
-  const joinsProjects = !agent.isOrchestrator && !agent.isTemplate;
+  const joinsProjects = agent.kind !== "orchestrator" && !agent.isTemplate;
   const tabs = TABS.filter((id) => id !== "projects" || joinsProjects);
   const tab: TabId = tabs.some((id) => id === sp.tab) ? (sp.tab as TabId) : "config";
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
@@ -96,7 +97,7 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
             <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight" title={agent.name}>
               {agent.name}
             </h1>
-            {agent.isOrchestrator && <Badge>{t("card.orchestrator")}</Badge>}
+            <KindBadge kind={agent.kind} />
             {agent.isTemplate && <Badge variant="outline">{t("card.template")}</Badge>}
           </div>
           <p className="line-clamp-2 text-sm text-muted-foreground wrap-anywhere" title={agent.role || undefined}>
@@ -119,7 +120,7 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AgentEnabledSwitch id={agent.id} enabled={agent.enabled} locked={agent.isOrchestrator} withLabel />
+          <AgentEnabledSwitch id={agent.id} enabled={agent.enabled} locked={agent.kind === "orchestrator"} withLabel />
           {agent.isTemplate && (
             <Button variant="outline" asChild>
               <Link href={`/agents/new?template=${agent.slug}`}>
@@ -135,7 +136,7 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
           >
             {t("detail.chat")}
           </StartConversationButton>
-          <AgentActions id={agent.id} name={agent.name} isOrchestrator={agent.isOrchestrator} />
+          <AgentActions id={agent.id} name={agent.name} isOrchestrator={agent.kind === "orchestrator"} />
         </div>
       </div>
 
@@ -152,14 +153,13 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
         <AgentForm
           key={`${agent.id}-${agent.version}`}
           mode={{ kind: "edit", agentId: agent.id }}
-          isOrchestrator={agent.isOrchestrator}
           isTemplate={agent.isTemplate}
-          isManager={isManager}
           options={configOptions ?? (await getAgentFormOptions())}
           initial={{
             name: agent.name,
             role: agent.role,
             avatar: agent.avatar,
+            kind: agent.kind,
             systemPrompt: agent.systemPrompt,
             provider: agent.provider,
             model: agent.model,
@@ -187,9 +187,10 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
           owner={{ agentId: agent.id }}
           memories={await listOwnerMemories({ agentId: agent.id })}
           pinnedUsage={await getPinnedUsage({ agentId: agent.id })}
+          projects={(await listAgentProjects(agent.id)).map((p) => ({ id: p.id, name: p.name }))}
         />
       )}
-      {tab === "projects" && <AgentProjectsTab agentId={agent.id} />}
+      {tab === "projects" && <AgentProjectsTab agentId={agent.id} kind={agent.kind} />}
       {tab === "runs" && <AgentRunsTab agentId={agent.id} />}
       {tab === "schedules" && <AgentSchedulesTab agentId={agent.id} />}
     </PageBody>

@@ -15,6 +15,8 @@ const schema = z.object({
   HOST_GATEWAY: z.string().optional(),
   /** Task attachments folder, shared by the web app and the worker. See uploadsRoot(). */
   UPLOADS_DIR: z.string().optional(),
+  /** Where the worker keeps the built-in embedding model it downloads once (models/local-embeddings.ts). */
+  MODELS_DIR: z.string().optional(),
   /**
    * On shutdown (restart, update), how long the runs in progress get to finish on their own before
    * they are stopped and their partial answers saved. Keep it below the compose stop_grace_period.

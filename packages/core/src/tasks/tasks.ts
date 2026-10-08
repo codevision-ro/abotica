@@ -10,7 +10,7 @@ import {
   taskWakeups,
   type Tx,
 } from "@abotica/db";
-import { and, count, desc, eq, inArray, isNull, max, ne, sql } from "@abotica/db/orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { enqueueTaskEvent } from "../infra/queues";
@@ -159,6 +159,23 @@ export async function awaitsDelegatedWork(conversationId: string | null): Promis
     .where(and(eq(runs.conversationId, conversationId), isNull(tasks.reportedAt)))
     .limit(1);
   return Boolean(open);
+}
+
+/**
+ * Of these tasks, the ones whose result still comes back to the agent as a delegation report: delegated
+ * by one of its runs, in a conversation that still exists, and not reported yet. A wakeup on them would
+ * process the same result a second time, in a new conversation, next to the report's continuation.
+ */
+export async function awaitingReportTo(agentId: string, taskIds: string[]): Promise<string[]> {
+  if (!taskIds.length) return [];
+  const rows = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .innerJoin(runs, eq(runs.id, tasks.delegatedByRunId))
+    .where(
+      and(inArray(tasks.id, taskIds), isNull(tasks.reportedAt), eq(runs.agentId, agentId), isNotNull(runs.conversationId)),
+    );
+  return rows.map((r) => r.id);
 }
 
 /** Whether the task waits for a wakeup (task_wait): a run of it that ends stays in progress until one fires. */

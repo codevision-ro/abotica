@@ -1,9 +1,10 @@
-import type { ModelRef, ReasoningEffort } from "@abotica/db";
+import type { AgentKind, ModelRef, ReasoningEffort } from "@abotica/db";
 import type { AppSettings } from "../platform/settings";
 
 /**
- * Which default chain an agent without a model of its own runs on. The role is the agent's, not the
- * run's: a manager runs on the managers' default in every conversation, so its cost is predictable.
+ * Which default chain an agent without a model of its own runs on, from its kind: a manager runs on
+ * the managers' default in every conversation, so its cost is predictable. "agent" is a specialist,
+ * whose chain is also the fallback of the other roles.
  */
 export type ModelRole = "orchestrator" | "manager" | "agent";
 
@@ -14,10 +15,8 @@ export type RoleEffortSettings = Pick<
   "defaultReasoningEffort" | "orchestratorReasoningEffort" | "managerReasoningEffort"
 >;
 
-/** The super agent first, then an agent that manages at least one project, then everyone else. */
-export function modelRole(agent: { isOrchestrator: boolean }, managesProject: boolean): ModelRole {
-  if (agent.isOrchestrator) return "orchestrator";
-  return managesProject ? "manager" : "agent";
+export function modelRole(agent: { kind: AgentKind }): ModelRole {
+  return agent.kind === "specialist" ? "agent" : agent.kind;
 }
 
 /** The default chain of a role; an empty role chain follows the agents' default. */

@@ -51,8 +51,8 @@ function Identity({ name, role, avatar }: { name: string; role: string; avatar: 
 }
 
 /**
- * Grows the team in one dialog: pick agents that already exist (they bring the same profession to every
- * project) or hire a new one from a template. The primary button follows the tab.
+ * Grows the team in one dialog: pick specialists that already exist (they bring the same profession to
+ * every project) or hire a new one from a specialist template. The primary button follows the tab.
  */
 export function AddTeamMembersDialog({
   projectId,
@@ -61,7 +61,7 @@ export function AddTeamMembersDialog({
   primary,
 }: {
   projectId: string;
-  /** Agents that can join (enabled, not templates, not the super agent) and are not on the team yet. */
+  /** Specialists that can join (enabled, not templates) and are not on the team yet. */
   candidates: Candidate[];
   templates: Template[];
   /** The tab's main action; secondary while the project still needs a manager. */

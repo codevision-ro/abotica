@@ -20,6 +20,7 @@ import { UrlTabs } from "@/components/memory/url-tabs";
 import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import {
+  AGENT_GLOBAL_ONLY,
   getConversationPage,
   getMemoryCounts,
   getMemoryOptions,
@@ -49,7 +50,10 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
   const rawTab = one(sp.tab);
   const tab: Tab = (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "global";
   const q = one(sp.q)?.trim() || undefined;
-  const project = isUuid(one(sp.project)) ? one(sp.project) : undefined;
+  const rawProject = one(sp.project);
+  // On the agent level the project filter can also keep only the agents' global memory.
+  const project = isUuid(rawProject) || (tab === "agent" && rawProject === AGENT_GLOBAL_ONLY) ? rawProject : undefined;
+  const dialogProject = isUuid(project) ? project : undefined;
   const agent = isUuid(one(sp.agent)) ? one(sp.agent) : undefined;
   const origin = ORIGINS.find((o) => o === one(sp.origin));
   const pinned = one(sp.pinned) === "1" ? "1" : undefined;
@@ -86,7 +90,7 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
             agents={options.agents}
             projects={options.projects}
             defaultScope={defaultScope}
-            defaultProjectId={project}
+            defaultProjectId={dialogProject}
             defaultAgentId={agent}
             trigger={
               reviewing ? (
@@ -203,14 +207,27 @@ async function ScopeTab({
               icon="project"
             />
           ) : scope === "agent" ? (
-            <ParamSelect
-              param="agent"
-              params={params}
-              label={t("filters.byAgent")}
-              allLabel={t("filters.allAgents")}
-              options={options.agents}
-              icon="agent"
-            />
+            <>
+              <ParamSelect
+                param="agent"
+                params={params}
+                label={t("filters.byAgent")}
+                allLabel={t("filters.allAgents")}
+                options={options.agents}
+                icon="agent"
+              />
+              <ParamSelect
+                param="project"
+                params={params}
+                label={t("filters.byAgentLayer")}
+                allLabel={t("filters.allAgentLayers")}
+                options={[
+                  { id: AGENT_GLOBAL_ONLY, name: t("filters.agentGlobalOnly"), icon: "global" },
+                  ...options.projects,
+                ]}
+                icon="project"
+              />
+            </>
           ) : null}
           {originFilter}
           <ParamToggle param="pinned" params={params}>
@@ -235,7 +252,7 @@ async function ScopeTab({
                 agents={options.agents}
                 projects={options.projects}
                 defaultScope={scope}
-                defaultProjectId={project}
+                defaultProjectId={isUuid(project) ? project : undefined}
                 defaultAgentId={agent}
                 trigger={
                   <button type="button" className={inlineLink}>

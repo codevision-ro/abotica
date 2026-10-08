@@ -37,6 +37,7 @@ export const ORCHESTRATOR_ONLY_TOOLS = [
   "project_create",
   "project_update",
   "agent_list",
+  "template_list",
   "agent_create",
   "agent_update",
   "registry_list",

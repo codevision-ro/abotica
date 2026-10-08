@@ -1,6 +1,6 @@
 {
   "accessDenied": "Acces interzis. ID-ul tău Telegram: {id}",
-  "start": "Salut! Scrie-mi ce ai nevoie, sau trimite un mesaj vocal. În topicul unui proiect răspunde managerul proiectului.\n\n/status - ce se întâmplă acum\n/tasks - task-uri deschise\n/new - conversație nouă\n/stop - oprește toți agenții\n/resume - dezactivează kill switch-ul",
+  "start": "Salut! Scrie-mi ce ai nevoie, sau trimite un mesaj vocal. Topicul unui proiect primește și notificările proiectului.\n\n/status - ce se întâmplă acum\n/tasks - task-uri deschise\n/new - conversație nouă\n/stop - oprește toți agenții\n/resume - dezactivează kill switch-ul",
   "commands": {
     "status": "Ce se întâmplă acum",
     "tasks": "Task-uri deschise",
@@ -10,7 +10,6 @@
   },
   "newConversation": "Conversație nouă pornită.",
   "conversationTitle": "Telegram",
-  "noManager": "{project} nu are încă manager. Alege unul în tabul Echipă al proiectului, apoi scrie din nou aici.",
   "killSwitchOn": "🛑 Kill switch activ. {count, plural, one {# rulare oprită} few {# rulări oprite} other {# de rulări oprite}}. Agenții nu mai pornesc până la /resume.",
   "killSwitchOff": "✅ Kill switch dezactivat. Agenții pot rula din nou.",
   "status": {

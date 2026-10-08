@@ -9,6 +9,7 @@ import { isLocalProvider, isProviderId, isSubscriptionProviderId, type ProviderI
 import { type AppSettings, getSettings } from "../platform/settings";
 import { getSecret } from "../platform/vault";
 import { ollamaBase } from "./ollama";
+import { LOCAL_EMBEDDING_MODEL, localEmbeddingStatus } from "./local-embeddings";
 import { isSubscriptionConnected, subscriptionLanguageModel } from "./subscriptions/connections";
 
 /** The vault name of each provider's API key, set in Settings; null for a local server. */
@@ -81,6 +82,7 @@ export async function languageModel(provider: string, model: string): Promise<La
 export type EmbeddingProvider = AppSettings["embeddingProvider"];
 
 export const EMBEDDING_MODELS = {
+  local: LOCAL_EMBEDDING_MODEL.id,
   openai: "text-embedding-3-small",
   ollama: "nomic-embed-text",
 } as const satisfies Record<EmbeddingProvider, string>;
@@ -88,11 +90,13 @@ export const EMBEDDING_MODELS = {
 /** The provider that embeds memory, journals and knowledge, chosen in Settings. */
 export const embeddingProvider = async (): Promise<EmbeddingProvider> => (await getSettings()).embeddingProvider;
 
-/** The embedding model of `provider`, by default the one from Settings. */
+/** The providers embedding through the AI SDK; the built-in model has its own path (local-embeddings.ts). */
+export type RemoteEmbeddingProvider = Exclude<EmbeddingProvider, "local">;
+
+/** The embedding model of `provider`. */
 export async function embeddingModel(
-  provider?: EmbeddingProvider,
-): Promise<{ model: EmbeddingModel; provider: EmbeddingProvider }> {
-  provider ??= await embeddingProvider();
+  provider: RemoteEmbeddingProvider,
+): Promise<{ model: EmbeddingModel; provider: RemoteEmbeddingProvider }> {
   if (provider === "ollama") {
     return {
       provider,
@@ -105,12 +109,18 @@ export async function embeddingModel(
 }
 
 /**
- * Whether `provider` can embed now, else what it lacks: OpenAI needs its API key (a ChatGPT plan does not
- * cover embeddings), Ollama a running server with the embedding model pulled.
+ * Whether `provider` can embed now, else what it lacks: the built-in model needs the worker to have loaded
+ * it, OpenAI its API key (a ChatGPT plan does not cover embeddings), Ollama a running server with the
+ * embedding model pulled.
  */
-export type EmbeddingReadiness = "ready" | "no-openai-key" | "ollama-unreachable" | "ollama-model-missing";
+export type EmbeddingReadiness =
+  "ready" | "local-loading" | "local-failed" | "no-openai-key" | "ollama-unreachable" | "ollama-model-missing";
 
 export async function embeddingReadiness(provider: EmbeddingProvider): Promise<EmbeddingReadiness> {
+  if (provider === "local") {
+    const status = await localEmbeddingStatus();
+    return status?.state === "ready" ? "ready" : status?.state === "failed" ? "local-failed" : "local-loading";
+  }
   if (provider === "openai") return (await getSecret(PROVIDER_KEY_SECRET.openai!)) ? "ready" : "no-openai-key";
   try {
     const res = await fetch(new URL("/api/tags", await ollamaBase()), { signal: AbortSignal.timeout(3_000) });

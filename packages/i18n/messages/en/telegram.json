@@ -1,6 +1,6 @@
 {
   "accessDenied": "Access denied. Your Telegram ID: {id}",
-  "start": "Hi! Tell me what you need, or send a voice message. In a project's topic, the project's manager answers.\n\n/status - what is happening now\n/tasks - open tasks\n/new - new conversation\n/stop - stop all agents\n/resume - turn off the kill switch",
+  "start": "Hi! Tell me what you need, or send a voice message. A project's topic also gets that project's notifications.\n\n/status - what is happening now\n/tasks - open tasks\n/new - new conversation\n/stop - stop all agents\n/resume - turn off the kill switch",
   "commands": {
     "status": "What is happening now",
     "tasks": "Open tasks",
@@ -10,7 +10,6 @@
   },
   "newConversation": "New conversation started.",
   "conversationTitle": "Telegram",
-  "noManager": "{project} has no manager yet. Choose one in the project's Team tab, then write here again.",
   "killSwitchOn": "🛑 Kill switch active. {count, plural, one {# run stopped} other {# runs stopped}}. Agents will not start until /resume.",
   "killSwitchOff": "✅ Kill switch off. Agents can run again.",
   "status": {

@@ -95,7 +95,7 @@ Telegram is configured in the app, under **Settings > Telegram**; nothing goes i
 
 The page shows whether the worker's bot is connected. An install that had these values in `.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS`, `TELEGRAM_NOTIFY_CHAT_ID`) gets them copied into Settings the first time the worker starts after the update; the lines can then be removed.
 
-Commands: `/status`, `/tasks`, `/new` (new conversation), `/stop` (kill switch), `/resume` (turn the kill switch off). The bot accepts text, voice (transcribed through OpenAI), photos and files. Approvals arrive with Approve / Reject buttons. In a group with forum topics, each project's topic talks to that project's manager; everywhere else you talk to the super agent.
+Commands: `/status`, `/tasks`, `/new` (new conversation), `/stop` (kill switch), `/resume` (turn the kill switch off). The bot accepts text, voice (transcribed through OpenAI), photos and files. Approvals arrive with Approve / Reject buttons. Only the super agent talks on Telegram, in every chat and in forum topics too: in a project's topic it knows which project the topic belongs to and hands the work to that project's manager. Managers answer only in the project's conversations on the web.
 
 ### HTTPS
 
@@ -160,7 +160,7 @@ A separate domain for previews (for example `abotica-preview.com`) isolates them
 
 Listed in `COMPOSE_PROFILES` in `.env`, comma separated (for example `COMPOSE_PROFILES=https,ollama`), then `docker compose up -d`.
 
-**Ollama** (local embeddings instead of OpenAI). Pull the embedding model once:
+**Ollama** (embeddings from an Ollama server instead of the built-in model or OpenAI). Pull the embedding model once:
 
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text

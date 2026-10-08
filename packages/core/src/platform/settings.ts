@@ -23,6 +23,8 @@ export type AppSettings = {
   parallelDelegations: number;
   /** Days of journal an agent reads at the start of a run. */
   journalDays: number;
+  /** What the user tells every agent, in every system prompt (see buildInstructions); empty: nothing. */
+  agentInstructions: string;
   /** Memory written by agents needs approval before it becomes active. */
   memoryRequiresApproval: boolean;
   /**
@@ -44,8 +46,11 @@ export type AppSettings = {
   ollamaEnabled: boolean;
   /** Where the Ollama server listens, as the user's machine sees it (see reachableUrl for containers). */
   ollamaBaseUrl: string;
-  /** What embeds memory, journals and knowledge; changing it embeds everything again (see embeddings). */
-  embeddingProvider: "openai" | "ollama";
+  /**
+   * What embeds memory, journals and knowledge; changing it embeds everything again (see embeddings).
+   * "local" is the built-in model the worker runs (models/local-embeddings.ts), the default: no key needed.
+   */
+  embeddingProvider: "local" | "openai" | "ollama";
   /** Agent runs one worker executes at the same time. */
   runConcurrency: number;
   /** Telegram users allowed to talk to the bot; the bot token itself is in the vault (TELEGRAM_BOT_TOKEN). */
@@ -68,6 +73,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   managerReasoningEffort: null,
   parallelDelegations: 2,
   journalDays: 5,
+  agentInstructions: "",
   memoryRequiresApproval: false,
   memoryPinnedTokens: 2000,
   memoryRecallTokens: 1000,
@@ -76,7 +82,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   monthlyBudgetUsd: null,
   ollamaEnabled: false,
   ollamaBaseUrl: "http://localhost:11434",
-  embeddingProvider: "openai",
+  embeddingProvider: "local",
   runConcurrency: 4,
   telegramAllowedUserIds: [],
   telegramNotifyChatId: null,

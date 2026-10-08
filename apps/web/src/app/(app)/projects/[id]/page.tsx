@@ -39,6 +39,7 @@ import {
   getProjectTeam,
   listHireTemplates,
   listKnowledgeItems,
+  listLeadableAgents,
   listProjectRepos,
   listProjectSecrets,
   listProjectTasks,
@@ -174,10 +175,13 @@ async function OverviewTab({ project }: { project: ProjectDetail }) {
 }
 
 async function TeamTab({ project }: { project: ProjectDetail }) {
-  const [team, candidates, templates] = await Promise.all([
+  const [team, candidates, templates, managers] = await Promise.all([
     getProjectTeam(project),
     listTeamCandidates(project.id),
     listHireTemplates(),
+    listLeadableAgents(),
   ]);
-  return <ProjectTeamTab projectId={project.id} team={team} candidates={candidates} templates={templates} />;
+  return (
+    <ProjectTeamTab projectId={project.id} team={team} candidates={candidates} templates={templates} managers={managers} />
+  );
 }

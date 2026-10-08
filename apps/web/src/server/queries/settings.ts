@@ -94,16 +94,12 @@ export type VaultSecretRow = Awaited<ReturnType<typeof listVaultSecrets>>[number
 
 /** Agents without a model of their own, by the role whose default they follow (see modelRole). */
 export const getInheritingAgentCount = query(async (): Promise<Record<ModelRole, number>> => {
-  const [rows, led] = await Promise.all([
-    db
-      .select({ id: agents.id, isOrchestrator: agents.isOrchestrator })
-      .from(agents)
-      .where(and(isNull(agents.provider), eq(agents.isTemplate, false))),
-    db.selectDistinct({ id: projects.managerAgentId }).from(projects).where(isNotNull(projects.managerAgentId)),
-  ]);
-  const managers = new Set(led.map((l) => l.id));
+  const rows = await db
+    .select({ kind: agents.kind })
+    .from(agents)
+    .where(and(isNull(agents.provider), eq(agents.isTemplate, false)));
   const counts: Record<ModelRole, number> = { orchestrator: 0, manager: 0, agent: 0 };
-  for (const row of rows) counts[modelRole(row, managers.has(row.id))]++;
+  for (const row of rows) counts[modelRole(row)]++;
   return counts;
 });
 

@@ -1,18 +1,24 @@
 "use client";
 
+import { kindPrompt } from "@abotica/core/agents/kind-prompts";
 import type { ToolPermissions } from "@abotica/core/agents/permissions";
 import { modelRole, roleDefaultEffort, roleDefaultModels } from "@abotica/core/models/model-role";
 import type { ReasoningEffort } from "@abotica/core/models/reasoning";
+import type { AgentKind } from "@abotica/db";
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import {
   BlocksIcon,
   CpuIcon,
+  CrownIcon,
+  NetworkIcon,
   PencilIcon,
+  PencilLineIcon,
   SaveIcon,
   ScrollTextIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
   TriangleAlertIcon,
+  UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,7 +30,7 @@ import { FormPage } from "@/components/app/form-page";
 import { FormSection, FormSectionCollapsible, FormSubsection } from "@/components/app/form-section";
 import { heroFieldVariants } from "@/components/app/hero-fields";
 import { OptionCards } from "@/components/app/option-cards";
-import { SelectableChip } from "@/components/app/selectable-chip";
+import { chipVariants, SelectableChip } from "@/components/app/selectable-chip";
 import { SummaryItem, SummaryList, type SummaryStatus } from "@/components/app/summary-rail";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -47,6 +53,9 @@ export type AgentFormInitial = {
   name: string;
   role: string;
   avatar: AgentAvatarValue;
+  /** Its place in the hierarchy; the form keeps it, the server enforces which changes are allowed. */
+  kind: AgentKind;
+  /** A specialist's profession, or additional instructions for a manager or the super agent. */
   systemPrompt: string;
   /** Null provider and model: the agent follows the default models from settings. */
   provider: string | null;
@@ -65,6 +74,8 @@ type Mode = { kind: "create"; templateSlug?: string } | { kind: "edit"; agentId:
 /** Section ids: scroll targets of the summary rail. */
 const SECTIONS = {
   identity: "agent-identity",
+  kind: "agent-kind",
+  role: "agent-role-in-team",
   instructions: "agent-instructions",
   model: "agent-model",
   tools: "agent-tools",
@@ -82,18 +93,13 @@ export function AgentForm({
   mode,
   initial,
   options,
-  isOrchestrator = false,
   isTemplate = false,
-  isManager = false,
 }: {
   mode: Mode;
   initial: AgentFormInitial;
   options: AgentFormOptions;
-  isOrchestrator?: boolean;
   /** Templates are blueprints: like the super agent, they never join a project. */
   isTemplate?: boolean;
-  /** Manages at least one project, so it has the manager tools. */
-  isManager?: boolean;
 }) {
   const t = useTranslations("agents.form");
   const te = useTranslations("agents.effort");
@@ -106,6 +112,7 @@ export function AgentForm({
   const [budget, setBudget] = useState(initial.limits.budgetUsd == null ? "" : String(initial.limits.budgetUsd));
   const [note, setNote] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
   const snapshot = (n = note) => [{ ...v, permissions: sortedKeys(v.permissions) }, maxSteps, timeoutMin, budget, n];
   const { dirty, markSaved } = useDirtySnapshot(snapshot());
   // Remembers the explicit model chain while "use default" is on, so switching back restores it.
@@ -114,7 +121,7 @@ export function AgentForm({
   );
   const usesDefault = !v.provider;
   // "Default" means the default of the agent's role: the super agent's, the managers' or the agents'.
-  const role = modelRole({ isOrchestrator }, isManager);
+  const role = modelRole(v);
   const defaultChain = roleDefaultModels(options, role);
   const setUsesDefault = (on: boolean) => {
     if (on && v.provider) explicitModel.current = { provider: v.provider, model: v.model, fallbacks: v.fallbacks };
@@ -165,7 +172,7 @@ export function AgentForm({
     : v.model
       ? `${v.provider}/${v.model}`
       : t("noModel");
-  const subject = { isOrchestrator, isManager };
+  const subject = { kind: v.kind };
   const toolValues = effectivePermissions(v.permissions, {
     subject,
     servers: options.mcpServers,
@@ -191,6 +198,8 @@ export function AgentForm({
 
     const payload = {
       ...v,
+      // Only a specialist's teams are edited here: a manager's projects are those it leads, set in their Team tab.
+      projectIds: v.kind === "specialist" ? v.projectIds : initial.projectIds,
       limits: { maxSteps: steps, timeoutMs: Math.round(minutes * 60_000), budgetUsd },
     };
 
@@ -213,7 +222,17 @@ export function AgentForm({
   }
 
   const editing = mode.kind === "edit";
-  const joinsProjects = !isOrchestrator && !isTemplate;
+  // A specialist's prompt is its profession; a manager's or the super agent's is optional extra instructions.
+  const profession = v.kind === "specialist";
+  const promptTitle = profession ? t("instructionsTitle") : t("additionalTitle");
+  const promptDone = Boolean(v.systemPrompt.trim());
+  // The super agent's kind never changes; a template's is part of the blueprint.
+  const choosesKind = v.kind !== "orchestrator";
+  // A manager's projects are the ones it leads, shown here and changed in each project's Team tab.
+  const leads = v.kind === "manager" && !isTemplate;
+  const ledProjects = editing ? options.projects.filter((p) => p.managerAgentId === mode.agentId) : [];
+  // Only specialists join teams here: a manager joins the projects it leads, from their Team tab.
+  const joinsProjects = v.kind === "specialist" && !isTemplate;
   // A project the agent manages keeps it: the manager changes in the project's Team tab first.
   const managedHint = t("managesProject");
   const projectItems = options.projects.map((p) => {
@@ -261,14 +280,26 @@ export function AgentForm({
           >
             {v.name.trim() ? null : t("nameMissing")}
           </SummaryItem>
-          <SummaryItem
-            target={SECTIONS.instructions}
-            status={status(Boolean(v.systemPrompt.trim()))}
-            statusLabel={statusLabel(Boolean(v.systemPrompt.trim()))}
-            label={t("instructionsTitle")}
-          >
-            {v.systemPrompt.trim() ? t("characters", { count: v.systemPrompt.length }) : t("promptMissing")}
-          </SummaryItem>
+          {choosesKind && (
+            <SummaryItem target={SECTIONS.kind} status="info" label={t("kindTitle")}>
+              {t(`kinds.${v.kind}.title`)}
+            </SummaryItem>
+          )}
+          {/* Additional instructions are optional: left empty, nothing is missing. */}
+          {profession ? (
+            <SummaryItem
+              target={SECTIONS.instructions}
+              status={status(promptDone)}
+              statusLabel={statusLabel(promptDone)}
+              label={promptTitle}
+            >
+              {promptDone ? t("characters", { count: v.systemPrompt.length }) : t("promptMissing")}
+            </SummaryItem>
+          ) : (
+            <SummaryItem target={SECTIONS.instructions} status="info" label={promptTitle}>
+              {promptDone ? t("characters", { count: v.systemPrompt.length }) : t("additionalNone")}
+            </SummaryItem>
+          )}
           <SummaryItem
             target={SECTIONS.model}
             status={status(modelDone)}
@@ -288,6 +319,11 @@ export function AgentForm({
           {joinsProjects && (
             <SummaryItem target={SECTIONS.skills} status="info" label={t("projects")}>
               {t("selectedCount", { count: v.projectIds.length })}
+            </SummaryItem>
+          )}
+          {leads && (
+            <SummaryItem target={SECTIONS.skills} status="info" label={t("ledProjects")}>
+              {t("ledCount", { count: ledProjects.length })}
             </SummaryItem>
           )}
           <SummaryItem
@@ -366,24 +402,68 @@ export function AgentForm({
         </div>
       </section>
 
+      {choosesKind && (
+        <FormSection
+          id={SECTIONS.kind}
+          icon={NetworkIcon}
+          title={t("kindTitle")}
+          description={isTemplate ? t("kindTemplateDescription") : t("kindDescription")}
+        >
+          <OptionCards
+            name="agent-kind"
+            label={t("kindTitle")}
+            value={v.kind === "manager" ? "manager" : "specialist"}
+            onValueChange={(kind) => set("kind", kind)}
+            disabled={isTemplate}
+            options={[
+              {
+                value: "specialist",
+                icon: UsersIcon,
+                title: t("kinds.specialist.title"),
+                description: t("kinds.specialist.description"),
+              },
+              {
+                value: "manager",
+                icon: CrownIcon,
+                title: t("kinds.manager.title"),
+                description: t("kinds.manager.description"),
+              },
+            ]}
+          />
+        </FormSection>
+      )}
+
+      <FormSectionCollapsible
+        id={SECTIONS.role}
+        icon={ScrollTextIcon}
+        title={t("roleTitle")}
+        summary={t("roleSummary", { kind: v.kind })}
+        open={roleOpen}
+        onOpenChange={setRoleOpen}
+      >
+        <p className="max-h-[50vh] overflow-y-auto rounded-xl border bg-muted/30 px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+          {kindPrompt(v.kind)}
+        </p>
+      </FormSectionCollapsible>
+
       <FormSection
         id={SECTIONS.instructions}
-        icon={ScrollTextIcon}
-        title={t("instructionsTitle")}
-        description={t("instructionsDescription")}
+        icon={PencilLineIcon}
+        title={promptTitle}
+        description={profession ? t("instructionsDescription") : t("additionalDescription")}
       >
         <div className="overflow-hidden rounded-xl border bg-card shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/20">
           <Textarea
             id="agent-prompt"
-            aria-label={t("systemPrompt")}
+            aria-label={profession ? t("systemPrompt") : t("additionalPrompt")}
             value={v.systemPrompt}
             onChange={(e) => set("systemPrompt", e.target.value)}
-            placeholder={t("promptPlaceholder")}
+            placeholder={profession ? t("promptPlaceholder") : undefined}
             spellCheck={false}
             className="max-h-[60vh] min-h-44 resize-none rounded-none border-0 bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed shadow-none focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
           />
           <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-4 py-1.5 text-xs text-muted-foreground">
-            <span>{t("systemPrompt")}</span>
+            <span>{profession ? t("systemPrompt") : t("additionalPrompt")}</span>
             <span className="tabular">{t("characters", { count: v.systemPrompt.length })}</span>
           </div>
         </div>
@@ -481,8 +561,10 @@ export function AgentForm({
       <FormSection
         id={SECTIONS.skills}
         icon={BlocksIcon}
-        title={joinsProjects ? t("skillsProjectsTitle") : t("skills")}
-        description={joinsProjects ? t("skillsProjectsDescription") : t("skillsDescription")}
+        title={joinsProjects || leads ? t("skillsProjectsTitle") : t("skills")}
+        description={
+          joinsProjects ? t("skillsProjectsDescription") : leads ? t("skillsLedDescription") : t("skillsDescription")
+        }
       >
         <ChipPicker
           title={t("skills")}
@@ -501,6 +583,31 @@ export function AgentForm({
             onChange={(ids) => set("projectIds", ids)}
             empty={t.rich("noProjects", { link: link("/projects") })}
           />
+        )}
+        {leads && (
+          <FormSubsection
+            title={t("ledProjects")}
+            count={ledProjects.length}
+            description={ledProjects.length ? t("ledProjectsDescription") : undefined}
+          >
+            {ledProjects.length ? (
+              <div className="flex flex-wrap gap-2">
+                {ledProjects.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/projects/${p.id}?tab=team`}
+                    title={p.name}
+                    className={chipVariants({ selected: true, className: "max-w-64 hover:border-primary/60" })}
+                  >
+                    <CrownIcon className="text-primary" aria-hidden />
+                    <span className="min-w-0 truncate">{p.name}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t.rich("ledNone", { link: link("/projects") })}</p>
+            )}
+          </FormSubsection>
         )}
       </FormSection>
 

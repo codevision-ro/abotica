@@ -5,6 +5,7 @@ import { Worker } from "bullmq";
 import { InlineKeyboard } from "grammy";
 import { botTranslator, getBot, notifyChatId } from "../telegram/bot";
 import { sendTelegramNotice } from "../telegram/delivery";
+import { runFinishedNotice } from "../telegram/routing";
 import { sendMarkdown, type Target } from "../telegram/send";
 
 /** Project notifications go to the project's forum topic when one is configured. */
@@ -96,22 +97,30 @@ async function handle(job: NotificationJob) {
     return;
   }
 
+  // Only the super agent's own runs notify: the others report up the hierarchy (see runFinishedNotice).
   if (job.kind === "run-finished") {
     const [row] = await db
-      .select({ run: runs, agent: agents.name, task: tasks.title, delegatedByRunId: tasks.delegatedByRunId })
+      .select({
+        run: runs,
+        agent: agents.name,
+        kind: agents.kind,
+        task: tasks.title,
+        delegatedByRunId: tasks.delegatedByRunId,
+      })
       .from(runs)
       .leftJoin(agents, eq(agents.id, runs.agentId))
       .leftJoin(tasks, eq(tasks.id, runs.taskId))
       .where(eq(runs.id, job.runId));
-    if (!row || row.run.trigger === "system") return;
+    const notice = row && runFinishedNotice(row.run, row.kind);
+    if (!row || !notice) return;
     if (row.delegatedByRunId && (await delegatedFromTelegram(row.delegatedByRunId))) return;
     const target = await targetFor(row.run.projectId);
     if (!target) return;
     const subject = row.task ? "task" : row.run.trigger === "schedule" ? "schedule" : "run";
     const values = { agent: row.agent ?? t("runs.agentChip.deleted"), task: row.task ?? "" };
-    if (row.run.status === "failed") {
+    if (notice === "failed") {
       await sendMarkdown(bot, target, `${t(`notifications.runFailed.${subject}`, values)}\n${row.run.error ?? ""}`);
-    } else if (row.run.status === "succeeded" && (row.run.trigger === "chat" || row.run.trigger === "telegram") === false) {
+    } else {
       await sendMarkdown(
         bot,
         target,

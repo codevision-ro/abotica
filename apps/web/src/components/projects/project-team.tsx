@@ -5,30 +5,34 @@ import { AgentAvatar } from "@/components/app/agent-avatar";
 import { SectionCard, SectionEmpty } from "@/components/app/section-card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { HireTemplate, JoinableAgent, ProjectTeam, TeamMember } from "@/server/queries/projects";
+import type { HireTemplate, JoinableAgent, LeadableAgent, ProjectTeam, TeamMember } from "@/server/queries/projects";
 import { AddTeamMembersDialog } from "./project-team-add-dialog";
 import { ChangeManagerMenu, NoManagerActions, SpecialistMenu } from "./project-team-actions";
 import { MemberActivityStats } from "./team-parts";
 
 /**
  * The project's team: the manager on top (it answers in the project's conversations and splits the work),
- * then the specialists, each with what it did and learned here.
+ * then the specialists, each with what it did and learned here. The manager is chosen from the managers
+ * (`managers`), never from the specialists on the team.
  */
 export async function ProjectTeamTab({
   projectId,
   team,
   candidates,
   templates,
+  managers,
 }: {
   projectId: string;
   team: ProjectTeam;
+  /** Specialists that can join and are not on the team yet. */
   candidates: JoinableAgent[];
   templates: HireTemplate[];
+  /** Managers that can lead the project (enabled ones, see canLeadProject). */
+  managers: LeadableAgent[];
 }) {
   const t = await getTranslations("team");
   const { manager, specialists } = team;
-  // Core lets only enabled agents lead a project.
-  const canLead = specialists.filter((m) => m.enabled);
+  const otherManagers = managers.filter((m) => m.id !== manager?.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,7 +40,7 @@ export async function ProjectTeamTab({
         icon={CrownIcon}
         title={t("managerTitle")}
         description={t("managerDescription")}
-        action={manager && <ChangeManagerMenu projectId={projectId} specialists={canLead} />}
+        action={manager && <ChangeManagerMenu projectId={projectId} managers={otherManagers} />}
       >
         {manager ? (
           <MemberIdentity member={manager} size="xl" />
@@ -49,7 +53,7 @@ export async function ProjectTeamTab({
               <p className="font-medium">{t("noManagerTitle")}</p>
               <p className="text-sm text-pretty text-muted-foreground">{t("noManagerDescription")}</p>
             </div>
-            <NoManagerActions projectId={projectId} members={canLead} />
+            <NoManagerActions projectId={projectId} managers={otherManagers} />
           </div>
         )}
       </SectionCard>

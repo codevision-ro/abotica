@@ -31,7 +31,7 @@ function agentsFor(project: ChatProject | undefined, agents: ChatAgent[]) {
 
 /** The default partner: the project's manager, or the super agent outside a project; else the first one. */
 function defaultAgentId(project: ChatProject | undefined, options: ChatAgent[]) {
-  const preferred = project ? project.managerAgentId : options.find((a) => a.isOrchestrator)?.id;
+  const preferred = project ? project.managerAgentId : options.find((a) => a.kind === "orchestrator")?.id;
   return options.find((a) => a.id === preferred)?.id ?? options[0]?.id ?? "";
 }
 
@@ -143,7 +143,7 @@ export function NewConversationDialog({
                           {a.name}
                         </span>
                         {a.id === project?.managerAgentId && <ManagerBadge className="shrink-0" />}
-                        {a.isOrchestrator && (
+                        {a.kind === "orchestrator" && (
                           <Badge variant="secondary" className="shrink-0">
                             {t("superAgent")}
                           </Badge>

@@ -59,22 +59,22 @@ type Update = (fn: (prev: ToolPermissions) => ToolPermissions) => void;
 const GROUPS: ToolInfo["group"][] = ["memory", "tasks", "web", "workspace", "orchestration"];
 
 /** Built-in tools the agent has: the super agent's own are out of reach, except the manager tools for a manager. */
-const toolsFor = ({ isOrchestrator, isManager }: PermissionSubject) =>
-  TOOL_CATALOG.filter((tool) => isOrchestrator || !tool.orchestratorOnly || (tool.managers && isManager));
+const toolsFor = ({ kind }: PermissionSubject) =>
+  TOOL_CATALOG.filter((tool) => kind === "orchestrator" || !tool.orchestratorOnly || (tool.managers && kind === "manager"));
 
-/** A manager tool of an agent other than the super agent: without an entry it gets its default, so "deny" is stored. */
-const isManagerTool = (tool: ToolInfo, isOrchestrator: boolean) => Boolean(tool.managers) && !isOrchestrator;
+/** A manager's manager tool: without an entry it gets its default, so "deny" is stored. */
+const isManagerTool = (tool: ToolInfo, kind: PermissionSubject["kind"]) => Boolean(tool.managers) && kind === "manager";
 
 /** Built-in denials are stored as absence, like the server sanitizes them; a manager tool keeps "deny". */
 function withBuiltin(
   perms: ToolPermissions,
   tool: ToolInfo,
   permission: ToolPermission,
-  isOrchestrator: boolean,
+  kind: PermissionSubject["kind"],
 ): ToolPermissions {
   const next = { ...perms };
   const value = clampPermission(tool, permission);
-  if (value === "deny" && !isManagerTool(tool, isOrchestrator)) delete next[tool.name];
+  if (value === "deny" && !isManagerTool(tool, kind)) delete next[tool.name];
   else next[tool.name] = value;
   return next;
 }
@@ -134,10 +134,10 @@ export function PermissionsEditor({
   mcpServerIds: string[];
   setMcpServerIds: (ids: string[]) => void;
   servers: McpServer[];
-  /** The super agent, a project manager (it gets the manager tools) or another agent. */
+  /** The super agent, a manager (it gets the manager tools) or a specialist. */
   subject: PermissionSubject;
 }) {
-  const { isOrchestrator } = subject;
+  const { kind } = subject;
   const t = useTranslations("agents.permissions");
   const tt = useTranslations("tools");
   // Local copy so freshly loaded tool lists show up without a page refresh.
@@ -152,7 +152,7 @@ export function PermissionsEditor({
   function setAll(permission: ToolPermission) {
     setPermissions((prev) => {
       let next = prev;
-      for (const tool of tools) next = withBuiltin(next, tool, permission, isOrchestrator);
+      for (const tool of tools) next = withBuiltin(next, tool, permission, kind);
       for (const server of offered) next = withServer(next, server.slug, permission);
       return next;
     });
@@ -194,10 +194,10 @@ export function PermissionsEditor({
             const list = tools.filter((tool) => tool.group === g);
             if (!list.length) return null;
             const group = tt(`groups.${g}`);
-            // For a manager this group holds only the tools it gets while it manages a project.
+            // For a manager this group holds only the manager tools.
             const name =
               g === "orchestration"
-                ? isOrchestrator
+                ? kind === "orchestrator"
                   ? t("orchestratorGroup", { group })
                   : t("managerGroup", { group })
                 : group;
@@ -212,7 +212,7 @@ export function PermissionsEditor({
                   <PermissionControl
                     value={common(values)}
                     onChange={(p) =>
-                      setPermissions((prev) => list.reduce((acc, tool) => withBuiltin(acc, tool, p, isOrchestrator), prev))
+                      setPermissions((prev) => list.reduce((acc, tool) => withBuiltin(acc, tool, p, kind), prev))
                     }
                     label={t("groupControlFor", { group: name })}
                   />
@@ -230,7 +230,7 @@ export function PermissionsEditor({
                     >
                       <PermissionControl
                         value={builtinPermission(permissions, tool.name, subject)}
-                        onChange={(p) => setPermissions((prev) => withBuiltin(prev, tool, p, isOrchestrator))}
+                        onChange={(p) => setPermissions((prev) => withBuiltin(prev, tool, p, kind))}
                         label={t("controlFor", { name: label })}
                         disabled={tool.alwaysAsk ? ["allow"] : undefined}
                       />

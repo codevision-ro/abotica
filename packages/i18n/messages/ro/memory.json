@@ -57,7 +57,10 @@
     "allOrigins": "Toate originile",
     "history": "Arată istoricul",
     "neverUsed": "Nefolosite",
-    "neverUsedHint": "Intrări pe care nicio rulare nu le-a folosit în cele {days} zile de când au fost scrise. Nimic nu se șterge singur."
+    "neverUsedHint": "Intrări pe care nicio rulare nu le-a folosit în cele {days} zile de când au fost scrise. Nimic nu se șterge singur.",
+    "byAgentLayer": "Filtrează după unde se aplică",
+    "allAgentLayers": "Globală și pe proiecte",
+    "agentGlobalOnly": "Doar globală"
   },
   "empty": "Nicio memorie aici încă. <add>Adaugă un fapt</add> sau lasă agenții să scrie memorie pe măsură ce lucrează.",
   "list": {
@@ -100,7 +103,7 @@
     "pinnedOmitted": "{count, plural, one {# intrare fixată nu încape și este lăsată deoparte.} few {# intrări fixate nu încap și sunt lăsate deoparte.} other {# de intrări fixate nu încap și sunt lăsate deoparte.}}"
   },
   "pending": {
-    "empty": "Nimic de aprobat. Memoriile scrise de agenți așteaptă aici când <settings>aprobarea este obligatorie</settings> și mereu când provin din date externe sau par suspecte.",
+    "empty": "Nimic de aprobat. Memoriile scrise de agenți așteaptă aici când <settings>aprobarea este obligatorie</settings> și mereu când par suspecte.",
     "selectAll": "Selectează tot",
     "selected": "{count} selectate",
     "reject": "Respinge",
@@ -127,15 +130,25 @@
     "pendingNotice": "{count, plural, one {<b>#</b> memorie așteaptă} few {<b>#</b> memorii așteaptă} other {<b>#</b> de memorii așteaptă}} aprobarea ta înainte să fie folosite de agenți.",
     "agent": {
       "title": "Memoria agentului",
-      "description": "Fapte durabile pe care agentul le ține minte între rulări.",
+      "description": "Ce păstrează agentul între rulări: memoria globală se aplică în orice proiect, notițele pe un proiect doar în rulările din acel proiect.",
       "placeholder": "Un fapt durabil pe care agentul trebuie să-l știe...",
-      "empty": "Nicio memorie a agentului încă."
+      "empty": "Nicio intrare globală încă.",
+      "ownTitle": "Globală",
+      "ownDescription": "Se aplică în orice proiect și în afara proiectelor.",
+      "notesTitle": "Pe proiecte",
+      "notesDescription": "Ce a notat agentul lucrând la un proiect; le citește doar în rulările din acel proiect.",
+      "target": "Unde se aplică",
+      "targetGlobal": "Toate proiectele (globală)"
     },
     "project": {
       "title": "Memoria proiectului",
-      "description": "Fapte, preferințe și decizii pe care agenții le primesc automat când lucrează la proiect. Au prioritate față de memoriile globale.",
+      "description": "Ce primesc agenții când lucrează la proiect: memoria echipei și notițele fiecărui agent. Poți edita, fixa și șterge orice intrare.",
       "placeholder": "Un fapt pe care agenții trebuie să-l știe în acest proiect, ex: Clientul preferă tonul formal.",
-      "empty": "Nicio memorie de proiect încă."
+      "empty": "Nicio memorie a echipei încă.",
+      "ownTitle": "Memoria echipei",
+      "ownDescription": "Comună întregii echipe: fapte, decizii și excepții ale proiectului stabilite cu tine.",
+      "notesTitle": "Notițele agenților",
+      "notesDescription": "Ce a notat fiecare agent pentru sine în acest proiect; doar el le citește."
     }
   },
   "dialog": {
@@ -146,13 +159,19 @@
     "scopeHelp": {
       "global": "Citită de toți agenții, în orice proiect.",
       "project": "Citită de agenții care lucrează în proiectul ales.",
-      "agent": "Citită doar de agentul ales, în orice proiect."
+      "agent": "Citită doar de agentul ales: în orice proiect sau doar în cel pe care îl alegi."
     },
     "project": "Proiect",
     "chooseProject": "Alege proiectul",
     "noProjects": "Nu există proiecte",
     "agent": "Agent",
     "chooseAgent": "Alege agentul",
+    "agentProject": "Se aplică în",
+    "allProjects": "Toate proiectele",
+    "agentProjectHelp": {
+      "all": "Memoria globală a agentului: o citește în orice proiect și în afara proiectelor.",
+      "one": "Notița agentului pe acest proiect: o citește doar când lucrează aici."
+    },
     "content": "Conținut",
     "contentPlaceholder": "Ex: Clientul preferă rapoarte scurte, cu cifrele importante la început.",
     "created": "Memorie salvată"
@@ -160,22 +179,33 @@
   "priority": {
     "title": "Cum se aplică memoria",
     "order": "Prioritate la conflict, de la cea mai mare",
-    "description": "La conflict câștigă nivelul mai specific. La același nivel, informația mai recentă bate informația mai veche.",
+    "description": "Memoria echipei conține deciziile și excepțiile proiectului stabilite cu tine. Memoria globală conține regulile tale, care bat orice a notat un agent pentru sine. Notițele unui agent pe un proiect bat experiența lui generală. La același nivel, informația mai nouă bate informația mai veche.",
+    "precedence": {
+      "team": "Echipă",
+      "global": "Globală",
+      "agentProject": "Notițele agentului",
+      "agentGlobal": "Experiența agentului"
+    },
     "levels": {
       "global": {
         "name": "Globală",
-        "what": "Fapte valabile peste tot",
+        "what": "Regulile și preferințele tale, peste tot",
         "who": "Toți agenții"
       },
       "project": {
-        "name": "Proiect",
-        "what": "Context și decizii ale proiectului",
-        "who": "Agenții proiectului"
+        "name": "Memoria echipei",
+        "what": "Decizii și excepții ale proiectului stabilite cu tine",
+        "who": "Toată echipa proiectului"
       },
       "agent": {
-        "name": "Agent",
-        "what": "Ce a învățat agentul, durabil",
-        "who": "Agentul"
+        "name": "Experiența agentului",
+        "what": "Ce a învățat agentul și se aplică peste tot",
+        "who": "Agentul, în orice proiect"
+      },
+      "agentProject": {
+        "name": "Notițele agentului pe proiect",
+        "what": "Ce a învățat agentul într-un proiect",
+        "who": "Agentul, doar în acel proiect"
       },
       "journal": {
         "name": "Jurnal zilnic",

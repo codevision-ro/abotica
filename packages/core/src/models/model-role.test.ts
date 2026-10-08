@@ -7,14 +7,10 @@ const ORCHESTRATOR = [{ provider: "anthropic", model: "opus" }];
 const settings = { defaultModels: AGENTS, orchestratorModels: ORCHESTRATOR, managerModels: MANAGERS };
 
 describe("modelRole", () => {
-  it("makes the super agent an orchestrator even when it leads a project", () => {
-    expect(modelRole({ isOrchestrator: true }, false)).toBe("orchestrator");
-    expect(modelRole({ isOrchestrator: true }, true)).toBe("orchestrator");
-  });
-
-  it("makes an agent that manages a project a manager, and any other an agent", () => {
-    expect(modelRole({ isOrchestrator: false }, true)).toBe("manager");
-    expect(modelRole({ isOrchestrator: false }, false)).toBe("agent");
+  it("follows the agent's kind", () => {
+    expect(modelRole({ kind: "orchestrator" })).toBe("orchestrator");
+    expect(modelRole({ kind: "manager" })).toBe("manager");
+    expect(modelRole({ kind: "specialist" })).toBe("agent");
   });
 });
 

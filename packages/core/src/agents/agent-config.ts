@@ -1,4 +1,5 @@
 import {
+  type AgentKind,
   type AgentSnapshot,
   type ToolPermissions,
   type Tx,
@@ -14,13 +15,14 @@ import {
   skills,
   toAgentAvatar,
 } from "@abotica/db";
-import { and, eq, inArray, like } from "@abotica/db/orm";
+import { and, eq, inArray, like, sql } from "@abotica/db/orm";
 import { getTranslator, UserError } from "@abotica/i18n";
 import { sanitizePermissions } from "./permissions";
 import { audit } from "../platform/audit";
 import { cancelRun } from "../runs/runs";
 import { getSettings, settingsLocale } from "../platform/settings";
 import { slugify } from "../platform/slug";
+import { kindChangeError } from "../tasks/team-rules";
 
 /** Agent configuration with versioning: every change to a snapshot field creates a new version. */
 
@@ -148,8 +150,9 @@ export async function existingIds(
 }
 
 /**
- * Replaces the agent's skills and MCP servers, and its projects when `projectIds` is given. A manager
- * stays on the projects it manages: another manager has to be chosen before it can leave.
+ * Replaces the agent's skills and MCP servers, and its projects when `projectIds` is given (callers
+ * pass them for specialists only, see updateAgentConfig). A manager stays on the projects it manages:
+ * another manager has to be chosen before it can leave.
  */
 export async function replaceJoins(
   tx: Tx,
@@ -198,7 +201,7 @@ export async function deleteAgent(id: string, opts: { actor?: string } = {}): Pr
   const reason = getTranslator(settingsLocale(await getSettings()))("runs.errors.agentDeleted");
   const agent = await db.transaction(async (tx) => {
     const agent = await lockAgent(tx, id);
-    if (agent.isOrchestrator) throw new UserError("agents.errors.orchestratorDelete");
+    if (agent.kind === "orchestrator") throw new UserError("agents.errors.orchestratorDelete");
     const unfinished = await tx
       .select({ id: runs.id })
       .from(runs)
@@ -245,15 +248,19 @@ function normalizeModel<T extends { provider: string | null; model: string | nul
   return input;
 }
 
-/** Inserts an agent with its first version; non-orchestrator permissions are enforced. */
+/** The kinds an agent can be created as: the one super agent comes with the install (seed). */
+export type CreatableKind = Exclude<AgentKind, "orchestrator">;
+
+/** Inserts an agent with its first version; the permissions its kind allows are enforced. */
 async function insertAgent(
   tx: Tx,
   config: AgentConfig,
   relations: Partial<AgentRelations>,
-  opts: { note: string },
+  opts: { note: string; kind: CreatableKind },
 ): Promise<Agent> {
+  if ((opts.kind as AgentKind) === "orchestrator") throw new UserError("agents.errors.kindOrchestrator");
   const values = normalizeModel(config);
-  const permissions = sanitizePermissions(values.permissions, { isOrchestrator: false, isManager: false });
+  const permissions = sanitizePermissions(values.permissions, { kind: opts.kind });
   const ids = await existingIds(tx, {
     skillIds: relations.skillIds ?? [],
     mcpServerIds: relations.mcpServerIds ?? [],
@@ -261,7 +268,7 @@ async function insertAgent(
   });
   const [agent] = await tx
     .insert(agents)
-    .values({ ...values, permissions, slug: await uniqueAgentSlug(tx, values.name), version: 1 })
+    .values({ ...values, kind: opts.kind, permissions, slug: await uniqueAgentSlug(tx, values.name), version: 1 })
     .returning();
   await replaceJoins(tx, agent!.id, ids);
   await tx.insert(agentVersions).values({
@@ -273,18 +280,25 @@ async function insertAgent(
   return agent!;
 }
 
-/** Creates an agent with its first version; non-orchestrator permissions are enforced. */
+/** Creates an agent with its first version, a specialist unless `kind` says otherwise. */
 export async function createAgentConfig(
   config: AgentConfig,
   relations: Partial<AgentRelations>,
-  opts: { note: string },
+  opts: { note: string; kind?: CreatableKind },
 ): Promise<Agent> {
-  return db.transaction((tx) => insertAgent(tx, config, relations, opts));
+  const kind = opts.kind ?? "specialist";
+  // A manager joins only the projects it leads, which it is given through the project.
+  if (kind !== "specialist" && relations.projectIds?.length) {
+    throw new UserError("team.errors.managerNotMember", { name: config.name });
+  }
+  return db.transaction((tx) => insertAgent(tx, config, relations, { ...opts, kind }));
 }
 
 /**
  * `createAgentFromTemplate` inside a running transaction, for callers that create more around it
  * (a project and its manager). Writes no audit entry; the caller does once the transaction commits.
+ * The agent has the template's kind; only a specialist joins a project's team with `projectId` (a
+ * manager joins the project it is made to lead, see projects.ts).
  */
 export async function insertAgentFromTemplate(
   tx: Tx,
@@ -296,6 +310,10 @@ export async function insertAgentFromTemplate(
     .from(agents)
     .where(and(eq(agents.slug, templateSlug), eq(agents.isTemplate, true)));
   if (!template) throw new UserError("team.errors.templateNotFound");
+  if (template.kind === "orchestrator") throw new UserError("agents.errors.kindOrchestrator");
+  if (opts.projectId && template.kind !== "specialist") {
+    throw new UserError("team.errors.managerNotMember", { name: template.name });
+  }
   if (opts.projectId) {
     const [project] = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, opts.projectId));
     if (!project) throw new UserError("projects.errors.notFound");
@@ -316,7 +334,7 @@ export async function insertAgentFromTemplate(
       limits: template.limits,
     },
     { skillIds, mcpServerIds, projectIds: opts.projectId ? [opts.projectId] : [] },
-    { note: (await versionNotes()).fromTemplate(templateSlug) },
+    { note: (await versionNotes()).fromTemplate(templateSlug), kind: template.kind },
   );
 }
 
@@ -348,20 +366,46 @@ export async function createAgentFromTemplate(
 }
 
 /**
+ * Refuses a change of kind that breaks the team rules (see kindChangeError): the projects the agent
+ * leads, and the teams it is on without leading them, decide.
+ */
+async function assertKindChange(tx: Tx, agent: Agent, to: AgentKind): Promise<void> {
+  if (to === agent.kind) return;
+  const [managed, member] = await Promise.all([
+    tx.select({ id: projects.id }).from(projects).where(eq(projects.managerAgentId, agent.id)),
+    tx
+      .select({ id: projectAgents.projectId })
+      .from(projectAgents)
+      .innerJoin(projects, eq(projects.id, projectAgents.projectId))
+      .where(and(eq(projectAgents.agentId, agent.id), sql`${projects.managerAgentId} is distinct from ${agent.id}`)),
+  ]);
+  const error = kindChangeError({
+    from: agent.kind,
+    to,
+    managedProjects: managed.length,
+    memberProjects: member.length,
+  });
+  if (error) throw new UserError(error, { name: agent.name });
+}
+
+/**
  * Applies a partial change. Fields left out keep their value; a change to any snapshot field
- * bumps the version and stores the new snapshot, so it can be compared and rolled back.
+ * bumps the version and stores the new snapshot, so it can be compared and rolled back. The kind is
+ * not versioned: a rollback never moves an agent in the hierarchy.
  */
 export async function updateAgentConfig(
   id: string,
-  patch: Partial<AgentConfig> & Partial<AgentRelations>,
+  patch: Partial<AgentConfig> & Partial<AgentRelations> & { kind?: AgentKind },
   opts: { note?: string } = {},
 ): Promise<{ agent: Agent; version: number; changed: (keyof AgentSnapshot)[] }> {
-  const { skillIds, mcpServerIds, ...fields } = patch;
+  const { skillIds, mcpServerIds, kind: kindInput, ...fields } = patch;
   const notes = await versionNotes();
   return db.transaction(async (tx) => {
     const agent = await lockAgent(tx, id);
-    // The super agent is never a project member.
-    const projectIds = agent.isOrchestrator ? undefined : patch.projectIds;
+    const kind = kindInput ?? agent.kind;
+    await assertKindChange(tx, agent, kind);
+    // Only specialists join teams this way: the super agent never does, a manager through the projects it leads.
+    const projectIds = kind === "specialist" ? patch.projectIds : undefined;
     const before = await currentSnapshot(tx, agent);
     const merged = normalizeModel({ ...agent, ...fields });
     const values: AgentConfig = {
@@ -373,8 +417,7 @@ export async function updateAgentConfig(
       model: merged.model,
       fallbacks: merged.fallbacks,
       reasoningEffort: merged.reasoningEffort,
-      // Manager tools are kept for every non-orchestrator, so whether it manages a project does not matter here.
-      permissions: sanitizePermissions(merged.permissions, { isOrchestrator: agent.isOrchestrator, isManager: false }),
+      permissions: sanitizePermissions(merged.permissions, { kind }),
       limits: merged.limits,
     };
     const ids = await existingIds(tx, {
@@ -388,7 +431,7 @@ export async function updateAgentConfig(
 
     const [updated] = await tx
       .update(agents)
-      .set({ ...values, version })
+      .set({ ...values, kind, version })
       .where(eq(agents.id, id))
       .returning();
     await replaceJoins(tx, id, ids);

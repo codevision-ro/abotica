@@ -23,6 +23,10 @@ export const memories = pgTable(
   {
     id: id(),
     scope: memoryScope().notNull(),
+    /**
+     * For project memory (the team's), its project; for agent memory, the project of the agent's notes
+     * (null: its craft, read in every project).
+     */
     projectId: uuid().references(() => projects.id, { onDelete: "cascade" }),
     /** For agent memory, the agent it belongs to; for project memory, the agent that wrote it (null: the user). */
     agentId: uuid().references(() => agents.id, { onDelete: "cascade" }),

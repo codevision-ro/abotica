@@ -45,14 +45,14 @@ export function clip(text: string | null | undefined, max: number): string | nul
 const scopedProjectIds = (ctx: RunContext): string[] => (ctx.projectId ? [ctx.projectId] : ctx.managedProjectIds);
 
 /** Orchestrators see every project (undefined: no filter); other agents their scoped projects. */
-export const visibleProjects = (ctx: RunContext) => (ctx.agent.isOrchestrator ? undefined : scopedProjectIds(ctx));
+export const visibleProjects = (ctx: RunContext) => (ctx.agent.kind === "orchestrator" ? undefined : scopedProjectIds(ctx));
 
 async function allProjectIds(): Promise<string[]> {
   return (await db.select({ id: projects.id }).from(projects)).map((p) => p.id);
 }
 
 export async function readableProjectIds(ctx: RunContext): Promise<string[]> {
-  return ctx.agent.isOrchestrator ? allProjectIds() : scopedProjectIds(ctx);
+  return ctx.agent.kind === "orchestrator" ? allProjectIds() : scopedProjectIds(ctx);
 }
 
 /**
@@ -85,7 +85,7 @@ export async function agentBySlug(slug: string) {
  * except, inside a project, their own tasks of other projects.
  */
 function canSeeTask(ctx: RunContext, task: Task): boolean {
-  if (ctx.agent.isOrchestrator) return true;
+  if (ctx.agent.kind === "orchestrator") return true;
   if (task.projectId !== null && scopedProjectIds(ctx).includes(task.projectId)) return true;
   return task.assigneeAgentId === ctx.agent.id && (task.projectId === null || !ctx.projectId);
 }
@@ -106,6 +106,8 @@ export const taskSummary = (t: Task) => ({
   projectId: t.projectId,
   assigneeAgentId: t.assigneeAgentId,
   deadline: t.deadline?.toISOString() ?? null,
+  // A subtask names its parent, so a task_list that shows both does not read as two unrelated pieces of work.
+  ...(t.parentId ? { parentId: t.parentId } : {}),
   // Delegated while too many of its round ran: it starts on its own, nobody needs to start it.
   ...(t.waitingForSlotSince ? { waitingForFreePlace: true } : {}),
 });

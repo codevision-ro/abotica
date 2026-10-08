@@ -104,13 +104,31 @@ async function storeHandover(ctx: RunContext, taskId: string, plan: { save: Hand
   for (const id of plan.replace) await deleteFile(id);
 }
 
+/**
+ * A run working on a task of its own delegates parts of it: the new task is a subtask of that one, so the
+ * work shows under it. Only within the same project, where a subtask belongs (see task_create).
+ */
+async function ownTaskParent(ctx: RunContext, projectId: string | null): Promise<string | null> {
+  if (!ctx.run.taskId) return null;
+  const [own] = await db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, ctx.run.taskId));
+  return own && own.projectId === projectId ? ctx.run.taskId : null;
+}
+
 /** The task's runs keep failing: the delegator reports it instead of trying again (see failureStreak). */
 const circuitOpen = (taskId: string, streak: FailureStreak) => ({
   error: `Task ${taskId} is stopped: its last ${streak.failures} run(s) failed (${streak.reason ?? "no reason recorded"}). Starting it again would fail the same way. Tell the user what failed; only they can start it again, from the task page, once the cause is fixed.`,
 });
 
-const DELEGATE_BASE =
-  "Hand a task to an agent and start it right away (or once its dependencies are done, or once a place frees up when too many of your delegated tasks run at once). Write a complete description: the agent does not see your conversation or your workspace, so pass the files it needs in files. To retry or reassign an existing task (e.g. a blocked one), send its taskId instead of a title and description. When the work finishes you get its result here automatically, with the files it produced: do not poll for it.";
+/** The mechanics of delegating; whom to delegate to and what a brief holds is in the kind prompts. */
+const DELEGATE =
+  "Hand a task to an agent and start it right away (or once its dependencies are done, or once a place frees up when too many of your delegated tasks run at once). The agent sees neither your conversation nor your workspace: the description holds what it needs, files the files. To retry or reassign an existing task (e.g. a blocked one), send its taskId instead of a title and description. When the work finishes, its result arrives here as an automatic notice with the files it produced: end your turn after delegating and do not poll.";
+
+/**
+ * Said with every started delegation, at the moment the model decides what to do next: agents kept
+ * setting a task_wait on the work they had just handed on, which the report already brings back.
+ */
+const REPORT_COMES_BACK =
+  "The result comes back here as an automatic notice: once you have delegated what you planned, end your turn (no task_wait, no polling).";
 
 /** Every place of the conversation is taken (see tasks/delegation-slots.ts): the task starts on its own. */
 const QUEUED =
@@ -119,9 +137,7 @@ const QUEUED =
 export const runTools: Record<string, ToolFactory> = {
   delegate_task: (ctx) =>
     tool({
-      description: ctx.agent.isOrchestrator
-        ? `${DELEGATE_BASE} Work in a project goes to that project's manager (project_list shows it), with the projectId.`
-        : `${DELEGATE_BASE} You delegate only within the projects you manage, to members of their team (not to yourself).`,
+      description: DELEGATE,
       inputSchema: z.object({
         agentSlug: z.string(),
         taskId: optionalId().describe("An existing task to start again or hand to another agent"),
@@ -155,7 +171,7 @@ export const runTools: Record<string, ToolFactory> = {
         // Who may hand what to whom: the super agent reaches a project through its manager, a manager its team.
         const delegator = {
           id: ctx.agent.id,
-          isOrchestrator: ctx.agent.isOrchestrator,
+          kind: ctx.agent.kind,
           managedProjectIds: ctx.managedProjectIds,
         };
         const resolved = delegationProjectId(
@@ -214,6 +230,7 @@ export const runTools: Record<string, ToolFactory> = {
           const planned = planHandover(handover, []);
           if ("error" in planned) return planned;
           plan = planned;
+          const parentId = await ownTaskParent(ctx, resolved.value);
           let task: Task;
           try {
             task = await createTask(
@@ -221,6 +238,7 @@ export const runTools: Record<string, ToolFactory> = {
                 title: input.title.trim(),
                 description: input.description,
                 projectId: resolved.value,
+                parentId,
                 priority: input.priority,
                 deadline: input.deadline ? new Date(input.deadline) : null,
                 assigneeAgentId: agent.id,
@@ -247,7 +265,7 @@ export const runTools: Record<string, ToolFactory> = {
         try {
           const run = await startDelegatedTask(taskId, { parentRunId: ctx.run.id });
           if (!run) return { taskId, started: false, queued: QUEUED, ...handedOver };
-          return { taskId, runId: run.id, started: true, ...handedOver };
+          return { taskId, runId: run.id, started: true, next: REPORT_COMES_BACK, ...handedOver };
         } catch (error) {
           // A parallel call started the same task first.
           if (isActiveTaskRunConflict(error)) {

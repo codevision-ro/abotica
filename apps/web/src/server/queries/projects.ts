@@ -1,11 +1,5 @@
 import "server-only";
-import {
-  getSettings,
-  isAssignable,
-  listProjectRepos as listRepos,
-  MANAGER_TEMPLATE_SLUG,
-  startOfMonth,
-} from "@abotica/core";
+import { getSettings, canJoinTeam, canLeadProject, listProjectRepos as listRepos, startOfMonth } from "@abotica/core";
 import {
   agents,
   db,
@@ -87,25 +81,37 @@ const agentSummary = {
   enabled: agents.enabled,
 };
 
-/** Agents that can join a project, by core's rule (enabled, not a template, not the super agent), by name. */
+/** Agents that can join a project's team, by core's rule (enabled specialists, see canJoinTeam), by name. */
 export const listJoinableAgents = query(async () => {
   const rows = await db
-    .select({ ...agentSummary, isTemplate: agents.isTemplate, isOrchestrator: agents.isOrchestrator })
+    .select({ ...agentSummary, isTemplate: agents.isTemplate, kind: agents.kind })
     .from(agents)
     .orderBy(asc(agents.name));
   return rows
-    .filter(isAssignable)
+    .filter(canJoinTeam)
+    .map((a) => ({ id: a.id, name: a.name, avatar: a.avatar, role: a.role, enabled: a.enabled }));
+});
+
+/** Managers that can lead a project, by core's rule (enabled managers, see canLeadProject), by name. */
+export const listLeadableAgents = query(async () => {
+  const rows = await db
+    .select({ ...agentSummary, isTemplate: agents.isTemplate, kind: agents.kind })
+    .from(agents)
+    .orderBy(asc(agents.name));
+  return rows
+    .filter(canLeadProject)
     .map((a) => ({ id: a.id, name: a.name, avatar: a.avatar, role: a.role, enabled: a.enabled }));
 });
 
 export type JoinableAgent = Awaited<ReturnType<typeof listJoinableAgents>>[number];
+export type LeadableAgent = Awaited<ReturnType<typeof listLeadableAgents>>[number];
 
-/** Templates a project can hire from; the manager has its own path ("Create manager"), so its template is left out. */
+/** Specialist templates a project can hire from; the manager has its own path ("Create manager"). */
 export const listHireTemplates = query(async () => {
   return db
     .select({ slug: agents.slug, name: agents.name, avatar: agents.avatar, role: agents.role })
     .from(agents)
-    .where(and(eq(agents.isTemplate, true), ne(agents.slug, MANAGER_TEMPLATE_SLUG)))
+    .where(and(eq(agents.isTemplate, true), eq(agents.kind, "specialist")))
     .orderBy(asc(agents.name));
 });
 
@@ -116,8 +122,8 @@ export type MemberActivity = { memories: number; journalDays: number; openTasks:
 const EMPTY_ACTIVITY: MemberActivity = { memories: 0, journalDays: 0, openTasks: 0, lastActiveAt: null };
 
 /**
- * What agents did in projects, per (project, agent) pair: project memories they wrote (active ones),
- * journal days, open tasks assigned to them and their latest run there.
+ * What agents did in projects, per (project, agent) pair: team entries they wrote and their own notes on
+ * the project (active ones), journal days, open tasks assigned to them and their latest run there.
  */
 export const getMemberActivity = query(
   async (where: {
@@ -132,7 +138,8 @@ export const getMemberActivity = query(
         .from(memories)
         .where(
           and(
-            eq(memories.scope, "project"),
+            // Team entries the agent wrote and its own notes on the project.
+            inArray(memories.scope, ["project", "agent"]),
             eq(memories.status, "active"),
             inArray(memories.projectId, projectIds),
             inArray(memories.agentId, agentIds),

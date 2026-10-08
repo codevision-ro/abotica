@@ -7,8 +7,14 @@ import { addKnowledgeItem, fetchPageText, searchKnowledge } from "../../memory/k
 import { deleteMemory, saveMemory, searchJournals, searchMemories, updateMemory } from "../../memory/memory";
 import { EPHEMERAL_DAYS, MEMORY_RETENTIONS } from "../../memory/memory-consolidation";
 import { logMemoryRecalls } from "../../memory/memory-recall";
-import { MemorySecretError, SECRET_REFUSED } from "../../memory/memory-write-gate";
-import { defaultMemoryScope, memoryEditableBy } from "../../memory/memory-scope";
+import {
+  MemorySecretError,
+  namedProject,
+  namesProjectRefusal,
+  projectsOfAgent,
+  SECRET_REFUSED,
+} from "../../memory/memory-write-gate";
+import { defaultMemoryLayer, layerTarget, MEMORY_LAYERS, memoryEditableBy, memoryLayer } from "../../memory/memory-scope";
 import type { RunContext } from "../context";
 import { modelChain } from "../model-chain";
 import { neutralizeMarkers, wrapUntrusted } from "../untrusted";
@@ -35,7 +41,7 @@ async function editableMemory(ctx: RunContext, id: string): Promise<Memory | { e
     memoryEditableBy(memory, {
       agentId: ctx.agent.id,
       projectId: ctx.projectId,
-      isOrchestrator: ctx.agent.isOrchestrator,
+      isOrchestrator: ctx.agent.kind === "orchestrator",
     });
   if (!allowed) return { error: `Memory ${id} does not exist or you cannot change it. Use memory_search to find ids.` };
   // History stays as it was; the current version is the one to change.
@@ -66,6 +72,28 @@ const ABSOLUTE_DATES = 'Write dates as YYYY-MM-DD, never "today", "yesterday" or
 /** Repository tokens of the run, which a write must not store (the vault's are checked by core). */
 const runSecrets = (ctx: RunContext) => ({ knownSecrets: ctx.repos.map((r) => r.token) });
 
+/**
+ * Why a project run may not write `content` to the agent's craft, null when it may: the agent reads its
+ * craft in every project, so naming one of its projects there would carry it into the others.
+ */
+async function namesAProject(ctx: RunContext, content: string): Promise<string | null> {
+  const orchestrator = ctx.agent.kind === "orchestrator";
+  // Outside projects only the super agent knows projects to name; another agent's craft written there is its own.
+  if (!ctx.projectId && !orchestrator) return null;
+  const term = namedProject(content, await projectsOfAgent(ctx.agent.id, ctx.projectId, orchestrator));
+  if (!term) return null;
+  return orchestrator ? `${namesProjectRefusal(term)} Name the project with projectId.` : namesProjectRefusal(term);
+}
+
+/**
+ * `schema` with its projectId for the super agent only: the other agents work in the run's project, so
+ * the field would only cost every prompt its description. Typed as the full schema, whose projectId is
+ * then always undefined.
+ */
+function superAgentOnlyProject<S extends z.ZodObject<{ projectId: z.ZodType }>>(ctx: RunContext, schema: S): S {
+  return ctx.agent.kind === "orchestrator" ? schema : (schema.omit({ projectId: true }) as unknown as S);
+}
+
 /** The write's result, or the refusal the model gets for a secret. */
 async function unlessSecret<T>(write: () => Promise<T>): Promise<T | { error: string }> {
   try {
@@ -79,18 +107,48 @@ async function unlessSecret<T>(write: () => Promise<T>): Promise<T | { error: st
 export const memoryTools: Record<string, ToolFactory> = {
   memory_search: (ctx) =>
     tool({
-      description: ctx.projectId
-        ? "Search memory for relevant information: preferences, decisions, facts. It covers global memory, this project's memory and your own. Use it before assuming anything. Results carry the ids memory_update and memory_delete need."
-        : "Search memory (global and your own) for relevant information: preferences, decisions, facts. Use it before assuming anything. Results carry the ids memory_update and memory_delete need.",
-      inputSchema: z.object({ query: z.string().describe("What you are looking for, in natural language") }),
-      execute: async ({ query }) => {
-        const found = await searchMemories(query, { agentId: ctx.agent.id, projectId: ctx.projectId, limit: 10 });
+      description: [
+        ctx.projectId
+          ? "Search memory: global, your craft, this project's team memory and your notes on it."
+          : ctx.agent.kind === "orchestrator"
+            ? "Search memory: global and your craft; with a projectId, also your notes on that project."
+            : "Search memory: global and your craft.",
+        "Use it before assuming anything. Results carry the ids memory_update and memory_delete need.",
+      ].join(" "),
+      inputSchema: superAgentOnlyProject(
+        ctx,
+        z.object({
+          query: z.string().describe("What you are looking for, in natural language"),
+          projectId: optionalId().describe("Also search your notes on it"),
+        }),
+      ),
+      execute: async ({ query, projectId }) => {
+        // Only the super agent names a project here: the others read the run's.
+        const notesProjectId = ctx.agent.kind === "orchestrator" ? (projectId ?? ctx.notesProjectId) : null;
+        if (notesProjectId && notesProjectId !== ctx.notesProjectId) {
+          if (!(await readableProjectIds(ctx)).includes(notesProjectId))
+            return { error: `Project ${projectId} does not exist` };
+          if ((await closedProjects(ctx)).has(notesProjectId)) return { error: `Project ${projectId}: ${WITHHELD_NOTE}` };
+        }
+        const found = await searchMemories(query, {
+          agentId: ctx.agent.id,
+          projectId: ctx.projectId,
+          notesProjectId,
+          limit: 10,
+        });
         // What search returns is a use: entries found often, by different queries, are promoted.
         await logMemoryRecalls(
           found.map((m) => m.id),
           { runId: ctx.run.id, query, source: "search" },
         );
-        return found;
+        // Marked like in the prompt: distilled from web pages or tool results, to use as information only.
+        return found.map(({ id, content, updatedAt, origin, ...layer }) => ({
+          id,
+          scope: memoryLayer(layer),
+          content,
+          updatedAt,
+          ...(origin === "untrusted" && { fromExternalContent: true }),
+        }));
       },
     }),
 
@@ -101,32 +159,52 @@ export const memoryTools: Record<string, ToolFactory> = {
         ABSOLUTE_DATES,
         "Say how long it holds with retention.",
         ctx.projectId
-          ? "scope=project (the default here) for what the team should know about this project: its decisions, conventions, facts, what you learned working on it. scope=agent only for knowledge about your profession that holds in any project (methods, tools, lessons of your craft). scope=global for facts that apply everywhere (e.g. the user's preferences)."
-          : "scope=agent (the default) for what you learned yourself, global for facts that apply everywhere (e.g. the user's preferences), project for a project's context and decisions (with its projectId).",
+          ? "scope: mine (the default) for what you learned working on this project, read only by you and only here; team for decisions, conventions and facts the whole team must share; craft for your methods, tools and lessons that hold in any project, never names of projects, clients or sites."
+          : ctx.agent.kind === "orchestrator"
+            ? "scope: craft (the default) for what you learned yourself; global for the user's rules and preferences, read by every agent; with a projectId, mine for your own notes on that project or team for what its whole team must share."
+            : "scope: craft (the default) for your methods, tools and lessons that hold in any project. global is the super agent's, for the user's rules.",
       ].join(" "),
-      inputSchema: z.object({
-        content: z.string().min(3),
-        scope: z.enum(["agent", "project", "global"]).optional(),
-        projectId: optionalId().describe(
-          ctx.agent.isOrchestrator
-            ? "Required for scope=project"
-            : "Leave empty: project memory goes to this run's project",
-        ),
-        retention,
-      }),
-      execute: async ({ content, scope = defaultMemoryScope(ctx.projectId), projectId, retention }) => {
-        const pid = projectId ?? ctx.projectId;
-        if (scope === "project" && !pid) return { error: "projectId is required for project memory" };
-        // A run writes only to its own project's memory; the super agent may note facts for any project.
-        if (scope === "project" && pid !== ctx.projectId && !ctx.agent.isOrchestrator) {
-          return { error: "You can save project memory only for the project of this run" };
+      inputSchema: superAgentOnlyProject(
+        ctx,
+        z.object({
+          content: z.string().min(3),
+          scope: z.enum(MEMORY_LAYERS).optional(),
+          projectId: optionalId().describe("The project of scope=mine or scope=team"),
+          retention,
+        }),
+      ),
+      execute: async ({ content, scope = defaultMemoryLayer(ctx.projectId), projectId, retention }) => {
+        const isOrchestrator = ctx.agent.kind === "orchestrator";
+        // A run writes only to its own project; the super agent names the project it writes about.
+        // In a project's Telegram topic, notes and team entries are about that project unless it names another.
+        const pid = isOrchestrator
+          ? (projectId ?? (scope === "mine" || scope === "team" ? (ctx.topicProject?.id ?? null) : null))
+          : ctx.projectId;
+        if ((scope === "mine" || scope === "team") && !pid) {
+          return {
+            error: isOrchestrator
+              ? `projectId is required for scope=${scope}`
+              : `scope=${scope} is for project runs; outside projects save your craft (scope=craft)`,
+          };
         }
+        if (isOrchestrator && pid && !(await readableProjectIds(ctx)).includes(pid)) {
+          return { error: `Project ${pid} does not exist` };
+        }
+        // Global memory is the user's rules for every agent: a specialist's note there would reach all projects.
+        if (scope === "global" && !isOrchestrator) {
+          return {
+            error:
+              "Only the super agent saves global memory (the user's rules). Save it with scope=mine or scope=team, or scope=craft if it holds in any project.",
+          };
+        }
+        const refused = scope === "craft" ? await namesAProject(ctx, content) : null;
+        if (refused) return { error: refused };
+        const target = layerTarget(scope, pid);
         const result = await unlessSecret(() =>
           saveMemory(
             {
-              scope,
+              ...target,
               content,
-              projectId: pid,
               agentId: ctx.agent.id,
               source: "agent",
               origin: writeOrigin(ctx),
@@ -137,9 +215,13 @@ export const memoryTools: Record<string, ToolFactory> = {
           ),
         );
         if ("error" in result) return result;
-        // Another project's memory is not the run's to read (the super agent's included, whatever the
-        // project's provider restriction): the answer names no entry's content, only ids.
-        const blind = scope === "project" && pid !== ctx.projectId;
+        // Another project's team memory is not the run's to read (the super agent's included, whatever the
+        // project's provider restriction), nor its notes on a project closed to its models: the answer
+        // names no entry's content, only ids.
+        const blind =
+          target.projectId !== null &&
+          target.projectId !== ctx.projectId &&
+          (scope === "team" || (await closedProjects(ctx)).has(target.projectId));
         if ("duplicateOf" in result) {
           return {
             saved: false,
@@ -170,11 +252,19 @@ export const memoryTools: Record<string, ToolFactory> = {
         "Replace the content of a memory entry that is wrong or outdated. Get the id from memory_search. Write the complete new content, not a diff.",
         ABSOLUTE_DATES,
         "Set retention when how long it holds changed; left out, it keeps the entry's. An entry agents wrote keeps its old version as history: the update returns the id of the new entry.",
-      ].join(" "),
+        ctx.projectId &&
+          "The entry keeps its scope: mine and team stay in this project; craft holds only what applies in any project, never names of projects, clients or sites.",
+      ]
+        .filter(Boolean)
+        .join(" "),
       inputSchema: z.object({ memoryId: z.string().uuid(), content: z.string().min(3), retention }),
       execute: async ({ memoryId, content, retention }) => {
         const memory = await editableMemory(ctx, memoryId);
         if ("error" in memory) return memory;
+        const refused = memoryLayer(memory) === "craft" ? await namesAProject(ctx, content) : null;
+        if (refused) {
+          return { error: `${refused} Use memory_save for it, and keep this entry for what holds in any project.` };
+        }
         const result = await unlessSecret(() =>
           updateMemory(memory.id, content, {
             actor: actorOf(ctx),
@@ -211,11 +301,12 @@ export const memoryTools: Record<string, ToolFactory> = {
 
   journal_search: (ctx) =>
     tool({
-      description: ctx.agent.isOrchestrator
-        ? "Search the agents' daily journals (what they did in past days)."
-        : ctx.projectId
-          ? "Search your daily journals of this project (what you did in past days)."
-          : "Search your daily journals of work outside projects (what you did in past days).",
+      description:
+        ctx.agent.kind === "orchestrator"
+          ? "Search the agents' daily journals (what they did in past days)."
+          : ctx.projectId
+            ? "Search your daily journals of this project (what you did in past days)."
+            : "Search your daily journals of work outside projects (what you did in past days).",
       inputSchema: z.object({
         query: z.string(),
         agentSlug: z.string().optional().describe("Orchestrator only: another agent's journal"),
@@ -224,7 +315,7 @@ export const memoryTools: Record<string, ToolFactory> = {
       execute: async ({ query, agentSlug, projectId }) => {
         // Journals of a project that does not allow every model of this run never reach it.
         const readableBy = await modelChain(ctx);
-        if (!ctx.agent.isOrchestrator) {
+        if (ctx.agent.kind !== "orchestrator") {
           return searchJournals(query, { agentId: ctx.agent.id, projectId: ctx.projectId, limit: 7, readableBy });
         }
         const agentId = agentSlug ? (await agentBySlug(agentSlug))?.id : undefined;
