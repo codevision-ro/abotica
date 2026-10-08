@@ -11,4 +11,4 @@ coverage
 next-env.d.ts
 *.tsbuildinfo
 backups
-tasks
+/tasks/
