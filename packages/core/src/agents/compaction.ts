@@ -3,6 +3,7 @@ import type { ModelMessage } from "ai";
 import type { CacheTtl, CatalogModel } from "../models/catalog";
 import type { CompactionRecord } from "../runs/compaction-record";
 import type { StoredMessage } from "../runs/run-messages";
+import { UNTRUSTED_NOTE } from "./untrusted";
 
 /**
  * Context compaction: when a conversation's prompt nears the model's context window, its older part is
@@ -31,7 +32,7 @@ const TRANSCRIPT_SHARE = 0.75;
 /** Tool calls and results are cut to this in the transcript; their start and end are what a summary needs. */
 const TOOL_INPUT_MAX_CHARS = 2_000;
 const TOOL_RESULT_MAX_CHARS = 4_000;
-const CHARS_PER_TOKEN = 4;
+export const CHARS_PER_TOKEN = 4;
 const CACHE_TTL_MS: Record<CacheTtl, number> = { "5m": 5 * 60_000, "1h": 60 * 60_000 };
 
 /** Why a prompt is compacted; `overflow`: a provider rejected it as too long, or the last run failed so. */
@@ -322,6 +323,7 @@ export function summaryRequest({
   const system = [
     "You compact the context of an AI agent's conversation. It no longer fits the model's context window, so its earlier part is replaced by your summary: the agent goes on from your summary and the most recent messages alone. Write it as a handoff to the agent, with everything it needs to continue without asking again.",
     ...(flush ? [MEMORY_FLUSH] : []),
+    UNTRUSTED_NOTE,
     `Answer with the summary only, in this format:\n\n${SUMMARY_SECTIONS}`,
     KEEP_EXACTLY,
     ...(previousSummary

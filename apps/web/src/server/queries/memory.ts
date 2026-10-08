@@ -1,26 +1,34 @@
 import "server-only";
-import { ANY_PROVIDER, embedText, searchJournals } from "@abotica/core";
-import { agents, conversations, db, journals, memories, messages, projects } from "@abotica/db";
-import {
-  and,
-  asc,
-  cosineDistance,
-  count,
-  desc,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  isNotNull,
-  lte,
-  sql,
-  type SQL,
-} from "@abotica/db/orm";
+import { getSettings, NEVER_USED_DAYS, pinnedUsage, searchAllMemories, searchJournals } from "@abotica/core";
+import { agents, conversations, db, journals, memories, memoryOrigin, messages, projects } from "@abotica/db";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "@abotica/db/orm";
 import { isDay } from "@/lib/day";
 import { isUuid } from "@/lib/uuid";
 import { query } from "@/server/query";
 
 export type MemoryScope = "global" | "project" | "agent";
+
+/**
+ * The current entries a pending one would replace once approved (it waits, e.g. because it contradicts an
+ * entry the user wrote), oldest first. `memories.id` is spelled out: drizzle leaves a column unqualified
+ * in a single-table select, where it would name the subquery's own row.
+ */
+const replaces = sql<string[]>`array(
+  select r.content from memories r
+  where r.superseded_by = memories.id and r.invalidated_at is null
+  order by r.created_at
+)`;
+
+/** How long an entry holds, whether a newer one replaced it, and how often runs used it. */
+const lifecycleColumns = {
+  retention: memories.retention,
+  validFrom: memories.validFrom,
+  invalidatedAt: memories.invalidatedAt,
+  supersededBy: memories.supersededBy,
+  expiresAt: memories.expiresAt,
+  recallCount: memories.recallCount,
+  replaces,
+};
 
 /** For a project entry, `agent*` is its author (null: written by the user); for an agent entry, its owner. */
 const memoryColumns = {
@@ -28,14 +36,30 @@ const memoryColumns = {
   scope: memories.scope,
   content: memories.content,
   source: memories.source,
+  origin: memories.origin,
   status: memories.status,
+  pinned: memories.pinned,
+  flagReason: memories.flagReason,
   projectId: memories.projectId,
   agentId: memories.agentId,
   updatedAt: memories.updatedAt,
+  ...lifecycleColumns,
   projectName: projects.name,
   agentName: agents.name,
   agentAvatar: agents.avatar,
 };
+
+/**
+ * Entries agents can read that no run has used since they were written `NEVER_USED_DAYS` ago, for manual
+ * cleanup. Pinned entries are in every run's prompt, so they are left out.
+ */
+const neverUsed = () =>
+  and(
+    eq(memories.recallCount, 0),
+    eq(memories.pinned, false),
+    lt(memories.createdAt, sql`now() - make_interval(days => ${NEVER_USED_DAYS})`),
+    or(isNull(memories.expiresAt), gt(memories.expiresAt, sql`now()`)),
+  );
 
 export const getMemoryOptions = query(async () => {
   const [agentRows, projectRows] = await Promise.all([
@@ -49,23 +73,48 @@ export const getMemoryOptions = query(async () => {
   return { agents: agentRows, projects: projectRows };
 });
 
-export const listMemories = query(async (opts: { scope: MemoryScope; projectId?: string; agentId?: string }) => {
-  const where: SQL[] = [eq(memories.scope, opts.scope), eq(memories.status, "active")];
-  if (opts.scope === "project" && isUuid(opts.projectId)) where.push(eq(memories.projectId, opts.projectId));
-  if (opts.scope === "agent" && isUuid(opts.agentId)) where.push(eq(memories.agentId, opts.agentId));
-  return db
-    .select(memoryColumns)
-    .from(memories)
-    .leftJoin(projects, eq(projects.id, memories.projectId))
-    .leftJoin(agents, eq(agents.id, memories.agentId))
-    .where(and(...where))
-    .orderBy(desc(memories.updatedAt))
-    .limit(500);
-});
+type MemoryOrigin = (typeof memoryOrigin.enumValues)[number];
+
+/** Whether a query param names an origin. */
+const isMemoryOrigin = (value: string | undefined): value is MemoryOrigin =>
+  (memoryOrigin.enumValues as readonly string[]).includes(value ?? "");
 
 /**
- * Every entry of one agent or project, pending first: the memory tab on its page. A project's entries
- * carry their author (the agent that wrote it; none for the user's own).
+ * Active entries of one level. Entries a newer one replaced are left out unless `history` asks for them
+ * too; `neverUsed` keeps the current entries no run has used (see neverUsed).
+ */
+export const listMemories = query(
+  async (opts: {
+    scope: MemoryScope;
+    projectId?: string;
+    agentId?: string;
+    origin?: string;
+    pinned?: boolean;
+    history?: boolean;
+    neverUsed?: boolean;
+  }) => {
+    const where: SQL[] = [eq(memories.scope, opts.scope), eq(memories.status, "active")];
+    if (opts.scope === "project" && isUuid(opts.projectId)) where.push(eq(memories.projectId, opts.projectId));
+    if (opts.scope === "agent" && isUuid(opts.agentId)) where.push(eq(memories.agentId, opts.agentId));
+    if (isMemoryOrigin(opts.origin)) where.push(eq(memories.origin, opts.origin));
+    if (opts.pinned) where.push(eq(memories.pinned, true));
+    if (opts.neverUsed) where.push(neverUsed()!);
+    if (!opts.history || opts.neverUsed) where.push(isNull(memories.invalidatedAt));
+    return db
+      .select(memoryColumns)
+      .from(memories)
+      .leftJoin(projects, eq(projects.id, memories.projectId))
+      .leftJoin(agents, eq(agents.id, memories.agentId))
+      .where(and(...where))
+      .orderBy(desc(memories.updatedAt))
+      .limit(500);
+  },
+);
+
+/**
+ * Every entry of one agent or project, pending first: the memory tab on its page, which shows the
+ * replaced ones on demand. A project's entries carry their author (the agent that wrote it; none for the
+ * user's own).
  */
 export const listOwnerMemories = query(async (owner: { agentId: string } | { projectId: string }) => {
   const where =
@@ -78,8 +127,12 @@ export const listOwnerMemories = query(async (owner: { agentId: string } | { pro
       scope: memories.scope,
       content: memories.content,
       source: memories.source,
+      origin: memories.origin,
       status: memories.status,
+      pinned: memories.pinned,
+      flagReason: memories.flagReason,
       updatedAt: memories.updatedAt,
+      ...lifecycleColumns,
       agentName: agents.name,
       agentAvatar: agents.avatar,
     })
@@ -99,10 +152,12 @@ export const listPendingMemories = query(async () => {
     .orderBy(desc(memories.updatedAt));
 });
 
+/** Entries per level as the lists show them: active ones a newer entry did not replace; and the pending ones. */
 export const getMemoryCounts = query(async () => {
   const rows = await db
     .select({ scope: memories.scope, status: memories.status, n: count() })
     .from(memories)
+    .where(or(eq(memories.status, "pending"), isNull(memories.invalidatedAt)))
     .groupBy(memories.scope, memories.status);
   const counts = { global: 0, project: 0, agent: 0, pending: 0 };
   for (const r of rows) {
@@ -112,31 +167,36 @@ export const getMemoryCounts = query(async () => {
   return counts;
 });
 
-/** Semantic search across every memory (all scopes and owners), with a text fallback without embeddings. */
+/** Hybrid search across every memory (all scopes and owners), keyword only without embeddings. */
 export const getMemorySearchResults = query(async (search: string, limit: number = 20) => {
-  // The user's own query, typed outside any project.
-  const vector = await embedText(search, ANY_PROVIDER);
-  if (vector) {
-    const distance = cosineDistance(memories.embedding, vector);
-    const rows = await db
-      .select({ ...memoryColumns, similarity: sql<number>`1 - (${distance})` })
-      .from(memories)
-      .leftJoin(projects, eq(projects.id, memories.projectId))
-      .leftJoin(agents, eq(agents.id, memories.agentId))
-      .where(isNotNull(memories.embedding))
-      .orderBy(distance)
-      .limit(limit);
-    return { semantic: true, rows: rows.map((r) => ({ ...r, similarity: Number(r.similarity) })) };
-  }
-  const rows = await db
-    .select(memoryColumns)
-    .from(memories)
-    .leftJoin(projects, eq(projects.id, memories.projectId))
-    .leftJoin(agents, eq(agents.id, memories.agentId))
-    .where(ilike(memories.content, `%${search}%`))
-    .orderBy(desc(memories.updatedAt))
-    .limit(limit);
-  return { semantic: false, rows: rows.map((r) => ({ ...r, similarity: null as number | null })) };
+  const { mode, rows } = await searchAllMemories(search, limit);
+  const projectIds = [...new Set(rows.flatMap((r) => (r.projectId ? [r.projectId] : [])))];
+  const agentIds = [...new Set(rows.flatMap((r) => (r.agentId ? [r.agentId] : [])))];
+  const [projectRows, agentRows] = await Promise.all([
+    projectIds.length
+      ? db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))
+      : [],
+    agentIds.length
+      ? db
+          .select({ id: agents.id, name: agents.name, avatar: agents.avatar })
+          .from(agents)
+          .where(inArray(agents.id, agentIds))
+      : [],
+  ]);
+  const projectById = new Map(projectRows.map((p) => [p.id, p]));
+  const agentById = new Map(agentRows.map((a) => [a.id, a]));
+  return {
+    mode,
+    rows: rows.map((r) => {
+      const agent = r.agentId ? agentById.get(r.agentId) : undefined;
+      return {
+        ...r,
+        projectName: (r.projectId ? projectById.get(r.projectId)?.name : null) ?? null,
+        agentName: agent?.name ?? null,
+        agentAvatar: agent?.avatar ?? null,
+      };
+    }),
+  };
 });
 
 const CONVERSATIONS_PAGE_SIZE = 50;
@@ -254,3 +314,11 @@ export const listJournalSearchResults = query(async (search: string, agentId?: s
     agentAvatar: byId.get(r.agentId)?.avatar ?? null,
   }));
 });
+
+/**
+ * How much of the pinned budget the pinned entries every run of `owner` gets take: the global ones, plus
+ * the owner's (none: global only).
+ */
+export const getPinnedUsage = query(async (owner?: { agentId: string } | { projectId: string }) =>
+  pinnedUsage(owner ?? null, (await getSettings()).memoryPinnedTokens),
+);

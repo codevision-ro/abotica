@@ -12,6 +12,8 @@ import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-ru
 import { usesWebhook } from "./trigger-events";
 import { encrypt } from "../platform/vault";
 import { newSigningSecret } from "./webhook-signature";
+import { newMarkerId } from "../agents/untrusted-id";
+import { type UntrustedSource, wrapUntrusted } from "../agents/untrusted";
 
 export type Trigger = typeof triggers.$inferSelect;
 type TriggerValues = Pick<typeof triggers.$inferInsert, "name" | "agentId" | "projectId" | "event" | "prompt" | "enabled">;
@@ -137,13 +139,13 @@ export async function deleteTriggerSigningSecret(id: string, opts: { actor?: str
 
 /**
  * The run input for a trigger: `{{payload}}` in the prompt is replaced by the payload, or the
- * payload is appended when the prompt has no placeholder. A function replacement keeps `$&` and
- * similar sequences in the payload literal.
+ * payload is appended when the prompt has no placeholder. The payload goes in as untrusted data
+ * (`source`), while the prompt the user wrote stays outside the block. A function replacement keeps
+ * `$&` and similar sequences in the payload literal.
  */
-function renderTriggerInput(prompt: string, payload: string): string {
-  return prompt.includes("{{payload}}")
-    ? prompt.replaceAll("{{payload}}", () => payload)
-    : `${prompt}\n\nPayload:\n${payload}`;
+export function renderTriggerInput(prompt: string, payload: string, source: UntrustedSource): string {
+  const block = wrapUntrusted(payload, { source, id: newMarkerId() });
+  return prompt.includes("{{payload}}") ? prompt.replaceAll("{{payload}}", () => block) : `${prompt}\n\nPayload:\n${block}`;
 }
 
 /**
@@ -157,10 +159,12 @@ export async function fireTrigger(
 ): Promise<Run> {
   const projectId = opts.projectId === undefined ? trigger.projectId : opts.projectId;
   await assertWorksIn(trigger.agentId, projectId);
+  const webhook = usesWebhook(trigger.event);
   return startRun({
     agentId: trigger.agentId,
-    trigger: usesWebhook(trigger.event) ? "webhook" : "event",
-    input: renderTriggerInput(trigger.prompt, payload),
+    trigger: webhook ? "webhook" : "event",
+    // Task events carry the task's output, which its agent wrote and may quote pages or files in.
+    input: renderTriggerInput(trigger.prompt, payload, webhook ? "webhook" : "task-output"),
     projectId,
     title: opts.subject ? `${trigger.name}: ${opts.subject}` : trigger.name,
   });

@@ -1,8 +1,22 @@
-import { boolean, date, index, integer, pgTable, text, unique, uuid, vector } from "drizzle-orm/pg-core";
-import { createdAt, EMBEDDING_DIMENSIONS, id, updatedAt } from "./_shared";
+import {
+  type AnyPgColumn,
+  boolean,
+  date,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  vector,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { createdAt, EMBEDDING_DIMENSIONS, id, tsvector, updatedAt } from "./_shared";
 import { agents } from "./agents";
-import { knowledgeKind, memoryScope, memoryStatus } from "./enums";
+import { knowledgeKind, memoryOrigin, memoryRecallSource, memoryRetention, memoryScope, memoryStatus } from "./enums";
 import { projects } from "./projects";
+import { runs } from "./runs";
 
 export const memories = pgTable(
   "memories",
@@ -14,17 +28,56 @@ export const memories = pgTable(
     agentId: uuid().references(() => agents.id, { onDelete: "cascade" }),
     content: text().notNull(),
     embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }),
+    /** Words of `content` for keyword search; the `simple` config has no stemming, so it suits any language. */
+    search: tsvector().generatedAlwaysAs(sql`to_tsvector('simple', coalesce(content, ''))`),
     /** manual | agent | consolidation */
     source: text().notNull().default("manual"),
+    /** Whose content it is, which decides whether it can be trusted (see memoryOrigin). */
+    origin: memoryOrigin().notNull(),
     /** Pending memories wait for human approval before agents can read them. */
     status: memoryStatus().notNull().default("active"),
+    /** Why a write was held for approval (a suspicious pattern, a conflict with the user's entry). */
+    flagReason: text(),
+    /** Injected in every run of its scope, and exempt from recency decay in search. */
+    pinned: boolean().notNull().default(false),
+    retention: memoryRetention().notNull().default("durable"),
+    /** When the fact became true; null: since the entry was created. */
+    validFrom: date({ mode: "string" }),
+    /** Set when a newer fact replaced this one: agents no longer see it, the memory page keeps it as history. */
+    invalidatedAt: timestamp({ withTimezone: true }),
+    supersededBy: uuid().references((): AnyPgColumn => memories.id, { onDelete: "set null" }),
+    /** Ephemeral entries end here: hidden from agents at once, deleted by the weekly cleanup. */
+    expiresAt: timestamp({ withTimezone: true }),
+    recallCount: integer().notNull().default(0),
+    lastRecalledAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     index().on(t.scope, t.projectId, t.agentId),
+    index("memories_pinned_idx")
+      .on(t.scope, t.projectId, t.agentId)
+      .where(sql`${t.pinned}`),
     index("memories_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    index("memories_search_idx").using("gin", t.search),
   ],
+);
+
+/** Each time a memory reached a run, to rank by use and to promote entries recalled often. */
+export const memoryRecalls = pgTable(
+  "memory_recalls",
+  {
+    id: id(),
+    memoryId: uuid()
+      .notNull()
+      .references(() => memories.id, { onDelete: "cascade" }),
+    runId: uuid().references(() => runs.id, { onDelete: "set null" }),
+    source: memoryRecallSource().notNull(),
+    /** sha256 of the normalized query, to count distinct queries without storing their text again. */
+    queryHash: text(),
+    createdAt: createdAt(),
+  },
+  (t) => [index().on(t.memoryId)],
 );
 
 /**
@@ -42,12 +95,17 @@ export const journals = pgTable(
     day: date({ mode: "string" }).notNull(),
     summary: text().notNull(),
     embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }),
+    /** Words of `summary` for keyword search (see memories.search). */
+    search: tsvector().generatedAlwaysAs(sql`to_tsvector('simple', coalesce(summary, ''))`),
     consolidated: boolean().notNull().default(false),
+    /** One of the day's runs read untrusted content, so facts drawn from it are untrusted too. */
+    fromUntrusted: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
     unique().on(t.agentId, t.projectId, t.day).nullsNotDistinct(),
     index("journals_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    index("journals_search_idx").using("gin", t.search),
   ],
 );
 

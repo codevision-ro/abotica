@@ -163,6 +163,16 @@ export const updateAppSettings = action(
       .min(1, "settings.validation.journalDaysMin")
       .max(30, "settings.validation.journalDaysMax"),
     memoryRequiresApproval: z.boolean(),
+    memoryPinnedTokens: z
+      .number()
+      .int()
+      .min(0, "settings.validation.memoryPinnedTokensRange")
+      .max(20_000, "settings.validation.memoryPinnedTokensRange"),
+    memoryRecallTokens: z
+      .number()
+      .int()
+      .min(0, "settings.validation.memoryRecallTokensRange")
+      .max(8_000, "settings.validation.memoryRecallTokensRange"),
     digestHour: z.number().int().min(0, "settings.validation.digestHour").max(23, "settings.validation.digestHour"),
     timezone: z.string().trim().min(1).refine(isTimeZone, "settings.validation.timezone"),
     monthlyBudgetUsd: z.number().positive("settings.validation.budgetPositive").nullable(),

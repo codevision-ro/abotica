@@ -24,6 +24,7 @@ import {
 } from "@/components/app/section-card";
 import { RunStatusBadge } from "@/components/app/status-badge";
 import { ChatMarkdown } from "@/components/chat/chat-parts";
+import { UntrustedText } from "@/components/chat/untrusted-text";
 import { ToolName } from "@/components/approvals/approval-card";
 import { ApprovalActions } from "@/components/approvals/approval-actions";
 import { ApprovalStatusBadge } from "@/components/approvals/approval-status-badge";
@@ -131,9 +132,10 @@ export default async function RunDetailPage(props: PageProps<"/runs/[id]">) {
               <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
               <div className="p-4 sm:p-5">
                 {run.input ? (
-                  <pre className="max-h-96 overflow-auto rounded-lg border border-border/60 bg-muted/35 px-3 py-2.5 font-mono text-xs leading-5 whitespace-pre-wrap dark:bg-muted/25">
-                    {run.input}
-                  </pre>
+                  // A div, not a pre: external data inside the input renders as its own block.
+                  <div className="max-h-96 overflow-auto rounded-lg border border-border/60 bg-muted/35 px-3 py-2.5 font-mono text-xs leading-5 whitespace-pre-wrap dark:bg-muted/25">
+                    <UntrustedText text={run.input} />
+                  </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t("input.fromConversation")}</p>
                 )}

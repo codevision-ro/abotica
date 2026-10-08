@@ -13,6 +13,19 @@ export const memoryScope = pgEnum("memory_scope", ["global", "project", "agent"]
 
 export const memoryStatus = pgEnum("memory_status", ["active", "pending"]);
 
+/**
+ * Whether a memory's content can be trusted, unlike `memories.source` (how it was written): the user
+ * (owner), an agent, an agent or consolidation fed by untrusted content (a webhook payload, a fetched
+ * page), or the platform (consolidation).
+ */
+export const memoryOrigin = pgEnum("memory_origin", ["owner", "agent", "untrusted", "system"]);
+
+/** How long a memory holds: indefinitely, for months, or for weeks (it then carries `expires_at`). */
+export const memoryRetention = pgEnum("memory_retention", ["permanent", "durable", "ephemeral"]);
+
+/** What recalled a memory: the memory_search tool or the injection into a run's context. */
+export const memoryRecallSource = pgEnum("memory_recall_source", ["search", "context"]);
+
 export const runStatus = pgEnum("run_status", [
   "queued",
   "running",

@@ -19,6 +19,11 @@ export type CompactionMetadata = {
   flushedMemoryIds: string[];
   /** Tools the summarized messages called or loaded: they stay loaded, so the run's tool list stays the same. */
   toolsUsed: string[];
+  /**
+   * The summarized messages (or the summary before this one) held untrusted data (see agents/untrusted.ts):
+   * a run given this summary has read it. Missing on summaries without any.
+   */
+  readUntrusted?: true;
 };
 
 /** A compaction with the time it was made. */

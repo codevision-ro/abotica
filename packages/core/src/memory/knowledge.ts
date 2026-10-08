@@ -3,7 +3,8 @@ import { and, cosineDistance, eq, ilike, inArray, isNotNull, sql } from "@abotic
 import { UserError } from "@abotica/i18n";
 import { isTextFile } from "../files/file-types";
 import { claimFiles, getFile, readFileBytes, removeFileBytes } from "../files/files";
-import { embedText, embedTexts, nearestFirst } from "./memory";
+import { embedText, embedTexts } from "./memory";
+import { nearestFirst } from "./memory-search";
 import { projectProviderPolicy, projectsProviderPolicy } from "../models/provider-policy";
 import { readTextCapped, SafeFetchError, safeFetch } from "../platform/safe-fetch";
 

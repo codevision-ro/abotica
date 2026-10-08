@@ -10,6 +10,7 @@
     "./agents/permissions": "./src/agents/permissions.ts",
     "./agents/runner": "./src/agents/runner.ts",
     "./agents/tools/tool-catalog": "./src/agents/tools/tool-catalog.ts",
+    "./agents/untrusted": "./src/agents/untrusted.ts",
     "./audit-actions": "./src/platform/audit-actions.ts",
     "./compaction-record": "./src/runs/compaction-record.ts",
     "./cron": "./src/automations/cron.ts",

@@ -26,6 +26,8 @@ import { settingsLocale } from "../platform/settings";
 import { approxTokens, effectiveWindow } from "./compaction";
 import { createCompactor, summaryMessages, toolsUsedInHistory } from "./compactor";
 import { buildInstructions, type DeferredToolGroup, loadRunContext, type RunContext, withSentTimes } from "./context";
+import { withRecall } from "../memory/memory-budget";
+import { recallForRun } from "../memory/memory-recall";
 import { FallbackModel } from "../models/fallback-model";
 import { inheritedEffort } from "../models/reasoning";
 import type { McpToolSource } from "./mcp";
@@ -39,6 +41,8 @@ import { createRunStreamWriter } from "./stream";
 import { loopGuard } from "./stuck";
 import { deferTools, isDeferredBuiltin, TOOL_SEARCH } from "./tool-loading";
 import { builtinTools } from "./tools";
+import { messagesHaveUntrusted } from "./untrusted";
+import { wrapUntrustedResults } from "./untrusted-results";
 
 /** Progress of a running run; status changes go through run-lifecycle. */
 type RunProgress = Pick<
@@ -51,6 +55,11 @@ const approvalSecret = () => createHmac("sha256", env().VAULT_KEY).update("tool-
 
 async function updateProgress(runId: string, progress: RunProgress) {
   await db.update(runs).set(progress).where(eq(runs.id, runId));
+}
+
+/** Keeps `ctx.untrustedSeen` for the day's journal, whose facts it makes untrusted (maintenance.ts). */
+async function markReadUntrusted(runId: string) {
+  await db.update(runs).set({ readUntrusted: true }).where(eq(runs.id, runId));
 }
 
 /** For callbacks nobody awaits: a failed write is logged instead of becoming an unhandled rejection. */
@@ -228,6 +237,21 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
     if (!conversationId) return await fail(t("runs.errors.noConversation"), "no_conversation");
 
     let history = await loadConversation(conversationId);
+    // A webhook payload or a delegation report in the prompt, or a summary of untrusted data; wrapped
+    // tool results set it as they come.
+    ctx.untrustedSeen ||=
+      history.compaction?.metadata.readUntrusted === true || messagesHaveUntrusted(history.messages.map((m) => m.message));
+    // Memory relevant to the newest message, saved on it; a failed recall leaves the run without one.
+    history = await recallForRun(history, {
+      id: runId,
+      input: ctx.run.input,
+      agentId: ctx.agent.id,
+      projectId: ctx.projectId,
+      settings: ctx.settings,
+    }).catch((error: unknown) => {
+      logEventInBackground(runId, "recall-error", { error: errorText(error) });
+      return history;
+    });
 
     const model = new FallbackModel(chain, {
       effort: inheritedEffort(
@@ -249,6 +273,9 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
       secrets: { projectId: ctx.projectId },
       runWorkspace: ctx.sandbox ? () => ctx.sandbox!.workspace() : null,
       toolOutput: ctx.sandbox ? { sandbox: ctx.sandbox, runId } : null,
+      onUntrusted: () => {
+        ctx.untrustedSeen = true;
+      },
       onLazyError: (server, error) => logEventInBackground(runId, "mcp-error", { error: `${server}: ${errorText(error)}` }),
     });
     for (const { server, error } of mcp.errors)
@@ -300,14 +327,21 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
         providerOptions: cacheOptions,
         messages: [
           ...summaryMessages(prompt),
-          ...(await convertToModelMessages(
-            await withModelFiles(withSentTimes(prompt.messages, ctx.settings.timezone), {
-              store: { get: getFile, read: readFileBytes },
-              workspace: ctx.sandbox !== null,
-              readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),
-            }),
-            { tools, ignoreIncompleteToolCalls: true },
-          )),
+          // Results of tools this run lacks and stored errors go in wrapped too, as their tools would.
+          ...wrapUntrustedResults(
+            await convertToModelMessages(
+              await withModelFiles(withSentTimes(withRecall(prompt.messages), ctx.settings.timezone), {
+                store: { get: getFile, read: readFileBytes },
+                workspace: ctx.sandbox !== null,
+                readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),
+              }),
+              { tools, ignoreIncompleteToolCalls: true },
+            ),
+            tools,
+            () => {
+              ctx.untrustedSeen = true;
+            },
+          ),
         ],
         tools,
         toolApproval: approvalPolicy(ctx, mcpSources),
@@ -465,7 +499,12 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
     return await fail(failed.reason, failed.kind);
   } finally {
     // Each step runs even when an earlier one fails.
-    const cleanup = await Promise.allSettled([writer.end(), mcp?.close(), ctx.sandbox?.close()]);
+    const cleanup = await Promise.allSettled([
+      writer.end(),
+      mcp?.close(),
+      ctx.sandbox?.close(),
+      ctx.untrustedSeen && markReadUntrusted(runId),
+    ]);
     for (const r of cleanup) if (r.status === "rejected") console.error(`[runs] cleanup of ${runId} failed:`, r.reason);
   }
 }

@@ -1,6 +1,7 @@
 import {
   type AnyPgColumn,
   bigserial,
+  boolean,
   index,
   integer,
   jsonb,
@@ -36,6 +37,8 @@ export const runs = pgTable(
     error: text(),
     /** Set on every run that ended failed or cancelled; `error` keeps the text for the user. */
     failureKind: runFailureKind(),
+    /** The run took in untrusted content (a webhook payload, a fetched page, an MCP result). */
+    readUntrusted: boolean().notNull().default(false),
     provider: text(),
     model: text(),
     steps: integer().notNull().default(0),

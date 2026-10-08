@@ -128,6 +128,17 @@
     "show": "Arată rezumatul",
     "hint": "Agentul lucrează cu acest rezumat în locul mesajelor de mai sus."
   },
+  "untrusted": {
+    "label": "Date externe",
+    "source": {
+      "webhook": "Conținutul webhook-ului",
+      "taskOutput": "Rezultatul task-ului",
+      "delegatedTask": "Task delegat",
+      "web": "Pagină web",
+      "knowledge": "Pagină salvată",
+      "mcp": "Serverul MCP {server}"
+    }
+  },
   "skillTest": {
     "label": "Test de skill: <link>{name}</link>",
     "hint": "În această conversație agentul are skill-ul, chiar dacă nu îi este atribuit sau skill-ul este oprit."

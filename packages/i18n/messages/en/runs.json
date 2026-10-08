@@ -122,6 +122,7 @@
       "mcp-error": "MCP server error",
       "error": "Error",
       "sandbox-error": "Sandbox error",
+      "recall-error": "Memory recall failed",
       "retry": "Retry",
       "loop-nudge": "Loop warning",
       "compaction": "Context compacted",

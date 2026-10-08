@@ -29,6 +29,7 @@ import { redactSecrets } from "./redact";
 import type { StepPreparer } from "./step-preparation";
 import { toolsUsedIn } from "./tool-loading";
 import { memoryTools } from "./tools/memory";
+import { modelMessagesHaveUntrusted, wrapUntrustedResults } from "./untrusted-results";
 
 /**
  * Compaction in a run (see compaction.ts for the rules): at its start, when its first model call
@@ -48,7 +49,14 @@ const SUMMARY_TIMEOUT_MS = 3 * 60_000;
 /** What a compaction call cost, added to the run's. */
 export type CompactionUsage = { costUsd: number; inputTokens: number; outputTokens: number };
 
-type Summary = { text: string; model: ModelRef; flushedMemoryIds: string[]; usage: CompactionUsage };
+/** `readUntrusted`: what it summarizes held untrusted data (see CompactionMetadata). */
+type Summary = {
+  text: string;
+  model: ModelRef;
+  flushedMemoryIds: string[];
+  usage: CompactionUsage;
+  readUntrusted: boolean;
+};
 
 export type CompactorOptions = {
   ctx: RunContext;
@@ -75,15 +83,20 @@ export const summaryMessages = (history: ConversationHistory): ModelMessage[] =>
 /**
  * memory_save for the memory flush, as the agent's permission has it: none when denied. Where the
  * agent must ask first, the facts are saved pending, since nobody can approve a call in a compaction.
+ * Facts drawn from untrusted data (`readUntrusted`) are saved as untrusted, as the run's own would be.
  */
-function flushTool(ctx: RunContext): Tool | null {
+function flushTool(ctx: RunContext, readUntrusted: boolean): Tool | null {
   const permission = builtinPermission(ctx.agent.permissions, "memory_save", {
     isOrchestrator: ctx.agent.isOrchestrator,
     isManager: ctx.isManager,
   });
   if (permission === "deny") return null;
   const pending = permission === "ask" || ctx.settings.memoryRequiresApproval;
-  return memoryTools.memory_save!({ ...ctx, settings: { ...ctx.settings, memoryRequiresApproval: pending } });
+  return memoryTools.memory_save!({
+    ...ctx,
+    untrustedSeen: ctx.untrustedSeen || readUntrusted,
+    settings: { ...ctx.settings, memoryRequiresApproval: pending },
+  });
 }
 
 const messagesTokens = (messages: StoredMessage[]) => approxTokens(messages.map((m) => m.message.parts));
@@ -104,15 +117,17 @@ export function createCompactor(opts: CompactorOptions) {
   let estimate = 0;
 
   /**
-   * The summary of `messages` on top of `previous`, without secret values: the vault's and the
-   * repositories' are replaced before the call and in what it returns.
+   * The summary of `messages` on top of the previous one, without secret values: the vault's and the
+   * repositories' are replaced before the call and in what it returns. Untrusted data in the messages
+   * (or behind the previous summary) makes the flush's facts untrusted and the run one that read it.
    */
-  async function summarize(messages: ModelMessage[], previous: string | null): Promise<Summary> {
+  async function summarize(messages: ModelMessage[], previous: CompactionMetadata | null): Promise<Summary> {
     const secrets = [...ctx.repos.map((r) => r.token), ...(await secretValues(OWNER_SECRETS))];
-    const flush = flushTool(ctx);
+    const readUntrusted = previous?.readUntrusted === true || modelMessagesHaveUntrusted(messages);
+    const flush = flushTool(ctx, readUntrusted);
     const request = summaryRequest({
       transcript: transcript(redactSecrets(messages, secrets), transcriptBudget(window, estimate)),
-      previousSummary: previous === null ? null : redactSecrets(previous, secrets),
+      previousSummary: previous === null ? null : redactSecrets(previous.summary, secrets),
       flush: flush !== null,
     });
     const usage: CompactionUsage = { costUsd: 0, inputTokens: 0, outputTokens: 0 };
@@ -152,7 +167,9 @@ export function createCompactor(opts: CompactorOptions) {
         return r.toolName === "memory_save" && typeof id === "string" ? [id] : [];
       }),
     );
-    return { text: redactSecrets(text, secrets), model: model.lastServed, flushedMemoryIds, usage };
+    // The model gets the summary in place of the messages: what they held, it has read.
+    if (readUntrusted) ctx.untrustedSeen = true;
+    return { text: redactSecrets(text, secrets), model: model.lastServed, flushedMemoryIds, usage, readUntrusted };
   }
 
   /**
@@ -176,6 +193,7 @@ export function createCompactor(opts: CompactorOptions) {
           tokens,
           flushedMemoryIds: summary.flushedMemoryIds,
           ...covers,
+          ...(summary.readUntrusted && { readUntrusted: true }),
         })
       : null;
     await logRunEvent(runId, "compaction", {
@@ -208,13 +226,18 @@ export function createCompactor(opts: CompactorOptions) {
     if (cut === 0) return null;
     const covered = history.messages.slice(0, cut);
     try {
-      // With the calls that never got a result: the summary says what was left open.
-      const messages = await convertToModelMessages(withSentTimes(covered, ctx.settings.timezone));
-      const previous = history.compaction?.metadata.summary ?? null;
+      // With the calls that never got a result: the summary says what was left open. Without the run's
+      // tools, so every untrusted result is wrapped here and the summary call reads it as data.
+      const messages = wrapUntrustedResults(
+        await convertToModelMessages(withSentTimes(covered, ctx.settings.timezone)),
+        {},
+        () => {},
+      );
+      const previous = history.compaction?.metadata ?? null;
       const summary = await summarize(messages, previous);
       const after = Math.max(
         0,
-        estimate - messagesTokens(covered) - (previous ? approxTokens(previous) : 0) + approxTokens(summary.text),
+        estimate - messagesTokens(covered) - (previous ? approxTokens(previous.summary) : 0) + approxTokens(summary.text),
       );
       const compaction = await record(
         { reason, midRun: false, summary, tokens: { before: estimate, after } },
@@ -284,7 +307,7 @@ export function createCompactor(opts: CompactorOptions) {
         });
         if (!cut) return null;
         try {
-          const summary = await summarize(cut.summarize, history.compaction?.metadata.summary ?? null);
+          const summary = await summarize(cut.summarize, history.compaction?.metadata ?? null);
           const prompt = [summaryMessage(summary.text), ...cut.keep];
           const after = Math.max(0, estimate - promptTokens(messages) + promptTokens(prompt));
           // Saved for the next runs when it covers stored messages: the history before the run's request.

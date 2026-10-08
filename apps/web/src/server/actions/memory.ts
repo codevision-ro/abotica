@@ -5,6 +5,8 @@ import {
   createMemory as createMemoryRow,
   deleteMemory as deleteMemoryRow,
   rejectMemories as rejectMemoryRows,
+  restoreMemory as restoreMemoryRow,
+  setMemoryPinned as setMemoryPinnedRow,
   updateMemory as updateMemoryRow,
 } from "@abotica/core";
 import { MEMORY_MAX_LENGTH } from "@abotica/core/limits";
@@ -50,6 +52,7 @@ export const createMemory = action(
       projectId: scope === "project" ? projectId : null,
       agentId: scope === "agent" ? agentId : null,
       source: "manual",
+      origin: "owner",
     });
     revalidateMemory(
       row.scope === "agent" && row.agentId
@@ -64,6 +67,20 @@ export const createMemory = action(
 
 export const updateMemory = action(z.object({ id: z.uuid(), content, owner }), async ({ id, content, owner }) => {
   await updateMemoryRow(id, content, { owner });
+  revalidateMemory(owner);
+});
+
+export const setMemoryPinned = action(
+  z.object({ id: z.uuid(), pinned: z.boolean(), owner }),
+  async ({ id, pinned, owner }) => {
+    await setMemoryPinnedRow(id, pinned, { owner });
+    revalidateMemory(owner);
+  },
+);
+
+/** Makes an entry a newer one replaced current again (agents read it again); the newer one stays. */
+export const restoreMemory = action(z.object({ id: z.uuid(), owner }), async ({ id, owner }) => {
+  await restoreMemoryRow(id, { owner });
   revalidateMemory(owner);
 });
 

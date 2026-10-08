@@ -42,6 +42,8 @@ import {
   type ToolOutputWorkspace,
 } from "./tool-output";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
+import { wrapUntrusted } from "./untrusted";
+import { markerId } from "./untrusted-id";
 
 export type McpConnection = {
   tools: ToolSet;
@@ -64,6 +66,8 @@ export type McpRunOptions = McpConnectOptions & {
    * or missing when the run has none, and the cut middle is not kept.
    */
   toolOutput?: ToolOutputWorkspace | null;
+  /** A result went to the model as untrusted data: every MCP result does, also when a replay rebuilds it. */
+  onUntrusted?: () => void;
 };
 
 /** The only host variables an unsandboxed stdio server gets; the worker's secrets stay out. */
@@ -173,19 +177,34 @@ const isComplete = (tools: McpToolInfo[] | null): tools is McpToolInfo[] =>
 
 type McpCallResult = Awaited<ReturnType<MCPClient["callTool"]>>;
 
-/** What the model reads from a tool result: its text, and images as files (as `@ai-sdk/mcp` does). */
-function toModelOutput({ output }: { output: unknown }) {
-  const result = output as McpCallResult;
-  if (!("content" in result) || !Array.isArray(result.content)) return { type: "json" as const, value: result as never };
-  return {
-    type: "content" as const,
-    value: result.content.map((part) =>
-      part.type === "text"
-        ? { type: "text" as const, text: part.text }
-        : part.type === "image"
-          ? { type: "file" as const, mediaType: part.mimeType, data: { type: "data" as const, data: part.data } }
-          : { type: "text" as const, text: JSON.stringify(part) },
-    ),
+/** A call's result as `execute` returns it: the server's, with Abotica's note on where its files are. */
+type McpToolOutput = McpCallResult & { folderNote?: string };
+
+/**
+ * What the model reads from a tool result: its text, and images as files (as `@ai-sdk/mcp` does).
+ * Everything the server wrote goes in as untrusted data, under an id derived from the tool call so
+ * a replay gives the same bytes; the folder note is Abotica's own and follows outside the blocks.
+ */
+function modelOutput(slug: string, onUntrusted: (() => void) | undefined) {
+  return ({ toolCallId, output }: { toolCallId: string; output: unknown }) => {
+    const { folderNote, ...result } = output as McpToolOutput;
+    const wrap = (text: string) => wrapUntrusted(text, { source: `mcp:${slug}`, id: markerId(toolCallId) });
+    const note = folderNote ? [{ type: "text" as const, text: folderNote }] : [];
+    onUntrusted?.();
+    if (!("content" in result) || !Array.isArray(result.content)) {
+      return { type: "content" as const, value: [{ type: "text" as const, text: wrap(JSON.stringify(result)) }, ...note] };
+    }
+    return {
+      type: "content" as const,
+      value: [
+        ...result.content.map((part) =>
+          part.type === "image"
+            ? { type: "file" as const, mediaType: part.mimeType, data: { type: "data" as const, data: part.data } }
+            : { type: "text" as const, text: wrap(part.type === "text" ? part.text : JSON.stringify(part)) },
+        ),
+        ...note,
+      ],
+    };
   };
 }
 
@@ -213,22 +232,24 @@ const RELATIVE_PATH = /(?:^|[\s(["'`])\.\.?\//m;
  * A server in a run's workspace names the files it saves relative to its own folder, not to the
  * agent's working directory; a result that mentions such a path tells the agent where they are.
  */
-function withFolderNote(result: McpCallResult, folder: string): McpCallResult {
-  if (!("content" in result) || !Array.isArray(result.content)) return result;
-  if (!result.content.some((part) => part.type === "text" && RELATIVE_PATH.test(part.text))) return result;
-  const note =
+function folderNote(result: McpCallResult, folder: string): string | undefined {
+  if (!("content" in result) || !Array.isArray(result.content)) return undefined;
+  if (!result.content.some((part) => part.type === "text" && RELATIVE_PATH.test(part.text))) return undefined;
+  return (
     `Relative paths above are inside ${folder}, where this tool saves files. Read or share a file there ` +
-    `by its full path (${folder}/<name>); it is read-only for you, so copy it into your workspace to change it.`;
-  return { ...result, content: [...result.content, { type: "text", text: note }] };
+    `by its full path (${folder}/<name>); it is read-only for you, so copy it into your workspace to change it.`
+  );
 }
 
 /** One server's tools, built from its definitions; the server is only connected on a call. */
 function serverTools(
+  server: McpServer,
   definitions: McpToolInfo[],
   connect: () => Promise<McpConnected>,
-  toolOutput: ToolOutputWorkspace | null | undefined,
+  opts: McpRunOptions,
 ): Record<string, Tool> {
   const tools: Record<string, Tool> = {};
+  const toModelOutput = modelOutput(server.slug, opts.onUntrusted);
   for (const definition of definitions) {
     // As `@ai-sdk/mcp` builds it: no extra keys, and an object even when the server lists no properties.
     const schema = (definition.inputSchema ?? { type: "object" }) as JSONSchema7;
@@ -239,13 +260,23 @@ function serverTools(
       execute: async (args, options) => {
         options?.abortSignal?.throwIfAborted();
         const { client, folder } = await connect();
-        const result = await client.callTool({
-          name: definition.name,
-          arguments: args as Record<string, unknown>,
-          options: { signal: options?.abortSignal },
-        });
-        const capped = await capResult(result, fullOutputTarget(toolOutput, options));
-        return folder ? withFolderNote(capped, folder) : capped;
+        const result = await client
+          .callTool({
+            name: definition.name,
+            arguments: args as Record<string, unknown>,
+            options: { signal: options?.abortSignal },
+          })
+          .catch((error: unknown): McpCallResult => {
+            // A cancelled run still stops. The server's error is its text: thrown, the AI SDK would hand
+            // it to the model as it is, so it comes back as an error result toModelOutput wraps.
+            if (options?.abortSignal?.aborted) throw error;
+            const message = error instanceof Error ? error.message : String(error);
+            return { isError: true, content: [{ type: "text", text: message }] };
+          });
+        const capped = await capResult(result, fullOutputTarget(opts.toolOutput, options));
+        // Set on every result, so a `folderNote` the server sends itself never reaches the model unwrapped.
+        const output: McpToolOutput = { ...capped, folderNote: folder ? folderNote(capped, folder) : undefined };
+        return output;
       },
       toModelOutput,
     });
@@ -290,8 +321,7 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
 
   const listings = await Promise.all(
     servers.map(async (server) => {
-      if (isComplete(server.tools))
-        return { server, tools: serverTools(server.tools, lazyClient(server), opts.toolOutput) };
+      if (isComplete(server.tools)) return { server, tools: serverTools(server, server.tools, lazyClient(server), opts) };
       // No usable cache yet: connect now, list the tools and remember them for the next runs.
       try {
         const connected = await connectMcp(server, opts);
@@ -299,7 +329,7 @@ export async function loadMcpTools(servers: McpServer[], opts: McpRunOptions): P
         const definitions = await listToolDefinitions(connected.client);
         // The cache only feeds the agent form and later runs; a failed write must never fail this one.
         if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
-        return { server, tools: serverTools(definitions, async () => connected, opts.toolOutput) };
+        return { server, tools: serverTools(server, definitions, async () => connected, opts) };
       } catch (error) {
         errors.push({ server: server.slug, error });
         return null;

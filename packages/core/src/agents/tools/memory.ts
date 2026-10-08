@@ -4,10 +4,15 @@ import { eq } from "@abotica/db/orm";
 import { z } from "zod";
 import { audit } from "../../platform/audit";
 import { addKnowledgeItem, fetchPageText, searchKnowledge } from "../../memory/knowledge";
-import { deleteMemory, remember, searchJournals, searchMemories, updateMemory } from "../../memory/memory";
+import { deleteMemory, saveMemory, searchJournals, searchMemories, updateMemory } from "../../memory/memory";
+import { EPHEMERAL_DAYS, MEMORY_RETENTIONS } from "../../memory/memory-consolidation";
+import { logMemoryRecalls } from "../../memory/memory-recall";
+import { MemorySecretError, SECRET_REFUSED } from "../../memory/memory-write-gate";
 import { defaultMemoryScope, memoryEditableBy } from "../../memory/memory-scope";
 import type { RunContext } from "../context";
 import { modelChain } from "../model-chain";
+import { neutralizeMarkers, wrapUntrusted } from "../untrusted";
+import { markerId } from "../untrusted-id";
 import { WITHHELD_NOTE } from "./withheld";
 import {
   actorOf,
@@ -33,7 +38,42 @@ async function editableMemory(ctx: RunContext, id: string): Promise<Memory | { e
       isOrchestrator: ctx.agent.isOrchestrator,
     });
   if (!allowed) return { error: `Memory ${id} does not exist or you cannot change it. Use memory_search to find ids.` };
+  // History stays as it was; the current version is the one to change.
+  if (memory.invalidatedAt) {
+    return {
+      error: `Memory ${id} was replaced by a newer entry${memory.supersededBy ? ` (${memory.supersededBy})` : ""}. Use memory_search to find the current one.`,
+    };
+  }
   return memory;
+}
+
+/**
+ * Whose content an agent writes: untrusted once the run has read untrusted data (see
+ * RunContext.untrustedSeen). Read at write time, since a tool result can set it mid-run.
+ */
+const writeOrigin = (ctx: RunContext): Memory["origin"] => (ctx.untrustedSeen ? "untrusted" : "agent");
+
+const retention = z
+  .enum(MEMORY_RETENTIONS)
+  .optional()
+  .describe(
+    `How long the fact holds: permanent (the user's preferences and habits, true indefinitely), durable (the default: decisions, project knowledge, configuration, valid for months) or ephemeral (temporary arrangements that change within weeks; forgotten after ${EPHEMERAL_DAYS} days).`,
+  );
+
+/** Asked of every write: memory is read days or months later. */
+const ABSOLUTE_DATES = 'Write dates as YYYY-MM-DD, never "today", "yesterday" or "next week": memory is read long after.';
+
+/** Repository tokens of the run, which a write must not store (the vault's are checked by core). */
+const runSecrets = (ctx: RunContext) => ({ knownSecrets: ctx.repos.map((r) => r.token) });
+
+/** The write's result, or the refusal the model gets for a secret. */
+async function unlessSecret<T>(write: () => Promise<T>): Promise<T | { error: string }> {
+  try {
+    return await write();
+  } catch (error) {
+    if (error instanceof MemorySecretError) return { error: SECRET_REFUSED };
+    throw error;
+  }
 }
 
 export const memoryTools: Record<string, ToolFactory> = {
@@ -43,13 +83,23 @@ export const memoryTools: Record<string, ToolFactory> = {
         ? "Search memory for relevant information: preferences, decisions, facts. It covers global memory, this project's memory and your own. Use it before assuming anything. Results carry the ids memory_update and memory_delete need."
         : "Search memory (global and your own) for relevant information: preferences, decisions, facts. Use it before assuming anything. Results carry the ids memory_update and memory_delete need.",
       inputSchema: z.object({ query: z.string().describe("What you are looking for, in natural language") }),
-      execute: async ({ query }) => searchMemories(query, { agentId: ctx.agent.id, projectId: ctx.projectId, limit: 10 }),
+      execute: async ({ query }) => {
+        const found = await searchMemories(query, { agentId: ctx.agent.id, projectId: ctx.projectId, limit: 10 });
+        // What search returns is a use: entries found often, by different queries, are promoted.
+        await logMemoryRecalls(
+          found.map((m) => m.id),
+          { runId: ctx.run.id, query, source: "search" },
+        );
+        return found;
+      },
     }),
 
   memory_save: (ctx) =>
     tool({
       description: [
-        "Save a durable fact to memory. Do not save temporary things. To correct an existing entry use memory_update instead of saving a second one.",
+        "Save a fact to memory. Do not save intermediate steps, and never secrets (keys, tokens, passwords). To correct an existing entry use memory_update instead of saving a second one.",
+        ABSOLUTE_DATES,
+        "Say how long it holds with retention.",
         ctx.projectId
           ? "scope=project (the default here) for what the team should know about this project: its decisions, conventions, facts, what you learned working on it. scope=agent only for knowledge about your profession that holds in any project (methods, tools, lessons of your craft). scope=global for facts that apply everywhere (e.g. the user's preferences)."
           : "scope=agent (the default) for what you learned yourself, global for facts that apply everywhere (e.g. the user's preferences), project for a project's context and decisions (with its projectId).",
@@ -62,37 +112,88 @@ export const memoryTools: Record<string, ToolFactory> = {
             ? "Required for scope=project"
             : "Leave empty: project memory goes to this run's project",
         ),
+        retention,
       }),
-      execute: async ({ content, scope = defaultMemoryScope(ctx.projectId), projectId }) => {
+      execute: async ({ content, scope = defaultMemoryScope(ctx.projectId), projectId, retention }) => {
         const pid = projectId ?? ctx.projectId;
         if (scope === "project" && !pid) return { error: "projectId is required for project memory" };
         // A run writes only to its own project's memory; the super agent may note facts for any project.
         if (scope === "project" && pid !== ctx.projectId && !ctx.agent.isOrchestrator) {
           return { error: "You can save project memory only for the project of this run" };
         }
-        const memory = await remember({
+        const result = await unlessSecret(() =>
+          saveMemory(
+            {
+              scope,
+              content,
+              projectId: pid,
+              agentId: ctx.agent.id,
+              source: "agent",
+              origin: writeOrigin(ctx),
+              status: ctx.settings.memoryRequiresApproval ? "pending" : "active",
+              retention,
+            },
+            { actor: actorOf(ctx), ...runSecrets(ctx) },
+          ),
+        );
+        if ("error" in result) return result;
+        // Another project's memory is not the run's to read (the super agent's included, whatever the
+        // project's provider restriction): the answer names no entry's content, only ids.
+        const blind = scope === "project" && pid !== ctx.projectId;
+        if ("duplicateOf" in result) {
+          return {
+            saved: false,
+            duplicateOf: result.duplicateOf.id,
+            ...(!blind && { content: result.duplicateOf.content }),
+            note: "Memory already holds this fact. If you meant to correct it, use memory_update with this id.",
+          };
+        }
+        const { memory, related, heldBecause } = result;
+        return {
+          saved: true,
+          id: memory.id,
           scope,
-          content,
-          projectId: pid,
-          agentId: ctx.agent.id,
-          source: "agent",
-          status: ctx.settings.memoryRequiresApproval ? "pending" : "active",
-        });
-        return { saved: true, id: memory.id, scope, pendingApproval: memory.status === "pending" };
+          pendingApproval: memory.status === "pending",
+          ...(heldBecause && { pendingReason: heldBecause }),
+          ...(!blind &&
+            related.length > 0 && {
+              related: related.map(({ id, content }) => ({ id, content })),
+              note: "These entries are close to the new fact. If it replaces one of them, update or delete that one.",
+            }),
+        };
       },
     }),
 
   memory_update: (ctx) =>
     tool({
-      description:
+      description: [
         "Replace the content of a memory entry that is wrong or outdated. Get the id from memory_search. Write the complete new content, not a diff.",
-      inputSchema: z.object({ memoryId: z.string().uuid(), content: z.string().min(3) }),
-      execute: async ({ memoryId, content }) => {
+        ABSOLUTE_DATES,
+        "Set retention when how long it holds changed; left out, it keeps the entry's. An entry agents wrote keeps its old version as history: the update returns the id of the new entry.",
+      ].join(" "),
+      inputSchema: z.object({ memoryId: z.string().uuid(), content: z.string().min(3), retention }),
+      execute: async ({ memoryId, content, retention }) => {
         const memory = await editableMemory(ctx, memoryId);
         if ("error" in memory) return memory;
-        const pending = ctx.settings.memoryRequiresApproval;
-        await updateMemory(memory.id, content, { actor: actorOf(ctx), ...(pending && { status: "pending" }) });
-        return { updated: true, id: memory.id, pendingApproval: pending };
+        const result = await unlessSecret(() =>
+          updateMemory(memory.id, content, {
+            actor: actorOf(ctx),
+            // Rewording an untrusted entry does not make it trusted.
+            origin: memory.origin === "untrusted" ? "untrusted" : writeOrigin(ctx),
+            ...(ctx.settings.memoryRequiresApproval && { status: "pending" }),
+            retention,
+            agentId: ctx.agent.id,
+            ...runSecrets(ctx),
+          }),
+        );
+        if ("error" in result) return result;
+        return {
+          updated: true,
+          id: result.id,
+          ...(result.id !== memory.id && { replaces: memory.id }),
+          pendingApproval: result.heldBecause !== null,
+          ...(result.heldBecause && { pendingReason: result.heldBecause }),
+        };
       },
     }),
 
@@ -140,6 +241,24 @@ export const memoryTools: Record<string, ToolFactory> = {
         if (projectId && !readable.includes(projectId)) return { error: `Project ${projectId} is not one of yours` };
         if (projectId && closed.has(projectId)) return { error: `Project ${projectId}: ${WITHHELD_NOTE}` };
         return searchKnowledge(query, projectId ? [projectId] : readable.filter((id) => !closed.has(id)));
+      },
+      // Text saved from a web page goes to the model as untrusted data; documents agents wrote stay as they are.
+      toModelOutput: ({ toolCallId, output }) => {
+        if (!Array.isArray(output) || !output.some((item) => item.sourceUrl)) return { type: "json", value: output };
+        ctx.untrustedSeen = true;
+        const id = markerId(toolCallId);
+        return {
+          type: "json",
+          value: output.map((item) =>
+            item.sourceUrl
+              ? {
+                  ...item,
+                  title: neutralizeMarkers(item.title),
+                  content: wrapUntrusted(item.content, { source: "knowledge", id }),
+                }
+              : item,
+          ),
+        };
       },
     }),
 

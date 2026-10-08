@@ -2,7 +2,7 @@
 
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import { MEMORY_MAX_LENGTH } from "@abotica/core/limits";
-import { Check, FolderKanban, Globe, Pencil, UserRound, X } from "lucide-react";
+import { Check, FolderKanban, Globe, History, Pencil, Pin, PinOff, Undo2, UserRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,15 +13,30 @@ import { SectionIcon } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
-import { approveMemories, deleteMemory, type MemoryOwner, rejectMemories, updateMemory } from "@/server/actions/memory";
-import { PendingBadge, ScopeBadge, SourceBadge } from "./memory-badges";
+import {
+  approveMemories,
+  deleteMemory,
+  type MemoryOwner,
+  rejectMemories,
+  restoreMemory,
+  setMemoryPinned,
+  updateMemory,
+} from "@/server/actions/memory";
+import { FlagReason, OriginBadge, PendingBadge, RetentionBadge, ScopeBadge, SourceBadge } from "./memory-badges";
 
 export type MemoryListItem = {
   id: string;
   content: string;
   source: string;
+  /** Whose content it is (owner, agent, untrusted, system); absent where a list does not load it. */
+  origin?: string;
   status: string;
+  /** In every run of its scope (within the pinned budget); absent where a list does not load it. */
+  pinned?: boolean;
+  /** Why the write waits for approval (see memory-scan.ts), shown in the approval queue. */
+  flagReason?: string | null;
   updatedAt: Date;
   /** The fields below are shown on the memory page, where entries of every owner are mixed. */
   scope?: string;
@@ -30,7 +45,59 @@ export type MemoryListItem = {
   agentName?: string | null;
   agentAvatar?: AgentAvatarValue | null;
   similarity?: number | null;
+  /** How long the fact holds, and since when (YYYY-MM-DD; null: since it was written). Absent where a list does not load it. */
+  retention?: string;
+  validFrom?: string | null;
+  /** When an ephemeral entry stops being read. */
+  expiresAt?: Date | null;
+  /** Set when a newer entry replaced this one: history, which agents no longer read. */
+  invalidatedAt?: Date | null;
+  supersededBy?: string | null;
+  /** How often runs used the entry. */
+  recallCount?: number;
+  /** For a pending entry: the current ones it replaces once approved. */
+  replaces?: string[];
 };
+
+/** Anchor of an entry in a list, for the links from the entries it replaced. */
+const rowId = (id: string) => `memory-${id}`;
+
+/** A YYYY-MM-DD day is a calendar day, not an instant: read it in local time so it shows as written. */
+const asDate = (value: Date | string) => (typeof value === "string" ? new Date(`${value}T00:00:00`) : value);
+
+/**
+ * Since when the fact holds and until when, or when a newer entry replaced it (with a link to that entry
+ * when it is in the list).
+ */
+function Validity({ m }: { m: MemoryListItem }) {
+  const t = useTranslations("memory.list");
+  const f = useFormat();
+  const day = (value: Date | string) => f.date(asDate(value), "d MMM yyyy");
+  if (m.invalidatedAt) {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-medium text-foreground/80">
+        <History aria-hidden className="size-3" />
+        {t("invalidatedAt", { date: day(m.invalidatedAt) })}
+        {m.supersededBy && (
+          <a href={`#${rowId(m.supersededBy)}`} className="font-normal underline underline-offset-2 hover:text-primary">
+            {t("replacedBy")}
+          </a>
+        )}
+      </span>
+    );
+  }
+  const expiresAt = m.expiresAt ? new Date(m.expiresAt) : null;
+  return (
+    <>
+      {m.validFrom && <span className="tabular">{t("validFrom", { date: day(m.validFrom) })}</span>}
+      {expiresAt && (
+        <span className={cn("tabular", expiresAt <= new Date() && "text-warning")} suppressHydrationWarning>
+          {expiresAt <= new Date() ? t("expired", { date: day(expiresAt) }) : t("expiresAt", { date: day(expiresAt) })}
+        </span>
+      )}
+    </>
+  );
+}
 
 /** Row actions stay visible on touch screens and appear on hover or focus where a pointer can hover. */
 export const rowActionsClass =
@@ -98,13 +165,42 @@ export function MemoryMeta({
       {showScope && m.scope && <ScopeBadge scope={m.scope} />}
       <ProjectAuthor m={m} />
       {showStatus && m.status === "pending" && <PendingBadge />}
+      {m.pinned && (
+        <span className="inline-flex items-center gap-1 font-medium text-primary">
+          <Pin aria-hidden className="size-3" />
+          {t("pinned")}
+        </span>
+      )}
       {/* A named author already says where the entry came from. */}
       {!hasAuthor(m) && <SourceBadge source={m.source} />}
+      {m.origin && <OriginBadge origin={m.origin} />}
+      {m.retention && <RetentionBadge retention={m.retention} />}
+      <Validity m={m} />
       <RelativeTime date={m.updatedAt} />
+      {m.recallCount !== undefined && m.status !== "pending" && (
+        <span className="tabular" title={t("recallsHint")}>
+          {t("recalls", { count: m.recallCount })}
+        </span>
+      )}
       {m.similarity != null && (
         <span className="tabular">{t("similarity", { percent: Math.round(m.similarity * 100) })}</span>
       )}
     </div>
+  );
+}
+
+/** For a pending entry: the entries it replaces once approved. */
+export function Replaces({ m }: { m: MemoryListItem }) {
+  const t = useTranslations("memory.pending");
+  if (m.status !== "pending" || !m.replaces?.length) return null;
+  return (
+    <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+      {m.replaces.map((content, i) => (
+        <li key={i} className="wrap-anywhere">
+          {t("replaces", { content })}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -132,6 +228,7 @@ function MemoryItem({
   const [content, setContent] = useState(memory.content);
   const [pending, startTransition] = useTransition();
   const isPending = memory.status === "pending";
+  const replaced = !!memory.invalidatedAt;
   const canSave = !pending && !!content.trim() && content !== memory.content;
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, success: string, after?: () => void) {
@@ -159,9 +256,11 @@ function MemoryItem({
 
   return (
     <li
+      id={rowId(memory.id)}
       className={cn(
-        "group/row flex min-w-0 items-center gap-3 px-4 py-3 transition-colors sm:px-5",
+        "group/row flex min-w-0 scroll-mt-20 items-center gap-3 px-4 py-3 transition-colors target:bg-primary/5 sm:px-5",
         isPending ? "bg-warning/5" : "hover:bg-muted/30",
+        replaced && "bg-muted/20",
         editing && "items-start bg-muted/30",
       )}
     >
@@ -192,8 +291,17 @@ function MemoryItem({
             </div>
           </div>
         ) : (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{memory.content}</p>
+          <p
+            className={cn(
+              "text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere",
+              replaced && "text-muted-foreground line-through decoration-muted-foreground/40",
+            )}
+          >
+            {memory.content}
+          </p>
         )}
+        {isPending && memory.flagReason && <FlagReason reason={memory.flagReason} />}
+        <Replaces m={memory} />
         <MemoryMeta m={memory} showScope={showScope} showOwner={showOwner} />
       </div>
       {!editing && (
@@ -221,16 +329,46 @@ function MemoryItem({
               </Button>
             </>
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("edit")}
-            title={t("edit")}
-            disabled={pending}
-            onClick={startEdit}
-          >
-            <Pencil />
-          </Button>
+          {replaced && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => run(() => restoreMemory({ id: memory.id, owner }), t("restored"))}
+            >
+              {pending ? <Spinner /> : <Undo2 />} {t("restore")}
+            </Button>
+          )}
+          {!isPending && !replaced && memory.pinned !== undefined && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={memory.pinned ? t("unpin") : t("pin")}
+              title={memory.pinned ? t("unpin") : t("pin")}
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => setMemoryPinned({ id: memory.id, pinned: !memory.pinned, owner }),
+                  memory.pinned ? t("unpinnedToast") : t("pinnedToast"),
+                )
+              }
+            >
+              {memory.pinned ? <PinOff /> : <Pin />}
+            </Button>
+          )}
+          {/* History stays as it was written. */}
+          {!replaced && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("edit")}
+              title={t("edit")}
+              disabled={pending}
+              onClick={startEdit}
+            >
+              <Pencil />
+            </Button>
+          )}
           {!isPending && (
             <ConfirmDelete
               label={t("delete")}

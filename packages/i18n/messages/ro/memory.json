@@ -21,24 +21,51 @@
     "agent": "agent",
     "consolidation": "consolidare"
   },
+  "origins": {
+    "owner": "proprietar",
+    "agent": "agent",
+    "untrusted": "date externe",
+    "system": "sistem"
+  },
+  "retention": {
+    "permanent": "permanentă",
+    "durable": "durabilă",
+    "ephemeral": "temporară"
+  },
+  "retentionHint": {
+    "permanent": "Valabilă oricât: nu pierde din relevanță în căutare.",
+    "durable": "Valabilă luni de zile: intrările mai vechi apar mai jos în căutare.",
+    "ephemeral": "Valabilă câteva săptămâni: agenții nu o mai citesc după ce expiră."
+  },
   "search": {
     "label": "Caută în memorie",
     "placeholder": "Caută în toate memoriile",
     "resultsAria": "Rezultate căutare",
     "resultsFor": "Rezultate pentru \"{query}\"",
-    "semantic": "căutare semantică",
-    "text": "căutare text (embeddings indisponibile)",
+    "hybrid": "căutare hibridă",
+    "keyword": "căutare după cuvinte (embeddings indisponibile)",
     "clear": "Șterge căutarea",
     "empty": "Niciun rezultat. Încearcă alte cuvinte sau adaugă memoria care lipsește."
   },
   "filters": {
+    "pinned": "Fixate",
     "byProject": "Filtrează după proiect",
     "allProjects": "Toate proiectele",
     "byAgent": "Filtrează după agent",
-    "allAgents": "Toți agenții"
+    "allAgents": "Toți agenții",
+    "origin": "Filtrează după origine",
+    "allOrigins": "Toate originile",
+    "history": "Arată istoricul",
+    "neverUsed": "Nefolosite",
+    "neverUsedHint": "Intrări pe care nicio rulare nu le-a folosit în cele {days} zile de când au fost scrise. Nimic nu se șterge singur."
   },
   "empty": "Nicio memorie aici încă. <add>Adaugă un fapt</add> sau lasă agenții să scrie memorie pe măsură ce lucrează.",
   "list": {
+    "pin": "Fixează: inclusă în fiecare rulare",
+    "unpin": "Anulează fixarea",
+    "pinned": "fixată",
+    "pinnedToast": "Fixată: agenții o primesc în fiecare rulare",
+    "unpinnedToast": "Fixare anulată: agenții o primesc când e relevantă",
     "pending": "în așteptare",
     "similarity": "similaritate {percent}%",
     "deletedProject": "Proiect șters",
@@ -55,10 +82,25 @@
     "rejected": "Memorie respinsă",
     "writtenBy": "Scrisă de {name}",
     "writtenByYou": "Scrisă de tine",
-    "you": "Tu"
+    "you": "Tu",
+    "validFrom": "din {date}",
+    "expiresAt": "până la {date}",
+    "expired": "expirată pe {date}",
+    "invalidatedAt": "înlocuită pe {date}",
+    "replacedBy": "vezi intrarea nouă",
+    "restore": "Restaurează",
+    "restored": "Memorie restaurată: agenții o citesc din nou",
+    "recalls": "{count, plural, =0 {nefolosită} one {folosită o dată} few {folosită de # ori} other {folosită de # de ori}}",
+    "recallsHint": "De câte ori au folosit-o rulările: adusă în context sau găsită prin căutarea în memorie."
+  },
+  "budget": {
+    "label": "Bugetul memoriei fixate",
+    "pinnedUsage": "Memoria fixată ocupă aproximativ {used, number} din {budget, number} de tokeni în fiecare rulare.",
+    "pinnedUsageWithGlobal": "Memoria fixată, împreună cu intrările globale, ocupă aproximativ {used, number} din {budget, number} de tokeni în fiecare rulare.",
+    "pinnedOmitted": "{count, plural, one {# intrare fixată nu încape și este lăsată deoparte.} few {# intrări fixate nu încap și sunt lăsate deoparte.} other {# de intrări fixate nu încap și sunt lăsate deoparte.}}"
   },
   "pending": {
-    "empty": "Nimic de aprobat. Memoriile scrise de agenți așteaptă aici când <settings>aprobarea este obligatorie</settings>.",
+    "empty": "Nimic de aprobat. Memoriile scrise de agenți așteaptă aici când <settings>aprobarea este obligatorie</settings> și mereu când provin din date externe sau par suspecte.",
     "selectAll": "Selectează tot",
     "selected": "{count} selectate",
     "reject": "Respinge",
@@ -70,7 +112,14 @@
     "rejectMemory": "Respinge memoria",
     "approveMemory": "Aprobă memoria",
     "rejectTitle": "{count, plural, one {Respingi # memorie?} few {Respingi # memorii?} other {Respingi # de memorii?}}",
-    "rejectDescription": "Memoriile respinse sunt șterse și agenții nu le vor citi. Acțiunea nu poate fi anulată."
+    "rejectDescription": "Memoriile respinse sunt șterse și agenții nu le vor citi. Acțiunea nu poate fi anulată.",
+    "flagReason": {
+      "injection": "Reținută pentru verificare: pare o instrucțiune adresată agenților (prompt injection).",
+      "exfiltration": "Reținută pentru verificare: pare o comandă care trimite credențiale în afară.",
+      "instruction-file": "Reținută pentru verificare: cere modificarea unui fișier de instrucțiuni al agenților (AGENTS.md, SKILL.md).",
+      "conflictsWithOwner": "Reținută pentru verificare: contrazice o intrare scrisă de tine. Dacă o aprobi, îți înlocuiește intrarea."
+    },
+    "replaces": "Înlocuiește: {content}"
   },
   "owned": {
     "addLabel": "Memorie nouă",
@@ -190,6 +239,7 @@
   "errors": {
     "blockedAddress": "Pagina nu a putut fi descărcată: {host} este o adresă privată sau internă",
     "credentialsInUrl": "Linkurile cu nume de utilizator sau parolă nu sunt permise",
-    "tooManyRedirects": "Pagina nu a putut fi descărcată: prea multe redirecționări"
+    "tooManyRedirects": "Pagina nu a putut fi descărcată: prea multe redirecționări",
+    "containsSecret": "Conținutul pare să includă un secret (o cheie API, un token sau o cheie privată). Secretele nu se păstrează în memorie: salvează valoarea în Vault și menționează doar numele ei."
   }
 }

@@ -1,15 +1,16 @@
 "use client";
 
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
-import { Bot, FolderKanban } from "lucide-react";
+import { Bot, FolderKanban, ShieldCheck } from "lucide-react";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 import { type QueryParams, useQueryUpdate } from "@/hooks/use-query-update";
 import { cn } from "@/lib/utils";
 
 const ALL = "__all";
 
-const ICONS = { agent: Bot, project: FolderKanban } as const;
+const ICONS = { agent: Bot, project: FolderKanban, origin: ShieldCheck } as const;
 
 /** Compact filter stored in one query param; it is tinted while a value is chosen. */
 export function ParamSelect({
@@ -58,5 +59,33 @@ export function ParamSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/** On/off filter stored as `param=1`; tinted while on, like ParamSelect. */
+export function ParamToggle({
+  param,
+  params,
+  title,
+  children,
+}: {
+  param: string;
+  params: QueryParams;
+  /** What the filter keeps, when the label alone does not say. */
+  title?: string;
+  /** Icon and label. */
+  children: React.ReactNode;
+}) {
+  const { update } = useQueryUpdate(params);
+  return (
+    <Toggle
+      variant="outline"
+      title={title}
+      pressed={params[param] === "1"}
+      onPressedChange={(on) => update({ [param]: on ? "1" : null, page: null })}
+      className="bg-background font-normal data-[state=on]:border-primary/40 data-[state=on]:bg-primary/5 dark:bg-input/30 dark:data-[state=on]:bg-primary/10 [&_svg]:text-muted-foreground"
+    >
+      {children}
+    </Toggle>
   );
 }

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { htmlToText } from "../../memory/knowledge";
 import { readTextCapped, safeFetch } from "../../platform/safe-fetch";
 import { capToolText, fullOutputTarget } from "../tool-output";
+import { wrapUntrusted } from "../untrusted";
+import { markerId } from "../untrusted-id";
 import { errorResult, type ToolFactory } from "./shared";
 
 /** Most of a page's bytes are markup; this leaves room for well over TOOL_TEXT_MAX_CHARS of text. */
@@ -36,6 +38,15 @@ export const webTools: Record<string, ToolFactory> = {
           if (abortSignal?.aborted) throw error;
           return errorResult(error);
         }
+      },
+      // The page goes to the model as untrusted data; the stored result keeps it as it came.
+      toModelOutput: ({ toolCallId, output }) => {
+        if (!("content" in output)) return { type: "json", value: output };
+        ctx.untrustedSeen = true;
+        return {
+          type: "json",
+          value: { ...output, content: wrapUntrusted(output.content, { source: "web", id: markerId(toolCallId) }) },
+        };
       },
     }),
 };

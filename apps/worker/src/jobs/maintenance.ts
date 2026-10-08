@@ -1,19 +1,26 @@
 import {
+  applyConsolidation,
   checkForUpdates,
+  type ConsolidationTarget,
+  consolidationCandidates,
+  consolidationPrompt,
   costSince,
   dayBounds,
+  deleteExpiredMemories,
   embedText,
   getOrchestrator,
   getSettings,
+  journalPrompt,
   type MaintenanceJob,
   maintenanceQueue,
   NoAllowedProviderError,
   notifyUpdateAvailable,
+  parseConsolidation,
   projectProviderPolicy,
   projectsClosedTo,
+  promoteRecalledMemories,
   QUEUE,
   refreshCatalog,
-  rememberFact,
   requeueMissedReports,
   resolveModelChain,
   createRedis,
@@ -22,7 +29,9 @@ import {
   sweepFiles,
   sweepPreviews,
   syncSettingsSchedules,
+  unreadableConsolidation,
 } from "@abotica/core";
+import { clipUntrusted, hasUntrusted } from "@abotica/core/agents/untrusted";
 import { recoverRuns } from "@abotica/core/run-lifecycle";
 import { initSandbox, reapSandbox, removeWorkspace } from "@abotica/core/sandbox-runtime";
 import { localeEnglishNames } from "@abotica/i18n";
@@ -31,7 +40,7 @@ import { and, asc, eq, gte, inArray, lt, ne } from "@abotica/db/orm";
 import { Worker } from "bullmq";
 import { botTranslator, getBot, notifyChatId } from "../telegram/bot";
 import { sendMarkdown } from "../telegram/send";
-import { groupByJournal, journalHeading, splitByProject, verbatimJournals } from "./journal-groups";
+import { groupByJournal, type JournalKey, journalHeading, splitByProject, verbatimJournals } from "./journal-groups";
 import { systemCompletion } from "./llm";
 import { describeSandbox } from "./sandbox";
 
@@ -73,7 +82,7 @@ async function projectNames(ids: (string | null)[]): Promise<Map<string, string>
 
 /**
  * A journal of a project that allows none of the agent's providers is not written (or consolidated)
- * by another provider: it is skipped. Any other error fails the job as before.
+ * by another provider: it is skipped. Any other error is thrown on.
  */
 const unlessNoAllowedProvider =
   (what: string) =>
@@ -83,14 +92,12 @@ const unlessNoAllowedProvider =
     return null;
   };
 
-/** What a journal is about, for the prompts that write and consolidate it. */
-const journalScope = (project: string | null | undefined) =>
-  project ? `It covers only the work on the project "${project}".` : "It covers the work outside any project.";
-
 /** One journal per agent, per project and day: an agent working on two projects writes two. */
-async function writeJournals() {
+export async function writeJournals() {
   const settings = await getSettings();
   const { day, start, end } = dayBounds(settings.timezone);
+  // Run times in the user's time zone, like the day the journal is written for.
+  const time = new Intl.DateTimeFormat("en-GB", { timeZone: settings.timezone, hour: "2-digit", minute: "2-digit" });
   const language = localeEnglishNames[settingsLocale(settings)];
   const allRuns = await db
     .select()
@@ -123,8 +130,9 @@ async function writeJournals() {
           .filter((t) => t.runId === r.id)
           .flatMap((t) => ((t.data.toolCalls as { name: string }[]) ?? []).map((c) => c.name));
         return [
-          `## Run ${r.createdAt.toISOString().slice(11, 16)} (${r.trigger}, ${r.status})`,
-          `Request: ${r.input.slice(0, 1_500)}`,
+          `## Run ${time.format(r.createdAt)} (${r.trigger}, ${r.status})`,
+          // A webhook payload in the input stays inside its block, however the cut falls.
+          `Request: ${clipUntrusted(r.input, 1_500)}`,
           tools.length ? `Tools: ${[...new Set(tools)].join(", ")}` : null,
           `Result: ${(r.output ?? r.error ?? "").slice(0, 2_000)}`,
         ]
@@ -137,15 +145,20 @@ async function writeJournals() {
       agent,
       projectId,
       purpose: `Journal ${day}`,
-      instructions: `You write the daily journal of an AI agent, in the first person, in ${language}. Be concise and concrete. ${journalScope(projectId && names.get(projectId))}`,
-      prompt: `Based on today's activity, write the journal with these sections (headings in ${language}):\n**What I did**\n**What I decided**\n**What is still open**\n**What I learned**\n\nLeave out empty sections.\n\n${log}`,
+      ...journalPrompt({ day, timezone: settings.timezone, language, project: projectId && names.get(projectId), log }),
     }).catch(unlessNoAllowedProvider(`journal of ${agent.slug}`));
     if (summary === null) continue;
     const embedding = await embedText(summary, await projectProviderPolicy(projectId));
+    // Facts consolidated from a day that read untrusted content are untrusted too. The input counts on
+    // its own: a run that is still going, or failed before its prompt was read, has no flag yet.
+    const fromUntrusted = dayRuns.some((r) => r.readUntrusted || hasUntrusted(r.input));
     await db
       .insert(journals)
-      .values({ agentId, projectId, day, summary, embedding })
-      .onConflictDoUpdate({ target: [journals.agentId, journals.projectId, journals.day], set: { summary, embedding } });
+      .values({ agentId, projectId, day, summary, embedding, fromUntrusted })
+      .onConflictDoUpdate({
+        target: [journals.agentId, journals.projectId, journals.day],
+        set: { summary, embedding, fromUntrusted },
+      });
   }
 }
 
@@ -222,42 +235,78 @@ async function sendDigest(period: "daily" | "weekly") {
 }
 
 /**
- * Moves durable facts from the unconsolidated journals into long-term memory: a project journal's facts
- * into the project's memory, written by the agent; a journal outside any project into the agent's own.
+ * Moves the facts worth keeping from the unconsolidated journals into long-term memory: a project journal's
+ * facts into the project's memory, written by the agent; a journal outside any project into the agent's
+ * own. Each fact comes with how long it holds and the existing entries it restates or replaces (see
+ * planFact). Then the weekly upkeep: promotion and expiry.
  */
-async function consolidate() {
+export async function consolidate() {
+  await consolidateJournals();
+  const promoted = await promoteRecalledMemories();
+  const expired = await deleteExpiredMemories();
+  if (promoted || expired) console.log(`[memory] made ${promoted} entries permanent, deleted ${expired} expired`);
+}
+
+async function consolidateJournals() {
   const language = localeEnglishNames[settingsLocale(await getSettings())];
   const pending = await db.select().from(journals).where(eq(journals.consolidated, false)).orderBy(asc(journals.day));
   const groups = groupByJournal(pending);
   const names = await projectNames(groups.map((g) => g.projectId));
-  for (const { agentId, projectId, items: entries } of groups) {
-    const agent = await db.query.agents.findFirst({ where: (a, { eq }) => eq(a.id, agentId) });
-    if (!agent) continue;
-    const facts = await systemCompletion({
-      agent,
-      projectId,
-      purpose: "Memory consolidation",
-      instructions: `You extract only durable information from journals: the user's preferences, decisions, stable facts, lessons. No temporary tasks. Write the facts in ${language}. The journals are an AI agent's. ${journalScope(projectId && names.get(projectId))}`,
-      prompt: `Return one fact per line, each starting with "- ". If there is nothing durable, return "NONE".\n\n${entries.map((j) => `## ${j.day}\n${j.summary}`).join("\n\n")}`,
-    }).catch(unlessNoAllowedProvider(`memory consolidation of ${agent.slug}`));
-    // Left unconsolidated: they are tried again next time.
-    if (facts === null) continue;
-    for (const line of facts.split("\n")) {
-      const fact = line.replace(/^\s*-\s*/, "").trim();
-      if (!line.trim().startsWith("-") || fact.length <= 5) continue;
-      if (projectId) await rememberFact({ scope: "project", projectId, agentId, content: fact });
-      else await rememberFact({ scope: "agent", agentId, content: fact });
-    }
-    await db
-      .update(journals)
-      .set({ consolidated: true })
-      .where(
-        inArray(
-          journals.id,
-          entries.map((j) => j.id),
-        ),
-      );
+  for (const group of groups) {
+    // Journals whose consolidation fails are tried again next time; the others, and the upkeep, go on.
+    await consolidateGroup(group, language, names).catch((error: unknown) =>
+      console.error(`[memory] consolidation of the journals of agent ${group.agentId} failed:`, error),
+    );
   }
+}
+
+/** Consolidates one agent's journals of one project (null: outside projects); see consolidate. */
+async function consolidateGroup(
+  { agentId, projectId, items: entries }: JournalKey & { items: (typeof journals.$inferSelect)[] },
+  language: string,
+  names: Map<string, string>,
+) {
+  const agent = await db.query.agents.findFirst({ where: (a, { eq }) => eq(a.id, agentId) });
+  if (!agent) return;
+  const target: ConsolidationTarget = projectId ? { scope: "project", projectId, agentId } : { scope: "agent", agentId };
+  const related = await consolidationCandidates(target, entries);
+  const output = await systemCompletion({
+    agent,
+    projectId,
+    purpose: "Memory consolidation",
+    ...consolidationPrompt({
+      language,
+      project: projectId && names.get(projectId),
+      journals: entries,
+      existing: related,
+    }),
+  }).catch(unlessNoAllowedProvider(`memory consolidation of ${agent.slug}`));
+  // Left unconsolidated: they are tried again next time.
+  if (output === null) return;
+  const parsed = parseConsolidation(output, related.length);
+  if (unreadableConsolidation(output, parsed)) {
+    console.warn(
+      `[memory] consolidation of ${agent.slug} gave no fact to read (${parsed.malformed} malformed lines): its journals are tried again next time`,
+    );
+    return;
+  }
+  if (parsed.malformed)
+    console.warn(`[memory] consolidation of ${agent.slug}: skipped ${parsed.malformed} malformed lines`);
+  // Facts from a day that read untrusted content wait for the user's approval.
+  const origin = entries.some((j) => j.fromUntrusted) ? "untrusted" : "system";
+  const done = await applyConsolidation(target, parsed.facts, related, origin);
+  console.log(
+    `[memory] consolidated ${entries.length} journals of ${agent.slug}: ${done.added} added, ${done.held} held for approval, ${done.restated} restated, ${done.dropped} dropped`,
+  );
+  await db
+    .update(journals)
+    .set({ consolidated: true })
+    .where(
+      inArray(
+        journals.id,
+        entries.map((j) => j.id),
+      ),
+    );
 }
 
 export async function registerMaintenanceSchedules() {

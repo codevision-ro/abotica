@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 const CLIENT_SAFE = [
   "agents/permissions",
   "agents/tools/tool-catalog",
+  "agents/untrusted",
   "automations/cron",
   "automations/trigger-events",
   "files/file-types",

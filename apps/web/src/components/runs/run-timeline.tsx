@@ -339,6 +339,12 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
           {String(d.error ?? d.message ?? JSON.stringify(d))}
         </NoticeRow>
       );
+    case "recall-error":
+      return (
+        <NoticeRow tone="destructive" icon={<Brain />} title={title}>
+          {String(d.error ?? d.message ?? JSON.stringify(d))}
+        </NoticeRow>
+      );
     case "error":
       return (
         <NoticeRow tone="destructive" icon={<CircleAlert />} title={title}>

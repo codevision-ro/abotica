@@ -32,7 +32,7 @@ import { ProjectTeamTab } from "@/components/projects/project-team";
 import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import { listPreviewRows } from "@/server/queries/previews";
-import { listOwnerMemories } from "@/server/queries/memory";
+import { getPinnedUsage, listOwnerMemories } from "@/server/queries/memory";
 import {
   getProject,
   getProjectOverview,
@@ -152,7 +152,11 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
       {tab === "team" && <TeamTab project={project} />}
       {tab === "tasks" && <ProjectTasks projectId={project.id} tasks={await listProjectTasks(project.id)} />}
       {tab === "memory" && (
-        <OwnedMemories owner={{ projectId: project.id }} memories={await listOwnerMemories({ projectId: project.id })} />
+        <OwnedMemories
+          owner={{ projectId: project.id }}
+          memories={await listOwnerMemories({ projectId: project.id })}
+          pinnedUsage={await getPinnedUsage({ projectId: project.id })}
+        />
       )}
       {tab === "knowledge" && <ProjectKnowledge projectId={project.id} items={await listKnowledgeItems(project.id)} />}
       {tab === "repos" && <ProjectRepos projectId={project.id} repos={await listProjectRepos(project.id)} />}

@@ -1,7 +1,7 @@
 "use client";
 
 import { MEMORY_MAX_LENGTH } from "@abotica/core/limits";
-import { BrainIcon, PlusIcon } from "lucide-react";
+import { BrainIcon, History, PlusIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -9,17 +9,34 @@ import { SectionCard } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { Toggle } from "@/components/ui/toggle";
 import { createMemory, type MemoryOwner } from "@/server/actions/memory";
 import { type MemoryListItem, MemoryList } from "./memory-list";
+import { PinnedBudget, type PinnedUsage } from "./pinned-budget";
 
-/** The memory tab of an agent or a project: add an entry, review and edit the owner's entries. */
-export function OwnedMemories({ owner, memories }: { owner: MemoryOwner; memories: MemoryListItem[] }) {
+/**
+ * The memory tab of an agent or a project: add an entry, review, edit and pin the owner's entries, see
+ * how much of the pinned budget its runs use, and the entries newer ones replaced (history) on demand.
+ */
+export function OwnedMemories({
+  owner,
+  memories,
+  pinnedUsage,
+}: {
+  owner: MemoryOwner;
+  memories: MemoryListItem[];
+  pinnedUsage: PinnedUsage;
+}) {
   const t = useTranslations("memory.owned");
   const tc = useTranslations("common.actions");
   const kind = "agentId" in owner ? "agent" : "project";
   const [draft, setDraft] = useState("");
   const [pending, startTransition] = useTransition();
+  const tf = useTranslations("memory.filters");
+  const [showHistory, setShowHistory] = useState(false);
   const pendingCount = memories.filter((m) => m.status === "pending").length;
+  const replacedCount = memories.filter((m) => m.invalidatedAt).length;
+  const shown = showHistory ? memories : memories.filter((m) => !m.invalidatedAt);
 
   function add(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +54,12 @@ export function OwnedMemories({ owner, memories }: { owner: MemoryOwner; memorie
   }
 
   return (
-    <SectionCard icon={BrainIcon} title={t(`${kind}.title`)} count={memories.length} description={t(`${kind}.description`)}>
+    <SectionCard
+      icon={BrainIcon}
+      title={t(`${kind}.title`)}
+      count={memories.length - replacedCount}
+      description={t(`${kind}.description`)}
+    >
       <div className="flex flex-col gap-4">
         <form onSubmit={add} className="flex flex-col gap-2">
           <label htmlFor="memory-new" className="sr-only">
@@ -64,6 +86,8 @@ export function OwnedMemories({ owner, memories }: { owner: MemoryOwner; memorie
           </div>
         </form>
 
+        <PinnedBudget usage={pinnedUsage} withGlobal />
+
         {pendingCount > 0 && (
           <p className="text-sm text-muted-foreground">
             {t.rich("pendingNotice", {
@@ -73,8 +97,20 @@ export function OwnedMemories({ owner, memories }: { owner: MemoryOwner; memorie
           </p>
         )}
 
-        {memories.length ? (
-          <MemoryList items={memories} owner={owner} />
+        {replacedCount > 0 && (
+          <Toggle
+            variant="outline"
+            size="sm"
+            pressed={showHistory}
+            onPressedChange={setShowHistory}
+            className="w-fit bg-background font-normal data-[state=on]:border-primary/40 data-[state=on]:bg-primary/5 dark:bg-input/30 dark:data-[state=on]:bg-primary/10 [&_svg]:text-muted-foreground"
+          >
+            <History /> {tf("history")} <span className="text-muted-foreground tabular">{replacedCount}</span>
+          </Toggle>
+        )}
+
+        {shown.length ? (
+          <MemoryList items={shown} owner={owner} />
         ) : (
           <p className="text-sm text-muted-foreground">{t(`${kind}.empty`)}</p>
         )}

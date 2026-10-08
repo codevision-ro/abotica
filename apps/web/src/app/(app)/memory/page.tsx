@@ -1,17 +1,20 @@
-import { Bot, FolderKanban, Globe, MessagesSquare, Plus, Search } from "lucide-react";
+import { NEVER_USED_DAYS } from "@abotica/core";
+import { Bot, CircleDashed, FolderKanban, Globe, History, MessagesSquare, Pin, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { PageBody, PageHeader } from "@/components/app/page-header";
 import { sectionCardClass } from "@/components/app/section-card";
 import { ConversationTable } from "@/components/memory/conversation-table";
+import { ORIGINS } from "@/components/memory/memory-badges";
 import { CreateMemoryDialog } from "@/components/memory/memory-dialogs";
-import { ParamSelect } from "@/components/memory/memory-filter";
+import { ParamSelect, ParamToggle } from "@/components/memory/memory-filter";
 import { MemoryList } from "@/components/memory/memory-list";
 import { MemoryPanel, PanelEmpty } from "@/components/memory/memory-panel";
 import { QuerySearch } from "@/components/memory/memory-search";
 import { PageLinks } from "@/components/memory/page-links";
 import { PendingList } from "@/components/memory/pending-list";
+import { PinnedBudget } from "@/components/memory/pinned-budget";
 import { PriorityCard } from "@/components/memory/priority-card";
 import { UrlTabs } from "@/components/memory/url-tabs";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,7 @@ import {
   getMemoryCounts,
   getMemoryOptions,
   getMemorySearchResults,
+  getPinnedUsage,
   listMemories,
   listPendingMemories,
 } from "@/server/queries/memory";
@@ -47,8 +51,12 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
   const q = one(sp.q)?.trim() || undefined;
   const project = isUuid(one(sp.project)) ? one(sp.project) : undefined;
   const agent = isUuid(one(sp.agent)) ? one(sp.agent) : undefined;
+  const origin = ORIGINS.find((o) => o === one(sp.origin));
+  const pinned = one(sp.pinned) === "1" ? "1" : undefined;
+  const history = one(sp.history) === "1" ? "1" : undefined;
+  const neverUsed = one(sp.neverUsed) === "1" ? "1" : undefined;
   const page = Math.max(1, Number(one(sp.page)) || 1);
-  const params = { tab: tab === "global" ? undefined : tab, q, project, agent };
+  const params = { tab: tab === "global" ? undefined : tab, q, project, agent, origin, pinned, history, neverUsed };
 
   const [options, counts, search] = await Promise.all([
     getMemoryOptions(),
@@ -108,7 +116,7 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
             <MemoryPanel
               icon={Search}
               title={t("search.resultsFor", { query: q ?? "" })}
-              description={search.semantic ? t("search.semantic") : t("search.text")}
+              description={search.mode === "hybrid" ? t("search.hybrid") : t("search.keyword")}
             >
               {search.rows.length ? (
                 <MemoryList items={search.rows} showScope flush />
@@ -119,7 +127,7 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
           )}
 
           {(tab === "global" || tab === "project" || tab === "agent") && (
-            <ScopeTab scope={tab} project={project} agent={agent} params={params} options={options} />
+            <ScopeTab scope={tab} project={project} agent={agent} origin={origin} params={params} options={options} />
           )}
           {tab === "pending" && <PendingTab />}
           {tab === "conversations" && <ConversationsTab page={page} params={params} />}
@@ -137,41 +145,84 @@ async function ScopeTab({
   scope,
   project,
   agent,
+  origin,
   params,
   options,
 }: {
   scope: "global" | "project" | "agent";
   project?: string;
   agent?: string;
+  origin?: string;
   params: Record<string, string | undefined>;
   options: Awaited<ReturnType<typeof getMemoryOptions>>;
 }) {
-  const rows = await listMemories({ scope, projectId: project, agentId: agent });
+  const rows = await listMemories({
+    scope,
+    projectId: project,
+    agentId: agent,
+    origin,
+    pinned: params.pinned === "1",
+    history: params.history === "1",
+    neverUsed: params.neverUsed === "1",
+  });
+  // What every run of the level takes of the pinned budget: one project's or agent's runs add the global entries.
+  const usage =
+    scope === "global"
+      ? await getPinnedUsage()
+      : scope === "project" && project
+        ? await getPinnedUsage({ projectId: project })
+        : scope === "agent" && agent
+          ? await getPinnedUsage({ agentId: agent })
+          : null;
   const t = await getTranslations("memory");
+  const originFilter = (
+    <ParamSelect
+      param="origin"
+      params={params}
+      label={t("filters.origin")}
+      allLabel={t("filters.allOrigins")}
+      options={ORIGINS.map((o) => ({ id: o, name: t(`origins.${o}`) }))}
+      icon="origin"
+      className="sm:w-44"
+    />
+  );
   return (
     <MemoryPanel
       icon={SCOPE_ICON[scope]}
+      footer={usage && <PinnedBudget usage={usage} withGlobal={scope !== "global"} />}
       description={t(`dialog.scopeHelp.${scope}`)}
       action={
-        scope === "project" ? (
-          <ParamSelect
-            param="project"
-            params={params}
-            label={t("filters.byProject")}
-            allLabel={t("filters.allProjects")}
-            options={options.projects}
-            icon="project"
-          />
-        ) : scope === "agent" ? (
-          <ParamSelect
-            param="agent"
-            params={params}
-            label={t("filters.byAgent")}
-            allLabel={t("filters.allAgents")}
-            options={options.agents}
-            icon="agent"
-          />
-        ) : undefined
+        <>
+          {scope === "project" ? (
+            <ParamSelect
+              param="project"
+              params={params}
+              label={t("filters.byProject")}
+              allLabel={t("filters.allProjects")}
+              options={options.projects}
+              icon="project"
+            />
+          ) : scope === "agent" ? (
+            <ParamSelect
+              param="agent"
+              params={params}
+              label={t("filters.byAgent")}
+              allLabel={t("filters.allAgents")}
+              options={options.agents}
+              icon="agent"
+            />
+          ) : null}
+          {originFilter}
+          <ParamToggle param="pinned" params={params}>
+            <Pin /> {t("filters.pinned")}
+          </ParamToggle>
+          <ParamToggle param="neverUsed" params={params} title={t("filters.neverUsedHint", { days: NEVER_USED_DAYS })}>
+            <CircleDashed /> {t("filters.neverUsed")}
+          </ParamToggle>
+          <ParamToggle param="history" params={params}>
+            <History /> {t("filters.history")}
+          </ParamToggle>
+        </>
       }
     >
       {rows.length ? (

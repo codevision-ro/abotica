@@ -17,6 +17,7 @@ import { ChatFileCard, sharedFile } from "./chat-file-card";
 import { CHAT_COLUMN, ChatApproval, ChatMarkdown, ChatToolCall, ChatToolGroup, MessageTime } from "./chat-parts";
 import { CompactionDivider } from "./compaction-divider";
 import { DelegationNotice } from "./delegation-notice";
+import { UntrustedText } from "./untrusted-text";
 
 type Part = UIMessage["parts"][number];
 
@@ -115,7 +116,7 @@ export function ChatMessageList({
                 )}
                 {text.trim() && (
                   <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap wrap-anywhere ring-1 ring-primary/10 ring-inset sm:max-w-[75%] dark:bg-primary/15">
-                    {text}
+                    <UntrustedText text={text} />
                   </div>
                 )}
                 <div className="px-1 text-[11px] text-muted-foreground/80">

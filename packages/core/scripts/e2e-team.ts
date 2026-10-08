@@ -1,14 +1,16 @@
 import { agents, conversations, db, journals, memories, messages, runs, tasks } from "@abotica/db";
 import { and, asc, eq, gte, inArray } from "@abotica/db/orm";
 import {
-  contextMemories,
   createAgentFromTemplate,
   createConversation,
   createProject,
   deleteConversation,
   deleteProject,
   getOrchestrator,
+  getSettings,
   isDelegationReport,
+  pinnedMemories,
+  recallMemories,
   recentJournals,
   searchMemories,
   startRun,
@@ -89,6 +91,7 @@ try {
     agentId: specialist.id,
     content: `Secret of the other project: ${MARKER}`,
     source: "agent",
+    origin: "agent",
   });
   await db.insert(journals).values({
     agentId: specialist.id,
@@ -190,13 +193,22 @@ try {
   check(last?.status === "succeeded", "the super agent answered the report");
 
   // Isolation: the specialist's view of this project never includes the other project.
-  const seen = await contextMemories(specialist.id, project.id);
+  const settings = await getSettings();
+  const recallIn = (projectId: string) =>
+    recallMemories(`Secret of the other project: ${MARKER}`, {
+      agentId: specialist.id,
+      projectId,
+      budgetTokens: settings.memoryRecallTokens,
+    });
+  const seen = await pinnedMemories(specialist.id, project.id, settings.memoryPinnedTokens);
+  const recalled = await recallIn(project.id);
   const searched = await searchMemories(MARKER, { agentId: specialist.id, projectId: project.id });
   const journal = await recentJournals(specialist.id, project.id, 30);
   check(
     ![...seen.project, ...seen.agent, ...seen.global].some((m) => m.content.includes(MARKER)),
-    "context memory has nothing from the other project",
+    "the memory in the instructions has nothing from the other project",
   );
+  check(!recalled.some((m) => m.content.includes(MARKER)), "recall has nothing from the other project");
   check(!searched.some((m) => m.content.includes(MARKER)), "memory search has nothing from the other project");
   check(!journal.some((j) => j.summary.includes(MARKER)), "journals have nothing from the other project");
   const specialistRuns = await db
@@ -208,8 +220,8 @@ try {
     "the specialist's runs never mention the other project",
   );
   check(
-    (await contextMemories(specialist.id, other.id)).project.some((m) => m.content.includes(MARKER)),
-    "the other project's memory is still visible inside the other project",
+    (await recallIn(other.id)).some((m) => m.content.includes(MARKER)),
+    "the other project's memory is still recalled inside the other project",
   );
 } catch (error) {
   failures.push(String(error));

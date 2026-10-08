@@ -128,6 +128,17 @@
     "show": "Show the summary",
     "hint": "The agent works from this summary instead of the messages above."
   },
+  "untrusted": {
+    "label": "External data",
+    "source": {
+      "webhook": "Webhook payload",
+      "taskOutput": "Task output",
+      "delegatedTask": "Delegated task",
+      "web": "Web page",
+      "knowledge": "Saved page",
+      "mcp": "MCP server {server}"
+    }
+  },
   "skillTest": {
     "label": "Skill test: <link>{name}</link>",
     "hint": "In this conversation the agent has this skill, even if it is not assigned or the skill is off."

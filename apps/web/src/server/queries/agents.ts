@@ -274,8 +274,8 @@ export const listAgentProjects = query(async (agentId: string) => {
 export type AgentProject = Awaited<ReturnType<typeof listAgentProjects>>[number];
 
 /**
- * The agent's journal days, newest first, or the best matches for `query` (semantic, with a text
- * fallback), each with its project. `projectId` narrows them: a project id, null for work outside
+ * The agent's journal days, newest first, or the best matches for `query` (hybrid search, keyword
+ * only without embeddings), each with its project. `projectId` narrows them: a project id, null for work outside
  * projects, undefined for all.
  */
 export const listAgentJournals = query(

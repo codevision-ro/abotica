@@ -122,6 +122,7 @@
       "mcp-error": "Eroare server MCP",
       "error": "Eroare",
       "sandbox-error": "Eroare sandbox",
+      "recall-error": "Reamintirea memoriei a eșuat",
       "retry": "Reîncercare",
       "loop-nudge": "Avertisment de buclă",
       "compaction": "Context compactat",

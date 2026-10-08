@@ -10,7 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { approveMemories, rejectMemories } from "@/server/actions/memory";
-import { type MemoryListItem, MemoryMeta, MemoryOwnerMedia, rowActionsClass } from "./memory-list";
+import { FlagReason } from "./memory-badges";
+import { type MemoryListItem, MemoryMeta, MemoryOwnerMedia, Replaces, rowActionsClass } from "./memory-list";
 import { MemoryPanel } from "./memory-panel";
 
 /** The review queue: pick entries (or none for all), then approve them with the one primary button. */
@@ -100,6 +101,8 @@ export function PendingList({ items }: { items: MemoryListItem[] }) {
               <MemoryOwnerMedia m={m} />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{m.content}</p>
+                {m.flagReason && <FlagReason reason={m.flagReason} />}
+                <Replaces m={m} />
                 <MemoryMeta m={m} showScope showOwner showStatus={false} />
               </div>
               <div className={rowActionsClass}>

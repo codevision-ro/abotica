@@ -12,6 +12,13 @@ export type AppSettings = {
   journalDays: number;
   /** Memory written by agents needs approval before it becomes active. */
   memoryRequiresApproval: boolean;
+  /**
+   * Tokens of pinned memory in every run's system prompt (see pinnedMemories). While all the memory a run
+   * may read fits, all of it goes in, pinned or not.
+   */
+  memoryPinnedTokens: number;
+  /** Tokens of memory recalled into each new user message (see recallForRun); 0 turns recall off. */
+  memoryRecallTokens: number;
   /** Hour (0-23, local time) for the daily digest. */
   digestHour: number;
   timezone: string;
@@ -34,6 +41,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultReasoningEffort: "default",
   journalDays: 5,
   memoryRequiresApproval: false,
+  memoryPinnedTokens: 2000,
+  memoryRecallTokens: 1000,
   digestHour: 20,
   timezone: "Europe/Bucharest",
   monthlyBudgetUsd: null,

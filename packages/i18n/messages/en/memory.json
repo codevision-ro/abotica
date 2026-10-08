@@ -21,24 +21,51 @@
     "agent": "agent",
     "consolidation": "consolidation"
   },
+  "origins": {
+    "owner": "owner",
+    "agent": "agent",
+    "untrusted": "untrusted",
+    "system": "system"
+  },
+  "retention": {
+    "permanent": "permanent",
+    "durable": "durable",
+    "ephemeral": "ephemeral"
+  },
+  "retentionHint": {
+    "permanent": "Holds indefinitely: never fades in search.",
+    "durable": "Holds for months: older entries rank lower in search.",
+    "ephemeral": "Holds for weeks: agents stop reading it when it expires."
+  },
   "search": {
     "label": "Search memory",
     "placeholder": "Search all memories",
     "resultsAria": "Search results",
     "resultsFor": "Results for \"{query}\"",
-    "semantic": "semantic search",
-    "text": "text search (embeddings unavailable)",
+    "hybrid": "hybrid search",
+    "keyword": "keyword search (embeddings unavailable)",
     "clear": "Clear search",
     "empty": "No results. Try other words or add the missing memory."
   },
   "filters": {
+    "pinned": "Pinned",
     "byProject": "Filter by project",
     "allProjects": "All projects",
     "byAgent": "Filter by agent",
-    "allAgents": "All agents"
+    "allAgents": "All agents",
+    "origin": "Filter by origin",
+    "allOrigins": "All origins",
+    "history": "Show history",
+    "neverUsed": "Never used",
+    "neverUsedHint": "Entries no run has used in the {days} days since they were written. Nothing is deleted on its own."
   },
   "empty": "No memories here yet. <add>Add a fact</add> or let agents write memory as they work.",
   "list": {
+    "pin": "Pin: include in every run",
+    "unpin": "Unpin",
+    "pinned": "pinned",
+    "pinnedToast": "Pinned: agents get it in every run",
+    "unpinnedToast": "Unpinned: agents get it when it is relevant",
     "pending": "pending",
     "similarity": "{percent}% similar",
     "deletedProject": "Deleted project",
@@ -55,10 +82,25 @@
     "rejected": "Memory rejected",
     "writtenBy": "Written by {name}",
     "writtenByYou": "Written by you",
-    "you": "You"
+    "you": "You",
+    "validFrom": "since {date}",
+    "expiresAt": "until {date}",
+    "expired": "expired {date}",
+    "invalidatedAt": "replaced {date}",
+    "replacedBy": "see the newer entry",
+    "restore": "Restore",
+    "restored": "Memory restored: agents read it again",
+    "recalls": "{count, plural, =0 {never used} one {used once} other {used # times}}",
+    "recallsHint": "How often runs used this entry: recalled into a run or found by memory search."
+  },
+  "budget": {
+    "label": "Pinned memory budget",
+    "pinnedUsage": "Pinned memory takes about {used, number} of {budget, number} tokens in every run.",
+    "pinnedUsageWithGlobal": "Pinned memory, with the global entries, takes about {used, number} of {budget, number} tokens in every run.",
+    "pinnedOmitted": "{count, plural, one {# pinned entry does not fit and is left out.} other {# pinned entries do not fit and are left out.}}"
   },
   "pending": {
-    "empty": "Nothing to approve. Memories written by agents wait here when <settings>approval is required</settings>.",
+    "empty": "Nothing to approve. Memories written by agents wait here when <settings>approval is required</settings>, and always when they come from untrusted content or look suspicious.",
     "selectAll": "Select all",
     "selected": "{count} selected",
     "reject": "Reject",
@@ -70,7 +112,14 @@
     "rejectMemory": "Reject memory",
     "approveMemory": "Approve memory",
     "rejectTitle": "{count, plural, one {Reject # memory?} other {Reject # memories?}}",
-    "rejectDescription": "Rejected memories are deleted and agents will not read them. This cannot be undone."
+    "rejectDescription": "Rejected memories are deleted and agents will not read them. This cannot be undone.",
+    "flagReason": {
+      "injection": "Held for review: it looks like an instruction aimed at the agents (prompt injection).",
+      "exfiltration": "Held for review: it looks like a command that sends credentials out.",
+      "instruction-file": "Held for review: it asks to change an agent instruction file (AGENTS.md, SKILL.md).",
+      "conflictsWithOwner": "Held for review: it contradicts an entry you wrote. Approving it replaces your entry."
+    },
+    "replaces": "Replaces: {content}"
   },
   "owned": {
     "addLabel": "New memory",
@@ -190,6 +239,7 @@
   "errors": {
     "blockedAddress": "Could not download the page: {host} is a private or internal address",
     "credentialsInUrl": "Links with a user name or password are not allowed",
-    "tooManyRedirects": "Could not download the page: too many redirects"
+    "tooManyRedirects": "Could not download the page: too many redirects",
+    "containsSecret": "This looks like a secret (an API key, a token or a private key). Secrets do not belong in memory: keep the value in the Vault and mention only its name."
   }
 }

@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import { getAgent, getAgentFormOptions } from "@/server/queries/agents";
-import { listOwnerMemories } from "@/server/queries/memory";
+import { getPinnedUsage, listOwnerMemories } from "@/server/queries/memory";
 
 const TABS = ["config", "versions", "journal", "memory", "projects", "runs", "schedules"] as const;
 
@@ -183,7 +183,11 @@ export default async function AgentPage(props: PageProps<"/agents/[id]">) {
       )}
       {tab === "journal" && <AgentJournalTab agentId={agent.id} query={q} project={journalProject} />}
       {tab === "memory" && (
-        <OwnedMemories owner={{ agentId: agent.id }} memories={await listOwnerMemories({ agentId: agent.id })} />
+        <OwnedMemories
+          owner={{ agentId: agent.id }}
+          memories={await listOwnerMemories({ agentId: agent.id })}
+          pinnedUsage={await getPinnedUsage({ agentId: agent.id })}
+        />
       )}
       {tab === "projects" && <AgentProjectsTab agentId={agent.id} />}
       {tab === "runs" && <AgentRunsTab agentId={agent.id} />}

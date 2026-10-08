@@ -47,6 +47,8 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
   const router = useRouter();
   const [journalDays, setJournalDays] = useState(String(initial.journalDays));
   const [memoryRequiresApproval, setMemoryRequiresApproval] = useState(initial.memoryRequiresApproval);
+  const [pinnedTokens, setPinnedTokens] = useState(String(initial.memoryPinnedTokens));
+  const [recallTokens, setRecallTokens] = useState(String(initial.memoryRecallTokens));
   const [digestHour, setDigestHour] = useState(String(initial.digestHour));
   const [timezone, setTimezone] = useState(initial.timezone);
   const [budget, setBudget] = useState(initial.monthlyBudgetUsd === null ? "" : String(initial.monthlyBudgetUsd));
@@ -55,16 +57,23 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
 
   const days = Number(journalDays);
   const daysInvalid = !Number.isInteger(days) || days < 1 || days > 30;
+  const pinned = Number(pinnedTokens);
+  const pinnedInvalid = pinnedTokens.trim() === "" || !Number.isInteger(pinned) || pinned < 0 || pinned > 20_000;
+  const recall = Number(recallTokens);
+  const recallInvalid = recallTokens.trim() === "" || !Number.isInteger(recall) || recall < 0 || recall > 8_000;
   const budgetValue = budget.trim() === "" ? null : Number(budget.replace(",", "."));
   const budgetInvalid = budgetValue !== null && (!Number.isFinite(budgetValue) || budgetValue <= 0);
+  const invalid = daysInvalid || pinnedInvalid || recallInvalid || budgetInvalid;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (daysInvalid || budgetInvalid) return;
+    if (invalid) return;
     startTransition(async () => {
       const res = await updateAppSettings({
         journalDays: days,
         memoryRequiresApproval,
+        memoryPinnedTokens: pinned,
+        memoryRecallTokens: recall,
         digestHour: Number(digestHour),
         timezone,
         monthlyBudgetUsd: budgetValue,
@@ -93,6 +102,44 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
               value={journalDays}
               onChange={(e) => setJournalDays(e.target.value)}
               aria-invalid={daysInvalid}
+              className="sm:w-28"
+            />
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-invalid={pinnedInvalid}>
+            <FieldContent>
+              <FieldLabel htmlFor="memory-pinned-tokens">{t("memoryPinnedTokens")}</FieldLabel>
+              <FieldDescription>{t("memoryPinnedTokensHint")}</FieldDescription>
+            </FieldContent>
+            <Input
+              id="memory-pinned-tokens"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={20_000}
+              step={100}
+              value={pinnedTokens}
+              onChange={(e) => setPinnedTokens(e.target.value)}
+              aria-invalid={pinnedInvalid}
+              className="sm:w-28"
+            />
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-invalid={recallInvalid}>
+            <FieldContent>
+              <FieldLabel htmlFor="memory-recall-tokens">{t("memoryRecallTokens")}</FieldLabel>
+              <FieldDescription>{t("memoryRecallTokensHint")}</FieldDescription>
+            </FieldContent>
+            <Input
+              id="memory-recall-tokens"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={8_000}
+              step={100}
+              value={recallTokens}
+              onChange={(e) => setRecallTokens(e.target.value)}
+              aria-invalid={recallInvalid}
               className="sm:w-28"
             />
           </Field>
@@ -167,7 +214,7 @@ export function GeneralSettingsForm({ initial }: { initial: AppSettings }) {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={pending || daysInvalid || budgetInvalid}>
+        <Button type="submit" disabled={pending || invalid}>
           {pending ? <Spinner /> : <Save />} {tc("save")}
         </Button>
       </div>
