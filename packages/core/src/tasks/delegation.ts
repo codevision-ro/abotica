@@ -96,9 +96,7 @@ export function reportMessage(settled: Settled[], ownTaskId: string | null): UIM
   const id = newMarkerId();
   const wrap = (text: string) => wrapUntrusted(text, { source: "delegated-task", id });
   const clip = (text: string) =>
-    text.length > OUTPUT_LIMIT
-      ? `${wrap(text.slice(0, OUTPUT_LIMIT))}\n...[cut; task_get has the rest]`
-      : wrap(text);
+    text.length > OUTPUT_LIMIT ? `${wrap(text.slice(0, OUTPUT_LIMIT))}\n...[cut; task_get has the rest]` : wrap(text);
   const sections = settled.map((t) =>
     [
       `## ${neutralizeMarkers(t.title)}`,

@@ -62,10 +62,11 @@ describe("failureStreak (the task's circuit breaker)", () => {
 
   it("does not count transient failures and the user's stops, nor let them break the streak", async () => {
     const skipped = ["rate_limited", "worker_restarted", "unqueued", "overdue", "cancelled_by_user", "kill_switch"];
-    for (const kind of skipped) expect(await streak([failed(kind), failed(kind), failed(kind)])).toMatchObject({ open: false });
-    expect(await streak([failed("loop"), failed("rate_limited"), failed("loop"), failed("worker_restarted")])).toMatchObject(
-      { failures: 2, open: false },
-    );
+    for (const kind of skipped)
+      expect(await streak([failed(kind), failed(kind), failed(kind)])).toMatchObject({ open: false });
+    expect(
+      await streak([failed("loop"), failed("rate_limited"), failed("loop"), failed("worker_restarted")]),
+    ).toMatchObject({ failures: 2, open: false });
     // A manager stopping a run to redirect the work is not a failure either.
     const cancelledByAgent = { ...failed("other"), status: "cancelled" };
     expect(await streak([failed("loop"), failed("loop"), cancelledByAgent])).toMatchObject({ failures: 2, open: false });

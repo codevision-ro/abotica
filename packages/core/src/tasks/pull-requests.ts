@@ -211,11 +211,7 @@ async function otherOpenPullRequest(row: Row): Promise<boolean> {
     .select({ id: taskPullRequests.id })
     .from(taskPullRequests)
     .where(
-      and(
-        eq(taskPullRequests.taskId, row.taskId),
-        ne(taskPullRequests.id, row.id),
-        eq(taskPullRequests.state, "open"),
-      ),
+      and(eq(taskPullRequests.taskId, row.taskId), ne(taskPullRequests.id, row.id), eq(taskPullRequests.state, "open")),
     )
     .limit(1);
   return Boolean(open);
@@ -251,7 +247,8 @@ async function applyNudges(
   if (reactions.action === "wake" && task.assigneeAgentId && (await activeTaskRun(task.id))) return;
 
   const comments = [];
-  for (const nudge of nudges) comments.push(await addTaskComment(task.id, await nudgeComment(row, repo, nudge, t), "system"));
+  for (const nudge of nudges)
+    comments.push(await addTaskComment(task.id, await nudgeComment(row, repo, nudge, t), "system"));
   const notice = (key: "capReached" | "notWoken", reason?: string) =>
     notify({
       kind: "text",
@@ -266,7 +263,11 @@ async function applyNudges(
     });
 
   if (reactions.action === "block") {
-    await addTaskComment(task.id, t("tasks.pr.comments.capReached", { label: pullRequestLabel(row), rounds: MAX_FIX_ROUNDS }), "system");
+    await addTaskComment(
+      task.id,
+      t("tasks.pr.comments.capReached", { label: pullRequestLabel(row), rounds: MAX_FIX_ROUNDS }),
+      "system",
+    );
     if (task.status !== "blocked") await updateTask(task.id, { status: "blocked" }, "system");
     await notice("capReached");
     return markSent(applied, nudges);
@@ -363,7 +364,10 @@ async function syncPullRequest(row: Row, repo: RepoAccess, t: Translator): Promi
     .where(eq(taskPullRequests.id, row.id));
 
   const changed =
-    status.state !== row.state || status.checks !== row.checks || status.review !== row.review || status.draft !== row.draft;
+    status.state !== row.state ||
+    status.checks !== row.checks ||
+    status.review !== row.review ||
+    status.draft !== row.draft;
   if (changed) await publish({ type: "task.updated", taskId: task.id, projectId: task.projectId });
 }
 
@@ -409,4 +413,3 @@ export async function syncPullRequests(limit = PR_SYNC_BATCH): Promise<number> {
   }
   return synced;
 }
-

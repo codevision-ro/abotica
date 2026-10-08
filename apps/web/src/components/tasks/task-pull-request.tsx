@@ -46,7 +46,10 @@ export function PullRequestBadge({ pr, className }: { pr: TaskPullRequestBadge; 
       rel="noreferrer"
       draggable={false}
       title={t("title", { label: label(pr), status: text })}
-      className={cn("relative z-10 inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
+      className={cn(
+        "relative z-10 inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
     >
       <ToneBadge tone={TONE[status]} pulse={status === "checksPending"}>
         <Icon className="size-3" aria-hidden />

@@ -12,7 +12,12 @@ async function load() {
 
 afterEach(() => vi.unstubAllEnvs());
 
-const record = (over: Partial<PullRequestRecord> = {}): PullRequestRecord => ({ state: "open", nudgeSignature: {}, fixRounds: 0, ...over });
+const record = (over: Partial<PullRequestRecord> = {}): PullRequestRecord => ({
+  state: "open",
+  nudgeSignature: {},
+  fixRounds: 0,
+  ...over,
+});
 
 const status = (over: Partial<PullRequestStatus> = {}): PullRequestStatus => ({
   state: "open",
@@ -38,7 +43,9 @@ const failing = (sha: string) =>
   });
 
 /** A review requesting changes and its two inline comments, as githubFeedback reads them. */
-const feedbackItem = (over: Partial<PullRequestFeedback> & Pick<PullRequestFeedback, "id" | "body">): PullRequestFeedback => ({
+const feedbackItem = (
+  over: Partial<PullRequestFeedback> & Pick<PullRequestFeedback, "id" | "body">,
+): PullRequestFeedback => ({
   author: "ana",
   url: null,
   path: null,
@@ -91,7 +98,9 @@ describe("prReactions", () => {
     const [segment] = splitUntrusted(block);
     expect(segment).toMatchObject({ type: "untrusted", source: "pull-request" });
     expect(segment!.text).toContain("(ana) [changes requested]: Two things to fix.");
-    expect(segment!.text).toContain("- src/list.ts:14 (ana): Handle the empty list.\n  https://github.com/acme/site/pull/7#discussion_r21");
+    expect(segment!.text).toContain(
+      "- src/list.ts:14 (ana): Handle the empty list.\n  https://github.com/acme/site/pull/7#discussion_r21",
+    );
     expect(segment!.text).toContain("- src/util.ts:3 (ana): Rename this.");
 
     expect(prReactions(record({ nudgeSignature: { review: nudge.signature } }), after).nudges).toEqual([]);
@@ -99,7 +108,12 @@ describe("prReactions", () => {
 
   it("finishes the task on a merge, once", async () => {
     const { prReactions } = await load();
-    const merged = status({ state: "merged", mergedAt: new Date(), checks: "failure", failedChecks: failing("x").failedChecks });
+    const merged = status({
+      state: "merged",
+      mergedAt: new Date(),
+      checks: "failure",
+      failedChecks: failing("x").failedChecks,
+    });
     expect(prReactions(record(), merged)).toMatchObject({ merged: true, closed: false, nudges: [] });
     expect(prReactions(record({ state: "merged" }), merged).merged).toBe(false);
   });
