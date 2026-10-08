@@ -64,6 +64,13 @@
       "when": 1791416421026,
       "tag": "0008_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791442724109,
+      "tag": "0009_pr_lifecycle",
+      "breakpoints": true
     }
   ]
 }

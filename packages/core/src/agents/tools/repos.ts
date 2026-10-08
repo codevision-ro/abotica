@@ -1,13 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { openPullRequest } from "../../projects/repo-api";
+import { recordPullRequest } from "../../tasks/pull-requests";
 import { blankToUndefined, errorResult, optionalText, type ToolFactory } from "./shared";
 
 export const repoTools: Record<string, ToolFactory> = {
   repo_open_pr: (ctx) =>
     tool({
       description:
-        "Open a pull request (GitHub) or merge request (GitLab) for a branch you pushed with git push. When one is already open for the branch, its link comes back instead. Give the link to whoever asked for the work.",
+        "Open a pull request (GitHub) or merge request (GitLab) for a branch you pushed with git push. When one is already open for the branch, its link comes back instead. Give the link to whoever asked for the work. In a task, the platform then follows it: failed CI checks and review comments come back to the task as comments and start a new run, and a merge marks the task done, so do not wait or poll for them.",
       inputSchema: z.object({
         repo: z.string().trim().min(1).describe("The repository's folder name under repos/."),
         branch: z.string().trim().min(1).describe("The pushed branch with the changes."),
@@ -33,7 +34,17 @@ export const repoTools: Record<string, ToolFactory> = {
         }
         try {
           const pull = await openPullRequest(repo, { branch, base: target, title, body, draft });
-          return { url: pull.url, number: pull.number, created: pull.created, branch, base: target };
+          const taskId = ctx.run.taskId;
+          // The pull request is open either way: a failed record only loses the follow-up.
+          const followed = taskId
+            ? await recordPullRequest({ taskId, repoId: repo.id, provider: repo.provider, pull, branch, base: target })
+                .then(() => true)
+                .catch((error: unknown) => {
+                  console.error(`[repos] recording pull request ${pull.url} for task ${taskId} failed:`, error);
+                  return false;
+                })
+            : false;
+          return { url: pull.url, number: pull.number, created: pull.created, branch, base: target, followed };
         } catch (error) {
           return errorResult(error);
         }

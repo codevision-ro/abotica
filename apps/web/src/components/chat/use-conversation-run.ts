@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
+import { DefaultChatTransport, type FileUIPart, generateId, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLiveEvent } from "@/components/app/live-updates";
@@ -9,9 +9,6 @@ import type { UploadedFile } from "@/lib/upload-files";
 import { decideApproval } from "@/server/actions/approvals";
 import { loadConversationMessages } from "@/server/actions/chat";
 import { stopConversation } from "@/server/actions/runs";
-
-/** Files are references to stored uploads (`/api/files/<id>`), never their bytes. */
-export type QueuedMessage = { id: number; text: string; files: FileUIPart[] };
 
 const toFilePart = (file: UploadedFile): FileUIPart => ({
   type: "file",
@@ -32,8 +29,9 @@ type Options = {
 };
 
 /**
- * Keeps an open chat in sync with the conversation's runs: streams its own answers, queues
- * messages written meanwhile, waits for continuations and picks up runs started elsewhere.
+ * Keeps an open chat in sync with the conversation's runs: streams its own answers, sends messages
+ * written meanwhile right away (the running run reads them at its next step, see agents/steering.ts),
+ * waits for continuations and picks up runs started elsewhere.
  */
 export function useConversationRun({
   conversationId,
@@ -44,16 +42,17 @@ export function useConversationRun({
 }: Options) {
   // Resuming matters on mount only; a later refresh (e.g. after picking a model) must not resume a live stream again.
   const [resumeOnMount] = useState(resume);
-  // Messages written while the agent is still answering; sent together once it is done.
-  const [queue, setQueue] = useState<QueuedMessage[]>([]);
-  const queueRef = useRef<QueuedMessage[]>([]);
+  // Messages sent while the agent was working, shown after the answer until the saved messages include
+  // them: the stream owns the list's last message meanwhile.
+  const [sent, setSent] = useState<UIMessage[]>([]);
+  const sentRef = useRef<UIMessage[]>([]);
+  const updateSent = (update: (current: UIMessage[]) => UIMessage[]) => {
+    sentRef.current = update(sentRef.current);
+    setSent(sentRef.current);
+  };
   // File parts carry no size; the cards look it up here.
   const [fileSizes, setFileSizes] = useState(initialFileSizes);
-  const updateQueue = (next: QueuedMessage[]) => {
-    queueRef.current = next;
-    setQueue(next);
-  };
-  const flushRef = useRef<() => void>(() => {});
+  const pickUpRef = useRef<() => void>(() => {});
   const { messages, setMessages, sendMessage, status, stop, addToolApprovalResponse, resumeStream, error } = useChat({
     id: conversationId,
     messages: initialMessages,
@@ -63,26 +62,12 @@ export function useConversationRun({
       prepareSendMessagesRequest: ({ id, messages }) => ({ body: { conversationId: id, message: messages.at(-1) } }),
     }),
     onError: (e) => toast.error(e.message),
-    // When the answer ends, send everything queued meanwhile as one message. After Stop the run is
-    // still winding down on the server; the queue goes out once it has ended (`settle`).
+    // When the answer ends with messages sent meanwhile, the saved messages show where they went in,
+    // and a follow-up answering the ones that came too late is picked up. After Stop the run is still
+    // winding down on the server; `settle` loads them once it has ended.
     onFinish: ({ isAbort }) => {
-      if (!isAbort) setTimeout(() => flushRef.current(), 0);
+      if (!isAbort) setTimeout(() => pickUpRef.current(), 0);
     },
-  });
-
-  useEffect(() => {
-    flushRef.current = () => {
-      const batch = queueRef.current;
-      if (!batch.length) return;
-      updateQueue([]);
-      void sendMessage({
-        text: batch
-          .map((m) => m.text)
-          .filter(Boolean)
-          .join("\n\n"),
-        files: batch.flatMap((m) => m.files),
-      });
-    };
   });
 
   // A run that continues an earlier answer (after an approval) cannot be streamed into it:
@@ -109,18 +94,30 @@ export function useConversationRun({
       return null;
     }
     setMessages(res.data.messages);
+    const saved = new Set(res.data.messages.map((m) => m.id));
+    updateSent((current) => current.filter((m) => !saved.has(m.id)));
     setFileSizes((sizes) => ({ ...sizes, ...res.data.fileSizes }));
     return { active: res.data.active, lastRole: res.data.messages.at(-1)?.role };
   }
 
   async function settle() {
     const state = await refresh();
-    if (state && !state.active) {
-      setWaiting(false);
-      // Messages written while waiting go out now, like after a streamed answer.
-      setTimeout(() => flushRef.current(), 0);
-    }
+    if (state && !state.active) setWaiting(false);
   }
+
+  /** Loads the saved messages and follows a run that is still active: a new answer streams, a continuation is waited for. */
+  async function pickUp() {
+    const state = await refresh();
+    if (!state?.active) return;
+    if (state.lastRole === "user") await resumeStream();
+    else setWaiting(true);
+  }
+
+  useEffect(() => {
+    pickUpRef.current = () => {
+      if (sentRef.current.length) void pickUp();
+    };
+  });
 
   // Live events are the fast path; polling covers a missed event.
   const settleRef = useRef(settle);
@@ -162,28 +159,48 @@ export function useConversationRun({
     startingRef.current = true;
     void (async () => {
       try {
-        const state = await refresh();
-        if (!state?.active) return;
-        // A new message gets a fresh answer, which streams; a continuation is waited for.
-        if (state.lastRole === "user") await resumeStream();
-        else setWaiting(true);
+        await pickUp();
       } finally {
         startingRef.current = false;
       }
     })();
   });
 
-  /** Sends a message with its uploaded files, or queues it while the agent is still answering. */
+  /**
+   * A message written while the agent works goes out at once, outside the stream: the server saves it
+   * and answers 409, and the running run reads it at its next step (or a follow-up answers it). When
+   * the run ended meanwhile, the server starts one for it, which the chat picks up when its answer ends.
+   */
+  async function sendWhileBusy(message: UIMessage) {
+    updateSent((current) => [...current, message]);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId, message }),
+      });
+      if (res.ok) void res.body?.cancel();
+      else if (res.status !== 409) throw new Error(await res.text());
+    } catch (error) {
+      updateSent((current) => current.filter((m) => m.id !== message.id));
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** Sends a message with its uploaded files; while the agent works, without waiting for it. */
   function submit(message: { text: string; files: UploadedFile[] }) {
     if (message.files.length) {
       setFileSizes((sizes) => ({ ...sizes, ...Object.fromEntries(message.files.map((f) => [f.id, f.size])) }));
     }
     const files = message.files.map(toFilePart);
-    if (busy) updateQueue([...queueRef.current, { id: Date.now(), text: message.text.trim(), files }]);
-    else void sendMessage({ text: message.text, files });
+    if (!busy) return void sendMessage({ text: message.text, files });
+    const text = message.text.trim();
+    void sendWhileBusy({
+      id: generateId(),
+      role: "user",
+      parts: [...files, ...(text ? [{ type: "text" as const, text }] : [])],
+    });
   }
-
-  const unqueue = (id: number) => updateQueue(queueRef.current.filter((x) => x.id !== id));
 
   /**
    * Stop: ends the run on the server (its tools and processes too), not only the stream here. The
@@ -208,9 +225,8 @@ export function useConversationRun({
     busy,
     waiting,
     thinking,
-    queue,
+    sent,
     submit,
-    unqueue,
     decide,
     fileSizes,
   };

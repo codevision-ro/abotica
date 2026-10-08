@@ -41,6 +41,8 @@
     "githubCreate": "Creează token-ul pe GitHub",
     "gitlabHint": "Un project access token cu rolul Developer și scope-urile api și write_repository. Pe GitLab.com fără Premium, un personal access token cu aceleași scope-uri.",
     "gitlabCreate": "Creează token-ul pe GitLab",
+    "githubTracking": "Ca să urmărească CI-ul pull request-urilor deschise de agenți, token-ul are nevoie și de Actions și Commit statuses pe Read (linkul le setează). Fără ele, starea, merge-ul și review-urile sunt urmărite în continuare.",
+    "gitlabTracking": "Cu aceste scope-uri, Abotica urmărește și pipeline-urile, discuțiile și starea merge request-urilor deschise de agenți.",
     "shared": "Orice agent al proiectului poate folosi token-ul în sandbox. Limitează-l la acest repository."
   },
   "recheck": "Verifică din nou",

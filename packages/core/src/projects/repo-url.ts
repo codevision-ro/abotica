@@ -86,7 +86,8 @@ export function repoApiBase(provider: RepoProvider, host: string): string {
 
 /**
  * Where the user creates a token for the repo. On GitHub the form comes pre-filled (name, owner,
- * Contents and Pull requests read and write); the user still picks the repository.
+ * Contents and Pull requests read and write, Actions and Commit statuses read for following the
+ * checks of pull requests); the user still picks the repository.
  */
 export function repoTokenUrl(provider: RepoProvider, repo: RepoLocation, label: string): string {
   if (provider === "gitlab") return `${repoWebUrl(repo)}/-/settings/access_tokens`;
@@ -96,6 +97,8 @@ export function repoTokenUrl(provider: RepoProvider, repo: RepoLocation, label: 
     target_name: repo.path.split("/")[0]!,
     contents: "write",
     pull_requests: "write",
+    actions: "read",
+    statuses: "read",
   });
   return `https://${repo.host}/settings/personal-access-tokens/new?${query}`;
 }

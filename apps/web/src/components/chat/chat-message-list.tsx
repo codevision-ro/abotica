@@ -5,7 +5,7 @@ import { isCompaction } from "@abotica/core/compaction-record";
 import { isDelegationReport } from "@abotica/core/delegation-report";
 import { fileIdFromUrl } from "@abotica/core/file-types";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import { CircleAlert, CopyIcon, FileIcon } from "lucide-react";
+import { CircleAlert, CopyIcon, CornerDownRight, FileIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
@@ -23,6 +23,8 @@ type Part = UIMessage["parts"][number];
 
 type Props = {
   messages: UIMessage[];
+  /** Messages sent while the agent was working, not among the saved ones yet: shown after the answer. */
+  sent: UIMessage[];
   /** Message id to ISO creation time, for messages loaded from the database. */
   timestamps: Record<string, string>;
   /** File id to size in bytes. */
@@ -35,8 +37,12 @@ type Props = {
   onDecide: (approvalId: string, approved: boolean) => Promise<void>;
 };
 
+/** A message a run took in between its steps (see agents/steering.ts). */
+const isSteered = (message: UIMessage) => Boolean((message.metadata as { steeredInto?: unknown } | undefined)?.steeredInto);
+
 export function ChatMessageList({
   messages,
+  sent,
   timestamps,
   fileSizes,
   agentAvatar,
@@ -55,6 +61,36 @@ export function ChatMessageList({
       {t("thinking")}
     </Shimmer>
   );
+
+  function renderUserMessage(message: UIMessage, sentWhileWorking: boolean) {
+    const files = message.parts.filter((p) => p.type === "file");
+    const text = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
+    return (
+      <div key={message.id} className="group flex flex-col items-end gap-1.5">
+        {files.length > 0 && (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-2 sm:max-w-[75%]">
+            {files.map((part, i) => (
+              <PartView key={`${message.id}-f${i}`} part={part} fileSizes={fileSizes} />
+            ))}
+          </div>
+        )}
+        {text.trim() && (
+          <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap wrap-anywhere ring-1 ring-primary/10 ring-inset sm:max-w-[75%] dark:bg-primary/15">
+            <UntrustedText text={text} />
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground/80">
+          {sentWhileWorking && (
+            <span className="inline-flex items-center gap-1">
+              <CornerDownRight className="size-3" aria-hidden />
+              {t("message.sentWhileWorking")}
+            </span>
+          )}
+          <MessageTime date={timestamps[message.id]} />
+        </div>
+      </div>
+    );
+  }
 
   function renderAssistantParts(message: UIMessage) {
     // Consecutive tool calls are stacked tightly, apart from the text around them.
@@ -102,29 +138,7 @@ export function ChatMessageList({
           if (isCompaction(message.metadata)) {
             return <CompactionDivider key={message.id} compaction={message.metadata} date={timestamps[message.id]} />;
           }
-          if (message.role === "user") {
-            const files = message.parts.filter((p) => p.type === "file");
-            const text = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
-            return (
-              <div key={message.id} className="group flex flex-col items-end gap-1.5">
-                {files.length > 0 && (
-                  <div className="flex max-w-[85%] flex-wrap justify-end gap-2 sm:max-w-[75%]">
-                    {files.map((part, i) => (
-                      <PartView key={`${message.id}-f${i}`} part={part} fileSizes={fileSizes} />
-                    ))}
-                  </div>
-                )}
-                {text.trim() && (
-                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap wrap-anywhere ring-1 ring-primary/10 ring-inset sm:max-w-[75%] dark:bg-primary/15">
-                    <UntrustedText text={text} />
-                  </div>
-                )}
-                <div className="px-1 text-[11px] text-muted-foreground/80">
-                  <MessageTime date={timestamps[message.id]} />
-                </div>
-              </div>
-            );
-          }
+          if (message.role === "user") return renderUserMessage(message, isSteered(message));
           const copyText = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
           return (
             <div key={message.id} className="group flex gap-3 md:gap-4">
@@ -158,6 +172,7 @@ export function ChatMessageList({
             </div>
           );
         })}
+        {sent.map((message) => renderUserMessage(message, true))}
         {((thinking && last?.role !== "assistant") || waiting) && (
           <div className="flex items-center gap-3 md:gap-4">
             <AgentAvatar avatar={agentAvatar} size="lg" className="hidden sm:flex" />

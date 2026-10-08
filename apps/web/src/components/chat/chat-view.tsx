@@ -170,6 +170,7 @@ export function ChatView({
           timestamps={timestamps}
           fileSizes={run.fileSizes}
           agentAvatar={agent.avatar}
+          sent={run.sent}
           answering={run.answering}
           thinking={run.thinking}
           waiting={run.waiting}
@@ -178,15 +179,7 @@ export function ChatView({
         />
       )}
 
-      <ChatComposer
-        agentName={agent.name}
-        busy={run.busy}
-        status={run.status}
-        onStop={run.stop}
-        queue={run.queue}
-        onSubmit={run.submit}
-        onUnqueue={run.unqueue}
-      />
+      <ChatComposer agentName={agent.name} busy={run.busy} status={run.status} onStop={run.stop} onSubmit={run.submit} />
     </div>
   );
 }

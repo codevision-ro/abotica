@@ -44,6 +44,21 @@ export async function takeResumeRequest(conversationId: string): Promise<boolean
   return (await redis().getdel(resumeKey(conversationId))) !== null;
 }
 
+const heldRepliesKey = (conversationId: string) => `abotica:conv:${conversationId}:held-replies`;
+
+/** Counts one more reply held back in a row in the conversation; returns how many that makes. */
+export async function countHeldReply(conversationId: string): Promise<number> {
+  const key = heldRepliesKey(conversationId);
+  const held = await redis().incr(key);
+  await redis().expire(key, 24 * 3600);
+  return held;
+}
+
+/** A reply reached the user: the next one may be held again. */
+export async function clearHeldReplies(conversationId: string): Promise<void> {
+  await redis().del(heldRepliesKey(conversationId));
+}
+
 const translator = async () => getTranslator(settingsLocale(await getSettings()));
 
 /** Side effects of an ending run: one that fails is logged and does not skip the others. */

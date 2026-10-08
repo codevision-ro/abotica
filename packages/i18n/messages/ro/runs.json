@@ -126,7 +126,9 @@
       "retry": "Reîncercare",
       "loop-nudge": "Avertisment de buclă",
       "compaction": "Context compactat",
-      "compaction-error": "Compactare eșuată"
+      "compaction-error": "Compactare eșuată",
+      "steered": "Mesaje noi preluate",
+      "steering-error": "Preluarea mesajelor noi a eșuat"
     },
     "fallbackSwitched": "<code>{from}</code> a eșuat, s-a trecut la <code>{to}</code>",
     "fallbackExhausted": "<code>{from}</code> a eșuat și nu mai există alt model în lanț",
@@ -149,7 +151,8 @@
     },
     "compactionMidRun": "Compactat în timpul rulării.",
     "compactionFlushed": "{count, plural, one {# fapt salvat în memorie.} few {# fapte salvate în memorie.} other {# de fapte salvate în memorie.}}",
-    "compactionSummary": "Rezumat"
+    "compactionSummary": "Rezumat",
+    "steered": "{count, plural, one {# mesaj trimis} few {# mesaje trimise} other {# de mesaje trimise}} în timp ce agentul lucra {count, plural, one {a ajuns} other {au ajuns}} la el după pasul {step}."
   },
   "lifecycle": {
     "taskCancelled": "Rularea a fost anulată: {reason}",

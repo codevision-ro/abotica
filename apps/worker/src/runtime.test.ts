@@ -29,7 +29,11 @@ vi.mock("@abotica/core", () => ({
 vi.mock("@abotica/core/agents/runner", () => ({ executeRun: vi.fn() }));
 vi.mock("@abotica/db", () => ({ conversations: {}, db: {}, runs: {} }));
 vi.mock("@abotica/db/orm", () => ({ eq: vi.fn() }));
-vi.mock("./telegram/delivery", () => ({ deliverTelegramReply: vi.fn(), showTelegramTyping: vi.fn() }));
+vi.mock("./telegram/delivery", () => ({
+  acknowledgeSteered: vi.fn(),
+  deliverTelegramReply: vi.fn(),
+  showTelegramTyping: vi.fn(),
+}));
 
 const REASON = "Stopped because the worker is restarting";
 

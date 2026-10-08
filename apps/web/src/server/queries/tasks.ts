@@ -1,6 +1,6 @@
 import "server-only";
 import { listFiles, TASK_PRIORITIES, taskFailureStreak, type TaskPriority } from "@abotica/core";
-import { agents, db, projects, runs, tasks } from "@abotica/db";
+import { agents, db, projects, runs, taskPullRequests, tasks } from "@abotica/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, or, sql, type SQL } from "@abotica/db/orm";
 import { isUuid } from "@/lib/uuid";
 import { query } from "@/server/query";
@@ -18,6 +18,21 @@ type TaskFilters = {
 export type BoardTask = Awaited<ReturnType<typeof listBoardTasks>>[number];
 export type TaskOptions = Awaited<ReturnType<typeof getTaskOptions>>;
 export type TaskDetailData = NonNullable<Awaited<ReturnType<typeof getTaskDetail>>>;
+export type TaskPullRequestBadge = Pick<
+  typeof taskPullRequests.$inferSelect,
+  "id" | "provider" | "number" | "url" | "state" | "checks" | "review"
+>;
+
+const pullRequestColumns = {
+  id: taskPullRequests.id,
+  taskId: taskPullRequests.taskId,
+  provider: taskPullRequests.provider,
+  number: taskPullRequests.number,
+  url: taskPullRequests.url,
+  state: taskPullRequests.state,
+  checks: taskPullRequests.checks,
+  review: taskPullRequests.review,
+};
 
 /** Top-level tasks for the board and list views, with the counters shown on cards. */
 export const listBoardTasks = query(async (filters: TaskFilters) => {
@@ -33,7 +48,7 @@ export const listBoardTasks = query(async (filters: TaskFilters) => {
     conds.push(or(ne(tasks.status, "done"), isNull(tasks.completedAt), gte(tasks.completedAt, cutoff))!);
   }
 
-  return db
+  const rows = await db
     .select({
       id: tasks.id,
       title: tasks.title,
@@ -58,6 +73,23 @@ export const listBoardTasks = query(async (filters: TaskFilters) => {
     .leftJoin(agents, eq(agents.id, tasks.assigneeAgentId))
     .where(and(...conds))
     .orderBy(asc(tasks.position), asc(tasks.createdAt));
+  // The pull requests agents opened for these tasks, for the badge on each card.
+  const pulls = rows.length
+    ? await db
+        .select(pullRequestColumns)
+        .from(taskPullRequests)
+        .where(
+          inArray(
+            taskPullRequests.taskId,
+            rows.map((r) => r.id),
+          ),
+        )
+        .orderBy(asc(taskPullRequests.createdAt))
+    : [];
+  return rows.map((row) => ({
+    ...row,
+    pullRequests: pulls.filter((p) => p.taskId === row.id),
+  }));
 });
 
 /** Data for selects: projects, agents and open tasks (for dependencies and parent). */
@@ -103,6 +135,10 @@ export const getTaskDetail = query(async (id: string) => {
         orderBy: (c, { asc }) => [asc(c.createdAt)],
       },
       events: { orderBy: (e, { asc }) => [asc(e.createdAt)] },
+      pullRequests: {
+        columns: { id: true, provider: true, number: true, url: true, state: true, checks: true, review: true },
+        orderBy: (p, { asc }) => [asc(p.createdAt)],
+      },
     },
   });
   if (!task) return null;

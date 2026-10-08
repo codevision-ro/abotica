@@ -65,6 +65,8 @@ describe("repo addresses", () => {
       target_name: "acme",
       contents: "write",
       pull_requests: "write",
+      actions: "read",
+      statuses: "read",
     });
     expect(repoTokenUrl("gitlab", repo, "x")).toBe("https://gitlab.example.com:8443/team/site/-/settings/access_tokens");
     expect(repoProtectionUrl("github", github)).toBe("https://github.com/acme/site/settings/branches");

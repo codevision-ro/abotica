@@ -12,7 +12,8 @@
   "thinking": "Thinking...",
   "message": {
     "copyReply": "Copy reply",
-    "scrollToBottom": "Scroll to the latest message"
+    "scrollToBottom": "Scroll to the latest message",
+    "sentWhileWorking": "Sent while the agent was working"
   },
   "attachments": {
     "remove": "Remove file",
@@ -22,11 +23,7 @@
     "uploading": "Uploading files: {percent}%"
   },
   "queue": {
-    "files": "{count, plural, one {# file} other {# files}}",
-    "queued": "Queued",
-    "remove": "Remove from queue",
-    "summary": "{count} queued, sent after the reply",
-    "enqueue": "Add to queue"
+    "steer": "Sends right away: the agent reads it at its next step"
   },
   "input": {
     "placeholder": "Message {name}...",
@@ -136,6 +133,7 @@
       "delegatedTask": "Delegated task",
       "web": "Web page",
       "knowledge": "Saved page",
+      "pullRequest": "Pull request (CI or review)",
       "mcp": "MCP server {server}"
     }
   },

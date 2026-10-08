@@ -25,6 +25,7 @@ export * from "./models";
 export * from "./sandbox/preview-snapshot";
 export * from "./sandbox/previews";
 export * from "./projects/projects";
+export * from "./tasks/pull-requests";
 export * from "./infra/queues";
 export * from "./infra/redis";
 export * from "./projects/repo-url";

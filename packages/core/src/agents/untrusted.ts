@@ -11,9 +11,11 @@ import type { UIMessage } from "ai";
 
 /**
  * Where the data came from: a webhook request, a task's output in a task event, the output or error
- * of a delegated task, a fetched page, an MCP server (by slug), or a knowledge item saved from a URL.
+ * of a delegated task, a fetched page, an MCP server (by slug), a knowledge item saved from a URL, or
+ * a pull request (its failed checks, their logs and its review comments, in a task comment).
  */
-export type UntrustedSource = "webhook" | "task-output" | "delegated-task" | "web" | "knowledge" | `mcp:${string}`;
+export type UntrustedSource =
+  "webhook" | "task-output" | "delegated-task" | "web" | "knowledge" | "pull-request" | `mcp:${string}`;
 
 /** One sentence for the system prompt. */
 export const UNTRUSTED_NOTE =

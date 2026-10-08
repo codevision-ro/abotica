@@ -192,5 +192,30 @@
     "dependencyNotFound": "A task it depends on does not exist",
     "alreadyRunning": "The task already has an active run",
     "circuitOpen": "{failures, plural, one {The last run} other {The last # runs}} of this task failed ({reason}), so it does not start again on its own. Start it yourself once the cause is fixed."
+  },
+  "pr": {
+    "badge": {
+      "open": "Open",
+      "checksPending": "Checks running",
+      "checksFailing": "Checks failing",
+      "changesRequested": "Changes requested",
+      "approved": "Approved",
+      "merged": "Merged",
+      "closed": "Closed"
+    },
+    "title": "Pull request {label}: {status}",
+    "comments": {
+      "checksFailed": "CI checks failed on commit {sha} of pull request {label} ({url}):\n{checks}\nFix the failures and push again; fetch the full log only if needed.",
+      "review": "New review feedback on pull request {label} ({url}):\n{items}\nAddress the feedback and push again.",
+      "changesRequested": "changes requested",
+      "capReached": "Pull request {label} still needs fixes after {rounds} automatic fix rounds, so the agent is not woken again. Look at it, then start the task again when it should continue.",
+      "merged": "Pull request {label} was merged: {url}",
+      "closed": "Pull request {label} was closed without merging: {url}"
+    },
+    "notices": {
+      "capReached": "Task \"{title}\" is blocked: pull request {label} still needs fixes after {rounds} automatic fix rounds. {url}",
+      "notWoken": "Pull request {label} of task \"{title}\" needs fixes, but its agent was not started: {reason}. {url}",
+      "closed": "Pull request {label} of task \"{title}\" was closed without merging. {url}"
+    }
   }
 }

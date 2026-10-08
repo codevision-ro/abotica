@@ -10,7 +10,7 @@ import { isKillSwitchActive } from "../platform/kill-switch";
 import { RunAbort } from "../runs/run-failures";
 import { conversationUsage, saveCompaction } from "../runs/compactions";
 import { cancelClaimedRun, claimRun, failRun, finishRun, logRunEvent } from "../runs/run-lifecycle";
-import { loadConversation } from "../runs/run-messages";
+import { loadConversation, loadUnsteeredMessages, markSteered, saveMessage } from "../runs/run-messages";
 import { SUMMARY_PREFIX } from "./compaction";
 import { loadRunContext } from "./context";
 import { fullModelChain, modelChain } from "./model-chain";
@@ -84,6 +84,8 @@ vi.mock("../runs/run-lifecycle", () => ({
 vi.mock("../runs/run-messages", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../runs/run-messages")>()),
   loadConversation: vi.fn(),
+  loadUnsteeredMessages: vi.fn(async () => []),
+  markSteered: vi.fn(async () => {}),
   saveMessage: vi.fn(async () => {}),
 }));
 vi.mock("../runs/compactions", () => ({
@@ -862,5 +864,45 @@ describe("the run's untrusted flag", () => {
     useModel(() => answer("Done"));
     await run();
     expect(readUntrusted()).toEqual([]);
+  });
+});
+
+describe("messages sent while a run works", () => {
+  it("reach the model at the next step, are logged and acknowledged, and split the saved answer", async () => {
+    const steered = {
+      message: { id: "m2", role: "user" as const, parts: [{ type: "text" as const, text: "Use b.txt instead" }] },
+      createdAt: new Date(RUN.startedAt.getTime() + 5_000),
+    };
+    vi.mocked(loadUnsteeredMessages).mockResolvedValueOnce([steered]);
+    const prompts = useModel((call) => (call === 1 ? callFile("a.txt") : answer("Read b.txt")));
+    const onSteered = vi.fn(async () => {});
+
+    expect(await executeRun(RUN.id, new AbortController().signal, { onSteered })).toEqual({
+      status: "succeeded",
+      output: "Read b.txt",
+    });
+    expect(prompts[1]!.at(-1)).toMatchObject({ role: "user", content: [{ type: "text", text: "Use b.txt instead" }] });
+    expect(markSteered).toHaveBeenCalledExactlyOnceWith(["m2"], { runId: RUN.id, afterStep: 0 });
+    expect(logRunEvent).toHaveBeenCalledWith(RUN.id, "steered", {
+      afterStep: 0,
+      messages: [{ id: "m2", text: "Use b.txt instead" }],
+    });
+    expect(onSteered).toHaveBeenCalledExactlyOnceWith([steered]);
+
+    // The final save: the answer before the message keeps the run's start, the rest sorts after the message.
+    const [before, after] = vi.mocked(saveMessage).mock.calls.slice(-2);
+    expect(after![1].id).toBe(`${before![1].id}-2`);
+    expect(before![2]).toEqual(RUN.startedAt);
+    expect(after![2]).toEqual(new Date(steered.createdAt.getTime() + 1));
+    expect(before![1].parts.some((p) => p.type === "text")).toBe(false);
+    expect(after![1].parts).toContainEqual(expect.objectContaining({ type: "text", text: "Read b.txt" }));
+  });
+
+  it("are left for the follow-up when none arrived", async () => {
+    useModel((call) => (call === 1 ? callFile("a.txt") : answer("Done")));
+    await run();
+    expect(loadUnsteeredMessages).toHaveBeenCalledOnce();
+    expect(markSteered).not.toHaveBeenCalled();
+    expect(logRunEvent).not.toHaveBeenCalledWith(RUN.id, "steered", expect.anything());
   });
 });

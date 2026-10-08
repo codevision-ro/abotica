@@ -126,7 +126,9 @@
       "retry": "Retry",
       "loop-nudge": "Loop warning",
       "compaction": "Context compacted",
-      "compaction-error": "Compaction failed"
+      "compaction-error": "Compaction failed",
+      "steered": "New messages taken in",
+      "steering-error": "Taking in new messages failed"
     },
     "fallbackSwitched": "<code>{from}</code> failed, switched to <code>{to}</code>",
     "fallbackExhausted": "<code>{from}</code> failed and there is no other model in the chain",
@@ -149,7 +151,8 @@
     },
     "compactionMidRun": "Compacted during the run.",
     "compactionFlushed": "{count, plural, one {# fact saved to memory.} other {# facts saved to memory.}}",
-    "compactionSummary": "Summary"
+    "compactionSummary": "Summary",
+    "steered": "{count, plural, one {# message} other {# messages}} sent while the agent worked reached it after step {step}."
   },
   "lifecycle": {
     "taskCancelled": "The run was cancelled: {reason}",

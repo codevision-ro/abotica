@@ -19,6 +19,7 @@ import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
 import { botTranslator } from "./bot";
 import { currentConversation } from "./chat";
+import type { TelegramOrigin } from "./delivery";
 import { incomingFileName, mediaGroupCollector, TELEGRAM_DOWNLOAD_MAX_BYTES } from "./incoming-files";
 import { replyError } from "./send";
 
@@ -89,10 +90,15 @@ async function showProgress(bot: Bot, ctx: Context, runId: string) {
 
 /**
  * Appends the message to the chat's conversation and starts the agent the conversation belongs to:
- * the project's manager in a project topic, the super agent anywhere else.
+ * the project's manager in a project topic, the super agent anywhere else. The Telegram message it
+ * came from is kept in its metadata, so the worker can react to it when a running run takes it in.
  */
 async function handleUserMessage(bot: Bot, ctx: Context, message: UIMessage, conversation: Conversation) {
-  await appendUserMessage(conversation.id, message);
+  const origin: TelegramOrigin | null = ctx.msg ? { chatId: ctx.chat!.id, messageId: ctx.msg.message_id } : null;
+  await appendUserMessage(
+    conversation.id,
+    origin ? { ...message, metadata: { ...(message.metadata as object | undefined), telegram: origin } } : message,
+  );
   try {
     const run = await startRun({
       agentId: conversation.agentId,
@@ -103,7 +109,8 @@ async function handleUserMessage(bot: Bot, ctx: Context, message: UIMessage, con
     void showProgress(bot, ctx, run.id).catch((e) => console.error("[telegram] progress", e));
   } catch (error) {
     if (!(error instanceof ConversationBusyError)) throw error;
-    // Still answering the previous message: this one is queued and answered right after.
+    // Still answering the previous message: the running run takes this one in at its next step (the
+    // reaction then becomes ✍), or a follow-up answers it right after.
     await ctx.react("👀").catch(() => {});
   }
 }

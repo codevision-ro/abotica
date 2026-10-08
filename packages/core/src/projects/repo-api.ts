@@ -1,16 +1,25 @@
 /**
  * The GitHub and GitLab REST calls Abotica makes with a repo's token: checking a repo when it is
- * added, and opening pull (merge) requests for agents. Git itself runs in the sandbox.
+ * added, and opening pull (merge) requests for agents. Following them afterwards is in
+ * pull-request-api.ts. Git itself runs in the sandbox.
  */
 import { UserError } from "@abotica/i18n";
 import { z } from "zod";
-import { type RepoLocation, type RepoProvider, repoApiBase } from "./repo-url";
+import {
+  apiMessage,
+  type ApiResponse,
+  call,
+  githubRepo,
+  gitlabProject,
+  parseBody,
+  type RepoAccess,
+  unexpectedBody,
+} from "./repo-http";
 
-const TIMEOUT_MS = 20_000;
+export type { RepoAccess } from "./repo-http";
+
 /** GitLab's Developer role, the lowest that can push. */
 const GITLAB_DEVELOPER = 30;
-
-export type RepoAccess = RepoLocation & { provider: RepoProvider; token: string };
 
 export type RepoCheck = {
   defaultBranch: string;
@@ -18,49 +27,8 @@ export type RepoCheck = {
   defaultBranchProtected: boolean | null;
 };
 
-export type PullRequest = { url: string; number: number; created: boolean };
-
-type ApiResponse = { status: number; body: unknown };
-
-async function call(repo: RepoAccess, method: string, endpoint: string, body?: unknown): Promise<ApiResponse> {
-  const headers: Record<string, string> =
-    repo.provider === "github"
-      ? {
-          authorization: `Bearer ${repo.token}`,
-          accept: "application/vnd.github+json",
-          "x-github-api-version": "2022-11-28",
-        }
-      : { "private-token": repo.token };
-  if (body !== undefined) headers["content-type"] = "application/json";
-  let res: Response;
-  try {
-    res = await fetch(`${repoApiBase(repo.provider, repo.host)}${endpoint}`, {
-      method,
-      headers: { ...headers, "user-agent": "abotica" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      redirect: "error",
-    });
-  } catch {
-    throw new UserError("repos.errors.unreachable", { host: repo.host });
-  }
-  const text = await res.text();
-  let parsed: unknown = text;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    // Not JSON (a proxy's error page): kept as text for the message.
-  }
-  return { status: res.status, body: parsed };
-}
-
-/** The body in the shape read below, or null when the provider sent something else. */
-function parseBody<T>(response: ApiResponse, schema: z.ZodType<T>): T | null {
-  const parsed = schema.safeParse(response.body);
-  return parsed.success ? parsed.data : null;
-}
-
-const unexpectedBody = (response: ApiResponse) => `HTTP ${response.status}: unexpected response`;
+/** `headSha`: the commit at the head of the branch, as the provider saw it (null when not reported). */
+export type PullRequest = { url: string; number: number; created: boolean; headSha: string | null };
 
 const githubRepoInfo = z.object({
   default_branch: z.string().nullish(),
@@ -68,33 +36,18 @@ const githubRepoInfo = z.object({
 });
 const githubBranch = z.object({ protected: z.boolean().nullish() });
 const githubRules = z.array(z.object({ type: z.string().nullish() }));
-const githubPull = z.object({ html_url: z.string(), number: z.number() });
+const githubPull = z.object({
+  html_url: z.string(),
+  number: z.number(),
+  head: z.object({ sha: z.string().nullish() }).nullish(),
+});
 
 const gitlabAccess = z.object({ access_level: z.number().nullish() }).nullish();
 const gitlabProjectInfo = z.object({
   default_branch: z.string().nullish(),
   permissions: z.object({ project_access: gitlabAccess, group_access: gitlabAccess }).nullish(),
 });
-const gitlabMerge = z.object({ web_url: z.string(), iid: z.number() });
-
-/** The provider's own explanation of a failed call, for the agent. */
-function apiMessage({ status, body }: ApiResponse): string {
-  if (body && typeof body === "object") {
-    const b = body as { message?: unknown; errors?: unknown; error?: unknown };
-    const details = Array.isArray(b.errors)
-      ? b.errors.map((e) => (typeof e === "string" ? e : ((e as { message?: string }).message ?? ""))).filter(Boolean)
-      : [];
-    const message = [b.message, b.error, ...details]
-      .flatMap((m) => (Array.isArray(m) ? m : [m]))
-      .filter((m): m is string => typeof m === "string" && m.length > 0);
-    if (message.length) return `HTTP ${status}: ${message.join("; ")}`;
-  }
-  return `HTTP ${status}${typeof body === "string" && body ? `: ${body.slice(0, 300)}` : ""}`;
-}
-
-const encodePath = (path: string) => encodeURIComponent(path);
-const githubRepo = (repo: RepoAccess) => `/repos/${repo.path}`;
-const gitlabProject = (repo: RepoAccess) => `/projects/${encodePath(repo.path)}`;
+const gitlabMerge = z.object({ web_url: z.string(), iid: z.number(), sha: z.string().nullish() });
 
 /** Common failures of the repository lookup, as messages for the user. */
 function lookupFailure(response: ApiResponse, repo: RepoAccess): never {
@@ -166,14 +119,16 @@ async function openGithubPull(repo: RepoAccess, input: PullRequestInput): Promis
     const pull = parseBody(created, githubPull);
     if (!pull)
       throw new Error(`GitHub created the pull request but its response could not be read: ${unexpectedBody(created)}`);
-    return { url: pull.html_url, number: pull.number, created: true };
+    return { url: pull.html_url, number: pull.number, created: true, headSha: pull.head?.sha ?? null };
   }
   if (created.status === 422) {
     const owner = repo.path.split("/")[0]!;
     const query = new URLSearchParams({ head: `${owner}:${input.branch}`, base: input.base, state: "open" });
     const open = await call(repo, "GET", `${githubRepo(repo)}/pulls?${query}`);
     const existing = parseBody(open, z.array(githubPull))?.[0];
-    if (existing) return { url: existing.html_url, number: existing.number, created: false };
+    if (existing) {
+      return { url: existing.html_url, number: existing.number, created: false, headSha: existing.head?.sha ?? null };
+    }
   }
   throw new Error(`GitHub refused the pull request: ${apiMessage(created)}`);
 }
@@ -190,13 +145,13 @@ async function openGitlabMerge(repo: RepoAccess, input: PullRequestInput): Promi
     const merge = parseBody(created, gitlabMerge);
     if (!merge)
       throw new Error(`GitLab created the merge request but its response could not be read: ${unexpectedBody(created)}`);
-    return { url: merge.web_url, number: merge.iid, created: true };
+    return { url: merge.web_url, number: merge.iid, created: true, headSha: merge.sha ?? null };
   }
   if (created.status === 409) {
     const query = new URLSearchParams({ source_branch: input.branch, target_branch: input.base, state: "opened" });
     const open = await call(repo, "GET", `${gitlabProject(repo)}/merge_requests?${query}`);
     const existing = parseBody(open, z.array(gitlabMerge))?.[0];
-    if (existing) return { url: existing.web_url, number: existing.iid, created: false };
+    if (existing) return { url: existing.web_url, number: existing.iid, created: false, headSha: existing.sha ?? null };
   }
   throw new Error(`GitLab refused the merge request: ${apiMessage(created)}`);
 }

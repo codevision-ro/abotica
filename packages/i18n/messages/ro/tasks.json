@@ -192,5 +192,30 @@
     "dependencyNotFound": "Un task de care depinde nu există",
     "alreadyRunning": "Task-ul are deja o rulare activă",
     "circuitOpen": "{failures, plural, one {Ultima rulare a acestui task a eșuat} few {Ultimele # rulări ale acestui task au eșuat} other {Ultimele # de rulări ale acestui task au eșuat}} ({reason}), așa că nu mai pornește singur. Pornește-l tu după ce rezolvi cauza."
+  },
+  "pr": {
+    "badge": {
+      "open": "Deschis",
+      "checksPending": "Verificări în curs",
+      "checksFailing": "Verificări eșuate",
+      "changesRequested": "Modificări cerute",
+      "approved": "Aprobat",
+      "merged": "Merge făcut",
+      "closed": "Închis"
+    },
+    "title": "Pull request {label}: {status}",
+    "comments": {
+      "checksFailed": "Verificările CI au eșuat pe commitul {sha} al pull request-ului {label} ({url}):\n{checks}\nRepară erorile și fă push din nou; descarcă logul complet doar dacă e nevoie.",
+      "review": "Feedback nou de review pe pull request-ul {label} ({url}):\n{items}\nRezolvă observațiile și fă push din nou.",
+      "changesRequested": "modificări cerute",
+      "capReached": "Pull request-ul {label} are încă nevoie de corecturi după {rounds} runde automate de corectare, așa că agentul nu mai este pornit. Verifică-l, apoi pornește din nou task-ul când trebuie să continue.",
+      "merged": "S-a făcut merge la pull request-ul {label}: {url}",
+      "closed": "Pull request-ul {label} a fost închis fără merge: {url}"
+    },
+    "notices": {
+      "capReached": "Task-ul \"{title}\" este blocat: pull request-ul {label} are încă nevoie de corecturi după {rounds} runde automate de corectare. {url}",
+      "notWoken": "Pull request-ul {label} al task-ului \"{title}\" are nevoie de corecturi, dar agentul lui nu a fost pornit: {reason}. {url}",
+      "closed": "Pull request-ul {label} al task-ului \"{title}\" a fost închis fără merge. {url}"
+    }
   }
 }

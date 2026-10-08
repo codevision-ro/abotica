@@ -12,6 +12,7 @@ import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 import type { BoardTask } from "@/server/queries/tasks";
 import { isOverdue, rememberOverlayBase } from "./task-meta";
+import { PullRequestBadge } from "./task-pull-request";
 
 export function TaskAssignee({
   agentName,
@@ -145,6 +146,9 @@ export function TaskCard({
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
         <PriorityBadge priority={task.priority} />
         <TaskDeadline deadline={task.deadline} status={task.status} />
+        {task.pullRequests.map((pr) => (
+          <PullRequestBadge key={pr.id} pr={pr} />
+        ))}
       </div>
       <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
         <TaskAssignee

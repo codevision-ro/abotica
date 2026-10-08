@@ -108,3 +108,12 @@ export const repoProvider = pgEnum("repo_provider", ["github", "gitlab"]);
 
 /** A preview serves a copy of workspace files (static) or a port of the workspace's container (live). */
 export const previewKind = pgEnum("preview_kind", ["static", "live"]);
+
+/** A task's pull (merge) request as last read from its provider. */
+export const pullRequestState = pgEnum("pull_request_state", ["open", "merged", "closed"]);
+
+/** The CI checks on a pull request's head commit: none reported (or unreadable), running, passed, failed. */
+export const pullRequestChecks = pgEnum("pull_request_checks", ["none", "pending", "success", "failure"]);
+
+/** Where the reviews of a pull request stand: none yet, approved, changes requested, or comments only. */
+export const pullRequestReview = pgEnum("pull_request_review", ["none", "approved", "changes_requested", "commented"]);

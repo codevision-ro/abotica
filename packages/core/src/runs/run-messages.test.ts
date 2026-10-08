@@ -15,6 +15,7 @@ import {
   closeOpenToolCalls,
   interruptRunMessage,
   loadConversation,
+  loadUnsteeredMessages,
   responseMessageStream,
   saveMessage,
 } from "./run-messages";
@@ -34,25 +35,32 @@ const { rows } = vi.hoisted(() => ({ rows: new Map<string, Row>() }));
 
 vi.mock("@abotica/db/orm", () => ({
   eq: (column: keyof Row, value: unknown) => (row: Row) => row[column] === value,
+  gt: (column: keyof Row, value: Date) => (row: Row) => (row[column] as Date) > value,
   and:
     (...conditions: Condition[]) =>
     (row: Row) =>
       conditions.every((c) => c(row)),
-  asc: () => undefined,
-  // Only `<json column>->>'<key>' = <value>` is used.
+  asc: () => "asc",
+  desc: () => "desc",
+  // `<json column>->>'<key>' = <value>` compares a key; `<json column>->'<key>'` is the key's value for isNull.
   sql: (strings: TemplateStringsArray, column: keyof Row, value: unknown) => {
-    const key = /->>'(\w+)'/.exec(strings[1]!)![1]!;
-    return (row: Row) => (row[column] as Record<string, unknown> | null)?.[key] === value;
+    const [, arrow, key] = /(->>?)'(\w+)'/.exec(strings[1]!)!;
+    const field = (row: Row) => (row[column] as Record<string, unknown> | null)?.[key!];
+    return arrow === "->>" ? (row: Row) => field(row) === value : field;
   },
+  isNull: (field: (row: Row) => unknown) => (row: Row) => field(row) == null,
 }));
 
 vi.mock("@abotica/db", () => {
-  const select = (where: Condition = () => true, limit = Infinity) => ({
-    where: (condition: Condition) => select(condition, limit),
-    orderBy: () => select(where, limit),
-    limit: (n: number) => select(where, n),
-    then: (resolve: (value: Row[]) => unknown, reject: (error: unknown) => unknown) =>
-      Promise.resolve([...rows.values()].filter(where).slice(0, limit)).then(resolve, reject),
+  const select = (where: Condition = () => true, limit = Infinity, order: "asc" | "desc" | null = null) => ({
+    where: (condition: Condition) => select(condition, limit, order),
+    orderBy: (direction: "asc" | "desc") => select(where, limit, direction),
+    limit: (n: number) => select(where, n, order),
+    then: (resolve: (value: Row[]) => unknown, reject: (error: unknown) => unknown) => {
+      const found = [...rows.values()].filter(where);
+      if (order) found.sort((a, b) => (a.createdAt.getTime() - b.createdAt.getTime()) * (order === "asc" ? 1 : -1));
+      return Promise.resolve(found.slice(0, limit)).then(resolve, reject);
+    },
   });
   return {
     messages: { id: "id", conversationId: "conversationId", role: "role", metadata: "metadata", createdAt: "createdAt" },
@@ -298,6 +306,23 @@ describe("interruptRunMessage", () => {
     expect(rows.get("other")!.parts).toEqual([toolPart("x", "input-available")]);
   });
 
+  it("closes the last part of an answer split around a steered message", async () => {
+    insert({ id: "a1", role: "assistant", parts: [{ type: "step-start" }], metadata: { runId: RUN } });
+    rows.set("a1-2", {
+      id: "a1-2",
+      conversationId: CONVERSATION,
+      role: "assistant",
+      parts: [{ type: "step-start" }, toolPart("call-2", "input-available")],
+      metadata: { runId: RUN },
+      createdAt: new Date(STARTED.getTime() + 5_000),
+    });
+
+    await interruptRunMessage({ id: RUN, conversationId: CONVERSATION }, texts);
+
+    expect(rows.get("a1")!.parts).toEqual([{ type: "step-start" }]);
+    expect(toolParts(rows.get("a1-2")!.parts)[0]).toMatchObject({ state: "output-error", errorText: texts.toolError });
+  });
+
   it("does nothing for a run that saved no step or has no conversation", async () => {
     insert({ id: "a1", role: "assistant", parts: [toolPart("x", "input-available")], metadata: { runId: "r0" } });
     await interruptRunMessage({ id: RUN, conversationId: CONVERSATION }, texts);
@@ -379,5 +404,30 @@ describe("loadConversation", () => {
     expect(history.messages.map((m) => m.message.id)).toEqual(["u3", "a3"]);
     // Stored messages stay as they were.
     expect([...rows.keys()]).toEqual(["u1", "a1", "c1", "u2", "a2", "u3", "a3", "c2", "withheld"]);
+  });
+});
+
+describe("loadUnsteeredMessages", () => {
+  const add = (id: string, role: Row["role"], seconds: number, metadata: Row["metadata"] = null) =>
+    rows.set(id, {
+      id,
+      conversationId: CONVERSATION,
+      role,
+      parts: [{ type: "text", text: id }],
+      metadata,
+      createdAt: new Date(STARTED.getTime() + seconds * 1000),
+    });
+
+  it("gives the user messages that arrived since, oldest first, without the ones a run took in", async () => {
+    add("before", "user", -5);
+    add("answer", "assistant", 0);
+    add("late", "user", 9);
+    add("steered", "user", 3, { steeredInto: { runId: RUN, afterStep: 0 } });
+    add("report", "user", 4, { kind: "delegation-report", tasks: [] });
+    add("withheld", "system", 5, { kind: "delegation-report", tasks: [], withheld: true });
+    add("first", "user", 2);
+
+    const arrived = await loadUnsteeredMessages(CONVERSATION, STARTED);
+    expect(arrived.map((m) => m.message.id)).toEqual(["first", "report", "late"]);
   });
 });

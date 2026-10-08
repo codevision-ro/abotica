@@ -3,7 +3,7 @@ import { executeRun } from "@abotica/core/agents/runner";
 import { conversations, db, runs } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
 import { Worker } from "bullmq";
-import { deliverTelegramReply, showTelegramTyping } from "./telegram/delivery";
+import { acknowledgeSteered, deliverTelegramReply, showTelegramTyping } from "./telegram/delivery";
 
 const controllers = new Map<string, AbortController>();
 /** Called once no run is executing here any more (see whenRunsIdle). */
@@ -53,7 +53,7 @@ export function startRunsWorker(concurrency: number) {
       const controller = new AbortController();
       controllers.set(job.data.runId, controller);
       try {
-        const result = await executeRun(job.data.runId, controller.signal);
+        const result = await executeRun(job.data.runId, controller.signal, { onSteered: acknowledgeSteered });
         if (!result) return;
         const [run] = await db.select().from(runs).where(eq(runs.id, job.data.runId));
         if (!run?.conversationId) return;

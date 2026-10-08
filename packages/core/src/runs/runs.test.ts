@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { activeTaskRun, taskFailureStreak, TaskCircuitOpenError, updateTask } from "../tasks/tasks";
-import { startTaskRun } from "./runs";
+import { clearHeldReplies, countHeldReply, takeResumeRequest } from "./run-lifecycle";
+import { loadUnsteeredMessages, markUndelivered } from "./run-messages";
+import { holdStaleReply, type Run, startFollowUpIfQueued, startTaskRun } from "./runs";
 
-/** startTaskRun and the task's circuit breaker: refused while open, unless the user forces the start. */
+/**
+ * startTaskRun and the task's circuit breaker: refused while open, unless the user forces the start.
+ * After a run: the follow-up and the Telegram send gate, for messages the run did not take in.
+ */
 
 const TASK = { id: "t1", assigneeAgentId: "a1", projectId: null, title: "Write the report" };
 
@@ -20,7 +25,12 @@ vi.mock("@abotica/db/orm", () => ({ and: vi.fn(), asc: vi.fn(), eq: vi.fn(), gt:
 vi.mock("../infra/events", () => ({ publish: vi.fn() }));
 vi.mock("../infra/queues", () => ({ enqueueRun: vi.fn() }));
 vi.mock("../files/files", () => ({ listFiles: vi.fn() }));
-vi.mock("./run-lifecycle", () => ({}));
+vi.mock("./run-lifecycle", () => ({
+  clearHeldReplies: vi.fn(),
+  countHeldReply: vi.fn(),
+  takeResumeRequest: vi.fn(async () => false),
+}));
+vi.mock("./run-messages", () => ({ loadUnsteeredMessages: vi.fn(), markUndelivered: vi.fn() }));
 vi.mock("./conversations", () => ({ createConversation: vi.fn() }));
 vi.mock("../tasks/tasks", async () => {
   const { UserError } = await import("@abotica/i18n");
@@ -74,5 +84,78 @@ describe("startTaskRun with the circuit breaker open", () => {
     vi.mocked(taskFailureStreak).mockResolvedValue({ failures: 2, reason: "Loop", open: false });
     await startPastBreaker();
     expect(updateTask).toHaveBeenCalledWith("t1", { status: "in_progress" }, "system");
+  });
+});
+
+const FINISHED = {
+  id: "r1",
+  agentId: "a1",
+  conversationId: "c1",
+  status: "succeeded",
+  trigger: "telegram",
+  startedAt: new Date("2026-10-08T10:00:00Z"),
+} as Run;
+const arrived = [
+  {
+    message: { id: "m2", role: "user" as const, parts: [{ type: "text" as const, text: "And add an index" }] },
+    createdAt: new Date("2026-10-08T10:00:05Z"),
+  },
+];
+
+describe("startFollowUpIfQueued", () => {
+  it("starts none when the run took in every message sent meanwhile", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue([]);
+    expect(await startFollowUpIfQueued(FINISHED)).toBeNull();
+    expect(loadUnsteeredMessages).toHaveBeenCalledWith("c1", FINISHED.startedAt);
+    expect(takeResumeRequest).toHaveBeenCalledWith("c1");
+  });
+});
+
+describe("holdStaleReply", () => {
+  it("holds an answer the user wrote past and marks it undelivered", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue(arrived);
+    vi.mocked(countHeldReply).mockResolvedValue(1);
+    expect(await holdStaleReply(FINISHED)).toBe(true);
+    expect(markUndelivered).toHaveBeenCalledWith(FINISHED);
+    expect(clearHeldReplies).not.toHaveBeenCalled();
+  });
+
+  it("holds twice in a row, then delivers the third answer whatever arrived", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue(arrived);
+    let held = 0;
+    vi.mocked(countHeldReply).mockImplementation(async () => ++held);
+    expect([await holdStaleReply(FINISHED), await holdStaleReply(FINISHED), await holdStaleReply(FINISHED)]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    expect(markUndelivered).toHaveBeenCalledTimes(2);
+    expect(clearHeldReplies).toHaveBeenCalledExactlyOnceWith("c1");
+  });
+
+  it("delivers when nothing arrived, and clears the count", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue([]);
+    expect(await holdStaleReply(FINISHED)).toBe(false);
+    expect(countHeldReply).not.toHaveBeenCalled();
+    expect(clearHeldReplies).toHaveBeenCalledWith("c1");
+  });
+
+  it("does not hold for a delegation report alone: the user did not write", async () => {
+    const report = {
+      message: { id: "r1", role: "user" as const, parts: [], metadata: { kind: "delegation-report", tasks: [] } },
+      createdAt: new Date("2026-10-08T10:00:06Z"),
+    };
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue([report]);
+    expect(await holdStaleReply(FINISHED)).toBe(false);
+    expect(countHeldReply).not.toHaveBeenCalled();
+    expect(markUndelivered).not.toHaveBeenCalled();
+  });
+
+  it("never holds a failure, a stop or a question for approval", async () => {
+    for (const status of ["failed", "cancelled", "waiting_approval"] as const) {
+      expect(await holdStaleReply({ ...FINISHED, status })).toBe(false);
+    }
+    expect(loadUnsteeredMessages).not.toHaveBeenCalled();
+    expect(markUndelivered).not.toHaveBeenCalled();
   });
 });

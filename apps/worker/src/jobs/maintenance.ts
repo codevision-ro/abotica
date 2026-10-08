@@ -28,6 +28,7 @@ import {
   settingsLocale,
   sweepFiles,
   sweepPreviews,
+  syncPullRequests,
   syncSettingsSchedules,
   unreadableConsolidation,
 } from "@abotica/core";
@@ -65,6 +66,12 @@ export async function reapRuns() {
     return 0;
   });
   if (alerts) console.log(`[budgets] sent ${alerts} budget alerts`);
+}
+
+/** Syncs the next batch of open pull requests; logs only when there were some. */
+async function syncTaskPullRequests() {
+  const synced = await syncPullRequests();
+  if (synced) console.log(`[prs] synced ${synced} pull requests`);
 }
 
 async function sweepExpiredPreviews() {
@@ -319,6 +326,8 @@ export async function registerMaintenanceSchedules() {
     { name: "sandbox-reap", data: { kind: "sandbox-reap" } },
   );
   await q.upsertJobScheduler("runs-reap", { every: 60_000 }, { name: "runs-reap", data: { kind: "runs-reap" } });
+  // Every minute, a batch at a time (PR_SYNC_BATCH): each open pull request comes up in turn.
+  await q.upsertJobScheduler("prs-sync", { every: 60_000 }, { name: "prs-sync", data: { kind: "prs-sync" } });
   await q.upsertJobScheduler("files-sweep", { every: 3600_000 }, { name: "files-sweep", data: { kind: "files-sweep" } });
   await q.upsertJobScheduler(
     "previews-sweep",
@@ -361,6 +370,8 @@ export function startMaintenanceWorker() {
           return sweepExpiredPreviews();
         case "runs-reap":
           return reapRuns();
+        case "prs-sync":
+          return syncTaskPullRequests();
         case "updates-check":
           return void (await notifyUpdateAvailable(await checkForUpdates()));
       }

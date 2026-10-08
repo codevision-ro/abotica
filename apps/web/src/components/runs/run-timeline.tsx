@@ -6,6 +6,7 @@ import {
   CircleAlert,
   FoldVertical,
   IterationCcw,
+  MessageSquarePlus,
   Plug,
   Repeat2,
   RotateCw,
@@ -321,6 +322,27 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
         </NoticeRow>
       );
     }
+    case "steered": {
+      const steered = Array.isArray(d.messages) ? (d.messages as { id?: string; text?: string }[]) : [];
+      return (
+        <NoticeRow tone="default" icon={<MessageSquarePlus />} title={title}>
+          {t("steered", { count: steered.length, step: Number(d.afterStep ?? 0) })}
+          {steered.map((m, i) =>
+            m.text ? (
+              <span key={m.id ?? i} className="mt-1 block truncate text-xs" title={m.text}>
+                {m.text}
+              </span>
+            ) : null,
+          )}
+        </NoticeRow>
+      );
+    }
+    case "steering-error":
+      return (
+        <NoticeRow tone="destructive" icon={<MessageSquarePlus />} title={title}>
+          {String(d.error ?? d.message ?? JSON.stringify(d))}
+        </NoticeRow>
+      );
     case "compaction-error":
       return (
         <NoticeRow tone="destructive" icon={<FoldVertical />} title={title}>
@@ -365,6 +387,7 @@ function EventIcon({ type }: { type: string }) {
   if (type === "retry") return <RotateCw />;
   if (type === "loop-nudge") return <IterationCcw />;
   if (type === "compaction" || type === "compaction-error") return <FoldVertical />;
+  if (type === "steered" || type === "steering-error") return <MessageSquarePlus />;
   return <CircleAlert />;
 }
 
@@ -374,7 +397,7 @@ export async function RunTimeline({ events }: { events: TimelineEvent[] }) {
     <ol className="relative ml-3 min-w-0 space-y-4 border-l border-border/70 pl-6 sm:pl-7">
       {events.map((event) => {
         const warning = event.type === "fallback" || event.type === "retry" || event.type === "loop-nudge";
-        const neutral = event.type === "step" || event.type === "compaction";
+        const neutral = event.type === "step" || event.type === "compaction" || event.type === "steered";
         const tone: Tone = warning ? "warning" : neutral ? "default" : "destructive";
         const step = event.type === "step" ? (event.data as StepData).step : undefined;
         return (

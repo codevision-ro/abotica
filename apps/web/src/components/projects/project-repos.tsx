@@ -205,6 +205,8 @@ function TokenHelp({
         <ExternalLinkIcon className="size-3" aria-hidden />
       </a>
       <br />
+      {t(provider === "github" ? "githubTracking" : "gitlabTracking")}
+      <br />
       {t("shared")}
     </FieldDescription>
   );

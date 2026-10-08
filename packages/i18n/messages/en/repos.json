@@ -41,6 +41,8 @@
     "githubCreate": "Create the token on GitHub",
     "gitlabHint": "A project access token with the Developer role and the api and write_repository scopes. On GitLab.com without Premium, a personal access token with the same scopes.",
     "gitlabCreate": "Create the token on GitLab",
+    "githubTracking": "To follow CI on the pull requests the agents open, the token also needs Actions and Commit statuses set to Read (the link sets them). Without them, merges and reviews are still followed.",
+    "gitlabTracking": "With these scopes Abotica also follows the pipelines, discussions and merges of the merge requests the agents open.",
     "shared": "Every agent of the project can use the token inside the sandbox. Limit it to this repository."
   },
   "recheck": "Check again",

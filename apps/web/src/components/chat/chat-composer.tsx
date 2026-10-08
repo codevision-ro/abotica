@@ -2,7 +2,7 @@
 
 import { FILE_MAX_BYTES } from "@abotica/core/limits";
 import type { ChatStatus } from "ai";
-import { Clock3Icon, FileIcon, XIcon } from "lucide-react";
+import { FileIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -23,7 +23,6 @@ import {
 import { type UploadedFile, uploadFiles } from "@/lib/upload-files";
 import { cn } from "@/lib/utils";
 import { CHAT_COLUMN } from "./chat-parts";
-import type { QueuedMessage } from "./use-conversation-run";
 
 /** PromptInput error codes to messages (its own messages are English only). */
 const INPUT_ERRORS = {
@@ -98,8 +97,8 @@ function AttachmentChips({ onRemoved, locked }: { onRemoved: () => void; locked:
 const SUBMIT = "size-9 rounded-full disabled:opacity-35";
 
 /**
- * Send button: attachments alone are enough to send; while the agent answers it queues instead of
- * stopping; while files upload it waits.
+ * Send button: attachments alone are enough to send; while the agent works it sends (the run reads the
+ * message at its next step) instead of stopping; while files upload it waits.
  */
 function ComposerSubmit({
   busy,
@@ -107,20 +106,20 @@ function ComposerSubmit({
   hasText,
   status,
   onStop,
-  queueTitle,
+  steerTitle,
 }: {
   busy: boolean;
   uploading: boolean;
   hasText: boolean;
   status: ChatStatus;
   onStop: () => void;
-  queueTitle: string;
+  steerTitle: string;
 }) {
   const { files } = usePromptInputAttachments();
   const hasContent = hasText || files.length > 0;
   if (uploading) return <PromptInputSubmit status="submitted" disabled className={SUBMIT} />;
   return busy && hasContent ? (
-    <PromptInputSubmit status="ready" disabled={false} title={queueTitle} className={SUBMIT} />
+    <PromptInputSubmit status="ready" disabled={false} title={steerTitle} className={SUBMIT} />
   ) : (
     <PromptInputSubmit status={status} onStop={onStop} disabled={!busy && !hasContent} className={SUBMIT} />
   );
@@ -131,14 +130,11 @@ type Props = {
   busy: boolean;
   status: ChatStatus;
   onStop: () => void;
-  /** Messages waiting for the current answer to end. */
-  queue: QueuedMessage[];
   /** Files are uploaded already: the message carries references to them. */
   onSubmit: (message: { text: string; files: UploadedFile[] }) => void;
-  onUnqueue: (id: number) => void;
 };
 
-export function ChatComposer({ agentName, busy, status, onStop, queue, onSubmit, onUnqueue }: Props) {
+export function ChatComposer({ agentName, busy, status, onStop, onSubmit }: Props) {
   const t = useTranslations("chat");
   const tFiles = useTranslations("files");
   const [input, setInput] = useState("");
@@ -150,7 +146,7 @@ export function ChatComposer({ agentName, busy, status, onStop, queue, onSubmit,
   useEffect(() => focusComposer(textareaRef.current), []);
 
   /**
-   * Uploads the attachments, then sends (or queues) the message with references to them. A failed
+   * Uploads the attachments, then sends the message with references to them. A failed
    * upload throws, which keeps the text and the attachments in the composer for another try.
    */
   async function send(message: PromptInputMessage) {
@@ -203,30 +199,6 @@ export function ChatComposer({ agentName, busy, status, onStop, queue, onSubmit,
           )}
           onSubmit={send}
         >
-          {queue.length > 0 && (
-            <div className="flex w-full flex-col gap-1.5 px-3 pt-3">
-              {queue.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex h-8 min-w-0 items-center gap-2 rounded-lg border border-dashed bg-muted/40 pr-1 pl-2.5 text-xs"
-                >
-                  <Clock3Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate" title={m.text}>
-                    {m.text || t("queue.files", { count: m.files.length })}
-                  </span>
-                  <span className="hidden shrink-0 text-muted-foreground sm:inline">{t("queue.queued")}</span>
-                  <button
-                    type="button"
-                    onClick={() => onUnqueue(m.id)}
-                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-                    aria-label={t("queue.remove")}
-                  >
-                    <XIcon className="size-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
           <AttachmentChips onRemoved={() => focusComposer(textareaRef.current)} locked={upload !== null} />
           <PromptInputBody>
             <PromptInputTextarea
@@ -255,11 +227,7 @@ export function ChatComposer({ agentName, busy, status, onStop, queue, onSubmit,
                   {t("attachments.uploading", { percent: Math.round(upload * 100) })}
                 </span>
               ) : (
-                queue.length > 0 && (
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">
-                    {t("queue.summary", { count: queue.length })}
-                  </span>
-                )
+                busy && <span className="min-w-0 truncate text-xs text-muted-foreground">{t("queue.steer")}</span>
               )}
             </PromptInputTools>
             <ComposerSubmit
@@ -268,7 +236,7 @@ export function ChatComposer({ agentName, busy, status, onStop, queue, onSubmit,
               hasText={Boolean(input.trim())}
               status={status}
               onStop={onStop}
-              queueTitle={t("queue.enqueue")}
+              steerTitle={t("queue.steer")}
             />
           </PromptInputFooter>
         </PromptInput>

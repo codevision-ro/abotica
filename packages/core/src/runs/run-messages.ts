@@ -1,5 +1,5 @@
 import { db, messages } from "@abotica/db";
-import { and, asc, eq, sql } from "@abotica/db/orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "@abotica/db/orm";
 import {
   createUIMessageStream,
   type DynamicToolUIPart,
@@ -80,6 +80,56 @@ export async function loadConversation(conversationId: string): Promise<Conversa
   };
 }
 
+/** Where a message sent while a run worked went in: the run, after its step `afterStep` (see steering.ts). */
+export type SteeredInto = { runId: string; afterStep: number };
+
+/** The user messages saved after `since` that no run took in between its steps, oldest first. */
+export async function loadUnsteeredMessages(conversationId: string, since: Date): Promise<StoredMessage[]> {
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.role, "user"),
+        gt(messages.createdAt, since),
+        isNull(sql`${messages.metadata}->'steeredInto'`),
+      ),
+    )
+    .orderBy(asc(messages.createdAt));
+  return rows
+    .filter((m) => !isWithheldReport(m.metadata))
+    .map((m) => ({ message: toUIMessage(m), createdAt: m.createdAt }));
+}
+
+/** Records that a run took these messages in, so no follow-up answers them again. */
+export async function markSteered(ids: string[], steeredInto: SteeredInto): Promise<void> {
+  if (!ids.length) return;
+  await db
+    .update(messages)
+    .set({ metadata: sql`coalesce(${messages.metadata}, '{}'::jsonb) || ${JSON.stringify({ steeredInto })}::jsonb` })
+    .where(inArray(messages.id, ids));
+}
+
+/**
+ * Marks a run's answer as never sent to the user: the last message it wrote, which the messages
+ * that arrived meanwhile follow. The next run reads the mark (see steering.ts).
+ */
+export async function markUndelivered(run: { id: string; conversationId: string | null }): Promise<void> {
+  if (!run.conversationId) return;
+  const [row] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.conversationId, run.conversationId), sql`${messages.metadata}->>'runId' = ${run.id}`))
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  if (!row) return;
+  await db
+    .update(messages)
+    .set({ metadata: sql`coalesce(${messages.metadata}, '{}'::jsonb) || '{"undelivered":true}'::jsonb` })
+    .where(eq(messages.id, row.id));
+}
+
 /**
  * Inserts or updates the message under its id. createdAt is the run start, so an answer sorts before
  * messages the user sent while it ran.
@@ -153,6 +203,8 @@ export async function interruptRunMessage(
     .select()
     .from(messages)
     .where(and(eq(messages.conversationId, run.conversationId), sql`${messages.metadata}->>'runId' = ${run.id}`))
+    // An answer split around steered messages has several rows; only the last can have open calls.
+    .orderBy(desc(messages.createdAt))
     .limit(1);
   if (!row) return;
   const closed = closeOpenToolCalls(toUIMessage(row), texts.toolError);

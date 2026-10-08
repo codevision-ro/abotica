@@ -1,5 +1,6 @@
 "use client";
 
+import { hasUntrusted } from "@abotica/core/agents/untrusted";
 import { FILE_MAX_BYTES } from "@abotica/core/limits";
 import {
   CircleAlertIcon,
@@ -36,6 +37,7 @@ import { heroFieldVariants } from "@/components/app/hero-fields";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionCard, SectionEmpty, SectionList } from "@/components/app/section-card";
 import { PRIORITIES, RunStatusBadge, TASK_STATUSES, TaskStatusBadge, useStatusLabels } from "@/components/app/status-badge";
+import { UntrustedText } from "@/components/chat/untrusted-text";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +71,7 @@ import {
   useTaskParams,
 } from "./task-meta";
 import { TaskPicker } from "./task-picker";
+import { PullRequestBadge } from "./task-pull-request";
 
 const NONE = "none";
 
@@ -154,6 +157,13 @@ export function TaskDetail({
             </Link>
           )}
           <EditableTitle value={task.title} onSave={(title) => save({ title })} />
+          {task.pullRequests.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {task.pullRequests.map((pr) => (
+                <PullRequestBadge key={pr.id} pr={pr} />
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <RunButton
               label={task.failures.open ? t("startAnyway") : t("runNow")}
@@ -981,9 +991,16 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
                       <RelativeTime date={c.createdAt} className="shrink-0 text-xs text-muted-foreground" />
                     </div>
                     <div className="ml-8.5 min-w-0 rounded-xl border border-border/70 bg-background/60 px-3 py-2 dark:bg-background/30">
-                      <MessageResponse breaks className="text-sm">
-                        {c.body}
-                      </MessageResponse>
+                      {hasUntrusted(c.body) ? (
+                        // A system note carrying outside text (CI logs, review comments): shown as data, not Markdown.
+                        <div className="text-sm whitespace-pre-wrap">
+                          <UntrustedText text={c.body} />
+                        </div>
+                      ) : (
+                        <MessageResponse breaks className="text-sm">
+                          {c.body}
+                        </MessageResponse>
+                      )}
                     </div>
                   </li>
                 );

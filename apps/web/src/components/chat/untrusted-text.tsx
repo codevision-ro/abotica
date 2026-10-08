@@ -13,6 +13,7 @@ const SOURCE_KEYS = {
   "delegated-task": "delegatedTask",
   web: "web",
   knowledge: "knowledge",
+  "pull-request": "pullRequest",
 } as const;
 
 function useSourceLabel(source: string): string {

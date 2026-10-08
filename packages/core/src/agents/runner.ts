@@ -17,8 +17,11 @@ import {
   closeOpenToolCalls,
   type ConversationHistory,
   loadConversation,
+  loadUnsteeredMessages,
+  markSteered,
   responseMessageStream,
   saveMessage,
+  type StoredMessage,
 } from "../runs/run-messages";
 import type { Run } from "../runs/runs";
 import { isKillSwitchActive } from "../platform/kill-switch";
@@ -36,6 +39,7 @@ import { withModelFiles } from "./message-files";
 import { fullModelChain, modelChain } from "./model-chain";
 import { builtinPermission, mcpToolPermission } from "./permissions";
 import { openRunSandbox } from "./sandbox-session";
+import { answerSegments, createSteering, stepStarts, withUndeliveredNotes } from "./steering";
 import { prepareSteps } from "./step-preparation";
 import { createRunStreamWriter } from "./stream";
 import { loopGuard } from "./stuck";
@@ -134,6 +138,19 @@ export type ExecuteResult = {
   output?: string;
 };
 
+/** What the worker hears about a run while it executes. */
+export type RunHooks = {
+  /** User messages the run took in between its steps (see steering.ts), e.g. to acknowledge them on Telegram. */
+  onSteered?: (messages: StoredMessage[]) => Promise<void>;
+};
+
+/** A steered message's text for the run's timeline. */
+const preview = (message: StoredMessage["message"]) =>
+  message.parts
+    .flatMap((p) => (p.type === "text" ? [p.text] : p.type === "file" ? [`[${p.filename ?? p.mediaType}]`] : []))
+    .join(" ")
+    .slice(0, 300);
+
 const outcome = (end: Run | null, status: ExecuteResult["status"], output?: string): ExecuteResult | null =>
   end ? { status, output } : null;
 
@@ -142,11 +159,11 @@ const outcome = (end: Run | null, status: ExecuteResult["status"], output?: stri
  * one cancelled meanwhile never starts. Null when there is nothing left to do for the run: it was not
  * claimed, or something else ended it meanwhile.
  */
-export async function executeRun(runId: string, signal: AbortSignal): Promise<ExecuteResult | null> {
+export async function executeRun(runId: string, signal: AbortSignal, hooks: RunHooks = {}): Promise<ExecuteResult | null> {
   const run = await claimRun(runId);
   if (!run) return null;
   try {
-    return await executeClaimed(run, signal);
+    return await executeClaimed(run, signal, hooks);
   } catch (error) {
     // executeClaimed ends the run itself once it has its context; this is a failure to load it.
     const message = error instanceof Error ? error.message : String(error);
@@ -154,7 +171,7 @@ export async function executeRun(runId: string, signal: AbortSignal): Promise<Ex
   }
 }
 
-async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteResult | null> {
+async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): Promise<ExecuteResult | null> {
   const runId = run.id;
   const ctx = await loadRunContext(runId);
 
@@ -320,37 +337,66 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
     });
     history = await compactor.atStart(history);
 
+    /** Stored messages as model input: the history, and the messages steered in mid-run the same way. */
+    const toModel = async (messages: StoredMessage[]) =>
+      // Results of tools this run lacks and stored errors go in wrapped too, as their tools would.
+      wrapUntrustedResults(
+        await convertToModelMessages(
+          await withModelFiles(withSentTimes(withUndeliveredNotes(withRecall(messages)), ctx.settings.timezone), {
+            store: { get: getFile, read: readFileBytes },
+            workspace: ctx.sandbox !== null,
+            readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),
+          }),
+          { tools, ignoreIncompleteToolCalls: true },
+        ),
+        tools,
+        () => {
+          ctx.untrustedSeen = true;
+        },
+      );
+
     const startStream = async (prompt: ConversationHistory) => {
+      const steering = createSteering({
+        load: () => loadUnsteeredMessages(conversationId, startedAt),
+        mark: (ids, afterStep) => markSteered(ids, { runId, afterStep }),
+        toModel: (messages) => {
+          // A delegation report steered in brings its untrusted outputs, as it would at the start.
+          ctx.untrustedSeen ||= messagesHaveUntrusted(messages.map((m) => m.message));
+          return toModel(messages);
+        },
+        inPrompt: prompt.messages.map((m) => m.message.id),
+        onSteered: async ({ step, messages }) => {
+          await logRunEvent(runId, "steered", {
+            afterStep: step - 1,
+            messages: messages.map((m) => ({ id: m.message.id, text: preview(m.message) })),
+          });
+          await hooks.onSteered?.(messages);
+        },
+        onError: (error) => logEventInBackground(runId, "steering-error", { error: errorText(error) }),
+      });
+      // A continuation adds to the last answer: its step starts come before this run's.
+      const continued = prompt.messages.at(-1)?.message;
+      const baseSteps = continued?.role === "assistant" ? stepStarts(continued.parts) : 0;
+      const saveAnswer = async (message: StoredMessage["message"]) => {
+        for (const segment of answerSegments(message, startedAt, steering.steers, baseSteps)) {
+          await saveMessage(conversationId, segment.message, segment.createdAt);
+        }
+      };
+
       const result = streamText({
         model,
         instructions: { role: "system", content: instructions, providerOptions: cacheOptions },
         providerOptions: cacheOptions,
-        messages: [
-          ...summaryMessages(prompt),
-          // Results of tools this run lacks and stored errors go in wrapped too, as their tools would.
-          ...wrapUntrustedResults(
-            await convertToModelMessages(
-              await withModelFiles(withSentTimes(withRecall(prompt.messages), ctx.settings.timezone), {
-                store: { get: getFile, read: readFileBytes },
-                workspace: ctx.sandbox !== null,
-                readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),
-              }),
-              { tools, ignoreIncompleteToolCalls: true },
-            ),
-            tools,
-            () => {
-              ctx.untrustedSeen = true;
-            },
-          ),
-        ],
+        messages: [...summaryMessages(prompt), ...(await toModel(prompt.messages))],
         tools,
         toolApproval: approvalPolicy(ctx, mcpSources),
         experimental_sandbox: ctx.sandbox ?? undefined,
         experimental_toolApprovalSecret: approvalSecret(),
         // In this order, so the first that holds explains the stop.
         stopWhen: [budgetReached, loopDetected, stepLimitReached, killed],
-        // Notices about the run go before anything that shortens the prompt (see step-preparation.ts).
-        prepareStep: prepareSteps([loop.nudge, compactor.midRun(prompt)]),
+        // Messages from outside the run first, then notices about the run, then what shortens the prompt
+        // (see step-preparation.ts). Steered messages go at the end of the prompt, so its cached prefix stays.
+        prepareStep: prepareSteps([steering.preparer, loop.nudge, compactor.midRun(prompt)]),
         abortSignal: signal,
         timeout: { totalMs: limits.timeoutMs },
         // The worker's abort is a cancel; the total timeout fails the run.
@@ -410,11 +456,11 @@ async function executeClaimed(run: Run, signal: AbortSignal): Promise<ExecuteRes
         },
         // Saved after every step, so a worker that dies mid-run leaves the finished steps in the chat.
         // Reasoning is saved with the answer, since the next turn replays it to the model.
-        save: (message) => saveMessage(conversationId, message, startedAt),
+        save: saveAnswer,
         onEnd: async ({ responseMessage, isAborted }) => {
           const message =
             isAborted || signal.aborted ? closeOpenToolCalls(responseMessage, abortReason()) : responseMessage;
-          if (message.parts.length) await saveMessage(conversationId, message, startedAt);
+          if (message.parts.length) await saveAnswer(message);
         },
       });
       return { result, uiStream };

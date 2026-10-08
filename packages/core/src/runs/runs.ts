@@ -1,14 +1,24 @@
 import { agents, conversations, db, messages, runs, taskComments, taskDependencies, tasks } from "@abotica/db";
 import { UserError } from "@abotica/i18n";
 import { generateId, type UIMessage } from "ai";
-import { and, asc, eq, gt, inArray } from "@abotica/db/orm";
+import { and, asc, eq, inArray } from "@abotica/db/orm";
 import { createConversation } from "./conversations";
 import { inputPath } from "../agents/workspace-paths";
 import { publish } from "../infra/events";
 import { listFiles } from "../files/files";
 import { enqueueRun } from "../infra/queues";
 import type { RunFailureKind } from "./run-failures";
-import { cancelPendingRun, failRun, publishRunUpdate, requestResume, takeResumeRequest } from "./run-lifecycle";
+import {
+  cancelPendingRun,
+  clearHeldReplies,
+  countHeldReply,
+  failRun,
+  publishRunUpdate,
+  requestResume,
+  takeResumeRequest,
+} from "./run-lifecycle";
+import { loadUnsteeredMessages, markUndelivered } from "./run-messages";
+import { isDelegationReport } from "../tasks/delegation-report";
 import {
   activeTaskRun,
   assertTaskDependenciesDone,
@@ -276,22 +286,13 @@ export { requestResume };
 
 /**
  * After a run ends, answers user messages that arrived while it was working (they were queued
- * by ConversationBusyError). All of them are handled together in one follow-up run.
+ * by ConversationBusyError). All of them are handled together in one follow-up run. Messages the run
+ * took in between its steps (steeredInto, see agents/steering.ts) were answered by it.
  */
 export async function startFollowUpIfQueued(finished: Run): Promise<Run | null> {
   if (!finished.conversationId || !finished.startedAt || !finished.agentId) return null;
   const resume = await takeResumeRequest(finished.conversationId);
-  const [queued] = await db
-    .select({ id: messages.id })
-    .from(messages)
-    .where(
-      and(
-        eq(messages.conversationId, finished.conversationId),
-        eq(messages.role, "user"),
-        gt(messages.createdAt, finished.startedAt),
-      ),
-    )
-    .limit(1);
+  const queued = (await loadUnsteeredMessages(finished.conversationId, finished.startedAt)).length > 0;
   if (!queued && !resume) return null;
   try {
     return await startContinuation({
@@ -306,4 +307,29 @@ export async function startFollowUpIfQueued(finished: Run): Promise<Run | null> 
     if (error instanceof ConversationBusyError) return null; // someone else already started it
     throw error;
   }
+}
+
+/** Telegram replies held back in a row, at most: the one after is sent whatever arrived meanwhile. */
+export const MAX_HELD_REPLIES = 2;
+
+/**
+ * The send gate before a Telegram reply (AgentTeams): when the user wrote again while the run worked
+ * and no step took it in (it came during the last one), the answer is to a stale state. It is held
+ * back and marked undelivered, and the follow-up answers everything in one reply, told that its
+ * previous answer never reached the user. At most MAX_HELD_REPLIES in a row; a reply sent clears the
+ * count. Returns whether the reply is held: the caller then does not send it.
+ */
+export async function holdStaleReply(finished: Run): Promise<boolean> {
+  const { conversationId, startedAt } = finished;
+  if (!conversationId || !startedAt) return false;
+  // Only an answer is held: a failure, a stop or a question for approval is news either way. And only
+  // for what the user wrote: a delegation report is answered by the follow-up after this reply.
+  const arrived = finished.status === "succeeded" ? await loadUnsteeredMessages(conversationId, startedAt) : [];
+  const wroteAgain = arrived.some((m) => !isDelegationReport(m.message.metadata));
+  if (wroteAgain && (await countHeldReply(conversationId)) <= MAX_HELD_REPLIES) {
+    await markUndelivered(finished);
+    return true;
+  }
+  await clearHeldReplies(conversationId);
+  return false;
 }

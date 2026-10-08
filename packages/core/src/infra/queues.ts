@@ -34,6 +34,8 @@ export type MaintenanceJob =
   | { kind: "previews-sweep" }
   /** Fails runs nothing is going to end any more (see recoverRuns). */
   | { kind: "runs-reap" }
+  /** Polls the open pull requests of tasks and reacts to CI, reviews and merges (tasks/pull-requests.ts). */
+  | { kind: "prs-sync" }
   /** Looks for a newer Abotica release and tells the user once per version (platform/updates.ts). */
   | { kind: "updates-check" };
 

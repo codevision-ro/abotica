@@ -1,5 +1,5 @@
-import { filePath, listFiles } from "@abotica/core";
-import type { ExecuteResult } from "@abotica/core/agents/runner";
+import { filePath, holdStaleReply, listFiles } from "@abotica/core";
+import type { ExecuteResult, RunHooks } from "@abotica/core/agents/runner";
 import type { conversations, runs } from "@abotica/db";
 import type { Translator } from "@abotica/i18n";
 import { type Bot, InputFile } from "grammy";
@@ -31,7 +31,8 @@ function targetOf(externalId: string): Target {
 
 /**
  * Sends the final answer of the conversation's agent (the super agent, or a project's manager in its
- * topic) back to the Telegram chat and topic the conversation belongs to.
+ * topic) back to the Telegram chat and topic the conversation belongs to. An answer the user already
+ * wrote past is held (see holdStaleReply): the follow-up answers everything at once in its place.
  */
 export async function deliverTelegramReply(
   conversation: typeof conversations.$inferSelect,
@@ -43,7 +44,7 @@ export async function deliverTelegramReply(
   const target = targetOf(conversation.externalId);
   const t = await botTranslator();
   try {
-    await sendReply(bot, target, run, result, t);
+    if (!(await holdStaleReply(run))) await sendReply(bot, target, run, result, t);
   } finally {
     // Shared files are useful even when the run failed or stopped after creating them.
     await sendSharedFiles(bot, target, run.id, conversation.id);
@@ -84,4 +85,32 @@ export function showTelegramTyping(conversation: typeof conversations.$inferSele
   if (!bot || !conversation.externalId) return;
   const { chatId, threadId } = targetOf(conversation.externalId);
   void bot.api.sendChatAction(chatId, "typing", threadId ? { message_thread_id: threadId } : {}).catch(() => {});
+}
+
+type SteeredMessage = Parameters<NonNullable<RunHooks["onSteered"]>>[0][number];
+
+/** Where a user message came from in Telegram, kept in its metadata. */
+export type TelegramOrigin = { chatId: number; messageId: number };
+
+const telegramOrigin = (message: SteeredMessage["message"]): TelegramOrigin | null => {
+  const origin = (message.metadata as { telegram?: Partial<TelegramOrigin> } | undefined)?.telegram;
+  return typeof origin?.chatId === "number" && typeof origin.messageId === "number"
+    ? { chatId: origin.chatId, messageId: origin.messageId }
+    : null;
+};
+
+/**
+ * Messages a running run took in between its steps: the 👀 they got on arrival (still answering the
+ * previous message) becomes ✍, the agent is working them into the current answer.
+ */
+export async function acknowledgeSteered(messages: SteeredMessage[]): Promise<void> {
+  const bot = getBot();
+  if (!bot) return;
+  for (const { message } of messages) {
+    const origin = telegramOrigin(message);
+    if (!origin) continue;
+    await bot.api
+      .setMessageReaction(origin.chatId, origin.messageId, [{ type: "emoji", emoji: "✍" }])
+      .catch((error: unknown) => console.error(`[telegram] reacting to message ${origin.messageId} failed:`, error));
+  }
 }

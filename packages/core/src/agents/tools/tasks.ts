@@ -14,6 +14,8 @@ import {
   TASK_STATUSES,
   updateTask,
 } from "../../tasks/tasks";
+import { listTaskPullRequests } from "../../tasks/pull-requests";
+import { clipUntrusted, hasUntrusted } from "../untrusted";
 import { inputPath } from "../workspace-paths";
 import {
   actorOf,
@@ -74,12 +76,12 @@ export const taskTools: Record<string, ToolFactory> = {
   task_get: (ctx) =>
     tool({
       description:
-        "Read one task in full: description, output (the result), comments, subtasks, dependencies, attachments and its latest runs.",
+        "Read one task in full: description, output (the result), comments, subtasks, dependencies, attachments, its pull requests (state, CI checks, review) and its latest runs.",
       inputSchema: z.object({ taskId: z.string().uuid() }),
       execute: async ({ taskId }) => {
         const task = await visibleTask(ctx, taskId);
         if ("error" in task) return task;
-        const [closed, assignee, comments, subtasks, dependsOn, attachments, latestRuns] = await Promise.all([
+        const [closed, assignee, comments, subtasks, dependsOn, attachments, latestRuns, pullRequests] = await Promise.all([
           closedProjects(ctx),
           task.assigneeAgentId
             ? db.select({ slug: agents.slug }).from(agents).where(eq(agents.id, task.assigneeAgentId))
@@ -115,6 +117,7 @@ export const taskTools: Record<string, ToolFactory> = {
             .where(eq(runs.taskId, task.id))
             .orderBy(desc(runs.createdAt))
             .limit(5),
+          listTaskPullRequests(task.id),
         ]);
         const details = {
           ...taskSummary(task),
@@ -128,7 +131,8 @@ export const taskTools: Record<string, ToolFactory> = {
           // Oldest first, like a conversation; only the latest ones are kept.
           comments: comments.reverse().map((c) => ({
             author: c.kind === "agent" ? (c.agent ?? "agent") : c.kind,
-            body: clip(c.body, 2_000),
+            // A system comment can carry outside text (CI logs, review comments): its block stays closed.
+            body: hasUntrusted(c.body) ? clipUntrusted(c.body, 2_000) : clip(c.body, 2_000),
             at: c.createdAt.toISOString(),
           })),
           subtasks: subtasks.map(taskSummary),
@@ -144,6 +148,17 @@ export const taskTools: Record<string, ToolFactory> = {
             workspacePath: inputPath(f),
           })),
           runs: latestRuns.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
+          // As of the last sync (every minute or so): checks none | pending | success | failure.
+          pullRequests: pullRequests.map((p) => ({
+            url: p.url,
+            number: p.number,
+            branch: p.headBranch,
+            base: p.baseBranch,
+            state: p.state,
+            draft: p.draft,
+            checks: p.checks,
+            review: p.review,
+          })),
         };
         return withholdClosed(details, task.projectId, closed, ["description", "output", "comments", "runs"]);
       },

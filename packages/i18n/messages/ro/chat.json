@@ -12,7 +12,8 @@
   "thinking": "Se gândește...",
   "message": {
     "copyReply": "Copiază răspunsul",
-    "scrollToBottom": "Mergi la ultimul mesaj"
+    "scrollToBottom": "Mergi la ultimul mesaj",
+    "sentWhileWorking": "Trimis în timp ce agentul lucra"
   },
   "attachments": {
     "remove": "Elimină fișierul",
@@ -22,11 +23,7 @@
     "uploading": "Se încarcă fișierele: {percent}%"
   },
   "queue": {
-    "files": "{count, plural, one {# fișier} few {# fișiere} other {# de fișiere}}",
-    "queued": "În coadă",
-    "remove": "Scoate din coadă",
-    "summary": "{count} în coadă, se trimit după răspuns",
-    "enqueue": "Pune în coadă"
+    "steer": "Se trimite imediat: agentul îl citește la pasul următor"
   },
   "input": {
     "placeholder": "Scrie-i lui {name}...",
@@ -136,6 +133,7 @@
       "delegatedTask": "Task delegat",
       "web": "Pagină web",
       "knowledge": "Pagină salvată",
+      "pullRequest": "Pull request (CI sau review)",
       "mcp": "Serverul MCP {server}"
     }
   },
