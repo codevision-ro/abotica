@@ -1,10 +1,17 @@
-# Abotica
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/logo/horizontal-dark.svg">
+    <img src="apps/web/public/logo/horizontal-light.svg" alt="Abotica" width="300">
+  </picture>
+</h1>
 
-**A self-hosted team of AI agents that you run from Telegram or the web.**
+<p align="center"><strong>A self-hosted team of AI agents that you run from Telegram or the web.</strong></p>
 
-[![CI](https://github.com/codevision-ro/abotica/actions/workflows/ci.yml/badge.svg)](https://github.com/codevision-ro/abotica/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/codevision-ro/abotica)](https://github.com/codevision-ro/abotica/releases)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/codevision-ro/abotica/actions/workflows/ci.yml"><img src="https://github.com/codevision-ro/abotica/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/codevision-ro/abotica/releases"><img src="https://img.shields.io/github/v/release/codevision-ro/abotica" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
+</p>
 
 You talk to one super agent. It hands project work to each project's manager. The manager splits the work among a team of specialists, reviews what comes back and reports to you. Agents work in their own sandboxed workspaces, keep long-term memory and daily journals, open pull requests and run on schedules. Risky actions wait for your approval.
 
