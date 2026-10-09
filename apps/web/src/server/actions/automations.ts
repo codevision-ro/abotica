@@ -119,6 +119,8 @@ const triggerInput = z.object({
   event: z.enum(TRIGGER_EVENT_VALUES),
   prompt: z.string().trim().min(1, "automations.validation.promptRequired").max(20_000),
   enabled: z.boolean().default(true),
+  /** Webhook requests per minute: null for the default, missing keeps the saved one; core checks the bounds. */
+  rateLimitPerMinute: z.number().nullish(),
 });
 
 async function writeTrigger(id: string | undefined, input: z.output<typeof triggerInput>) {
@@ -130,7 +132,7 @@ async function writeTrigger(id: string | undefined, input: z.output<typeof trigg
     entityId: row.id,
   });
   revalidatePath("/automations");
-  return { id: row.id, token: row.token };
+  return { id: row.id, token: row.token, rateLimitPerMinute: row.rateLimitPerMinute };
 }
 
 export const createTrigger = action(triggerInput, (input) => writeTrigger(undefined, input));

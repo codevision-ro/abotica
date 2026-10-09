@@ -18,17 +18,23 @@ import {
   workspaceLastUse,
 } from "./sandbox";
 import { workspaceOwner } from "./sandbox-keys";
-import type { SandboxSettings } from "./sandbox-policy";
-import { getSettings } from "../platform/settings";
+import { getSettings, type SandboxSettings } from "../settings/settings";
 
-/** Processes per container; enough for package installs and dev servers, not for a fork bomb. */
-const CONTAINER_PIDS = 512;
-/** Containers idle this long are paused: what runs in them (dev servers, databases) waits, frozen. */
-const PAUSE_IDLE_AFTER_MS = 15 * 60_000;
-/** Containers idle this long, paused or not, are stopped (a paused one keeps its memory); their volume stays. */
-const STOP_IDLE_AFTER_MS = 6 * 3600_000;
-/** Conversation workspaces unused this long are deleted. */
-const CONVERSATION_WORKSPACE_TTL_MS = 30 * 24 * 3600_000;
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * When idle workspaces are paused, stopped and deleted (Settings > Sandbox). A paused container keeps
+ * its memory and what runs in it (dev servers, databases) waits, frozen; a stopped one keeps its volume.
+ */
+export function idleTimings(settings: SandboxSettings) {
+  return {
+    pauseAfterMs: settings.pauseIdleMinutes * MINUTE_MS,
+    stopAfterMs: settings.stopIdleHours * HOUR_MS,
+    conversationTtlMs: settings.workspaceRetentionDays * DAY_MS,
+  };
+}
 
 const globalForSandbox = globalThis as unknown as {
   aboticaSandbox?: { backend: SandboxBackend | null; options: string | null; status: SandboxStatus | null };
@@ -46,7 +52,7 @@ function backendOptions(settings: SandboxSettings): BackendOptions {
         network: e.SANDBOX_DOCKER_NETWORK,
         image: e.SANDBOX_IMAGE,
         runtime: settings.runtime,
-        limits: { memoryMb: settings.memoryMb, cpus: settings.cpus, pids: CONTAINER_PIDS },
+        limits: { memoryMb: settings.memoryMb, cpus: settings.cpus, pids: settings.pids },
       },
     }),
   };
@@ -139,14 +145,15 @@ async function processPendingRemovals(): Promise<void> {
 /**
  * Worker only, every few minutes: pauses idle containers and stops long idle ones, removes
  * workspaces whose project, conversation, MCP server or secret scope is gone (and MCP workspaces
- * of the older unscoped form), and conversation workspaces unused for 30 days.
+ * of the older unscoped form), and conversation workspaces unused longer than the retention setting.
  */
 export async function reapSandbox(): Promise<void> {
   const backend = state.backend;
   if (!backend) return;
+  const { pauseAfterMs, stopAfterMs, conversationTtlMs } = idleTimings((await getSettings()).sandbox);
   // One container that fails to pause or stop must not block the cleanup below.
   await backend
-    .reap({ pauseAfterMs: PAUSE_IDLE_AFTER_MS, stopAfterMs: STOP_IDLE_AFTER_MS })
+    .reap({ pauseAfterMs, stopAfterMs })
     .catch((error: unknown) => console.error("[sandbox] pausing or stopping idle workspaces failed:", error));
   await processPendingRemovals();
 
@@ -178,7 +185,7 @@ export async function reapSandbox(): Promise<void> {
       const used = lastUsedAt?.getTime() ?? (lastUsed[key] ? Date.parse(lastUsed[key]) : NaN);
       // Unknown age: start the clock now instead of deleting a workspace that may be in use.
       if (Number.isNaN(used)) await touchWorkspace(key);
-      else remove = now - used > CONVERSATION_WORKSPACE_TTL_MS;
+      else remove = now - used > conversationTtlMs;
     }
     if (!remove) continue;
     try {

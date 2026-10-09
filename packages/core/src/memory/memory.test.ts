@@ -43,7 +43,7 @@ const state = vi.hoisted(() => {
     nearest: [] as { row: { id: string; content: string; source: string }; distance: number }[],
     embedding: [0.1, 0.2] as number[] | null,
     vault: [] as string[],
-    /** The global setting memoryRequiresApproval. */
+    /** The global setting memory.requiresApproval. */
     requiresApproval: false,
     /** Projects the agent does not work on, which only the every-project lookup returns. */
     others: [] as { id: string; name: string; slug: string; texts: string[]; repoHosts: string[] }[],
@@ -103,9 +103,9 @@ vi.mock("./memory-write-gate", async (importOriginal) => ({
     ...(everyProject ? state.others : []),
   ],
 }));
-vi.mock("../platform/settings", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../platform/settings")>()),
-  getSettings: async () => ({ memoryRequiresApproval: state.requiresApproval }),
+vi.mock("../settings/settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../settings/settings")>()),
+  getSettings: async () => ({ memory: { requiresApproval: state.requiresApproval, ephemeralDays: 30 } }),
 }));
 vi.mock("../platform/vault", () => ({ OWNER_SECRETS: { owner: true }, secretValues: async () => state.vault }));
 vi.mock("./memory-search", async (importOriginal) => {

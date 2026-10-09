@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./app-origins": "./src/platform/app-origins.ts",
     "./agents/kind-prompts": "./src/agents/kind-prompts.ts",
     "./agents/mcp-runtime": "./src/agents/mcp-runtime.ts",
     "./agents/permissions": "./src/agents/permissions.ts",
@@ -30,9 +31,11 @@
     "./run-lifecycle": "./src/runs/run-lifecycle.ts",
     "./sandbox-policy": "./src/sandbox/sandbox-policy.ts",
     "./sandbox-runtime": "./src/sandbox/sandbox-runtime.ts",
-    "./settings": "./src/platform/settings.ts",
+    "./settings": "./src/settings/settings-schema.ts",
+    "./provider-info": "./src/models/provider-info.ts",
     "./skill-md": "./src/skills/skill-md.ts",
     "./slug": "./src/platform/slug.ts",
+    "./telegram-commands": "./src/telegram/telegram-commands.ts",
     "./telegram-ids": "./src/telegram/telegram-ids.ts",
     "./trigger-events": "./src/automations/trigger-events.ts",
     "./wakeup-rules": "./src/tasks/wakeup-rules.ts"

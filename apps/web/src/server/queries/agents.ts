@@ -10,8 +10,10 @@ import {
   type ModelConsumption,
   searchJournals,
 } from "@abotica/core";
-import type { ReasoningEffort, ReasoningSupport } from "@abotica/core/models/reasoning";
+import type { ReasoningSupport } from "@abotica/core/models/reasoning";
+import type { ModelSettings } from "@abotica/core/settings";
 import {
+  type AgentLimits,
   type McpToolInfo,
   agentMcpServers,
   agents,
@@ -50,16 +52,12 @@ export type ModelOption = {
 
 export type AgentFormOptions = {
   providers: ProviderOption[];
-  /** Default chain from settings, used by agents with no model of their own. */
-  defaultModels: { provider: string; model: string }[];
-  /** The super agent's and the managers' defaults; empty follows defaultModels (see roleDefaultModels). */
-  orchestratorModels: { provider: string; model: string }[];
-  managerModels: { provider: string; model: string }[];
-  /** Effort from settings, used by agents whose effort is "default". */
-  defaultReasoningEffort: ReasoningEffort;
-  /** The super agent's and the managers' efforts; null follows defaultReasoningEffort (see roleDefaultEffort). */
-  orchestratorReasoningEffort: ReasoningEffort | null;
-  managerReasoningEffort: ReasoningEffort | null;
+  /** Default chain per role from settings, used by agents with no model of their own (see roleDefaultModels). */
+  chains: ModelSettings["chains"];
+  /** Effort per role from settings, used by agents whose effort is "default" (see roleDefaultEffort). */
+  reasoningEffort: ModelSettings["reasoningEffort"];
+  /** Limits a new agent starts with (Settings > Agents). */
+  defaultLimits: AgentLimits;
   models: ModelOption[];
   skills: { id: string; name: string; description: string }[];
   mcpServers: {
@@ -194,12 +192,9 @@ export const getAgentFormOptions = query(async (): Promise<AgentFormOptions> => 
   ]);
   const settings = await getSettings();
   return {
-    defaultModels: settings.defaultModels,
-    orchestratorModels: settings.orchestratorModels,
-    managerModels: settings.managerModels,
-    defaultReasoningEffort: settings.defaultReasoningEffort,
-    orchestratorReasoningEffort: settings.orchestratorReasoningEffort,
-    managerReasoningEffort: settings.managerReasoningEffort,
+    chains: settings.models.chains,
+    reasoningEffort: settings.models.reasoningEffort,
+    defaultLimits: settings.agents.defaultLimits,
     providers: PROVIDER_IDS.map((id, i) => ({ id, label: PROVIDERS[id].label, configured: configured[i] ?? false })),
     models: catalog
       .filter((m) => m.toolCall)

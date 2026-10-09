@@ -12,6 +12,7 @@ import {
 } from "@abotica/core";
 import { env as transformers, type FeatureExtractionPipeline, pipeline } from "@huggingface/transformers";
 import { Worker } from "bullmq";
+import { WORKER_CONCURRENCY } from "./worker-concurrency";
 
 /** Texts per forward pass: a batch is padded to its longest text, so a few at a time. */
 const BATCH = 16;
@@ -77,10 +78,10 @@ export async function embedInProcess(texts: string[]): Promise<number[][]> {
 export function startEmbeddingsWorker() {
   registerLocalEmbedder(embedInProcess);
   void getSettings()
-    .then(({ embeddingProvider }) => (embeddingProvider === "local" ? load() : null))
+    .then(({ memory }) => (memory.embeddingProvider === "local" ? load() : null))
     .catch((error: unknown) => console.error("[embeddings] loading the built-in model failed:", error));
   return new Worker<EmbeddingJob>(QUEUE.embeddings, (job) => embedLocal(job.data.texts), {
     connection: createRedis(),
-    concurrency: 2,
+    concurrency: WORKER_CONCURRENCY.embeddings,
   });
 }

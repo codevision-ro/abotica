@@ -128,6 +128,10 @@ export const mcpServers = pgTable("mcp_servers", {
   /** May reference a vault secret as `{{secret:NAME}}`. */
   oauthClientSecret: text(),
   oauthScope: text(),
+  /** Seconds the server may take to start and answer the handshake; null uses the default (MCP_TIMEOUTS). */
+  connectTimeoutSec: integer(),
+  /** Seconds a tool call waits for its answer; null uses the default (MCP_TIMEOUTS). */
+  callTimeoutSec: integer(),
   /** Tools seen on the last successful connection (test or run); null until the first one. */
   tools: jsonb().$type<McpToolInfo[]>(),
   toolsSyncedAt: timestamp({ withTimezone: true }),

@@ -1,36 +1,67 @@
 {
   "meta": {
-    "providers": "AI providers",
     "general": "General settings",
-    "vault": "Vault",
-    "security": "Security",
-    "audit": "Audit log",
-    "telegram": "Telegram",
+    "models": "Models",
+    "agents": "Agent settings",
+    "memory": "Memory settings",
     "sandbox": "Sandbox",
-    "updates": "Updates"
+    "previews": "Previews",
+    "telegram": "Telegram",
+    "reports": "Reports",
+    "security": "Security",
+    "secrets": "Secrets",
+    "budget": "Budget",
+    "system": "System",
+    "audit": "Audit log"
   },
   "layout": {
     "title": "Settings",
-    "description": "AI providers, preferences, secrets, security and integrations."
+    "description": "Workspace, AI, execution, notifications, account and system."
   },
   "nav": {
     "label": "Settings",
-    "providers": "AI providers",
+    "groups": {
+      "workspace": "Workspace",
+      "ai": "AI",
+      "execution": "Execution",
+      "notifications": "Notifications",
+      "account": "Account",
+      "system": "System"
+    },
     "general": "General",
-    "vault": "Vault",
-    "security": "Security",
-    "audit": "Audit log",
+    "models": "Models",
+    "agents": "Agents",
+    "memory": "Memory",
+    "sandbox": "Sandbox",
+    "previews": "Previews",
     "telegram": "Telegram",
-    "updates": "Updates",
-    "sandbox": "Sandbox"
+    "reports": "Reports",
+    "security": "Security",
+    "secrets": "Secrets",
+    "budget": "Budget",
+    "system": "System",
+    "audit": "Audit log",
+    "keywords": {
+      "general": "language time zone",
+      "models": "providers API keys plan Ollama default models ratings catalog",
+      "agents": "instructions delegation limits steps timeout",
+      "memory": "embeddings recall journal approval",
+      "sandbox": "Docker containers network packages",
+      "previews": "links expiry",
+      "telegram": "bot notifications",
+      "reports": "digest daily weekly summary",
+      "security": "password two-factor sessions",
+      "secrets": "vault keys tokens",
+      "budget": "spending limit alerts costs",
+      "system": "updates version concurrency",
+      "audit": "log history"
+    }
   },
   "secretInput": {
     "show": "Show value",
     "hide": "Hide value"
   },
   "providers": {
-    "title": "AI providers",
-    "description": "Connect the providers your agents run on. Keys are stored encrypted in the vault and are set only here.",
     "catalogTitle": "Model catalog",
     "catalogDescription": "Models and prices come from models.dev (24h cache), and Ollama models from the local server.",
     "refresh": "Refresh model catalog",
@@ -48,8 +79,8 @@
     "ollamaEmpty": "No models found at this address. Start Ollama, pull a model (ollama pull) and refresh the catalog.",
     "replaceKey": "Replace key",
     "apiKey": "API key",
-    "storedEncrypted": "Stored encrypted in the vault. It is not shown again after saving.",
-    "keySaved": "{provider} key saved to the vault",
+    "storedEncrypted": "Stored encrypted in Secrets. It is not shown again after saving.",
+    "keySaved": "{provider} key saved to Secrets",
     "keyRemoved": "{provider} key deleted",
     "testOk": "Response in <num>{ms} ms</num> from <mono>{model}</mono>",
     "testModel": "Model used for the test: {model}",
@@ -115,7 +146,7 @@
       "ready": "Ready to embed",
       "localLoading": "The worker is loading the built-in model (downloaded once, about 280 MB). Until it is ready, search matches by keyword.",
       "localFailed": "The worker could not load the built-in model. It tries again at the next embedding; check the worker logs if this stays.",
-      "noOpenaiKey": "Add an OpenAI API key under AI providers: the ChatGPT plan does not cover embeddings.",
+      "noOpenaiKey": "Add an OpenAI API key in Settings > Models: the ChatGPT plan does not cover embeddings.",
       "ollamaUnreachable": "Ollama does not answer at <mono>{url}</mono>. Start it, or change the address on the Ollama provider card.",
       "ollamaModelMissing": "Ollama answers, but the embedding model is missing. Pull it once: <mono>ollama pull nomic-embed-text</mono>"
     },
@@ -147,12 +178,10 @@
     "sameAsAgents": "Same as specialists",
     "chooseModels": "Choose models",
     "useAgents": "Use the specialists' models",
-    "addModel": "Add model",
-    "pickModelEachRow": "Choose a model on every row",
-    "saved": "Default models saved"
+    "addModel": "Add model"
   },
   "modelRatings": {
-    "title": "Models",
+    "title": "Model ratings",
     "description": "Consumption comes from the models.dev price, performance from your own runs in the last {days} days.",
     "showAll": "Show all",
     "empty": "No model is in use yet. Show all lists every available model.",
@@ -175,43 +204,104 @@
   },
   "general": {
     "title": "General",
-    "description": "Language, instructions for all agents, agent behavior, digest and budget.",
+    "description": "Language and time zone.",
+    "timezoneTitle": "Time zone",
+    "timezoneDescription": "Schedules, reports, monthly budgets and every date shown follow it.",
+    "timezoneSearch": "Search time zones",
+    "timezoneEmpty": "No time zone found"
+  },
+  "models": {
+    "title": "Models",
+    "description": "Connect the providers agents run on, choose the default models per role and see how each model does. Keys are stored encrypted in Secrets and set only here.",
+    "baseUrlsDescription": "The address each provider's API is called at. Change it only for a proxy, a regional endpoint or a compatible gateway.",
+    "baseUrlHint": "Empty: the provider's own address.",
+    "baseUrlsDefault": "Provider addresses: the providers' own",
+    "baseUrlsCustom": "Custom address: {providers}"
+  },
+  "agents": {
+    "title": "Agents",
+    "description": "What every agent is told, how much runs at once and the limits a new agent starts with.",
     "instructionsTitle": "Instructions for all agents",
     "instructionsDescription": "Goes into the system prompt of every agent: the super agent, project managers and specialists. Say who you are, the tone you want and the rules that always hold. Empty: nothing is added.",
     "instructionsPlaceholder": "E.g. I run a small web agency. Keep answers short and direct. Never delete data without asking me first.",
     "instructionsFooter": "Every agent's system prompt",
     "instructionsLength": "{count, number} / {max, number}",
-    "agentsTitle": "Agents",
-    "agentsDescription": "How much of their journal and memory agents read, whether their memories need your approval and how much work runs at once.",
-    "digestTitle": "Digest and time zone",
-    "digestDescription": "When the daily summary goes out and which clock schedules follow.",
-    "budgetTitle": "Budget",
-    "journalDays": "Journal days in context",
-    "journalDaysHint": "How many days of its own journal an agent reads at the start of each run (1-30, 3-7 suggested).",
+    "delegationTitle": "Delegation",
+    "delegationDescription": "Tasks an agent hands to others from one conversation.",
     "parallelDelegations": "Parallel delegated tasks",
-    "parallelDelegationsHint": "How many tasks delegated from one conversation run at the same time (1-10); the others wait and start on their own as these finish. Keep it low on a plan with a usage limit.",
-    "runConcurrency": "Agent runs at the same time",
-    "runConcurrencyHint": "How many agent runs the worker executes at once (1-{max}); the others wait their turn in the queue. Applies right away, without a restart.",
-    "memoryApproval": "Memory written by agents needs approval",
-    "memoryApprovalHint": "Memories saved by agents stay pending until you approve them on the Memory page.",
-    "memoryPinnedTokens": "Pinned memory budget (tokens)",
-    "memoryPinnedTokensHint": "Pinned entries go into the instructions of every run up to this size, newest first. While all the memory an agent can read fits, all of it goes in, pinned or not. About 4 characters per token.",
-    "memoryRecallTokens": "Recalled memory budget (tokens)",
-    "memoryRecallTokensHint": "For each new message, the most relevant unpinned entries are added to it up to this size. 0 turns recall off.",
-    "digestHour": "Daily digest time",
-    "digestHourHint": "The daily summary sent on Telegram.",
-    "timezone": "Time zone",
-    "timezoneHint": "Used for the digest, journals and schedules without their own time zone.",
-    "budget": "Global monthly budget (USD)",
-    "budgetHint": "Total spend across all projects, background jobs included. You get a warning on Telegram at 80%; once it is reached, runs stop and new ones do not start until next month. Empty means no limit.",
-    "budgetPlaceholder": "e.g. 50",
-    "saved": "Settings saved"
+    "parallelDelegationsHint": "How many tasks delegated from one conversation run at the same time ({min}-{max}); the others wait and start on their own as these finish. Keep it low on a plan with a usage limit.",
+    "limitsTitle": "Limits for new agents",
+    "limitsDescription": "What a new agent starts with; each agent can change its own. Agents that exist keep theirs.",
+    "maxSteps": "Steps per run",
+    "maxStepsHint": "How many steps (a model call and the tools it uses) a run may take before it stops.",
+    "timeout": "Time per run",
+    "timeoutHint": "A run still going after this long is stopped.",
+    "minutesUnit": "min",
+    "budget": "Budget per run",
+    "budgetHint": "Spend after which a run stops. Empty: no limit per run.",
+    "noLimit": "No limit",
+    "advancedSummary": "Redelegations: {redelegations}, fix rounds: {fixRounds}",
+    "maxRedelegations": "Redelegations per task",
+    "maxRedelegationsHint": "Times a delegated task can be sent back to be done again before you decide.",
+    "maxFixRounds": "Fix rounds per pull request",
+    "maxFixRoundsHint": "Automatic rounds of fixes a pull request gets for failed checks or review comments."
   },
-  "vault": {
-    "title": "Vault",
-    "description": "Encrypted secrets: API keys, MCP tokens. Values are never shown.",
+  "memory": {
+    "title": "Memory",
+    "description": "What embeds memory, how much of it goes into each run and how long it stays.",
+    "contextTitle": "In every run",
+    "contextDescription": "How much memory and journal an agent reads.",
+    "pinnedTokens": "Pinned memory",
+    "pinnedTokensHint": "Pinned entries go into the instructions of every run up to this size, newest first. While all the memory an agent can read fits, all of it goes in, pinned or not. About 4 characters per token.",
+    "recallTokens": "Recalled memory",
+    "recallTokensHint": "For each new message, the most relevant unpinned entries are added to it up to this size. 0 turns recall off.",
+    "tokensUnit": "tokens",
+    "journalDays": "Journal days",
+    "journalDaysHint": "How many days of its own journal an agent reads at the start of each run (3-7 suggested).",
+    "daysUnit": "days",
+    "approvalTitle": "Approval",
+    "approvalDescription": "Whether what agents remember on their own needs your review.",
+    "requiresApproval": "Memory written by agents needs approval",
+    "requiresApprovalHint": "Memories saved by agents stay pending until you approve them on the Memory page.",
+    "advancedSummary": "Ephemeral: {ephemeral} days, unused: {unused} days",
+    "ephemeralDays": "Ephemeral memory lifetime",
+    "ephemeralDaysHint": "Days after which a memory saved as ephemeral expires.",
+    "unusedDays": "Unused memory cleanup",
+    "unusedDaysHint": "Days without being recalled after which consolidation lists a memory for cleanup."
+  },
+  "budget": {
+    "title": "Budget",
+    "description": "A monthly limit on spending across all projects, and the warnings before it.",
+    "monthlyTitle": "Monthly budget",
+    "monthlyDescription": "Total spend across all projects, background jobs included.",
+    "monthly": "Limit per month",
+    "monthlyHint": "Once reached, runs stop and new ones do not start until next month. Empty: no limit.",
+    "noLimit": "No limit",
+    "costsLink": "Spending so far, by project and agent, is on the <link>Costs</link> page.",
+    "alertsTitle": "Alerts",
+    "alertsDescription": "A warning on Telegram when spending reaches a share of a budget.",
+    "removeAlert": "Remove the {percent}% alert",
+    "newAlert": "Percentage for a new alert",
+    "newAlertPlaceholder": "e.g. 50",
+    "addAlert": "Add",
+    "alertsHint": "Between {min}% and {max}%, at most {count}.",
+    "alertsNone": "No warnings before the limit.",
+    "alertsStop": "Reaching 100% always stops runs and sends a warning."
+  },
+  "system": {
+    "title": "System",
+    "description": "How much the worker runs at once, the version running here and its updates.",
+    "runsTitle": "Agent runs",
+    "runsDescription": "Work the worker executes at the same time.",
+    "runConcurrency": "Runs at the same time",
+    "runConcurrencyHint": "How many agent runs the worker executes at once; the others wait their turn in the queue. Applies right away, without a restart.",
+    "updateChecks": "Check for new releases"
+  },
+  "secrets": {
+    "title": "Secrets",
+    "description": "Encrypted API keys and tokens, with where each one is used. Values are never shown.",
     "add": "Add secret",
-    "empty": "The vault is empty. Add tokens and keys that MCP servers can use through <mono>{ref}</mono>.",
+    "empty": "No secrets yet. Add tokens and keys that MCP servers can use through <mono>{ref}</mono>.",
     "actionsAria": "Actions for {name}",
     "replace": "Replace value",
     "refName": "NAME",
@@ -232,7 +322,13 @@
     "nameHint": "Reference in MCP: {ref}",
     "value": "Value",
     "descriptionPlaceholder": "Read-only GitHub token",
-    "globalOption": "Global (all projects)"
+    "globalOption": "Global (all projects)",
+    "use": {
+      "project": "Secret of the project {project}: open its secrets",
+      "provider": "API key of {provider}, also set in Settings > Models",
+      "telegram": "Token of the Telegram bot, also set in Settings > Telegram",
+      "telegramLabel": "Telegram bot"
+    }
   },
   "security": {
     "title": "Security",
@@ -304,7 +400,12 @@
     "revoke": "Sign out",
     "sessionsLoadFailed": "Could not load the sessions",
     "revokeFailed": "Could not end the session",
-    "revoked": "Session ended"
+    "revoked": "Session ended",
+    "sessionLengthTitle": "Session length",
+    "sessionLengthDescription": "A device you do not use is signed out after this time.",
+    "sessionDays": "Expires after",
+    "sessionDaysHint": "Days without activity, from {min} to {max}.",
+    "days": "days"
   },
   "audit": {
     "title": "Audit log",
@@ -439,6 +540,43 @@
       "updatesChecked": "Checked for updates",
       "webhookReceived": "Webhook received",
       "webhookRefused": "Webhook refused"
+    },
+    "domains": {
+      "general": "General",
+      "models": "Models",
+      "agents": "Agents",
+      "memory": "Memory",
+      "sandbox": "Sandbox",
+      "previews": "Previews",
+      "telegram": "Telegram",
+      "reports": "Reports",
+      "budget": "Budget",
+      "security": "Security",
+      "system": "System"
+    },
+    "changes": {
+      "none": "none",
+      "on": "on",
+      "off": "off",
+      "empty": "empty",
+      "to": "changed to",
+      "length": "text of {from} characters changed to {to} characters"
+    }
+  },
+  "previews": {
+    "title": "Previews",
+    "description": "Links to what agents publish: an app they started, or a copy of files.",
+    "links": {
+      "title": "Link duration",
+      "description": "For new links and links renewed with Extend; open links keep their end time.",
+      "liveHours": "Live app",
+      "liveHoursHint": "Hours a link to a running app stays open, from {min} to {max}.",
+      "staticDays": "Files",
+      "staticDaysHint": "Days a link to a copy of files stays open, from {min} to {max}."
+    },
+    "units": {
+      "hours": "h",
+      "days": "days"
     }
   },
   "telegram": {
@@ -448,8 +586,8 @@
     "botDescription": "The token from @BotFather. Saving it restarts the bot, no worker restart needed.",
     "token": "Bot token",
     "replaceToken": "Replace token",
-    "tokenHint": "Checked with Telegram when you save. Stored encrypted in the vault as <mono>TELEGRAM_BOT_TOKEN</mono>.",
-    "tokenStored": "Stored encrypted in the vault, updated <time></time>. It is not shown again.",
+    "tokenHint": "Checked with Telegram when you save. Stored encrypted in Secrets as <mono>TELEGRAM_BOT_TOKEN</mono>.",
+    "tokenStored": "Stored encrypted in Secrets, updated <time></time>. It is not shown again.",
     "removeToken": "Delete token",
     "removeTitle": "Delete the bot token?",
     "removeDescription": "The bot stops at once: no Telegram messages or notifications until you save a token again.",
@@ -470,14 +608,11 @@
     "allowedUsersHint": "Numeric Telegram user IDs, separated by commas. To find yours, message <mono>@userinfobot</mono>.",
     "notifyChat": "Notification chat",
     "notifyChatHint": "A user ID, or a group ID (negative, e.g. -1001234567890). Empty sends notifications to the first allowed user.",
-    "saveAndConnect": "Save and connect",
     "saved": "Telegram settings saved",
     "savedConnected": "Saved. The bot @{username} starts in a few seconds.",
+    "commandsTitle": "Commands",
+    "commandsDescription": "Set by the bot each time it starts: type / in the chat to see them.",
     "secretDescription": "Telegram bot token, set in Settings > Telegram",
-    "validation": {
-      "userIds": "User IDs are positive whole numbers, separated by commas",
-      "chatId": "A chat ID is a whole number, negative for a group"
-    },
     "errors": {
       "tokenFormat": "This does not look like a bot token. Copy the whole token from @BotFather, like 123456789:AA...",
       "tokenRefused": "Telegram refused this token. Check that you copied it whole, or create a new one with @BotFather.",
@@ -494,16 +629,32 @@
     },
     "setupTitle": "Setup",
     "step1": "Open <mono>@BotFather</mono> in Telegram, send <mono>/newbot</mono> and paste the token it gives you in Bot token above.",
-    "step2": "Save. The bot starts within a few seconds and its commands ({commands}) are set automatically, no need for <mono>/setcommands</mono>.",
+    "step2": "Save. The bot starts within a few seconds and its commands (listed above) are set automatically, no need for <mono>/setcommands</mono>.",
     "step3": "Add your Telegram user ID to Allowed users. To find it, message <mono>@userinfobot</mono>, or write to the bot in private: while you are not on the list, it replies with your ID.",
     "step4": "Optional, for notifications in a group: put the group ID in Notification chat. Left empty, notifications go to the private chat with the first allowed user.",
     "step5": "For one topic per project: create a group with Topics (forum) enabled, add the bot as an administrator, put the group ID in Notification chat, create a topic for each project and save the topic ID (message_thread_id, the last number in the link of a message from the topic) in the project settings.",
     "transcriptionTitle": "Transcription",
     "transcriptionDescription": "Voice messages are transcribed with OpenAI, so they need the OpenAI key."
   },
+  "reports": {
+    "title": "Reports",
+    "description": "Summaries on Telegram. Times are in <zone>{timezone}</zone>, the time zone set in <link>General</link>.",
+    "daily": {
+      "title": "Daily report",
+      "description": "The day's journals, costs, finished tasks and what waits for you.",
+      "enabled": "Send every day",
+      "enabledHint": "When off, no daily report is sent."
+    },
+    "weekly": {
+      "title": "Weekly report",
+      "description": "The same summary for the last seven days.",
+      "enabled": "Send every week",
+      "enabledHint": "When off, no weekly report is sent."
+    },
+    "weekday": "Day",
+    "hour": "Time"
+  },
   "updates": {
-    "title": "Updates",
-    "description": "The version running here, what is new and how to update.",
     "checkNow": "Check now",
     "result": {
       "available": "Abotica {version} is available",
@@ -546,9 +697,7 @@
     "activeRuns": "{count, plural, one {One run is} other {# runs are}} in progress: updating stops what has not finished and saves the work done so far.",
     "autoTitle": "Automatic checks",
     "autoDescription": "Check for new releases every few hours; a notice also goes to Telegram.",
-    "autoNote": "Each check is one request to GitHub's API.",
-    "autoOn": "Automatic checks are on",
-    "autoOff": "Automatic checks are off"
+    "autoNote": "Each check is one request to GitHub's API."
   },
   "errors": {
     "noApiKey": "This provider does not use an API key",
@@ -560,25 +709,78 @@
     "subscriptionExpired": "The sign-in expired or was already used. Start it again.",
     "subscriptionDenied": "The sign-in was cancelled.",
     "subscriptionNotGranted": "You signed in without allowing Abotica to use your plan. Continue again and allow plan usage.",
-    "subscriptionFailed": "Sign-in failed: {error}"
+    "subscriptionFailed": "Sign-in failed: {error}",
+    "ownAction": "This setting is saved from its own form."
   },
   "validation": {
     "keyTooShort": "The key looks too short",
-    "journalDaysMin": "Minimum 1 day",
-    "journalDaysMax": "Maximum 30 days",
-    "memoryPinnedTokensRange": "Between 0 and 20000 tokens",
-    "memoryRecallTokensRange": "Between 0 and 8000 tokens",
-    "parallelDelegationsRange": "Between 1 and 10 tasks",
-    "runConcurrencyRange": "Between 1 and 20 runs",
-    "ollamaUrl": "Enter an address starting with http:// or https://",
-    "digestHour": "The hour must be between 0 and 23",
-    "budgetPositive": "The budget must be positive",
-    "timezone": "Invalid time zone (e.g. Europe/Bucharest)",
     "nameRequired": "Name is required",
     "nameFormat": "The name can only contain uppercase letters, digits and _",
     "valueRequired": "Value is required",
-    "pickModelEachRow": "Choose a model on every row",
-    "atLeastOneModel": "Add at least one model",
-    "agentInstructionsTooLong": "The instructions are too long"
+    "sandbox": {
+      "commandTimeoutSec": "Between {min} and {max} seconds",
+      "memoryMb": "Between {min} and {max} MB",
+      "cpus": "Between {min} and {max} CPUs",
+      "pids": "Between {min} and {max} processes",
+      "pauseIdleMinutes": "Between {min} and {max} minutes",
+      "stopIdleHours": "Between {min} and {max} hours",
+      "workspaceRetentionDays": "Between {min} and {max} days"
+    },
+    "previews": {
+      "liveHours": "Between {min} and {max} hours",
+      "staticDays": "Between {min} and {max} days"
+    },
+    "telegram": {
+      "userIds": "User IDs are positive whole numbers, separated by commas",
+      "chatId": "A chat ID is a whole number, negative for a group"
+    },
+    "reports": {
+      "hour": "The hour must be between {min} and {max}",
+      "weekday": "The day must be between {min} and {max}, 0 being Sunday"
+    },
+    "security": {
+      "sessionDays": "Between {min} and {max} days"
+    },
+    "general": {
+      "timezone": "Invalid time zone (e.g. Europe/Bucharest)"
+    },
+    "models": {
+      "pickModel": "Choose a model on every row",
+      "chainLength": "Too many models in one chain",
+      "ollamaUrl": "Enter an address starting with http:// or https://",
+      "baseUrl": "Enter an address starting with http:// or https://",
+      "atLeastOneModel": "Add at least one model for agents"
+    },
+    "agents": {
+      "instructions": "The instructions are too long",
+      "parallelDelegations": "Between {min} and {max} tasks",
+      "maxRedelegations": "Between {min} and {max}",
+      "maxFixRounds": "Between {min} and {max} rounds",
+      "maxSteps": "Between {min} and {max} steps",
+      "timeoutMinutes": "Between {min} and {max} minutes",
+      "budgetUsd": "Between {min} and {max} USD"
+    },
+    "memory": {
+      "pinnedTokens": "Between {min} and {max} tokens",
+      "recallTokens": "Between {min} and {max} tokens",
+      "journalDays": "Between {min} and {max} days",
+      "ephemeralDays": "Between {min} and {max} days",
+      "unusedDays": "Between {min} and {max} days"
+    },
+    "budget": {
+      "monthlyUsd": "Enter an amount between {min} and {max} USD",
+      "alertPercent": "Between {min}% and {max}%",
+      "alerts": "Too many alerts"
+    },
+    "system": {
+      "runConcurrency": "Between {min} and {max} runs"
+    }
+  },
+  "form": {
+    "saved": "Settings saved",
+    "unsaved": "Unsaved changes",
+    "invalid": "Some values need fixing",
+    "discard": "Discard",
+    "advanced": "Advanced"
   }
 }

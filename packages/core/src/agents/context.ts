@@ -18,12 +18,13 @@ import type { ManagedSandboxSession } from "@abotica/sandbox";
 import type { UIMessage } from "ai";
 import { recentJournals } from "../memory/memory";
 import { anyExternal, EXTERNAL_NOTE, markExternal } from "../memory/memory-budget";
+import { JOURNAL_MAX_WORDS } from "../memory/memory-consolidation";
 import { notePromptMemoryUse, pinnedMemories, writtenInConversation } from "../memory/memory-recall";
 import { availableProviders } from "../models/chain";
 import { localeEnglishNames, UserError } from "@abotica/i18n";
 import { type RunRepo, runRepos } from "../projects/repos";
 import type { StoredMessage } from "../runs/run-messages";
-import { type AppSettings, getSettings, settingsLocale } from "../platform/settings";
+import { type AppSettings, getSettings, settingsLocale } from "../settings/settings";
 import { projectsClosedTo } from "../models/provider-policy";
 import { kindPrompt, ownPromptHeading } from "./kind-prompts";
 import { modelChain } from "./model-chain";
@@ -303,8 +304,12 @@ async function telegramTopicProject(conversation: Conversation | null): Promise<
   return project ?? null;
 }
 
-/** Characters of one day's journal in the prompt, about 300 tokens; journal_search reads the rest. */
-export const JOURNAL_DAY_MAX_CHARS = 1_200;
+/**
+ * Characters of one day's journal in the prompt: the words a journal is written in (JOURNAL_MAX_WORDS) at
+ * about 8 characters each, room for longer words in other languages; about 300 tokens. journal_search
+ * reads the rest of a day that ran longer.
+ */
+export const JOURNAL_DAY_MAX_CHARS = JOURNAL_MAX_WORDS * 8;
 
 /**
  * A day's journal as the prompt carries it: whole when short, else cut at a line end with a pointer to
@@ -328,13 +333,13 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
   const { agent, project, settings } = ctx;
   // Memory and journals of the run's project only, never of the agent's other projects.
   const reader = { agentId: agent.id, projectId: ctx.projectId, notesProjectId: ctx.notesProjectId };
-  const memory = await pinnedMemories(reader, settings.memoryPinnedTokens);
+  const memory = await pinnedMemories(reader, settings.memory.pinnedTokens);
   const written = ctx.run.conversationId ? await writtenInConversation(ctx.run.conversationId, reader) : [];
   // While all memory is here, nothing is recalled or searched: being in a run's prompt is its use.
   if (memory.all) {
     notePromptMemoryUse([...memory.global, ...memory.craft, ...memory.team, ...memory.notes].map((m) => m.id));
   }
-  const journals = await recentJournals(agent.id, ctx.projectId, settings.journalDays);
+  const journals = await recentJournals(agent.id, ctx.projectId, settings.memory.journalDays);
   const managed =
     !project && ctx.managedProjectIds.length
       ? await db
@@ -349,14 +354,14 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
   const own = agent.systemPrompt.trim();
   if (own) sections.push(`${ownPromptHeading(agent.kind)}\n${own}`);
   // The same for every agent and changed only in Settings, so it stays in the prefix the prompt cache keeps.
-  const fromUser = settings.agentInstructions.trim();
+  const fromUser = settings.agents.instructions.trim();
   if (fromUser) sections.push(`# From the user (all agents)\n${fromUser}`);
 
   sections.push(
     [
       "# Context",
       `- Your name: ${agent.name} (${agent.slug})${agent.role ? `, role: ${agent.role}` : ""}`,
-      `- Today: ${formatDay(settings.timezone)} (${settings.timezone}). Each user message starts with a [Sent ...] line: the time it was sent, added by the platform.`,
+      `- Today: ${formatDay(settings.general.timezone)} (${settings.general.timezone}). Each user message starts with a [Sent ...] line: the time it was sent, added by the platform.`,
       `- Trigger: ${ctx.run.trigger}`,
       project ? `- Current project: ${project.name} (id ${project.id})` : null,
       project?.description ? `- Project description: ${project.description}` : null,
@@ -386,7 +391,7 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
         "# Memory",
         memory.all
           ? null
-          : settings.memoryRecallTokens > 0
+          : settings.memory.recallTokens > 0
             ? "Pinned entries. Entries that may be relevant to a message are recalled at its start; memory_search finds the rest."
             : "Pinned entries; memory_search finds the rest.",
         "If entries contradict each other, the priority is: team memory > global > your notes > your craft, and newer beats older.",
@@ -406,7 +411,7 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
   if (journals.length) {
     sections.push(
       [
-        `# Your journal for the last ${settings.journalDays} days`,
+        `# Your journal for the last ${settings.memory.journalDays} days`,
         ...journals.map((j) => `## ${j.day}\n${journalInPrompt(j.summary)}`),
       ].join("\n"),
     );
@@ -424,9 +429,9 @@ export async function buildInstructions(ctx: RunContext, deferredTools: Deferred
       [
         "# Available models",
         "Default models (primary, then fallbacks) for agents without a model of their own, by role:",
-        `- Specialists: ${chain(settings.defaultModels)}. New agents use it unless you pick something else.`,
-        `- Managers: ${roleDefault(settings.managerModels)}.`,
-        `- You, the super agent: ${roleDefault(settings.orchestratorModels)}.`,
+        `- Specialists: ${chain(settings.models.chains.agent)}. New agents use it unless you pick something else.`,
+        `- Managers: ${roleDefault(settings.models.chains.manager)}.`,
+        `- You, the super agent: ${roleDefault(settings.models.chains.orchestrator)}.`,
         available.length
           ? "Providers with a configured API key (newest models):"
           : "No provider has an API key configured.",

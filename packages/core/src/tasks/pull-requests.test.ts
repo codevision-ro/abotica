@@ -69,27 +69,27 @@ const reviewFeedback = [
 describe("prReactions", () => {
   it("nudges once per head SHA and failed checks", async () => {
     const { prReactions } = await load();
-    const first = prReactions(record(), failing("aaa111"));
+    const first = prReactions(record(), failing("aaa111"), 2);
     expect(first.action).toBe("wake");
     expect(first.nudges).toEqual([expect.objectContaining({ kind: "checks", signature: "aaa111:lint,test" })]);
     // Saved after the wake: the next poll on the same commit sends nothing, nor does a restart.
-    const again = prReactions(record({ nudgeSignature: { checks: "aaa111:lint,test" } }), failing("aaa111"));
+    const again = prReactions(record({ nudgeSignature: { checks: "aaa111:lint,test" } }), failing("aaa111"), 2);
     expect(again.nudges).toEqual([]);
   });
 
   it("sends nothing when a new commit fixes the checks", async () => {
     const { prReactions } = await load();
     const sent = record({ nudgeSignature: { checks: "aaa111:lint,test" }, fixRounds: 1 });
-    expect(prReactions(sent, status({ headSha: "bbb222", checks: "success" })).nudges).toEqual([]);
-    expect(prReactions(sent, status({ headSha: "bbb222", checks: "pending" })).nudges).toEqual([]);
+    expect(prReactions(sent, status({ headSha: "bbb222", checks: "success" }), 2).nudges).toEqual([]);
+    expect(prReactions(sent, status({ headSha: "bbb222", checks: "pending" }), 2).nudges).toEqual([]);
     // Failing again on the new commit is a new nudge.
-    expect(prReactions(sent, failing("bbb222")).nudges).toHaveLength(1);
+    expect(prReactions(sent, failing("bbb222"), 2).nudges).toHaveLength(1);
   });
 
   it("lists a review requesting changes and its two inline comments in one nudge, once", async () => {
     const { prReactions, feedbackBlock } = await load();
     const after = status({ review: "changes_requested", feedback: reviewFeedback });
-    const reactions = prReactions(record(), after);
+    const reactions = prReactions(record(), after, 2);
     expect(reactions.nudges).toHaveLength(1);
     const nudge = reactions.nudges[0]!;
     expect(nudge).toMatchObject({ kind: "review", signature: "comment:21,comment:22,review:2" });
@@ -103,7 +103,7 @@ describe("prReactions", () => {
     );
     expect(segment!.text).toContain("- src/util.ts:3 (ana): Rename this.");
 
-    expect(prReactions(record({ nudgeSignature: { review: nudge.signature } }), after).nudges).toEqual([]);
+    expect(prReactions(record({ nudgeSignature: { review: nudge.signature } }), after, 2).nudges).toEqual([]);
   });
 
   it("finishes the task on a merge, once", async () => {
@@ -114,39 +114,48 @@ describe("prReactions", () => {
       checks: "failure",
       failedChecks: failing("x").failedChecks,
     });
-    expect(prReactions(record(), merged)).toMatchObject({ merged: true, closed: false, nudges: [] });
-    expect(prReactions(record({ state: "merged" }), merged).merged).toBe(false);
+    expect(prReactions(record(), merged, 2)).toMatchObject({ merged: true, closed: false, nudges: [] });
+    expect(prReactions(record({ state: "merged" }), merged, 2).merged).toBe(false);
   });
 
   it("reports a close without merge once", async () => {
     const { prReactions } = await load();
-    expect(prReactions(record(), status({ state: "closed" }))).toMatchObject({ closed: true, merged: false, nudges: [] });
-    expect(prReactions(record({ nudgeSignature: { closed: true } }), status({ state: "closed" })).closed).toBe(false);
+    expect(prReactions(record(), status({ state: "closed" }), 2)).toMatchObject({
+      closed: true,
+      merged: false,
+      nudges: [],
+    });
+    expect(prReactions(record({ nudgeSignature: { closed: true } }), status({ state: "closed" }), 2).closed).toBe(false);
   });
 
   it("blocks instead of waking once the fix rounds are used up", async () => {
-    const { prReactions, MAX_FIX_ROUNDS } = await load();
-    expect(MAX_FIX_ROUNDS).toBe(2);
-    expect(prReactions(record({ fixRounds: 1 }), failing("aaa111")).action).toBe("wake");
-    const capped = prReactions(record({ fixRounds: 2 }), failing("aaa111"));
+    const { prReactions } = await load();
+    expect(prReactions(record({ fixRounds: 1 }), failing("aaa111"), 2).action).toBe("wake");
+    const capped = prReactions(record({ fixRounds: 2 }), failing("aaa111"), 2);
     expect(capped.action).toBe("block");
     expect(capped.nudges).toHaveLength(1);
+  });
+
+  it("counts the rounds against the setting it is given", async () => {
+    const { prReactions } = await load();
+    expect(prReactions(record({ fixRounds: 2 }), failing("aaa111"), 5).action).toBe("wake");
+    expect(prReactions(record({ fixRounds: 0 }), failing("aaa111"), 0).action).toBe("block");
   });
 
   it("gives the same nudge again while nothing was saved (a busy task is retried at the next poll)", async () => {
     const { prReactions } = await load();
     const before = record();
-    const first = prReactions(before, failing("aaa111"));
+    const first = prReactions(before, failing("aaa111"), 2);
     // The task had a run going: no comment, no signature, no round.
-    expect(prReactions(before, failing("aaa111"))).toEqual(first);
+    expect(prReactions(before, failing("aaa111"), 2)).toEqual(first);
   });
 
   it("tracks state and reviews when the token may not read the checks, and flags it once", async () => {
     const { prReactions } = await load();
     const denied = status({ checks: "none", checksDenied: true, review: "approved" });
-    expect(prReactions(record(), denied)).toMatchObject({ checksDenied: true, nudges: [] });
-    expect(prReactions(record({ nudgeSignature: { checksDenied: true } }), denied).checksDenied).toBe(false);
-    expect(prReactions(record(), status({ ...denied, state: "merged" })).merged).toBe(true);
+    expect(prReactions(record(), denied, 2)).toMatchObject({ checksDenied: true, nudges: [] });
+    expect(prReactions(record({ nudgeSignature: { checksDenied: true } }), denied, 2).checksDenied).toBe(false);
+    expect(prReactions(record(), status({ ...denied, state: "merged" }), 2).merged).toBe(true);
   });
 });
 

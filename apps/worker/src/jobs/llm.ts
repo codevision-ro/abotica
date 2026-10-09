@@ -31,7 +31,7 @@ export async function systemCompletion(input: {
 }) {
   const { agent, projectId, purpose, instructions, prompt } = input;
   const role = modelRole(agent);
-  const fullChain = resolveModelChain(agent, await getSettings(), role);
+  const fullChain = resolveModelChain(agent, (await getSettings()).models, role);
   if (!fullChain.length) throw new NoModelError();
   const chain = allowedModelChain(await projectProviderPolicy(projectId), fullChain);
   if (!chain.length) throw new NoAllowedProviderError();

@@ -1,31 +1,27 @@
 "use client";
 
-import { SANDBOX_LIMITS, SANDBOX_RUNTIMES, type SandboxRuntime, type SandboxSettings } from "@abotica/core/sandbox-policy";
+import { SANDBOX_RUNTIMES, type SandboxRuntime } from "@abotica/core/sandbox-policy";
+import { type AppSettings, SETTINGS_LIMITS } from "@abotica/core/settings";
 import {
   BoxIcon,
   BoxesIcon,
   ContainerIcon,
   CpuIcon,
   PowerOffIcon,
-  SaveIcon,
   ShieldCheckIcon,
+  SlidersHorizontalIcon,
   SparklesIcon,
   TimerIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { FormSection, FormSubsection } from "@/components/app/form-section";
+import { useState } from "react";
+import { FormSection, FormSectionCollapsible, FormSubsection } from "@/components/app/form-section";
 import { OptionCards } from "@/components/app/option-cards";
-import { UnsavedChangesGuard } from "@/components/app/unsaved-changes-guard";
-import { Button } from "@/components/ui/button";
-import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import { useDirtySnapshot } from "@/hooks/use-dirty-snapshot";
-import { updateSandboxSettings } from "@/server/actions/sandbox";
+import { SettingsNumberField } from "@/components/settings/settings-number-field";
+import { SettingsSaveBar } from "@/components/settings/settings-save-bar";
+import { useSettingsForm } from "@/components/settings/use-settings-form";
+import { FieldGroup, FieldSeparator } from "@/components/ui/field";
 import type { SandboxStatusView } from "@/server/queries/sandbox";
 import { SandboxPolicyEditor } from "./sandbox-policy-editor";
 
@@ -37,61 +33,27 @@ const RUNTIME_ICONS: Record<SandboxRuntime, LucideIcon> = {
   runsc: ShieldCheckIcon,
 };
 
-/** A number field's text, or null when it is not a number within its limits. */
-function inRange(text: string, { min, max }: { min: number; max: number }): number | null {
-  const n = Number(text.replace(",", "."));
-  return text.trim() !== "" && Number.isFinite(n) && n >= min && n <= max ? n : null;
-}
+const ADVANCED = ["pids", "pauseIdleMinutes", "stopIdleHours", "workspaceRetentionDays"] as const;
 
-/** Settings > Sandbox form: on or off, default policy, command timeout and container limits; one Save. */
-export function SandboxSettingsForm({ initial, status }: { initial: SandboxSettings; status: SandboxStatusView }) {
+const L = SETTINGS_LIMITS.sandbox;
+
+/** Settings > Sandbox form: on or off, default policy, command timeout, container limits and idle times. */
+export function SandboxSettingsForm({ initial, status }: { initial: AppSettings["sandbox"]; status: SandboxStatusView }) {
   const t = useTranslations("sandbox.settings");
-  const tc = useTranslations("common.actions");
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [enabled, setEnabled] = useState(initial.enabled);
-  const [defaults, setDefaults] = useState(initial.defaults);
-  const [timeout, setTimeoutText] = useState(String(initial.commandTimeoutSec));
-  const [runtime, setRuntime] = useState(initial.runtime);
-  const [memory, setMemory] = useState(String(initial.memoryMb));
-  const [cpus, setCpus] = useState(String(initial.cpus));
-  const { dirty, markSaved } = useDirtySnapshot([enabled, defaults, timeout, runtime, memory, cpus]);
-
-  const limits = SANDBOX_LIMITS;
-  const timeoutSec = inRange(timeout, limits.commandTimeoutSec);
-  const memoryMb = inRange(memory, limits.memoryMb);
-  const cpuCount = inRange(cpus, limits.cpus);
-  const invalid = timeoutSec === null || memoryMb === null || cpuCount === null;
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (invalid) return;
-    startTransition(async () => {
-      const res = await updateSandboxSettings({
-        enabled,
-        defaults,
-        commandTimeoutSec: timeoutSec,
-        runtime,
-        memoryMb,
-        cpus: cpuCount,
-      });
-      if (!res.ok) return void toast.error(res.error);
-      toast.success(t("saved"));
-      markSaved();
-      router.refresh();
-    });
-  }
+  const form = useSettingsForm("sandbox", initial);
+  const { values, set, error } = form;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // A problem in a closed section would leave the save bar refusing for no visible reason.
+  const advancedInvalid = ADVANCED.some((field) => error(field));
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-6">
-      <UnsavedChangesGuard dirty={dirty && !pending} />
-
+    <div className="flex flex-col gap-6">
       <FormSection id="sandbox-enabled" icon={BoxesIcon} title={t("enabled.title")} description={t("enabled.description")}>
         <OptionCards
           name="sandbox-enabled"
           label={t("enabled.title")}
-          value={enabled ? "on" : "off"}
-          onValueChange={(value) => setEnabled(value === "on")}
+          value={values.enabled ? "on" : "off"}
+          onValueChange={(value) => set({ enabled: value === "on" })}
           options={(["on", "off"] as const).map((value) => ({
             value,
             icon: ENABLED_ICONS[value],
@@ -107,69 +69,49 @@ export function SandboxSettingsForm({ initial, status }: { initial: SandboxSetti
         title={t("defaults.title")}
         description={t("defaults.description")}
       >
-        <SandboxPolicyEditor name="sandbox-defaults" value={defaults} onChange={setDefaults} />
+        <SandboxPolicyEditor name="sandbox-defaults" value={values.defaults} onChange={(defaults) => set({ defaults })} />
       </FormSection>
 
       <FormSection id="sandbox-limits" icon={TimerIcon} title={t("limits.title")} description={t("limits.description")}>
-        <Field orientation="responsive" data-invalid={timeoutSec === null || undefined}>
-          <FieldContent>
-            <FieldLabel htmlFor="sandbox-timeout">{t("limits.commandTimeout")}</FieldLabel>
-            <FieldDescription>{t("limits.commandTimeoutHint", limits.commandTimeoutSec)}</FieldDescription>
-          </FieldContent>
-          <Input
+        <FieldGroup>
+          <SettingsNumberField
             id="sandbox-timeout"
-            type="number"
-            inputMode="numeric"
-            min={limits.commandTimeoutSec.min}
-            max={limits.commandTimeoutSec.max}
-            step={1}
-            value={timeout}
-            onChange={(e) => setTimeoutText(e.target.value)}
-            aria-invalid={timeoutSec === null || undefined}
-            className="tabular sm:w-28"
+            label={t("limits.commandTimeout")}
+            hint={t("limits.commandTimeoutHint", L.commandTimeoutSec)}
+            unit={t("units.seconds")}
+            value={values.commandTimeoutSec}
+            onChange={(commandTimeoutSec) => set({ commandTimeoutSec })}
+            error={error("commandTimeoutSec")}
+            {...L.commandTimeoutSec}
           />
-        </Field>
+        </FieldGroup>
       </FormSection>
 
       <FormSection id="sandbox-docker" icon={CpuIcon} title={t("docker.title")} description={t("docker.description")}>
         <FieldGroup>
-          <Field orientation="responsive" data-invalid={memoryMb === null || undefined}>
-            <FieldContent>
-              <FieldLabel htmlFor="sandbox-memory">{t("docker.memory")}</FieldLabel>
-              <FieldDescription>{t("docker.memoryHint", limits.memoryMb)}</FieldDescription>
-            </FieldContent>
-            <Input
-              id="sandbox-memory"
-              type="number"
-              inputMode="numeric"
-              min={limits.memoryMb.min}
-              max={limits.memoryMb.max}
-              step={256}
-              value={memory}
-              onChange={(e) => setMemory(e.target.value)}
-              aria-invalid={memoryMb === null || undefined}
-              className="tabular sm:w-28"
-            />
-          </Field>
+          <SettingsNumberField
+            id="sandbox-memory"
+            label={t("docker.memory")}
+            hint={t("docker.memoryHint", L.memoryMb)}
+            unit="MB"
+            step={256}
+            value={values.memoryMb}
+            onChange={(memoryMb) => set({ memoryMb })}
+            error={error("memoryMb")}
+            {...L.memoryMb}
+          />
           <FieldSeparator />
-          <Field orientation="responsive" data-invalid={cpuCount === null || undefined}>
-            <FieldContent>
-              <FieldLabel htmlFor="sandbox-cpus">{t("docker.cpus")}</FieldLabel>
-              <FieldDescription>{t("docker.cpusHint", limits.cpus)}</FieldDescription>
-            </FieldContent>
-            <Input
-              id="sandbox-cpus"
-              type="number"
-              inputMode="decimal"
-              min={limits.cpus.min}
-              max={limits.cpus.max}
-              step={0.25}
-              value={cpus}
-              onChange={(e) => setCpus(e.target.value)}
-              aria-invalid={cpuCount === null || undefined}
-              className="tabular sm:w-28"
-            />
-          </Field>
+          <SettingsNumberField
+            id="sandbox-cpus"
+            label={t("docker.cpus")}
+            hint={t("docker.cpusHint", L.cpus)}
+            decimal
+            step={0.25}
+            value={values.cpus}
+            onChange={(cpus) => set({ cpus })}
+            error={error("cpus")}
+            {...L.cpus}
+          />
         </FieldGroup>
         <FormSubsection
           title={t("docker.runtime")}
@@ -178,8 +120,8 @@ export function SandboxSettingsForm({ initial, status }: { initial: SandboxSetti
           <OptionCards
             name="sandbox-runtime"
             label={t("docker.runtime")}
-            value={runtime}
-            onValueChange={setRuntime}
+            value={values.runtime}
+            onValueChange={(runtime) => set({ runtime })}
             className="lg:grid-cols-3"
             options={SANDBOX_RUNTIMES.map((value) => ({
               value,
@@ -191,11 +133,72 @@ export function SandboxSettingsForm({ initial, status }: { initial: SandboxSetti
         </FormSubsection>
       </FormSection>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={pending || invalid}>
-          {pending ? <Spinner /> : <SaveIcon />} {tc("save")}
-        </Button>
-      </div>
-    </form>
+      <FormSectionCollapsible
+        id="sandbox-advanced"
+        icon={SlidersHorizontalIcon}
+        title={t("advanced.title")}
+        summary={t("advanced.summary", {
+          pids: values.pids,
+          pause: values.pauseIdleMinutes,
+          stop: values.stopIdleHours,
+          days: values.workspaceRetentionDays,
+        })}
+        open={advancedOpen || advancedInvalid}
+        onOpenChange={setAdvancedOpen}
+      >
+        <FieldGroup>
+          <SettingsNumberField
+            id="sandbox-pids"
+            label={t("advanced.pids")}
+            hint={t("advanced.pidsHint", L.pids)}
+            value={values.pids}
+            onChange={(pids) => set({ pids })}
+            error={error("pids")}
+            {...L.pids}
+          />
+          <FieldSeparator />
+          <SettingsNumberField
+            id="sandbox-pause-idle"
+            label={t("advanced.pauseIdle")}
+            hint={t("advanced.pauseIdleHint", L.pauseIdleMinutes)}
+            unit={t("units.minutes")}
+            value={values.pauseIdleMinutes}
+            onChange={(pauseIdleMinutes) => set({ pauseIdleMinutes })}
+            error={error("pauseIdleMinutes")}
+            {...L.pauseIdleMinutes}
+          />
+          <FieldSeparator />
+          <SettingsNumberField
+            id="sandbox-stop-idle"
+            label={t("advanced.stopIdle")}
+            hint={t("advanced.stopIdleHint", L.stopIdleHours)}
+            unit={t("units.hours")}
+            value={values.stopIdleHours}
+            onChange={(stopIdleHours) => set({ stopIdleHours })}
+            error={error("stopIdleHours")}
+            {...L.stopIdleHours}
+          />
+          <FieldSeparator />
+          <SettingsNumberField
+            id="sandbox-retention"
+            label={t("advanced.retention")}
+            hint={t("advanced.retentionHint", L.workspaceRetentionDays)}
+            unit={t("units.days")}
+            value={values.workspaceRetentionDays}
+            onChange={(workspaceRetentionDays) => set({ workspaceRetentionDays })}
+            error={error("workspaceRetentionDays")}
+            {...L.workspaceRetentionDays}
+          />
+        </FieldGroup>
+      </FormSectionCollapsible>
+
+      <SettingsSaveBar
+        dirty={form.dirty}
+        invalid={form.invalid}
+        pending={form.pending}
+        onSave={form.save}
+        onReset={form.reset}
+      />
+    </div>
   );
 }

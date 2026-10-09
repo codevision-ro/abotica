@@ -1,5 +1,5 @@
 import "server-only";
-import { getSettings, NEVER_USED_DAYS, pinnedUsage, searchAllMemories, searchJournals } from "@abotica/core";
+import { getSettings, pinnedUsage, searchAllMemories, searchJournals } from "@abotica/core";
 import { agents, conversations, db, journals, memories, memoryOrigin, messages, projects } from "@abotica/db";
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "@abotica/db/orm";
 import { isDay } from "@/lib/day";
@@ -50,27 +50,28 @@ const memoryColumns = {
 };
 
 /**
- * Entries agents can read that no run has used since they were written `NEVER_USED_DAYS` ago, for manual
- * cleanup. Pinned entries are in every run's prompt, so they are left out.
+ * Entries agents can read that no run has used since they were written `days` ago (Settings > Memory),
+ * for manual cleanup. Pinned entries are in every run's prompt, so they are left out.
  */
-const neverUsed = () =>
+const neverUsed = (days: number) =>
   and(
     eq(memories.recallCount, 0),
     eq(memories.pinned, false),
-    lt(memories.createdAt, sql`now() - make_interval(days => ${NEVER_USED_DAYS})`),
+    lt(memories.createdAt, sql`now() - make_interval(days => ${days})`),
     or(isNull(memories.expiresAt), gt(memories.expiresAt, sql`now()`)),
   );
 
 export const getMemoryOptions = query(async () => {
-  const [agentRows, projectRows] = await Promise.all([
+  const [agentRows, projectRows, settings] = await Promise.all([
     db
       .select({ id: agents.id, name: agents.name, avatar: agents.avatar })
       .from(agents)
       .where(eq(agents.isTemplate, false))
       .orderBy(asc(agents.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
+    getSettings(),
   ]);
-  return { agents: agentRows, projects: projectRows };
+  return { agents: agentRows, projects: projectRows, unusedDays: settings.memory.unusedDays };
 });
 
 type MemoryOrigin = (typeof memoryOrigin.enumValues)[number];
@@ -82,12 +83,15 @@ const isMemoryOrigin = (value: string | undefined): value is MemoryOrigin =>
 /** `projectId` on the agent level that keeps only the agents' global memory (their craft), no project notes. */
 export const AGENT_GLOBAL_ONLY = "global";
 
+const MEMORY_PAGE_SIZE = 100;
+
 /**
- * Active entries of one level. Entries a newer one replaced are left out unless `history` asks for them
- * too; `neverUsed` keeps the current entries no run has used (see neverUsed). On the agent level
- * `projectId` keeps the agents' notes on that project, or their global memory (AGENT_GLOBAL_ONLY).
+ * One page of the active entries of one level, newest first. Entries a newer one replaced are left out
+ * unless `history` asks for them too; `neverUsed` keeps the current entries no run has used (see
+ * neverUsed). On the agent level `projectId` keeps the agents' notes on that project, or their global
+ * memory (AGENT_GLOBAL_ONLY).
  */
-export const listMemories = query(
+export const getMemoryPage = query(
   async (opts: {
     scope: MemoryScope;
     projectId?: string;
@@ -96,23 +100,34 @@ export const listMemories = query(
     pinned?: boolean;
     history?: boolean;
     neverUsed?: boolean;
+    page?: number;
   }) => {
+    const page = Math.max(1, opts.page ?? 1);
     const where: SQL[] = [eq(memories.scope, opts.scope), eq(memories.status, "active")];
     if (opts.scope !== "global" && isUuid(opts.projectId)) where.push(eq(memories.projectId, opts.projectId));
     if (opts.scope === "agent" && opts.projectId === AGENT_GLOBAL_ONLY) where.push(isNull(memories.projectId));
     if (opts.scope === "agent" && isUuid(opts.agentId)) where.push(eq(memories.agentId, opts.agentId));
     if (isMemoryOrigin(opts.origin)) where.push(eq(memories.origin, opts.origin));
     if (opts.pinned) where.push(eq(memories.pinned, true));
-    if (opts.neverUsed) where.push(neverUsed()!);
+    if (opts.neverUsed) where.push(neverUsed((await getSettings()).memory.unusedDays)!);
     if (!opts.history || opts.neverUsed) where.push(isNull(memories.invalidatedAt));
-    return db
-      .select(memoryColumns)
-      .from(memories)
-      .leftJoin(projects, eq(projects.id, memories.projectId))
-      .leftJoin(agents, eq(agents.id, memories.agentId))
-      .where(and(...where))
-      .orderBy(desc(memories.updatedAt))
-      .limit(500);
+    const [rows, [total]] = await Promise.all([
+      db
+        .select(memoryColumns)
+        .from(memories)
+        .leftJoin(projects, eq(projects.id, memories.projectId))
+        .leftJoin(agents, eq(agents.id, memories.agentId))
+        .where(and(...where))
+        .orderBy(desc(memories.updatedAt), desc(memories.id))
+        .limit(MEMORY_PAGE_SIZE)
+        .offset((page - 1) * MEMORY_PAGE_SIZE),
+      db
+        .select({ n: count() })
+        .from(memories)
+        .where(and(...where)),
+    ]);
+    const n = total?.n ?? 0;
+    return { rows, page, pageCount: Math.max(1, Math.ceil(n / MEMORY_PAGE_SIZE)), total: n };
   },
 );
 
@@ -330,5 +345,5 @@ export const listJournalSearchResults = query(async (search: string, agentId?: s
  * the owner's (none: global only).
  */
 export const getPinnedUsage = query(async (owner?: { agentId: string } | { projectId: string }) =>
-  pinnedUsage(owner ?? null, (await getSettings()).memoryPinnedTokens),
+  pinnedUsage(owner ?? null, (await getSettings()).memory.pinnedTokens),
 );

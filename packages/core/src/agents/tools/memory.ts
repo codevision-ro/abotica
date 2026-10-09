@@ -5,7 +5,7 @@ import { z } from "zod";
 import { audit } from "../../platform/audit";
 import { addKnowledgeItem, fetchPageText, searchKnowledge } from "../../memory/knowledge";
 import { deleteMemory, saveMemory, searchJournals, searchMemories, updateMemory } from "../../memory/memory";
-import { EPHEMERAL_DAYS, MEMORY_RETENTIONS } from "../../memory/memory-consolidation";
+import { MEMORY_RETENTIONS } from "../../memory/memory-consolidation";
 import { logMemoryRecalls } from "../../memory/memory-recall";
 import {
   MemorySecretError,
@@ -59,12 +59,14 @@ async function editableMemory(ctx: RunContext, id: string): Promise<Memory | { e
  */
 const writeOrigin = (ctx: RunContext): Memory["origin"] => (ctx.untrustedSeen ? "untrusted" : "agent");
 
-const retention = z
-  .enum(MEMORY_RETENTIONS)
-  .optional()
-  .describe(
-    `permanent: the user's lasting preferences; durable (default): decisions and knowledge valid for months; ephemeral: arrangements that change within weeks, forgotten after ${EPHEMERAL_DAYS} days.`,
-  );
+/** Built per run, since how long an ephemeral entry lasts is a setting (memory.ephemeralDays). */
+const retentionInput = (ctx: RunContext) =>
+  z
+    .enum(MEMORY_RETENTIONS)
+    .optional()
+    .describe(
+      `permanent: the user's lasting preferences; durable (default): decisions and knowledge valid for months; ephemeral: arrangements that change within weeks, forgotten after ${ctx.settings.memory.ephemeralDays} days.`,
+    );
 
 /** Asked of every write: memory is read days or months later. */
 const ABSOLUTE_DATES = 'Write dates as YYYY-MM-DD, never "today", "yesterday" or "next week": memory is read long after.';
@@ -169,7 +171,7 @@ export const memoryTools: Record<string, ToolFactory> = {
           content: z.string().min(3),
           scope: z.enum(MEMORY_LAYERS).optional(),
           projectId: optionalId().describe("The project of scope=mine or scope=team"),
-          retention,
+          retention: retentionInput(ctx),
         }),
       ),
       execute: async ({ content, scope = defaultMemoryLayer(ctx.projectId), projectId, retention }) => {
@@ -207,7 +209,7 @@ export const memoryTools: Record<string, ToolFactory> = {
               agentId: ctx.agent.id,
               source: "agent",
               origin: writeOrigin(ctx),
-              status: ctx.settings.memoryRequiresApproval ? "pending" : "active",
+              status: ctx.settings.memory.requiresApproval ? "pending" : "active",
               retention,
               runId: ctx.run.id,
             },
@@ -255,7 +257,7 @@ export const memoryTools: Record<string, ToolFactory> = {
       ]
         .filter(Boolean)
         .join(" "),
-      inputSchema: z.object({ memoryId: z.string().uuid(), content: z.string().min(3), retention }),
+      inputSchema: z.object({ memoryId: z.string().uuid(), content: z.string().min(3), retention: retentionInput(ctx) }),
       execute: async ({ memoryId, content, retention }) => {
         const memory = await editableMemory(ctx, memoryId);
         if ("error" in memory) return memory;
@@ -268,7 +270,7 @@ export const memoryTools: Record<string, ToolFactory> = {
             actor: actorOf(ctx),
             // Rewording an untrusted entry does not make it trusted.
             origin: memory.origin === "untrusted" ? "untrusted" : writeOrigin(ctx),
-            ...(ctx.settings.memoryRequiresApproval && { status: "pending" }),
+            ...(ctx.settings.memory.requiresApproval && { status: "pending" }),
             retention,
             agentId: ctx.agent.id,
             runId: ctx.run.id,

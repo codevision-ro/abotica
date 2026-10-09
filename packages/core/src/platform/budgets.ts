@@ -4,11 +4,11 @@ import { getTranslator } from "@abotica/i18n";
 import { costSince, dayBounds, startOfMonth } from "./costs";
 import { notify } from "../infra/queues";
 import { redis } from "../infra/redis";
-import { getSettings, settingsLocale } from "./settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 
 /**
  * A monthly budget with what was spent against it since the start of the month (settings timezone).
- * `global` is the one from Settings > General, across all projects; `project` a project's own.
+ * `global` is the one from Settings > Budget, across all projects; `project` a project's own.
  */
 export type MonthlyBudget =
   | { scope: "global"; budgetUsd: number; spentUsd: number }
@@ -18,7 +18,7 @@ type ProjectBudgetFields = { id: string; name: string; budgetUsd: number | null 
 
 /** Total cost of a project's runs this month, background "system" runs included. */
 export async function projectSpendThisMonth(projectId: string): Promise<number> {
-  const start = startOfMonth((await getSettings()).timezone);
+  const start = startOfMonth((await getSettings()).general.timezone);
   const [row] = await db
     .select({ total: sum(runs.costUsd) })
     .from(runs)
@@ -28,7 +28,7 @@ export async function projectSpendThisMonth(projectId: string): Promise<number> 
 
 /** This month's spend of every project that has a budget, in one query, by name. */
 export async function projectBudgetsThisMonth(): Promise<Extract<MonthlyBudget, { scope: "project" }>[]> {
-  const start = startOfMonth((await getSettings()).timezone);
+  const start = startOfMonth((await getSettings()).general.timezone);
   const rows = await db
     .select({ id: projects.id, name: projects.name, budgetUsd: projects.budgetUsd, spent: sum(runs.costUsd) })
     .from(projects)
@@ -47,9 +47,9 @@ export async function projectBudgetsThisMonth(): Promise<Extract<MonthlyBudget, 
 
 /** The global budget with this month's spend across all projects; null when none is set. */
 export async function globalBudgetThisMonth(): Promise<Extract<MonthlyBudget, { scope: "global" }> | null> {
-  const { monthlyBudgetUsd, timezone } = await getSettings();
-  if (monthlyBudgetUsd == null) return null;
-  return { scope: "global", budgetUsd: monthlyBudgetUsd, spentUsd: await costSince(startOfMonth(timezone)) };
+  const { budget, general } = await getSettings();
+  if (budget.monthlyUsd == null) return null;
+  return { scope: "global", budgetUsd: budget.monthlyUsd, spentUsd: await costSince(startOfMonth(general.timezone)) };
 }
 
 /** The monthly budgets that work in `project` counts against (null: work outside any project). */
@@ -91,18 +91,26 @@ export async function reachedBudget(projectId: string | null): Promise<MonthlyBu
   return tightest && tightest.remainingUsd <= 0 ? tightest.budget : null;
 }
 
-/** Percentages of a budget that send an alert, ascending. */
-export const BUDGET_ALERT_THRESHOLDS = [80, 100] as const;
-export type BudgetAlertThreshold = (typeof BUDGET_ALERT_THRESHOLDS)[number];
+/** Reaching the whole budget always alerts, whatever else is configured: runs stop there. */
+export const BUDGET_REACHED_PERCENT = 100;
+
+/** Percentages of a budget that send an alert, ascending: the warnings from Settings below 100, then 100. */
+export function budgetAlertThresholds(alertPercents: readonly number[]): number[] {
+  const warnings = [...new Set(alertPercents)].filter((p) => p > 0 && p < BUDGET_REACHED_PERCENT).sort((a, b) => a - b);
+  return [...warnings, BUDGET_REACHED_PERCENT];
+}
 
 /** Absorbs float error, so 1.16 counts as 80% of 1.45. */
 const EPSILON = 1e-9;
 
-/** The highest alert threshold the spend has crossed, null below the first. A budget of 0 sends no alerts. */
-export function crossedThreshold(spentUsd: number, budgetUsd: number): BudgetAlertThreshold | null {
+/**
+ * The highest of `thresholds` (ascending, see budgetAlertThresholds) the spend has crossed, null below the
+ * first. A budget of 0 sends no alerts.
+ */
+export function crossedThreshold(spentUsd: number, budgetUsd: number, thresholds: readonly number[]): number | null {
   if (budgetUsd <= 0) return null;
-  let crossed: BudgetAlertThreshold | null = null;
-  for (const threshold of BUDGET_ALERT_THRESHOLDS) {
+  let crossed: number | null = null;
+  for (const threshold of thresholds) {
     if (spentUsd * 100 >= budgetUsd * threshold - EPSILON) crossed = threshold;
   }
   return crossed;
@@ -115,7 +123,7 @@ export const monthKey = (timezone: string, date: Date = new Date()) => dayBounds
  * Redis key that marks an alert as sent: one per scope, month, threshold and budget value, so raising
  * the budget arms the alerts again.
  */
-export function budgetAlertKey(budget: MonthlyBudget, month: string, threshold: BudgetAlertThreshold): string {
+export function budgetAlertKey(budget: MonthlyBudget, month: string, threshold: number): string {
   const scope = budget.scope === "global" ? "global" : `project:${budget.projectId}`;
   return `abotica:budget-alert:${scope}:${month}:${threshold}:${budget.budgetUsd}`;
 }
@@ -126,23 +134,24 @@ const ALERT_TTL_SECONDS = 40 * 24 * 3600;
 const usd = (amount: number) => amount.toFixed(2);
 
 /**
- * Sends one notification when a budget's spend crosses 80% and one when it crosses 100%, once per
- * scope, month, threshold and budget value. Spend that jumps past both in one check sends only the
- * 100% one. Returns how many were sent.
+ * Sends one notification when a budget's spend crosses each warning percent of Settings and one when it
+ * reaches 100%, once per scope, month, threshold and budget value. Spend that jumps past several in one
+ * check sends only the highest. Returns how many were sent.
  */
 export async function sendBudgetAlerts(): Promise<number> {
   const settings = await getSettings();
   const t = getTranslator(settingsLocale(settings));
-  const month = monthKey(settings.timezone);
+  const month = monthKey(settings.general.timezone);
+  const thresholds = budgetAlertThresholds(settings.budget.alertPercents);
   const global = await globalBudgetThisMonth();
   const budgets: MonthlyBudget[] = [...(global ? [global] : []), ...(await projectBudgetsThisMonth())];
   let sent = 0;
   for (const budget of budgets) {
-    const threshold = crossedThreshold(budget.spentUsd, budget.budgetUsd);
+    const threshold = crossedThreshold(budget.spentUsd, budget.budgetUsd, thresholds);
     if (threshold === null) continue;
     const key = budgetAlertKey(budget, month, threshold);
     if ((await redis().set(key, "1", "EX", ALERT_TTL_SECONDS, "NX")) !== "OK") continue;
-    const kind = threshold === 100 ? "reached" : "warning";
+    const kind = threshold === BUDGET_REACHED_PERCENT ? "reached" : "warning";
     const values = { threshold, spent: usd(budget.spentUsd), budget: usd(budget.budgetUsd) };
     try {
       await notify(

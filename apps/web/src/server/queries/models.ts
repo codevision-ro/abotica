@@ -60,9 +60,9 @@ export const listModelRatings = query(async (): Promise<ModelRatings> => {
   ]);
 
   const configured: ModelRef[] = [
-    ...settings.defaultModels,
-    ...settings.orchestratorModels,
-    ...settings.managerModels,
+    ...settings.models.chains.agent,
+    ...settings.models.chains.orchestrator,
+    ...settings.models.chains.manager,
     ...agentRows.flatMap((a) => [
       ...(a.provider && a.model ? [{ provider: a.provider, model: a.model }] : []),
       ...a.fallbacks,

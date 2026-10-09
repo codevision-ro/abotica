@@ -97,8 +97,7 @@
       "title": "Limits",
       "description": "How long one command may run.",
       "commandTimeout": "Command timeout",
-      "commandTimeoutHint": "Seconds, from {min} to {max}.",
-      "seconds": "s"
+      "commandTimeoutHint": "Seconds, from {min} to {max}."
     },
     "docker": {
       "title": "Containers",
@@ -124,7 +123,24 @@
       },
       "gvisorMissing": "gVisor is not installed on this Docker host."
     },
-    "saved": "Sandbox settings saved. The worker checks them again."
+    "advanced": {
+      "title": "Advanced",
+      "summary": "{pids} processes, pause after {pause} min, stop after {stop} h, chat workspaces kept {days, plural, one {# day} other {# days}}",
+      "pids": "Processes",
+      "pidsHint": "Most processes per container, from {min} to {max}.",
+      "pauseIdle": "Pause when idle",
+      "pauseIdleHint": "Minutes without commands before a container is paused (its processes freeze), from {min} to {max}.",
+      "stopIdle": "Stop when idle",
+      "stopIdleHint": "Idle hours before a paused container is stopped, from {min} to {max}.",
+      "retention": "Keep chat workspaces",
+      "retentionHint": "Days a chat's unused workspace is kept before it is deleted with its files, from {min} to {max}."
+    },
+    "units": {
+      "seconds": "s",
+      "minutes": "min",
+      "hours": "h",
+      "days": "days"
+    }
   },
   "project": {
     "title": "Sandbox",

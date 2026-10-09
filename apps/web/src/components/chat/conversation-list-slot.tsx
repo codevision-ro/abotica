@@ -1,6 +1,6 @@
 import { ALL, NO_PROJECT } from "@/lib/conversation-filter";
 import { ConversationPanel } from "./conversation-list";
-import { listChatAgents, listChatProjects, listConversationProjects, listConversations } from "@/server/queries/chat";
+import { getConversationList, listChatAgents, listChatProjects, listConversationProjects } from "@/server/queries/chat";
 import { parseConversationFilter } from "@/lib/conversation-filter";
 
 /**
@@ -9,15 +9,17 @@ import { parseConversationFilter } from "@/lib/conversation-filter";
  */
 export async function ConversationListSlot({ project }: { project: string | string[] | undefined }) {
   const filter = parseConversationFilter(project);
-  const [rows, agents, projects, filterProjects] = await Promise.all([
-    listConversations(filter),
+  const [list, agents, projects, filterProjects] = await Promise.all([
+    getConversationList(filter),
     listChatAgents(),
     listChatProjects(),
     listConversationProjects(),
   ]);
   return (
     <ConversationPanel
-      conversations={rows}
+      // A new filter starts again from the first page.
+      key={!filter ? ALL : (filter.projectId ?? NO_PROJECT)}
+      list={list}
       agents={agents}
       projects={projects}
       filterProjects={filterProjects}

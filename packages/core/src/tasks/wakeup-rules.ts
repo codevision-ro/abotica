@@ -24,6 +24,8 @@ export const DEFAULT_MAX_FIRES = 20;
 export const MAX_FIRES_LIMIT = 100;
 /** Wake runs of one task in an hour; past them its wakeups pause (Multica's value). */
 export const MAX_WAKES_PER_HOUR = 12;
+/** The window MAX_WAKES_PER_HOUR counts in. */
+export const WAKE_RATE_WINDOW_MS = 3_600_000;
 /** Times a wakeup may appear in the chain behind it before it pauses as a loop: a third pass. */
 export const MAX_CHAIN_PASSES = 2;
 /** A delayed job may run a moment before its time by the clocks: a timer this close is due. */

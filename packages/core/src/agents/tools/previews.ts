@@ -3,7 +3,7 @@ import path from "node:path";
 import { collectBytes, runCommand, shellQuote } from "@abotica/sandbox";
 import { tool } from "ai";
 import { z } from "zod";
-import { PREVIEW_MAX_BYTES, readSnapshotTar, SnapshotTooLargeError } from "../../sandbox/preview-snapshot";
+import { PREVIEW_MAX_BYTES, PREVIEW_MAX_MB, readSnapshotTar, SnapshotTooLargeError } from "../../sandbox/preview-snapshot";
 import {
   createLivePreview,
   type Preview,
@@ -19,6 +19,8 @@ const NO_SANDBOX = { error: "The workspace is not available in this run." };
 /** Room above the content limit for the archive's own headers. */
 const ARCHIVE_SLACK = 8 * 1024 * 1024;
 const PORT_CHECK_MS = 3_000;
+
+const count = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
 
 /** Previews belong to the run's project, or else its conversation. */
 function ownerOf(ctx: RunContext): PreviewOwner | null {
@@ -56,8 +58,7 @@ function answers(host: string, port: number): Promise<boolean> {
 export const previewTools: Record<string, ToolFactory> = {
   preview_publish: (ctx) =>
     tool({
-      description:
-        "Publish a file or folder of your workspace as a preview: a copy served on its own address, which the user opens in a browser. Use it for HTML mockups, static sites, reports and documents (HTML, PDF, images). A folder is served with its index.html at the root (or a list of its files), and links between its files keep working. Publish again with previewId to update the same link after changes. Lasts 7 days. Give the user the link.",
+      description: `Publish a file or folder of your workspace as a preview: a copy served on its own address, which the user opens in a browser. Use it for HTML mockups, static sites, reports and documents (HTML, PDF, images). A folder is served with its index.html at the root (or a list of its files), and links between its files keep working. Publish again with previewId to update the same link after changes. Lasts ${count(ctx.settings.previews.staticDays, "day")}. Give the user the link.`,
       inputSchema: z.object({
         path: z.string().trim().min(1).describe("File or folder in your workspace, e.g. mockup/ or report.pdf."),
         title: z.string().trim().min(1).max(120).describe("What it is, as the user sees it."),
@@ -90,7 +91,7 @@ export const previewTools: Record<string, ToolFactory> = {
             collectBytes(proc.stderr, 4096),
             proc.wait(),
           ]);
-          if (archive.truncated) throw new SnapshotTooLargeError("The preview is larger than 50 MB.");
+          if (archive.truncated) throw new SnapshotTooLargeError(`The preview is larger than ${PREVIEW_MAX_MB} MB.`);
           if (status.exitCode !== 0) {
             return { error: new TextDecoder().decode(stderr.bytes).trim() || `Copying ${target} failed.` };
           }
@@ -125,8 +126,7 @@ export const previewTools: Record<string, ToolFactory> = {
 
   preview_open: (ctx) =>
     tool({
-      description:
-        "Give the user a link to an app you started in your workspace (a dev server, `php artisan serve`, `npm run dev`). Start the app first, in the background and listening on 0.0.0.0, not 127.0.0.1: `nohup php artisan serve --host=0.0.0.0 --port=8000 > serve.log 2>&1 &`. The link reaches that port while the app runs; it lasts 24 hours. The app sees the preview's host name: if it refuses unknown hosts (Vite), allow it (server.allowedHosts). Give the user the link.",
+      description: `Give the user a link to an app you started in your workspace (a dev server, \`php artisan serve\`, \`npm run dev\`). Start the app first, in the background and listening on 0.0.0.0, not 127.0.0.1: \`nohup php artisan serve --host=0.0.0.0 --port=8000 > serve.log 2>&1 &\`. The link reaches that port while the app runs; it lasts ${count(ctx.settings.previews.liveHours, "hour")}. The app sees the preview's host name: if it refuses unknown hosts (Vite), allow it (server.allowedHosts). Give the user the link.`,
       inputSchema: z.object({
         port: z.coerce.number().int().min(1).max(65_535),
         title: z.string().trim().min(1).max(120).describe("What it is, as the user sees it."),

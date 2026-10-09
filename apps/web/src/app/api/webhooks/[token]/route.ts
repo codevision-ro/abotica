@@ -12,7 +12,8 @@ import {
 import { getWebhookTrigger } from "@/server/queries/automations";
 import { getKillSwitchState } from "@/server/queries/settings";
 
-const MAX_BYTES = 1024 * 1024;
+const MAX_MB = 1;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 const json = (body: unknown, status: number, headers?: HeadersInit) => Response.json(body, { status, headers });
 
@@ -64,7 +65,7 @@ async function refused(trigger: Trigger, reason: string) {
 
 /** Counts the request against the trigger's run limit; the 429 response when it is over. */
 async function overRunLimit(trigger: Trigger): Promise<Response | null> {
-  const rate = await takeWebhookRequest(trigger.id);
+  const rate = await takeWebhookRequest(trigger);
   if (rate.allowed) return null;
   if (rate.firstRefusal) await refused(trigger, "rate-limited");
   return tooMany(rate);
@@ -88,7 +89,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/webhooks/[token
   }
 
   const raw = await readBody(req);
-  if (raw === null) return json({ error: "Payload too large (max 1 MB)" }, 413);
+  if (raw === null) return json({ error: `Payload too large (max ${MAX_MB} MB)` }, 413);
 
   const verification = await verifyWebhookRequest(trigger, req.headers, raw);
   if (!verification.ok) {

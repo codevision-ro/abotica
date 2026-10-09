@@ -16,6 +16,7 @@ import { and, desc, eq, gt, inArray, lte, type SQL } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
 import { env } from "../infra/env";
+import { getSettings, type PreviewSettings } from "../settings/settings";
 import type { SnapshotFile } from "./preview-snapshot";
 import { redis } from "../infra/redis";
 import { resolveUpload } from "../files/uploads";
@@ -23,16 +24,20 @@ import { resolveUpload } from "../files/uploads";
 export type Preview = typeof previews.$inferSelect;
 export type PreviewKind = Preview["kind"];
 
-/** How long a preview lives, renewed by "extend" and, for a static one, by publishing it again. */
-export const PREVIEW_TTL_MS: Record<PreviewKind, number> = {
-  live: 24 * 3600_000,
-  static: 7 * 24 * 3600_000,
-};
+const HOUR_MS = 3600_000;
+
+/**
+ * How long a preview lives (Settings > Previews), renewed by "extend" and, for a static one, by
+ * publishing it again. A change applies from the next renewal; links already open keep their expiry.
+ */
+export function previewTtlMs(kind: PreviewKind, settings: PreviewSettings): number {
+  return kind === "live" ? settings.liveHours * HOUR_MS : settings.staticDays * 24 * HOUR_MS;
+}
 
 const PREVIEWS_DIR = "previews";
 const TICKET_TTL_MS = 60_000;
 /** A cookie lasts as long as its preview, at most this long, then the visitor goes through the app again. */
-const COOKIE_MAX_MS = 24 * 3600_000;
+const COOKIE_MAX_MS = 24 * HOUR_MS;
 const TICKET_USED_KEY = "abotica:preview:ticket:";
 const HOST_RE = /^[a-z2-7]{26}$/;
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
@@ -98,7 +103,7 @@ const ownerColumns = (owner: PreviewOwner) => ({
 const ownerCondition = (owner: PreviewOwner): SQL =>
   "projectId" in owner ? eq(previews.projectId, owner.projectId) : eq(previews.conversationId, owner.conversationId);
 
-const expiry = (kind: PreviewKind, now = Date.now()) => new Date(now + PREVIEW_TTL_MS[kind]);
+const expiry = async (kind: PreviewKind) => new Date(Date.now() + previewTtlMs(kind, (await getSettings()).previews));
 
 type CreatedBy = { agentId: string | null; runId: string | null };
 
@@ -116,7 +121,7 @@ export async function createLivePreview(
       workspaceKey: input.workspaceKey,
       port: input.port,
       public: input.public,
-      expiresAt: expiry("live"),
+      expiresAt: await expiry("live"),
       agentId: input.agentId,
       runId: input.runId,
     })
@@ -171,7 +176,7 @@ export async function publishStaticPreview(
     await writeCopy(existing.id, input.files);
     const [row] = await db
       .update(previews)
-      .set({ title: input.title, entry: input.entry, public: input.public, expiresAt: expiry("static") })
+      .set({ title: input.title, entry: input.entry, public: input.public, expiresAt: await expiry("static") })
       .where(eq(previews.id, existing.id))
       .returning();
     await auditPreview("preview.updated", row!, input.agentId);
@@ -187,7 +192,7 @@ export async function publishStaticPreview(
       workspaceKey: input.workspaceKey,
       entry: input.entry,
       public: input.public,
-      expiresAt: expiry("static"),
+      expiresAt: await expiry("static"),
       agentId: input.agentId,
       runId: input.runId,
     })
@@ -254,7 +259,7 @@ export async function extendPreview(id: string): Promise<Preview> {
   const preview = await activePreview(id);
   const [row] = await db
     .update(previews)
-    .set({ expiresAt: expiry(preview.kind) })
+    .set({ expiresAt: await expiry(preview.kind) })
     .where(eq(previews.id, id))
     .returning();
   return row!;

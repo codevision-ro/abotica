@@ -21,7 +21,7 @@ pnpm logs:worker     # the worker's output
 
 The worker runs in Docker because the sandbox needs it on the sandbox network; its source is mounted and reloads on change. After changing any `package.json` (dependencies or a package's exports), run `pnpm infra:up` again to rebuild its image.
 
-Agent runs need at least one connected provider (Settings > AI providers; keys are not read from `.env`). Telegram is optional: without a bot token (Settings > Telegram) the worker runs without the bot.
+Agent runs need at least one connected provider (Settings > Models; keys are not read from `.env`). Telegram is optional: without a bot token (Settings > Telegram) the worker runs without the bot.
 
 ## Project layout
 

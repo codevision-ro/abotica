@@ -15,7 +15,7 @@ export const getAutomationOptions = query(async () => {
     db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
     getSettings(),
   ]);
-  return { agents: agentRows, projects: projectRows, timezone: settings.timezone };
+  return { agents: agentRows, projects: projectRows, timezone: settings.general.timezone };
 });
 
 /** Natural order in the current language, so "schedule 2" comes before "schedule 10". */
@@ -61,6 +61,7 @@ export const listTriggers = query(async () => {
       signed: sql<boolean>`${triggers.signingSecret} is not null`,
       prompt: triggers.prompt,
       enabled: triggers.enabled,
+      rateLimitPerMinute: triggers.rateLimitPerMinute,
       agentId: triggers.agentId,
       projectId: triggers.projectId,
       agentName: agents.name,

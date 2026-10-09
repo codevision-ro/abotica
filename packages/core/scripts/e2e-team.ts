@@ -198,9 +198,9 @@ try {
     recallMemories(`Secret of the other project: ${MARKER}`, {
       agentId: specialist.id,
       projectId,
-      budgetTokens: settings.memoryRecallTokens,
+      budgetTokens: settings.memory.recallTokens,
     });
-  const seen = await pinnedMemories({ agentId: specialist.id, projectId: project.id }, settings.memoryPinnedTokens);
+  const seen = await pinnedMemories({ agentId: specialist.id, projectId: project.id }, settings.memory.pinnedTokens);
   const recalled = await recallIn(project.id);
   const searched = await searchMemories(MARKER, { agentId: specialist.id, projectId: project.id });
   const journal = await recentJournals(specialist.id, project.id, 30);

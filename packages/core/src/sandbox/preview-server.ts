@@ -37,7 +37,7 @@ import {
 } from "./previews";
 import { touchWorkspace } from "./sandbox";
 import { currentSandboxBackend } from "./sandbox-runtime";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 
 const AUTH_PATH = "/__abotica/auth";
 const TLS_PATH = "/__abotica/tls";

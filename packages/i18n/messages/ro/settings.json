@@ -1,36 +1,67 @@
 {
   "meta": {
-    "providers": "Provideri AI",
     "general": "Setări generale",
-    "vault": "Vault",
-    "security": "Securitate",
-    "audit": "Jurnal audit",
-    "telegram": "Telegram",
+    "models": "Modele",
+    "agents": "Setări agenți",
+    "memory": "Setări memorie",
     "sandbox": "Sandbox",
-    "updates": "Actualizări"
+    "previews": "Preview-uri",
+    "telegram": "Telegram",
+    "reports": "Rapoarte",
+    "security": "Securitate",
+    "secrets": "Secrete",
+    "budget": "Buget",
+    "system": "Sistem",
+    "audit": "Jurnal audit"
   },
   "layout": {
     "title": "Setări",
-    "description": "Provideri AI, preferințe, secrete, securitate și integrări."
+    "description": "Spațiu de lucru, AI, execuție, notificări, cont și sistem."
   },
   "nav": {
     "label": "Setări",
-    "providers": "Provideri AI",
+    "groups": {
+      "workspace": "Spațiu de lucru",
+      "ai": "AI",
+      "execution": "Execuție",
+      "notifications": "Notificări",
+      "account": "Cont",
+      "system": "Sistem"
+    },
     "general": "General",
-    "vault": "Vault",
-    "security": "Securitate",
-    "audit": "Jurnal audit",
+    "models": "Modele",
+    "agents": "Agenți",
+    "memory": "Memorie",
+    "sandbox": "Sandbox",
+    "previews": "Preview-uri",
     "telegram": "Telegram",
-    "updates": "Actualizări",
-    "sandbox": "Sandbox"
+    "reports": "Rapoarte",
+    "security": "Securitate",
+    "secrets": "Secrete",
+    "budget": "Buget",
+    "system": "Sistem",
+    "audit": "Jurnal audit",
+    "keywords": {
+      "general": "limbă fus orar",
+      "models": "provideri chei API plan Ollama modele implicite evaluări catalog",
+      "agents": "instrucțiuni delegare limite pași timp",
+      "memory": "embeddings reamintire jurnal aprobare",
+      "sandbox": "Docker containere rețea pachete",
+      "previews": "linkuri expirare",
+      "telegram": "bot notificări",
+      "reports": "rezumat zilnic săptămânal",
+      "security": "parolă autentificare în doi pași sesiuni",
+      "secrets": "vault chei tokeni",
+      "budget": "cheltuieli limită alerte costuri",
+      "system": "actualizări versiune rulări simultane",
+      "audit": "jurnal istoric"
+    }
   },
   "secretInput": {
     "show": "Arată valoarea",
     "hide": "Ascunde valoarea"
   },
   "providers": {
-    "title": "Provideri AI",
-    "description": "Conectează providerii pe care rulează agenții. Cheile se salvează criptat în vault și se setează doar de aici.",
     "catalogTitle": "Catalog de modele",
     "catalogDescription": "Modelele și prețurile vin de la models.dev (cache 24h), iar modelele Ollama de la serverul local.",
     "refresh": "Reîmprospătează catalogul de modele",
@@ -48,8 +79,8 @@
     "ollamaEmpty": "Niciun model găsit la această adresă. Pornește Ollama, descarcă un model (ollama pull) și reîmprospătează catalogul.",
     "replaceKey": "Înlocuiește cheia",
     "apiKey": "Cheie API",
-    "storedEncrypted": "Se salvează criptat în vault. Nu mai este afișată după salvare.",
-    "keySaved": "Cheia {provider} a fost salvată în vault",
+    "storedEncrypted": "Se salvează criptat în Secrete. Nu mai este afișată după salvare.",
+    "keySaved": "Cheia {provider} a fost salvată în Secrete",
     "keyRemoved": "Cheia {provider} a fost ștearsă",
     "testOk": "Răspuns în <num>{ms} ms</num> de la <mono>{model}</mono>",
     "testModel": "Modelul folosit la test: {model}",
@@ -115,7 +146,7 @@
       "ready": "Gata de folosit",
       "localLoading": "Workerul încarcă modelul integrat (se descarcă o singură dată, aproximativ 280 MB). Până e gata, căutarea găsește după cuvinte cheie.",
       "localFailed": "Workerul nu a putut încărca modelul integrat. Încearcă din nou la următorul embedding; verifică logurile workerului dacă problema rămâne.",
-      "noOpenaiKey": "Adaugă o cheie API OpenAI la Provideri AI: planul ChatGPT nu acoperă embeddings.",
+      "noOpenaiKey": "Adaugă o cheie API OpenAI în Setări > Modele: planul ChatGPT nu acoperă embeddings.",
       "ollamaUnreachable": "Ollama nu răspunde la <mono>{url}</mono>. Pornește-l sau schimbă adresa din cardul providerului Ollama.",
       "ollamaModelMissing": "Ollama răspunde, dar lipsește modelul de embeddings. Descarcă-l o dată: <mono>ollama pull nomic-embed-text</mono>"
     },
@@ -147,12 +178,10 @@
     "sameAsAgents": "La fel ca specialiștii",
     "chooseModels": "Alege modele",
     "useAgents": "Folosește modelele specialiștilor",
-    "addModel": "Adaugă model",
-    "pickModelEachRow": "Alege un model pe fiecare rând",
-    "saved": "Modelele implicite au fost salvate"
+    "addModel": "Adaugă model"
   },
   "modelRatings": {
-    "title": "Modele",
+    "title": "Evaluarea modelelor",
     "description": "Consumul vine din prețul de pe models.dev, performanța din rulările tale din ultimele {days} de zile.",
     "showAll": "Arată toate",
     "empty": "Niciun model nu e folosit încă. Cu Arată toate vezi toate modelele disponibile.",
@@ -175,43 +204,104 @@
   },
   "general": {
     "title": "General",
-    "description": "Limba, instrucțiunile pentru toți agenții, comportamentul agenților, digest-ul și bugetul.",
+    "description": "Limba și fusul orar.",
+    "timezoneTitle": "Fus orar",
+    "timezoneDescription": "Programările, rapoartele, bugetele lunare și toate datele afișate îl urmează.",
+    "timezoneSearch": "Caută un fus orar",
+    "timezoneEmpty": "Niciun fus orar găsit"
+  },
+  "models": {
+    "title": "Modele",
+    "description": "Conectează providerii pe care rulează agenții, alege modelele implicite pe rol și vezi cum se descurcă fiecare model. Cheile se salvează criptat în Secrete și se setează doar de aici.",
+    "baseUrlsDescription": "Adresa la care se apelează API-ul fiecărui provider. Schimb-o doar pentru un proxy, un endpoint regional sau un gateway compatibil.",
+    "baseUrlHint": "Gol: adresa providerului.",
+    "baseUrlsDefault": "Adresele providerilor: cele proprii",
+    "baseUrlsCustom": "Adresă proprie: {providers}"
+  },
+  "agents": {
+    "title": "Agenți",
+    "description": "Ce li se spune tuturor agenților, câtă muncă rulează deodată și limitele cu care pornește un agent nou.",
     "instructionsTitle": "Instrucțiuni pentru toți agenții",
     "instructionsDescription": "Intră în promptul de sistem al fiecărui agent: super agentul, managerii de proiect și specialiștii. Spune cine ești, ce ton vrei și regulile care se aplică mereu. Gol: nu se adaugă nimic.",
     "instructionsPlaceholder": "Ex: Conduc o mică agenție web. Răspunde scurt și la obiect. Nu șterge niciodată date fără să mă întrebi.",
     "instructionsFooter": "Promptul de sistem al fiecărui agent",
     "instructionsLength": "{count, number} / {max, number}",
-    "agentsTitle": "Agenți",
-    "agentsDescription": "Cât din jurnal și din memorie citesc agenții, dacă amintirile lor au nevoie de aprobarea ta și câtă muncă rulează în același timp.",
-    "digestTitle": "Digest și fus orar",
-    "digestDescription": "Când pleacă rezumatul zilnic și după ce oră se ghidează programările.",
-    "budgetTitle": "Buget",
-    "journalDays": "Zile de jurnal în context",
-    "journalDaysHint": "Câte zile din jurnalul propriu citește un agent la începutul fiecărei rulări (1-30, propunere 3-7).",
+    "delegationTitle": "Delegare",
+    "delegationDescription": "Task-urile pe care un agent le dă altora dintr-o conversație.",
     "parallelDelegations": "Task-uri delegate în paralel",
-    "parallelDelegationsHint": "Câte task-uri delegate din aceeași conversație rulează în același timp (1-10); celelalte așteaptă și pornesc singure pe măsură ce acestea se termină. Ține valoarea mică pe un plan cu limită de utilizare.",
-    "runConcurrency": "Rulări de agenți în același timp",
-    "runConcurrencyHint": "Câte rulări de agenți execută worker-ul deodată (1-{max}); celelalte își așteaptă rândul în coadă. Se aplică imediat, fără repornire.",
-    "memoryApproval": "Memoria scrisă de agenți necesită aprobare",
-    "memoryApprovalHint": "Amintirile salvate de agenți rămân în așteptare până le aprobi din pagina Memorie.",
-    "memoryPinnedTokens": "Buget pentru memoria fixată (tokeni)",
-    "memoryPinnedTokensHint": "Intrările fixate intră în instrucțiunile fiecărei rulări până la această mărime, cele mai noi primele. Cât timp încape toată memoria pe care o poate citi un agent, intră toată, fixată sau nu. Aproximativ 4 caractere pe token.",
-    "memoryRecallTokens": "Buget pentru memoria reamintită (tokeni)",
-    "memoryRecallTokensHint": "La fiecare mesaj nou, intrările nefixate cele mai relevante se adaugă la mesaj până la această mărime. 0 oprește reamintirea.",
-    "digestHour": "Ora digest-ului zilnic",
-    "digestHourHint": "Rezumatul zilei trimis pe Telegram.",
-    "timezone": "Fus orar",
-    "timezoneHint": "Folosit pentru digest, jurnale și programări fără fus orar propriu.",
-    "budget": "Buget lunar global (USD)",
-    "budgetHint": "Cheltuiala totală pe toate proiectele, inclusiv joburile de fundal. Primești un avertisment pe Telegram la 80%; când este atins, rulările se opresc și altele noi nu mai pornesc până luna viitoare. Gol înseamnă fără limită.",
-    "budgetPlaceholder": "ex: 50",
-    "saved": "Setări salvate"
+    "parallelDelegationsHint": "Câte task-uri delegate din aceeași conversație rulează în același timp ({min}-{max}); celelalte așteaptă și pornesc singure pe măsură ce acestea se termină. Ține valoarea mică pe un plan cu limită de utilizare.",
+    "limitsTitle": "Limite pentru agenții noi",
+    "limitsDescription": "Cu ce pornește un agent nou; fiecare agent își poate schimba limitele. Agenții existenți le păstrează pe ale lor.",
+    "maxSteps": "Pași pe rulare",
+    "maxStepsHint": "Câți pași (un apel de model și uneltele pe care le folosește) poate face o rulare înainte să se oprească.",
+    "timeout": "Timp pe rulare",
+    "timeoutHint": "O rulare care durează mai mult de atât este oprită.",
+    "minutesUnit": "min",
+    "budget": "Buget pe rulare",
+    "budgetHint": "Cheltuiala după care o rulare se oprește. Gol: fără limită pe rulare.",
+    "noLimit": "Fără limită",
+    "advancedSummary": "Redelegări: {redelegations}, runde de corecturi: {fixRounds}",
+    "maxRedelegations": "Redelegări pe task",
+    "maxRedelegationsHint": "De câte ori un task delegat poate fi trimis înapoi spre refacere înainte să decizi tu.",
+    "maxFixRounds": "Runde de corecturi pe pull request",
+    "maxFixRoundsHint": "Rundele automate de corecturi pe care le primește un pull request pentru verificări eșuate sau comentarii de review."
   },
-  "vault": {
-    "title": "Vault",
-    "description": "Secrete criptate: chei API, tokenuri pentru MCP. Valorile nu sunt afișate niciodată.",
+  "memory": {
+    "title": "Memorie",
+    "description": "Cine creează embeddings-urile memoriei, cât din ea intră în fiecare rulare și cât timp rămâne.",
+    "contextTitle": "În fiecare rulare",
+    "contextDescription": "Câtă memorie și cât jurnal citește un agent.",
+    "pinnedTokens": "Memorie fixată",
+    "pinnedTokensHint": "Intrările fixate intră în instrucțiunile fiecărei rulări până la această mărime, cele mai noi primele. Cât timp încape toată memoria pe care o poate citi un agent, intră toată, fixată sau nu. Aproximativ 4 caractere pe token.",
+    "recallTokens": "Memorie reamintită",
+    "recallTokensHint": "La fiecare mesaj nou, intrările nefixate cele mai relevante se adaugă la mesaj până la această mărime. 0 oprește reamintirea.",
+    "tokensUnit": "tokeni",
+    "journalDays": "Zile de jurnal",
+    "journalDaysHint": "Câte zile din jurnalul propriu citește un agent la începutul fiecărei rulări (propunere 3-7).",
+    "daysUnit": "zile",
+    "approvalTitle": "Aprobare",
+    "approvalDescription": "Dacă ce rețin agenții singuri are nevoie de verificarea ta.",
+    "requiresApproval": "Memoria scrisă de agenți necesită aprobare",
+    "requiresApprovalHint": "Amintirile salvate de agenți rămân în așteptare până le aprobi din pagina Memorie.",
+    "advancedSummary": "Efemeră: {ephemeral} zile, nefolosită: {unused} zile",
+    "ephemeralDays": "Durata memoriei efemere",
+    "ephemeralDaysHint": "Zilele după care expiră o amintire salvată ca efemeră.",
+    "unusedDays": "Curățarea memoriei nefolosite",
+    "unusedDaysHint": "Zilele fără nicio reamintire după care consolidarea propune o amintire pentru curățare."
+  },
+  "budget": {
+    "title": "Buget",
+    "description": "O limită lunară a cheltuielilor pe toate proiectele și avertismentele dinaintea ei.",
+    "monthlyTitle": "Buget lunar",
+    "monthlyDescription": "Cheltuiala totală pe toate proiectele, inclusiv joburile de fundal.",
+    "monthly": "Limită pe lună",
+    "monthlyHint": "Când este atinsă, rulările se opresc și altele noi nu mai pornesc până luna viitoare. Gol: fără limită.",
+    "noLimit": "Fără limită",
+    "costsLink": "Cheltuielile de până acum, pe proiect și pe agent, sunt în pagina <link>Costuri</link>.",
+    "alertsTitle": "Alerte",
+    "alertsDescription": "Un avertisment pe Telegram când cheltuiala atinge o parte dintr-un buget.",
+    "removeAlert": "Elimină alerta de {percent}%",
+    "newAlert": "Procent pentru o alertă nouă",
+    "newAlertPlaceholder": "ex: 50",
+    "addAlert": "Adaugă",
+    "alertsHint": "Între {min}% și {max}%, cel mult {count}.",
+    "alertsNone": "Niciun avertisment înainte de limită.",
+    "alertsStop": "La 100% rulările se opresc mereu și primești un avertisment."
+  },
+  "system": {
+    "title": "Sistem",
+    "description": "Câtă muncă execută worker-ul deodată, versiunea care rulează aici și actualizările ei.",
+    "runsTitle": "Rulări de agenți",
+    "runsDescription": "Munca pe care worker-ul o execută în același timp.",
+    "runConcurrency": "Rulări în același timp",
+    "runConcurrencyHint": "Câte rulări de agenți execută worker-ul deodată; celelalte își așteaptă rândul în coadă. Se aplică imediat, fără repornire.",
+    "updateChecks": "Caută versiuni noi"
+  },
+  "secrets": {
+    "title": "Secrete",
+    "description": "Chei API și tokenuri criptate, cu locul unde e folosit fiecare. Valorile nu sunt afișate niciodată.",
     "add": "Adaugă secret",
-    "empty": "Vault-ul este gol. Adaugă tokenuri și chei pe care le pot folosi serverele MCP prin <mono>{ref}</mono>.",
+    "empty": "Niciun secret încă. Adaugă tokenuri și chei pe care le pot folosi serverele MCP prin <mono>{ref}</mono>.",
     "actionsAria": "Acțiuni pentru {name}",
     "replace": "Înlocuiește valoarea",
     "refName": "NUME",
@@ -232,7 +322,13 @@
     "nameHint": "Referință în MCP: {ref}",
     "value": "Valoare",
     "descriptionPlaceholder": "Token GitHub cu acces read-only",
-    "globalOption": "Global (toate proiectele)"
+    "globalOption": "Global (toate proiectele)",
+    "use": {
+      "project": "Secret al proiectului {project}: deschide secretele lui",
+      "provider": "Cheia API pentru {provider}, se setează și din Setări > Modele",
+      "telegram": "Tokenul botului Telegram, se setează și din Setări > Telegram",
+      "telegramLabel": "Bot Telegram"
+    }
   },
   "security": {
     "title": "Securitate",
@@ -304,7 +400,12 @@
     "revoke": "Închide",
     "sessionsLoadFailed": "Sesiunile nu au putut fi încărcate",
     "revokeFailed": "Sesiunea nu a putut fi închisă",
-    "revoked": "Sesiune închisă"
+    "revoked": "Sesiune închisă",
+    "sessionLengthTitle": "Durata sesiunii",
+    "sessionLengthDescription": "Un dispozitiv pe care nu îl folosești este deconectat după acest timp.",
+    "sessionDays": "Expiră după",
+    "sessionDaysHint": "Zile fără activitate, de la {min} la {max}.",
+    "days": "zile"
   },
   "audit": {
     "title": "Jurnal audit",
@@ -439,6 +540,43 @@
       "updatesChecked": "Verificare actualizări",
       "webhookReceived": "Webhook primit",
       "webhookRefused": "Webhook refuzat"
+    },
+    "domains": {
+      "general": "General",
+      "models": "Modele",
+      "agents": "Agenți",
+      "memory": "Memorie",
+      "sandbox": "Sandbox",
+      "previews": "Preview-uri",
+      "telegram": "Telegram",
+      "reports": "Rapoarte",
+      "budget": "Buget",
+      "security": "Securitate",
+      "system": "Sistem"
+    },
+    "changes": {
+      "none": "nimic",
+      "on": "pornit",
+      "off": "oprit",
+      "empty": "gol",
+      "to": "schimbat în",
+      "length": "text de {from} caractere schimbat în unul de {to} caractere"
+    }
+  },
+  "previews": {
+    "title": "Preview-uri",
+    "description": "Linkuri către ce publică agenții: o aplicație pornită de ei sau o copie a unor fișiere.",
+    "links": {
+      "title": "Durata linkurilor",
+      "description": "Pentru linkurile noi și cele prelungite; linkurile deschise își păstrează data de expirare.",
+      "liveHours": "Aplicație live",
+      "liveHoursHint": "Ore în care un link către o aplicație pornită rămâne deschis, de la {min} la {max}.",
+      "staticDays": "Fișiere",
+      "staticDaysHint": "Zile în care un link către o copie a unor fișiere rămâne deschis, de la {min} la {max}."
+    },
+    "units": {
+      "hours": "h",
+      "days": "zile"
     }
   },
   "telegram": {
@@ -448,8 +586,8 @@
     "botDescription": "Tokenul primit de la @BotFather. La salvare botul repornește, fără să repornești worker-ul.",
     "token": "Token bot",
     "replaceToken": "Înlocuiește tokenul",
-    "tokenHint": "Este verificat la Telegram când salvezi. Se salvează criptat în vault, ca <mono>TELEGRAM_BOT_TOKEN</mono>.",
-    "tokenStored": "Salvat criptat în vault, actualizat <time></time>. Nu mai este afișat.",
+    "tokenHint": "Este verificat la Telegram când salvezi. Se salvează criptat în Secrete, ca <mono>TELEGRAM_BOT_TOKEN</mono>.",
+    "tokenStored": "Salvat criptat în Secrete, actualizat <time></time>. Nu mai este afișat.",
     "removeToken": "Șterge tokenul",
     "removeTitle": "Ștergi tokenul botului?",
     "removeDescription": "Botul se oprește imediat: nu mai primești mesaje și notificări pe Telegram până nu salvezi din nou un token.",
@@ -470,14 +608,11 @@
     "allowedUsersHint": "ID-uri numerice de utilizator Telegram, separate prin virgulă. Ca să-l afli pe al tău, scrie-i lui <mono>@userinfobot</mono>.",
     "notifyChat": "Chat pentru notificări",
     "notifyChatHint": "ID-ul unui utilizator sau al unui grup (negativ, de ex. -1001234567890). Gol, notificările merg la primul utilizator permis.",
-    "saveAndConnect": "Salvează și conectează",
     "saved": "Setările Telegram au fost salvate",
     "savedConnected": "Salvat. Botul @{username} pornește în câteva secunde.",
+    "commandsTitle": "Comenzi",
+    "commandsDescription": "Setate de bot la fiecare pornire: scrie / în chat ca să le vezi.",
     "secretDescription": "Tokenul botului Telegram, setat în Setări > Telegram",
-    "validation": {
-      "userIds": "ID-urile de utilizator sunt numere întregi pozitive, separate prin virgulă",
-      "chatId": "ID-ul unui chat este un număr întreg, negativ pentru un grup"
-    },
     "errors": {
       "tokenFormat": "Nu pare un token de bot. Copiază tot tokenul de la @BotFather, de forma 123456789:AA...",
       "tokenRefused": "Telegram a refuzat tokenul. Verifică dacă l-ai copiat întreg sau creează unul nou cu @BotFather.",
@@ -494,16 +629,32 @@
     },
     "setupTitle": "Configurare",
     "step1": "Deschide <mono>@BotFather</mono> în Telegram, trimite <mono>/newbot</mono> și lipește tokenul primit în câmpul Token bot de mai sus.",
-    "step2": "Salvează. Botul pornește în câteva secunde, iar comenzile lui ({commands}) sunt setate automat, nu e nevoie de <mono>/setcommands</mono>.",
+    "step2": "Salvează. Botul pornește în câteva secunde, iar comenzile lui (lista de mai sus) sunt setate automat, nu e nevoie de <mono>/setcommands</mono>.",
     "step3": "Adaugă ID-ul tău de utilizator Telegram la Utilizatori permiși. Ca să-l afli, scrie-i lui <mono>@userinfobot</mono> sau trimite un mesaj botului în privat: cât timp nu ești în listă, îți răspunde cu ID-ul tău.",
     "step4": "Opțional, pentru notificări într-un grup: pune ID-ul grupului la Chat pentru notificări. Dacă îl lași gol, notificările vin în chatul privat cu primul utilizator permis.",
     "step5": "Pentru un topic per proiect: creează un grup cu Topics (forum) activat, adaugă botul ca administrator, pune ID-ul grupului la Chat pentru notificări, creează câte un topic pentru fiecare proiect și salvează ID-ul topic-ului (message_thread_id, ultimul număr din linkul unui mesaj din topic) în setările proiectului.",
     "transcriptionTitle": "Transcriere",
     "transcriptionDescription": "Mesajele vocale sunt transcrise cu OpenAI, deci au nevoie de cheia OpenAI."
   },
+  "reports": {
+    "title": "Rapoarte",
+    "description": "Rezumate pe Telegram. Orele sunt în fusul orar <zone>{timezone}</zone>, setat în <link>General</link>.",
+    "daily": {
+      "title": "Raport zilnic",
+      "description": "Jurnalele zilei, costurile, task-urile terminate și ce te așteaptă.",
+      "enabled": "Trimite în fiecare zi",
+      "enabledHint": "Când e oprit, nu se trimite niciun raport zilnic."
+    },
+    "weekly": {
+      "title": "Raport săptămânal",
+      "description": "Același rezumat pentru ultimele șapte zile.",
+      "enabled": "Trimite în fiecare săptămână",
+      "enabledHint": "Când e oprit, nu se trimite niciun raport săptămânal."
+    },
+    "weekday": "Ziua",
+    "hour": "Ora"
+  },
   "updates": {
-    "title": "Actualizări",
-    "description": "Versiunea care rulează aici, ce e nou și cum actualizezi.",
     "checkNow": "Verifică acum",
     "result": {
       "available": "Abotica {version} e disponibilă",
@@ -546,9 +697,7 @@
     "activeRuns": "{count, plural, one {O rulare este} few {# rulări sunt} other {# de rulări sunt}} în desfășurare: actualizarea oprește ce nu s-a terminat și salvează ce s-a făcut până atunci.",
     "autoTitle": "Verificare automată",
     "autoDescription": "Caută versiuni noi la câteva ore; primești și o notificare pe Telegram.",
-    "autoNote": "Fiecare verificare este o cerere către API-ul GitHub.",
-    "autoOn": "Verificarea automată este pornită",
-    "autoOff": "Verificarea automată este oprită"
+    "autoNote": "Fiecare verificare este o cerere către API-ul GitHub."
   },
   "errors": {
     "noApiKey": "Acest provider nu folosește cheie API",
@@ -560,25 +709,78 @@
     "subscriptionExpired": "Autentificarea a expirat sau a fost deja folosită. Pornește-o din nou.",
     "subscriptionDenied": "Autentificarea a fost anulată.",
     "subscriptionNotGranted": "Te-ai autentificat fără să permiți Abotica să folosească planul. Continuă din nou și permite folosirea planului.",
-    "subscriptionFailed": "Autentificarea a eșuat: {error}"
+    "subscriptionFailed": "Autentificarea a eșuat: {error}",
+    "ownAction": "Această setare se salvează din formularul ei."
   },
   "validation": {
     "keyTooShort": "Cheia pare prea scurtă",
-    "journalDaysMin": "Minimum 1 zi",
-    "journalDaysMax": "Maximum 30 de zile",
-    "memoryPinnedTokensRange": "Între 0 și 20000 de tokeni",
-    "memoryRecallTokensRange": "Între 0 și 8000 de tokeni",
-    "parallelDelegationsRange": "Între 1 și 10 task-uri",
-    "runConcurrencyRange": "Între 1 și 20 de rulări",
-    "ollamaUrl": "Introdu o adresă care începe cu http:// sau https://",
-    "digestHour": "Ora trebuie să fie între 0 și 23",
-    "budgetPositive": "Bugetul trebuie să fie pozitiv",
-    "timezone": "Fus orar invalid (de ex. Europe/Bucharest)",
     "nameRequired": "Numele este obligatoriu",
     "nameFormat": "Numele poate conține doar litere mari, cifre și _",
     "valueRequired": "Valoarea este obligatorie",
-    "pickModelEachRow": "Alege un model pe fiecare rând",
-    "atLeastOneModel": "Adaugă cel puțin un model",
-    "agentInstructionsTooLong": "Instrucțiunile sunt prea lungi"
+    "sandbox": {
+      "commandTimeoutSec": "Între {min} și {max} de secunde",
+      "memoryMb": "Între {min} și {max} MB",
+      "cpus": "Între {min} și {max} de CPU-uri",
+      "pids": "Între {min} și {max} de procese",
+      "pauseIdleMinutes": "Între {min} și {max} de minute",
+      "stopIdleHours": "Între {min} și {max} de ore",
+      "workspaceRetentionDays": "Între {min} și {max} de zile"
+    },
+    "previews": {
+      "liveHours": "Între {min} și {max} de ore",
+      "staticDays": "Între {min} și {max} de zile"
+    },
+    "telegram": {
+      "userIds": "ID-urile de utilizator sunt numere întregi pozitive, separate prin virgulă",
+      "chatId": "Un ID de chat este un număr întreg, negativ pentru un grup"
+    },
+    "reports": {
+      "hour": "Ora trebuie să fie între {min} și {max}",
+      "weekday": "Ziua trebuie să fie între {min} și {max}, 0 fiind duminica"
+    },
+    "security": {
+      "sessionDays": "Între {min} și {max} de zile"
+    },
+    "general": {
+      "timezone": "Fus orar invalid (de ex. Europe/Bucharest)"
+    },
+    "models": {
+      "pickModel": "Alege un model pe fiecare rând",
+      "chainLength": "Prea multe modele într-un lanț",
+      "ollamaUrl": "Introdu o adresă care începe cu http:// sau https://",
+      "baseUrl": "Introdu o adresă care începe cu http:// sau https://",
+      "atLeastOneModel": "Adaugă cel puțin un model pentru agenți"
+    },
+    "agents": {
+      "instructions": "Instrucțiunile sunt prea lungi",
+      "parallelDelegations": "Între {min} și {max} task-uri",
+      "maxRedelegations": "Între {min} și {max}",
+      "maxFixRounds": "Între {min} și {max} runde",
+      "maxSteps": "Între {min} și {max} de pași",
+      "timeoutMinutes": "Între {min} și {max} de minute",
+      "budgetUsd": "Între {min} și {max} USD"
+    },
+    "memory": {
+      "pinnedTokens": "Între {min} și {max} de tokeni",
+      "recallTokens": "Între {min} și {max} de tokeni",
+      "journalDays": "Între {min} și {max} de zile",
+      "ephemeralDays": "Între {min} și {max} de zile",
+      "unusedDays": "Între {min} și {max} de zile"
+    },
+    "budget": {
+      "monthlyUsd": "Introdu o sumă între {min} și {max} USD",
+      "alertPercent": "Între {min}% și {max}%",
+      "alerts": "Prea multe alerte"
+    },
+    "system": {
+      "runConcurrency": "Între {min} și {max} de rulări"
+    }
+  },
+  "form": {
+    "saved": "Setări salvate",
+    "unsaved": "Modificări nesalvate",
+    "invalid": "Unele valori trebuie corectate",
+    "discard": "Renunță",
+    "advanced": "Avansat"
   }
 }

@@ -34,6 +34,15 @@ const schema = z.object({
   PREVIEW_URL: z.string().default("http://preview.localhost:3100"),
   /** Port the worker serves previews on. */
   PREVIEW_PORT: z.coerce.number().int().positive().default(3100),
+  /** Model catalog (prices, context windows, capabilities) in the models.dev format, refreshed every 12 hours. */
+  CATALOG_URL: z.url().default("https://models.dev/api.json"),
+  /** GitHub repository (owner/name) whose releases the update check compares the running version with. */
+  ABOTICA_RELEASES_REPO: z.string().default("codevision-ro/abotica"),
+  /** Telegram Bot API base, for a local Bot API server or a proxy. No trailing slash. */
+  TELEGRAM_API_URL: z
+    .url()
+    .default("https://api.telegram.org")
+    .transform((url) => url.replace(/\/+$/, "")),
 });
 
 type Env = z.infer<typeof schema>;

@@ -18,8 +18,8 @@ vi.mock("./previews", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./previews")>()),
   previewByHost: async () => live.preview,
 }));
-vi.mock("../platform/settings", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../platform/settings")>()),
+vi.mock("../settings/settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../settings/settings")>()),
   getSettings: async () => ({}),
   settingsLocale: () => "en",
 }));

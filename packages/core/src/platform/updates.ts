@@ -1,11 +1,11 @@
 import { getTranslator } from "@abotica/i18n";
 import { notify } from "../infra/queues";
 import { redis } from "../infra/redis";
-import { getSettings, settingsLocale } from "./settings";
+import { env } from "../infra/env";
+import { getSettings, settingsLocale } from "../settings/settings";
 
-/** Where releases are published; install.sh and install.ps1 install from the same repository. */
-export const RELEASES_REPO = "codevision-ro/abotica";
-const LATEST_RELEASE_API = `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`;
+/** Where releases are published (owner/name on GitHub); install.sh and install.ps1 install from the same repository. */
+export const releasesRepo = (): string => env().ABOTICA_RELEASES_REPO;
 const STATE_KEY = "abotica:updates:state";
 const notifiedKey = (version: string) => `abotica:updates:notified:${version}`;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -86,11 +86,11 @@ async function readState(): Promise<StoredState | null> {
 /** What the last check found, without calling GitHub. */
 export async function getUpdateStatus(): Promise<UpdateStatus> {
   const [settings, stored] = await Promise.all([getSettings(), readState()]);
-  return toStatus(settings.updateChecks, stored);
+  return toStatus(settings.system.updateChecks, stored);
 }
 
 async function fetchLatestRelease(): Promise<ReleaseInfo> {
-  const res = await fetch(LATEST_RELEASE_API, {
+  const res = await fetch(`https://api.github.com/repos/${releasesRepo()}/releases/latest`, {
     headers: { accept: "application/vnd.github+json", "user-agent": "abotica-update-check" },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
@@ -113,7 +113,7 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
 export async function checkForUpdates({ force = false }: { force?: boolean } = {}): Promise<UpdateStatus> {
   const settings = await getSettings();
   const before = await readState();
-  if (!settings.updateChecks && !force) return toStatus(false, before);
+  if (!settings.system.updateChecks && !force) return toStatus(false, before);
   let state: StoredState;
   try {
     state = { latest: await fetchLatestRelease(), checkedAt: new Date().toISOString(), error: null };
@@ -125,7 +125,7 @@ export async function checkForUpdates({ force = false }: { force?: boolean } = {
     };
   }
   await redis().set(STATE_KEY, JSON.stringify(state));
-  return toStatus(settings.updateChecks, state);
+  return toStatus(settings.system.updateChecks, state);
 }
 
 /** Tells the user on Telegram about a new release, once per version. Returns whether it sent one. */

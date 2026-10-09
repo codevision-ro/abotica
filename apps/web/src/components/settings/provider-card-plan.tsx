@@ -59,7 +59,7 @@ export function ProviderCardPlan({
   if (plan.connected) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+        <p className="flex min-w-0 flex-col text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-1.5">
           <span className="min-w-0 [overflow-wrap:anywhere]">
             {t.rich("account", {
               account: plan.account?.email ?? plan.account?.name ?? plan.label,
@@ -68,7 +68,9 @@ export function ProviderCardPlan({
           </span>
           {plan.connectedAt && (
             <>
-              <span aria-hidden>·</span>
+              <span aria-hidden className="max-sm:hidden">
+                ·
+              </span>
               <span>{t.rich("connectedAt", { time: () => <RelativeTime date={plan.connectedAt!} /> })}</span>
             </>
           )}

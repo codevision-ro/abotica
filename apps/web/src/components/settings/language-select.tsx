@@ -7,11 +7,12 @@ import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { updateLanguage } from "@/server/actions/settings";
+import { saveSettings } from "@/server/actions/app-settings";
 import { InlineSection } from "./inline-section";
 
 const AUTO = "auto";
 
+/** The interface language, saved as soon as it is picked: the page reloads in it at once. */
 export function LanguageSelect({ initial }: { initial: Locale | null }) {
   const t = useTranslations("common.language");
   const router = useRouter();
@@ -19,7 +20,7 @@ export function LanguageSelect({ initial }: { initial: Locale | null }) {
 
   function change(value: string) {
     startTransition(async () => {
-      const res = await updateLanguage({ locale: value === AUTO ? null : (value as Locale) });
+      const res = await saveSettings({ domain: "general", patch: { locale: value === AUTO ? null : (value as Locale) } });
       if (!res.ok) return void toast.error(res.error);
       router.refresh();
     });

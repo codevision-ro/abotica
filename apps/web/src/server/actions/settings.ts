@@ -1,50 +1,42 @@
 "use server";
 
 import {
-  announceTelegramChange,
-  type AppSettings,
   audit,
   changeEmbeddingProvider,
   cheapestToolModel,
   connectSubscription,
   disconnectSubscription,
-  fetchTelegramBot,
+  EMBEDDING_PROVIDERS,
   getCatalog,
-  getSettings,
   isProviderConfigured,
-  isTelegramChatId,
+  isProviderId,
   languageModel,
+  MODEL_ROLES,
   parseHttpUrl,
-  publish,
-  removeProviderKey,
-  removeTelegramToken,
-  saveProviderKey,
-  saveTelegramAccess,
-  saveTelegramToken,
   PROVIDER_IDS,
   PROVIDER_KEY_SECRET,
   refreshCatalog,
-  RUN_CONCURRENCY_MAX,
+  removeProviderKey,
+  saveProviderKey,
+  SETTINGS_SCHEMAS,
   SignInCallbackError,
   startSubscriptionSignIn,
   SUBSCRIPTION_PROVIDER_IDS,
   updateSettings,
-  syncSettingsSchedules,
-  TELEGRAM_TOKEN_SECRET,
-  upsertSecret,
 } from "@abotica/core";
-import { AGENT_INSTRUCTIONS_MAX_LENGTH } from "@abotica/core/limits";
-import { REASONING_EFFORTS } from "@abotica/core/models/reasoning";
-import { db, secrets } from "@abotica/db";
-import { locales, UserError } from "@abotica/i18n";
-import { eq } from "@abotica/db/orm";
+import { UserError } from "@abotica/i18n";
 import { generateText } from "ai";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
-import { isTimeZone } from "@/lib/time-zone";
 import { action } from "../action";
 import { requestOrigin } from "../request-origin";
+
+/** Provider connections change which models agents and their forms can pick. */
+function revalidateProviders() {
+  revalidatePath("/settings/models");
+  revalidatePath("/agents", "layout");
+}
 
 const providerId = z.enum(PROVIDER_IDS as [string, ...string[]]).transform((v) => v as (typeof PROVIDER_IDS)[number]);
 
@@ -61,8 +53,7 @@ export const setProviderKey = action(
       entityId: PROVIDER_KEY_SECRET[provider],
       data: { provider },
     });
-    revalidatePath("/settings");
-    revalidatePath("/agents", "layout");
+    revalidateProviders();
   },
 );
 
@@ -75,46 +66,26 @@ export const deleteProviderKey = action(z.object({ provider: providerId }), asyn
     entityId: PROVIDER_KEY_SECRET[provider],
     data: { provider },
   });
-  revalidatePath("/settings");
-  revalidatePath("/agents", "layout");
+  revalidateProviders();
 });
 
+/** Ollama has no key: turning it on is what connects it. The change is audited by updateSettings. */
 export const setOllamaEnabled = action(z.object({ enabled: z.boolean() }), async ({ enabled }) => {
-  await updateSettings({ ollamaEnabled: enabled });
-  await audit({
-    actor: "user",
-    action: enabled ? "provider.enabled" : "provider.disabled",
-    entityType: "settings",
-    entityId: "app",
-    data: { provider: "ollama" },
-  });
-  revalidatePath("/settings");
-  revalidatePath("/agents", "layout");
+  await updateSettings("models", { ollama: { enabled } });
+  revalidateProviders();
 });
 
 /** Saves where the Ollama server listens, as this machine sees it, then lists its models from there. */
 export const setOllamaBaseUrl = action(
-  z.object({ url: z.string().refine((v) => parseHttpUrl(v) !== null, "settings.validation.ollamaUrl") }),
+  z.object({ url: z.string().refine((v) => parseHttpUrl(v) !== null, "settings.validation.models.ollamaUrl") }),
   async ({ url }) => {
-    const before = await getSettings();
-    const ollamaBaseUrl = parseHttpUrl(url)!;
-    await updateSettings({ ollamaBaseUrl });
-    if (before.ollamaBaseUrl !== ollamaBaseUrl) {
-      await audit({
-        actor: "user",
-        action: "settings.updated",
-        entityType: "settings",
-        entityId: "app",
-        data: { ollamaBaseUrl: { from: before.ollamaBaseUrl, to: ollamaBaseUrl } },
-      });
-    }
+    await updateSettings("models", { ollama: { baseUrl: url } });
     // models.dev being unreachable must not fail the save: the Ollama models are what changed.
     const models = await refreshCatalog().catch((error: unknown) => {
       console.warn("[catalog] refresh after the Ollama address changed failed:", error);
       return [];
     });
-    revalidatePath("/settings");
-    revalidatePath("/agents", "layout");
+    revalidateProviders();
     return { models: models.filter((m) => m.provider === "ollama").length };
   },
 );
@@ -123,24 +94,11 @@ export const setOllamaBaseUrl = action(
  * Switches what embeds memory, journals and knowledge; the stored embeddings are cleared and made again
  * in the background (see changeEmbeddingProvider).
  */
-export const setEmbeddingProvider = action(
-  z.object({ provider: z.enum(["local", "openai", "ollama"]) }),
-  async ({ provider }) => {
-    const before = await getSettings();
-    const reindex = await changeEmbeddingProvider(provider);
-    if (reindex) {
-      await audit({
-        actor: "user",
-        action: "settings.updated",
-        entityType: "settings",
-        entityId: "app",
-        data: { embeddingProvider: { from: before.embeddingProvider, to: provider }, reembedding: reindex.total },
-      });
-    }
-    revalidatePath("/settings");
-    return { total: reindex?.total ?? 0 };
-  },
-);
+export const setEmbeddingProvider = action(z.object({ provider: z.enum(EMBEDDING_PROVIDERS) }), async ({ provider }) => {
+  const reindex = await changeEmbeddingProvider(provider);
+  revalidatePath("/settings/memory");
+  return { total: reindex?.total ?? 0 };
+});
 
 const subscriptionId = z
   .enum(SUBSCRIPTION_PROVIDER_IDS as [string, ...string[]])
@@ -175,15 +133,13 @@ export const completeSubscription = action(
       if (!(error instanceof SignInCallbackError)) throw error;
       throw new UserError(SIGN_IN_ERRORS[error.reason], { error: error.message });
     }
-    revalidatePath("/settings");
-    revalidatePath("/agents", "layout");
+    revalidateProviders();
   },
 );
 
 export const disconnectSubscriptionAccount = action(z.object({ provider: subscriptionId }), async ({ provider }) => {
   const result = await disconnectSubscription(provider);
-  revalidatePath("/settings");
-  revalidatePath("/agents", "layout");
+  revalidateProviders();
   return result;
 });
 
@@ -213,183 +169,32 @@ export const refreshModelCatalog = action(z.object({}), async () => {
   const counts: Record<string, number> = {};
   for (const m of models) counts[m.provider] = (counts[m.provider] ?? 0) + 1;
   await audit({ actor: "user", action: "catalog.refreshed", entityType: "system", data: { total: models.length } });
-  revalidatePath("/settings");
+  revalidateProviders();
   return { total: models.length, counts };
 });
 
-export const updateAppSettings = action(
-  z.object({
-    journalDays: z
-      .number()
-      .int()
-      .min(1, "settings.validation.journalDaysMin")
-      .max(30, "settings.validation.journalDaysMax"),
-    memoryRequiresApproval: z.boolean(),
-    memoryPinnedTokens: z
-      .number()
-      .int()
-      .min(0, "settings.validation.memoryPinnedTokensRange")
-      .max(20_000, "settings.validation.memoryPinnedTokensRange"),
-    memoryRecallTokens: z
-      .number()
-      .int()
-      .min(0, "settings.validation.memoryRecallTokensRange")
-      .max(8_000, "settings.validation.memoryRecallTokensRange"),
-    parallelDelegations: z
-      .number()
-      .int()
-      .min(1, "settings.validation.parallelDelegationsRange")
-      .max(10, "settings.validation.parallelDelegationsRange"),
-    runConcurrency: z
-      .number()
-      .int()
-      .min(1, "settings.validation.runConcurrencyRange")
-      .max(RUN_CONCURRENCY_MAX, "settings.validation.runConcurrencyRange"),
-    digestHour: z.number().int().min(0, "settings.validation.digestHour").max(23, "settings.validation.digestHour"),
-    timezone: z.string().trim().min(1).refine(isTimeZone, "settings.validation.timezone"),
-    monthlyBudgetUsd: z.number().positive("settings.validation.budgetPositive").nullable(),
-    agentInstructions: z.string().trim().max(AGENT_INSTRUCTIONS_MAX_LENGTH, "settings.validation.agentInstructionsTooLong"),
-  }),
-  async (input) => {
-    const before = await getSettings();
-    const next = await updateSettings(input);
-    const changed = Object.fromEntries(
-      (Object.keys(input) as (keyof AppSettings)[])
-        .filter((k) => before[k] !== next[k])
-        // Long free text goes into the log as its length: the setting itself keeps the text.
-        .map((k) =>
-          k === "agentInstructions"
-            ? [k, { fromLength: before[k].length, toLength: next[k].length }]
-            : [k, { from: before[k], to: next[k] }],
-        ),
-    );
-    if (Object.keys(changed).length) {
-      await audit({ actor: "user", action: "settings.updated", entityType: "settings", entityId: "app", data: changed });
-    }
-    if (changed.digestHour || changed.timezone) await syncSettingsSchedules(next);
-    // The worker applies a new run concurrency at once, without a restart.
-    if (changed.runConcurrency) await publish({ type: "settings.updated" });
-    revalidatePath("/settings/general");
-    return next;
-  },
-);
-
-export const setVaultSecret = action(
-  z.object({
-    name: z
-      .string()
-      .trim()
-      .min(1, "settings.validation.nameRequired")
-      .max(64)
-      .regex(/^[A-Z0-9_]+$/, "settings.validation.nameFormat"),
-    value: z.string().min(1, "settings.validation.valueRequired"),
-    description: z.string().trim().max(300).default(""),
-    projectId: z.uuid().nullable().default(null),
-  }),
-  async ({ name, value, description, projectId }) => {
-    // The vault page shows every secret with its owner, so it is the one place a secret may change owner.
-    await upsertSecret({ name, value, description, projectId }, { allowMove: true });
-    if (name === TELEGRAM_TOKEN_SECRET) await announceTelegramChange();
-    revalidatePath("/settings/vault");
-    revalidatePath("/settings");
-    return null;
-  },
-);
-
-export const deleteVaultSecret = action(z.object({ id: z.uuid() }), async ({ id }) => {
-  const [row] = await db.delete(secrets).where(eq(secrets.id, id)).returning({ name: secrets.name });
-  if (row) await audit({ actor: "user", action: "secret.deleted", entityType: "secret", entityId: row.name });
-  if (row?.name === TELEGRAM_TOKEN_SECRET) await announceTelegramChange();
-  revalidatePath("/settings/vault");
-  revalidatePath("/settings");
-  return null;
-});
-
-const modelChain = z
-  .array(z.object({ provider: providerId, model: z.string().trim().min(1, "settings.validation.pickModelEachRow") }))
-  .max(10);
+const modelsSchema = SETTINGS_SCHEMAS.models.shape;
 
 /**
- * The agents' default chain is required; the super agent's and the managers' may stay empty to follow
- * it, and their efforts null to follow the agents' effort.
+ * The default models and efforts per role, one save for all. Every model must be on a connected provider;
+ * the specialists' chain is required, while the super agent's and the managers' may stay empty to follow
+ * it (and their efforts null to follow its effort). Returns the models settings as stored.
  */
 export const updateDefaultModels = action(
   z.object({
-    defaultModels: modelChain.min(1, "settings.validation.atLeastOneModel"),
-    orchestratorModels: modelChain,
-    managerModels: modelChain,
-    defaultReasoningEffort: z.enum(REASONING_EFFORTS),
-    orchestratorReasoningEffort: z.enum(REASONING_EFFORTS).nullable(),
-    managerReasoningEffort: z.enum(REASONING_EFFORTS).nullable(),
+    chains: modelsSchema.chains.refine((chains) => chains.agent.length > 0, "settings.validation.models.atLeastOneModel"),
+    reasoningEffort: modelsSchema.reasoningEffort,
   }),
-  async (input) => {
-    for (const m of [...input.defaultModels, ...input.orchestratorModels, ...input.managerModels]) {
-      if (!(await isProviderConfigured(m.provider))) {
-        throw new UserError("settings.errors.providerNoKey", { provider: m.provider });
+  async ({ chains, reasoningEffort }) => {
+    for (const role of MODEL_ROLES) {
+      for (const m of chains[role]) {
+        if (!isProviderId(m.provider) || !(await isProviderConfigured(m.provider))) {
+          throw new UserError("settings.errors.providerNoKey", { provider: m.provider });
+        }
       }
     }
-    const before = await getSettings();
-    await updateSettings(input);
-    await audit({
-      actor: "user",
-      action: "settings.default-models-changed",
-      entityType: "settings",
-      entityId: "app",
-      data: {
-        from: before.defaultModels,
-        to: input.defaultModels,
-        orchestratorModels: { from: before.orchestratorModels, to: input.orchestratorModels },
-        managerModels: { from: before.managerModels, to: input.managerModels },
-        reasoningEffort: { from: before.defaultReasoningEffort, to: input.defaultReasoningEffort },
-        orchestratorReasoningEffort: { from: before.orchestratorReasoningEffort, to: input.orchestratorReasoningEffort },
-        managerReasoningEffort: { from: before.managerReasoningEffort, to: input.managerReasoningEffort },
-      },
-    });
-    revalidatePath("/settings");
-    revalidatePath("/agents", "layout");
+    const next = await updateSettings("models", { chains, reasoningEffort });
+    revalidateProviders();
+    return next;
   },
 );
-
-export const updateLanguage = action(z.object({ locale: z.enum(locales).nullable() }), async ({ locale }) => {
-  const before = await getSettings();
-  await updateSettings({ locale });
-  if (before.locale !== locale) {
-    await audit({
-      actor: "user",
-      action: "settings.updated",
-      entityType: "settings",
-      entityId: "app",
-      data: { locale: { from: before.locale, to: locale } },
-    });
-  }
-  revalidatePath("/", "layout");
-});
-
-/**
- * Settings > Telegram, saved as one form. A new token is checked with Telegram first, so a wrong one is
- * refused here instead of failing in the worker; an empty one keeps the stored token.
- */
-export const updateTelegramSettings = action(
-  z.object({
-    token: z.string().trim().default(""),
-    allowedUserIds: z.array(z.number().int().positive("settings.telegram.validation.userIds")).max(50),
-    notifyChatId: z.string().trim().refine(isTelegramChatId, "settings.telegram.validation.chatId").nullable(),
-  }),
-  async ({ token, allowedUserIds, notifyChatId }) => {
-    const bot = token ? await fetchTelegramBot(token) : null;
-    if (token) {
-      const t = await getTranslations("settings.telegram");
-      await saveTelegramToken(token, t("secretDescription"));
-    }
-    await saveTelegramAccess({ allowedUserIds, notifyChatId });
-    revalidatePath("/settings/telegram");
-    revalidatePath("/");
-    return { username: bot?.username ?? null };
-  },
-);
-
-export const deleteTelegramToken = action(z.object({}), async () => {
-  await removeTelegramToken();
-  revalidatePath("/settings/telegram");
-  revalidatePath("/");
-});

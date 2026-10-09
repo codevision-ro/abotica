@@ -78,6 +78,7 @@ export function SchedulesSection({
         initial={dialog.draft}
         agents={agents}
         projects={projects}
+        defaultTimezone={timezone}
       />
     </div>
   );

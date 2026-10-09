@@ -25,10 +25,10 @@ import {
   runs,
   skills,
 } from "@abotica/db";
-import { and, asc, desc, eq, inArray, isNull, ne } from "@abotica/db/orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne } from "@abotica/db/orm";
 import type { UIMessage } from "ai";
 import { cache } from "react";
-import { type ConversationFilter } from "@/lib/conversation-filter";
+import { CHAT_LIST_PAGE_SIZE, type ConversationFilter } from "@/lib/conversation-filter";
 import { query } from "@/server/query";
 
 export type ChatModelOption = {
@@ -77,7 +77,7 @@ const toOption = (m: CatalogModel): ChatModelOption => ({
 export const getChatModelState = query(async (agent: AgentRow, conversation: ConversationRow): Promise<ChatModelState> => {
   const [providers, settings, catalog] = await Promise.all([availableProviders(), getSettings(), getCatalog()]);
   const role = modelRole(agent);
-  const primary = resolveModelChain(agent, settings, role)[0];
+  const primary = resolveModelChain(agent, settings.models, role)[0];
   const entry = primary && catalog.find((m) => m.provider === primary.provider && m.id === primary.model);
   return {
     providers: providers.map((p) => ({ id: p.id, label: p.label, models: p.models.map(toOption) })),
@@ -93,21 +93,26 @@ export const getChatModelState = query(async (agent: AgentRow, conversation: Con
       followsDefault: !agent.provider || !agent.model,
       reasoningEffort: agent.reasoningEffort,
     },
-    defaultReasoningEffort: roleDefaultEffort(settings, role),
+    defaultReasoningEffort: roleDefaultEffort(settings.models, role),
     selection: { model: conversation.modelOverride ?? null, reasoningEffort: conversation.reasoningEffort ?? null },
   };
 });
 
 /**
- * Conversations shown in the chat list, newest first: every channel except internal (task and automation
- * runs), optionally only those of one project or those outside projects.
+ * The chat list's conversations: every channel except internal (task and automation runs), optionally
+ * only those of one project or those outside projects.
  */
-export const listConversations = query(async (filter: ConversationFilter = null, limit: number = 100) => {
+function listedConversations(filter: ConversationFilter) {
   const byProject = !filter
     ? undefined
     : filter.projectId
       ? eq(conversations.projectId, filter.projectId)
       : isNull(conversations.projectId);
+  return and(ne(conversations.channel, "internal"), byProject);
+}
+
+/** The newest `limit` conversations of the chat list (see listedConversations). */
+export const listConversations = query(async (filter: ConversationFilter = null, limit: number = CHAT_LIST_PAGE_SIZE) => {
   return db
     .select({
       id: conversations.id,
@@ -121,9 +126,18 @@ export const listConversations = query(async (filter: ConversationFilter = null,
     .from(conversations)
     .innerJoin(agents, eq(agents.id, conversations.agentId))
     .leftJoin(projects, eq(projects.id, conversations.projectId))
-    .where(and(ne(conversations.channel, "internal"), byProject))
-    .orderBy(desc(conversations.updatedAt))
+    .where(listedConversations(filter))
+    .orderBy(desc(conversations.updatedAt), desc(conversations.id))
     .limit(limit);
+});
+
+/** The newest `limit` conversations of the chat list, with how many it has in all. */
+export const getConversationList = query(async (filter: ConversationFilter, limit: number = CHAT_LIST_PAGE_SIZE) => {
+  const [rows, [total]] = await Promise.all([
+    listConversations(filter, limit),
+    db.select({ n: count() }).from(conversations).where(listedConversations(filter)),
+  ]);
+  return { rows, total: total?.n ?? 0 };
 });
 
 /** Projects that have conversations in the chat list, by name: the choices of its project filter. */

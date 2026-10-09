@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { htmlToText } from "../../memory/knowledge";
 import { readTextCapped, safeFetch } from "../../platform/safe-fetch";
-import { capToolText, fullOutputTarget } from "../tool-output";
+import { capToolText, fullOutputTarget, TOOL_TEXT_MAX_CHARS } from "../tool-output";
 import { wrapUntrusted } from "../untrusted";
 import { markerId } from "../untrusted-id";
 import { errorResult, type ToolFactory } from "./shared";
@@ -13,7 +13,7 @@ const MAX_BYTES = 2 * 1024 * 1024;
 export const webTools: Record<string, ToolFactory> = {
   web_fetch: (ctx) =>
     tool({
-      description: "Fetch a web page and return its text (max ~30k characters; a long page keeps its start and end).",
+      description: `Fetch a web page and return its text (max ~${TOOL_TEXT_MAX_CHARS / 1000}k characters; a long page keeps its start and end).`,
       inputSchema: z.object({ url: z.string().url() }),
       execute: async ({ url }, call) => {
         const { abortSignal } = call;

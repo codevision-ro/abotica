@@ -41,9 +41,9 @@ irm https://raw.githubusercontent.com/codevision-ro/abotica/main/install.ps1 | i
 
 `install.ps1` does the same as `install.sh`: it offers to install Docker Desktop with winget when it is missing, starts it when it is not running, installs into `%USERPROFILE%\abotica`, writes `.env` on the first run, starts everything and opens the sign-up link. Options are environment variables set before the command, for example `$env:ABOTICA_DOMAIN = "abotica.example.com"`; `ABOTICA_DIR`, `ABOTICA_VERSION` and `ABOTICA_YES=1` work as well. Docker Desktop runs its containers in WSL2, which it sets up itself; the sandbox works the same as on Linux.
 
-**Update:** run the same command again. It backs up the database into `backups/pre-update-<old version>-<date>.dump`, keeps `.env`, moves `ABOTICA_VERSION` to the latest release, downloads that release's compose file and restarts what changed. Migrations run on every start. **Settings > Updates** shows when a new release is out (a notice also goes to Telegram), with its release notes and this command.
+**Update:** run the same command again. It backs up the database into `backups/pre-update-<old version>-<date>.dump`, keeps `.env`, moves `ABOTICA_VERSION` to the latest release, downloads that release's compose file and restarts what changed. Migrations run on every start. **Settings > System** shows when a new release is out (a notice also goes to Telegram), with its release notes and this command.
 
-**Runs in progress** when you update (or restart the worker): before changing anything, the installer counts the agent runs executing and asks whether to wait for them (up to 10 minutes), continue or abort; with `--yes` (`ABOTICA_YES=1` on Windows) it warns and continues. Settings > Updates shows the same count. When the worker stops, it takes no new runs and gives the ones in progress `WORKER_SHUTDOWN_DRAIN_MS` (default 30 seconds) to finish. The rest are stopped: each ends as cancelled with "Stopped because the worker is restarting", its conversation keeps the answer and steps so far (an interrupted tool call shows as stopped), a Telegram chat is told why it stopped, and its task, if it has one, is blocked with that reason and reported to whoever delegated it. Nothing resumes on its own after the restart: continue the conversation or the task when you want. Queued runs and runs waiting for approval are not touched; the new worker picks them up. Compose gives the worker 60 seconds to stop (`stop_grace_period`), so keep `WORKER_SHUTDOWN_DRAIN_MS` well below that.
+**Runs in progress** when you update (or restart the worker): before changing anything, the installer counts the agent runs executing and asks whether to wait for them (up to 10 minutes), continue or abort; with `--yes` (`ABOTICA_YES=1` on Windows) it warns and continues. Settings > System shows the same count. When the worker stops, it takes no new runs and gives the ones in progress `WORKER_SHUTDOWN_DRAIN_MS` (default 30 seconds) to finish. The rest are stopped: each ends as cancelled with "Stopped because the worker is restarting", its conversation keeps the answer and steps so far (an interrupted tool call shows as stopped), a Telegram chat is told why it stopped, and its task, if it has one, is blocked with that reason and reported to whoever delegated it. Nothing resumes on its own after the restart: continue the conversation or the task when you want. Queued runs and runs waiting for approval are not touched; the new worker picks them up. Compose gives the worker 60 seconds to stop (`stop_grace_period`), so keep `WORKER_SHUTDOWN_DRAIN_MS` well below that.
 
 **Roll back** to the version you had, with the dump taken before the update (migrations only move forward, so the database goes back with it):
 
@@ -77,9 +77,9 @@ and a `.env` next to it:
 | `ABOTICA_DOMAIN`, `COMPOSE_PROFILES=https` | for the bundled Caddy (HTTPS); leave both out behind your own reverse proxy |
 | `PREVIEW_URL` | `https://preview.abotica.example.com` (see [Previews](#previews)) |
 
-Then `docker compose up -d`. To update, download the new release's compose file, change `ABOTICA_VERSION` and run `docker compose up -d` again.
+Every other variable is optional; [Environment variables](#environment-variables) lists them all. Then `docker compose up -d`. To update, download the new release's compose file, change `ABOTICA_VERSION` and run `docker compose up -d` again.
 
-`DATABASE_URL`, `REDIS_URL`, `UPLOADS_DIR` and `HOST_GATEWAY` are set by compose, not from `.env`. `HOST_GATEWAY` is how the containers reach the host: an address entered in the app as `http://localhost:11434` (Ollama on the host) is rewritten to it, so addresses are entered as the host sees them. The Ollama address, the embedding provider and the runs executed in parallel are set in the app; an install that had `OLLAMA_BASE_URL`, `EMBEDDING_PROVIDER` or `RUN_CONCURRENCY` in `.env` gets them copied into Settings the first time the worker starts after the update, and the lines can then be removed. The web app, the worker and the migrations run as the unprivileged `node` user (uid 1000), not as root.
+`DATABASE_URL`, `REDIS_URL`, `UPLOADS_DIR` and `HOST_GATEWAY` are set by compose, not from `.env`. `HOST_GATEWAY` is how the containers reach the host: an address entered in the app as `http://localhost:11434` (Ollama on the host) is rewritten to it, so addresses are entered as the host sees them. The Ollama address, the embedding provider and the runs executed in parallel are set in the app (see [Settings from older `.env` files](#settings-from-older-env-files)). The web app, the worker and the migrations run as the unprivileged `node` user (uid 1000), not as root.
 
 ## Running it
 
@@ -93,20 +93,20 @@ Telegram is configured in the app, under **Settings > Telegram**; nothing goes i
 2. Add your Telegram user ID under **Allowed users**. To find it, message @userinfobot, or send the bot a message: it replies with your ID while you are not on the list.
 3. Optionally, set **Notification chat** to a group ID, for notifications in a forum group. Left empty, they go to the first allowed user.
 
-The page shows whether the worker's bot is connected. An install that had these values in `.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS`, `TELEGRAM_NOTIFY_CHAT_ID`) gets them copied into Settings the first time the worker starts after the update; the lines can then be removed.
+The page shows whether the worker's bot is connected. An install that had these values in `.env` gets them copied into Settings once (see [Settings from older `.env` files](#settings-from-older-env-files)). The bot talks to `https://api.telegram.org`; `TELEGRAM_API_URL` points it at a local Bot API server or a proxy instead.
 
 Commands: `/status`, `/tasks`, `/new` (new conversation), `/stop` (kill switch), `/resume` (turn the kill switch off). The bot accepts text, voice (transcribed through OpenAI), photos and files. Approvals arrive with Approve / Reject buttons. Only the super agent talks on Telegram, in every chat and in forum topics too: in a project's topic it knows which project the topic belongs to and hands the work to that project's manager. Managers answer only in the project's conversations on the web.
 
 ### HTTPS
 
-The web app is published on `127.0.0.1:3000` and the previews on `127.0.0.1:3100` only: ports Docker publishes bypass the host firewall (ufw included), so plain HTTP, login included, never reaches the network.
+The web app is published on `127.0.0.1:3000` (`WEB_PORT`) and the previews on `127.0.0.1:3100` (`PREVIEW_PORT`) only: ports Docker publishes bypass the host firewall (ufw included), so plain HTTP, login included, never reaches the network.
 
 - **Bundled Caddy** (`COMPOSE_PROFILES=https`, which the install script sets when you give a domain): serves `ABOTICA_DOMAIN` and `*.preview.ABOTICA_DOMAIN` on ports 80 and 443.
-- **Your own reverse proxy** on the host: leave the profile out and send the domain to `127.0.0.1:3000` and the previews to `127.0.0.1:3100`. `deploy/Caddyfile` is an example for a Caddy installed on the host. If you change `WEB_PORT`, change the port in the proxy too.
+- **Your own reverse proxy** on the host: leave the profile out and send the domain to `127.0.0.1:3000` and the previews to `127.0.0.1:3100`. `deploy/Caddyfile` is an example for a Caddy installed on the host. If you change `WEB_PORT` or `PREVIEW_PORT`, change the port in the proxy too (`deploy/Caddyfile` reads `PREVIEW_PORT` from Caddy's environment; the bundled Caddy follows both on its own).
 
 ### Backup and restore
 
-The `backup` service writes into `./backups` once a day and keeps 14 days: `abotica-<date>.dump` (`pg_dump` of the database: memory, journals, tasks, conversations) and `uploads-<date>.tar.gz` (the uploads volume: your uploads, files agents share or hand to each other, knowledge files, one file per database row). The two belong together; copy `./backups` off the server as well.
+The `backup` service writes into `./backups` once a day and keeps 14 days (`BACKUP_INTERVAL_SECONDS`, default `86400`, and `BACKUP_RETENTION_DAYS`, default `14`, in `.env` change both): `abotica-<date>.dump` (`pg_dump` of the database: memory, journals, tasks, conversations) and `uploads-<date>.tar.gz` (the uploads volume: your uploads, files agents share or hand to each other, knowledge files, one file per database row). The two belong together; copy `./backups` off the server as well.
 
 Restore both from the same date, with the app stopped:
 
@@ -127,7 +127,7 @@ Agents run commands, install packages and create files in a sandboxed workspace;
 - `docker-proxy` gives the worker a filtered Docker API (containers, exec, images, networks, volumes). The Docker socket is root on the host, so the worker never gets it directly, and nothing else can reach the proxy.
 - The `abotica-sandbox` network is internal: containers have no route out and cannot resolve names. Their traffic goes through a proxy inside the worker that applies the network policy of the workspace and refuses private, loopback and cloud metadata addresses. The same proxy adds the repository tokens to git's requests and the API keys of MCP servers' credential routes, so neither enters a container.
 
-Commands run as an unprivileged user without capabilities, within the memory and CPU limits from **Settings > Sandbox**. Agents with the **Run commands as root** tool can install system packages: their root commands get only the capabilities apt needs, and what they install outside the workspace lasts until the container is recreated (a new image or new limits). Database servers run per workspace when an agent starts them (`services start mysql`, `postgres` or `redis`), with their data in the workspace. A workspace container unused for 15 minutes is paused: what runs in it (database servers, the app behind a live preview) is frozen and carries on at the next command or preview visit. After 6 hours unused it is stopped, which ends those processes; database servers start again on the next command. A paused container keeps the memory its processes use (up to the limit in **Settings > Sandbox**), so on a small host lower that limit. Files stay in the `abotica-ws-<workspace>` volumes until the project, chat or MCP server is deleted or the workspace is reset from the project settings; workspaces of chats without a project are also removed after 30 days unused.
+Commands run as an unprivileged user without capabilities, within the memory, CPU and process limits from **Settings > Sandbox**. A change to a limit applies to each container the next time it is opened while no command runs in it: the container is recreated, its volume (the workspace files) is kept. Agents with the **Run commands as root** tool can install system packages: their root commands get only the capabilities apt needs, and what they install outside the workspace lasts until the container is recreated (a new image or new limits). Database servers run per workspace when an agent starts them (`services start mysql`, `postgres` or `redis`), with their data in the workspace. A workspace container unused for 15 minutes is paused: what runs in it (database servers, the app behind a live preview) is frozen and carries on at the next command or preview visit. After 6 hours unused it is stopped, which ends those processes; database servers start again on the next command. A paused container keeps the memory its processes use (up to the limit in **Settings > Sandbox**), so on a small host lower that limit or pause sooner. Files stay in the `abotica-ws-<workspace>` volumes until the project, chat or MCP server is deleted or the workspace is reset from the project settings; workspaces of chats without a project are also removed after 30 days unused. The three times are the defaults: **Settings > Sandbox** changes them.
 
 **gVisor** adds a second kernel boundary between the agents' code and the host; recommended on servers, since agents can run commands as root inside their containers. Install `runsc` and register it with Docker ([gvisor.dev/docs/user_guide/install](https://gvisor.dev/docs/user_guide/install/)); with the runtime on **Automatic**, Abotica uses it as soon as Docker reports it (**Settings > Sandbox > Check again**).
 
@@ -148,13 +148,13 @@ Four MCP servers come with Abotica, enabled and offered to every agent (global);
 
 ### Previews
 
-Agents publish mockups and documents, and open apps they start, as preview links: `https://<code>.preview.abotica.example.com`, served by the worker on port 3100 (bound to `127.0.0.1`). To enable them in production:
+Agents publish mockups and documents, and open apps they start, as preview links: `https://<code>.preview.abotica.example.com`, served by the worker on port 3100 (`PREVIEW_PORT`, bound to `127.0.0.1`). A live link (an app the agent started) stays open 24 hours and a static one (a copy of files) 7 days by default, renewed when it is extended or published again; **Settings > Previews** changes both. To enable them in production:
 
 1. Set `PREVIEW_URL=https://preview.abotica.example.com` in `.env`.
 2. Add a wildcard DNS record `*.preview.abotica.example.com` pointing to the server.
 3. Route it to the worker in the reverse proxy. The bundled Caddy and `deploy/Caddyfile` do it with on-demand TLS: Caddy gets a certificate for a preview's subdomain on its first visit, after asking the worker whether that preview exists.
 
-A separate domain for previews (for example `abotica-preview.com`) isolates them best; a subdomain of the app's domain works too, with the protections described in `SECURITY.md`. Locally nothing is needed: previews open at `http://<code>.preview.localhost:3100`. The development `docker-compose.yml` publishes that port, Postgres (54329) and Redis (63799) on `127.0.0.1` only, so other machines on the network cannot reach them.
+A separate domain for previews (for example `abotica-preview.com`) isolates them best; a subdomain of the app's domain works too, with the protections described in `SECURITY.md`. Locally nothing is needed: previews open at `http://<code>.preview.localhost:3100` (with another `PREVIEW_PORT`, set `PREVIEW_URL` to the same port). The development `docker-compose.yml` publishes that port, Postgres (54329) and Redis (63799) on `127.0.0.1` only, so other machines on the network cannot reach them.
 
 ### Optional services
 
@@ -166,9 +166,57 @@ Listed in `COMPOSE_PROFILES` in `.env`, comma separated (for example `COMPOSE_PR
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-Then, in **Settings > AI providers**, add Ollama, set its server address to `http://ollama:11434`, and choose Ollama under **Embeddings**. The embeddings stored so far are made again with Ollama in the background.
+Then, in **Settings > Models**, add Ollama and set its server address to `http://ollama:11434`, and choose Ollama under **Settings > Memory > Embeddings**. The embeddings stored so far are made again with Ollama in the background.
 
 The model uses about 400 MB of RAM while loaded and unloads itself after 5 minutes of inactivity. On a small VPS, embeddings through OpenAI are cheaper in terms of resources.
+
+## Environment variables
+
+Read from `.env`. Only the ones marked required must be set; the compose files set the ones marked compose for their containers.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `APP_URL` | `http://localhost:3000` | The public address of the app (required in production). |
+| `BETTER_AUTH_URL` | | The same address, for sign-in (required in production). |
+| `BETTER_AUTH_SECRET` | | Signs sessions (required): `openssl rand -base64 32`. |
+| `VAULT_KEY` | | Encrypts the secrets saved in the app (required): `openssl rand -base64 32`. Keep a copy. |
+| `SETUP_CODE` | | When set, creating the account needs it (`/signup?code=...`). |
+| `ALLOW_SIGNUP` | `true` | `false` keeps sign-up closed, even before the first account exists. |
+| `TRUSTED_ORIGINS` | | Other public origins (a tunnel, a second domain), comma separated. |
+| `DATABASE_URL` | | Postgres (required; compose sets it). |
+| `DATABASE_POOL_MAX` | `10` | Database connections per process (the web app and the worker each have a pool). |
+| `REDIS_URL` | `redis://localhost:6379` | Redis (compose sets it). |
+| `UPLOADS_DIR` | `apps/web/.data/uploads` | Stored files (compose sets it; required without Docker). |
+| `MODELS_DIR` | `apps/worker/.data/models` | The built-in embedding model, downloaded once (compose sets a volume). |
+| `HOST_GATEWAY` | | The host as containers reach it (compose sets it). |
+| `WORKER_SHUTDOWN_DRAIN_MS` | `30000` | Time runs in progress get to finish when the worker stops. |
+| `SANDBOX_DOCKER_HOST` | | Docker API for the sandbox; unset means no sandbox (compose sets it). |
+| `SANDBOX_DOCKER_NETWORK` | `abotica-sandbox` | Network of the sandbox containers (compose sets it). |
+| `SANDBOX_IMAGE` | `abotica-sandbox:latest` | Image of the sandbox containers (compose sets it). |
+| `PREVIEW_URL` | `http://preview.localhost:3100` | Base of preview links (see [Previews](#previews)). |
+| `PREVIEW_PORT` | `3100` | Port the worker serves previews on; compose and the bundled Caddy follow it. |
+| `CATALOG_URL` | `https://models.dev/api.json` | Model catalog (prices, context windows), refreshed every 12 hours. |
+| `TELEGRAM_API_URL` | `https://api.telegram.org` | Telegram Bot API, for a local Bot API server or a proxy. |
+| `ABOTICA_VERSION` | `latest` | The release: the image tag in compose, and the version the update check compares. |
+| `ABOTICA_RELEASES_REPO` | `codevision-ro/abotica` | GitHub repository whose releases the update check reads. |
+
+Read only by `docker-compose.prod.yml`:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `ABOTICA_DOMAIN` | `localhost` | The domain the bundled Caddy serves, with `*.preview.<domain>`. |
+| `COMPOSE_PROFILES` | | Optional services, comma separated: `https` (Caddy), `ollama`. |
+| `POSTGRES_PASSWORD` | `abotica` | The database password. |
+| `WEB_PORT` | `3000` | The web app's port on `127.0.0.1`. |
+| `SANDBOX_APT_PACKAGES` | | More Debian packages for every workspace, space separated. |
+| `BACKUP_INTERVAL_SECONDS` | `86400` | How often the `backup` service runs. |
+| `BACKUP_RETENTION_DAYS` | `14` | Days the backups in `./backups` are kept. |
+
+The installers also read `ABOTICA_DIR` (and `install.ps1` reads `ABOTICA_YES`, see [Install script](#install-script)), and the end-to-end checks `E2E_*` (`CONTRIBUTING.md`).
+
+### Settings from older `.env` files
+
+Some settings used to be environment variables and are now set in the app: the Telegram bot (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS`, `TELEGRAM_NOTIFY_CHAT_ID`), `OLLAMA_BASE_URL`, `EMBEDDING_PROVIDER` and `RUN_CONCURRENCY`. The worker copies them into Settings once, at its first start after the update, without overwriting anything already set there; later changes to these lines have no effect, and they can be removed.
 
 ## Without Docker
 
@@ -236,6 +284,6 @@ Everything (memory, journals, tasks, conversations) is in Postgres; the files (y
 
 ### Ollama without Docker
 
-Install it from ollama.com, run `ollama pull nomic-embed-text`, then choose Ollama under **Embeddings** in **Settings > AI providers**.
+Install it from ollama.com, run `ollama pull nomic-embed-text`, then add Ollama in **Settings > Models** and choose it under **Settings > Memory > Embeddings**.
 
 The bundled Playwright and Scrapling need the sandbox. To use Scrapling anyway, install it on the server (`pip install "scrapling[ai]"` and `scrapling install`, which downloads the browser into the worker user's home) and add your own server under **MCP > New**: transport `stdio`, command = the full path from `which scrapling`, argument `mcp`, with **Run in the sandbox** turned off. It then runs in the worker with the worker user's files (see `SECURITY.md`).

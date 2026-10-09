@@ -88,11 +88,11 @@ export const summaryMessages = (history: ConversationHistory): ModelMessage[] =>
 function flushTool(ctx: RunContext, readUntrusted: boolean): Tool | null {
   const permission = builtinPermission(ctx.agent.permissions, "memory_save", ctx.agent);
   if (permission === "deny") return null;
-  const pending = permission === "ask" || ctx.settings.memoryRequiresApproval;
+  const pending = permission === "ask" || ctx.settings.memory.requiresApproval;
   return memoryTools.memory_save!({
     ...ctx,
     untrustedSeen: ctx.untrustedSeen || readUntrusted,
-    settings: { ...ctx.settings, memoryRequiresApproval: pending },
+    settings: { ...ctx.settings, memory: { ...ctx.settings.memory, requiresApproval: pending } },
   });
 }
 
@@ -226,7 +226,7 @@ export function createCompactor(opts: CompactorOptions) {
       // With the calls that never got a result: the summary says what was left open. Without the run's
       // tools, so every untrusted result is wrapped here and the summary call reads it as data.
       const messages = wrapUntrustedResults(
-        await convertToModelMessages(withSentTimes(covered, ctx.settings.timezone)),
+        await convertToModelMessages(withSentTimes(covered, ctx.settings.general.timezone)),
         {},
         () => {},
       );

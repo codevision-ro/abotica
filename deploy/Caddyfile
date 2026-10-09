@@ -1,9 +1,11 @@
 # Example only. Replace the domains; Caddy obtains the HTTPS certificates automatically.
+# {$PREVIEW_PORT:3100} is the worker's preview port: set PREVIEW_PORT in Caddy's environment when it
+# is not the default.
 {
 	# Previews get a certificate per subdomain on their first visit, only for previews that exist:
 	# Caddy asks the worker first (it answers for preview hosts it knows, 404 otherwise).
 	on_demand_tls {
-		ask http://127.0.0.1:3100/__abotica/tls
+		ask http://127.0.0.1:{$PREVIEW_PORT:3100}/__abotica/tls
 	}
 }
 
@@ -17,5 +19,5 @@ abotica.example.com {
 	tls {
 		on_demand
 	}
-	reverse_proxy 127.0.0.1:3100
+	reverse_proxy 127.0.0.1:{$PREVIEW_PORT:3100}
 }

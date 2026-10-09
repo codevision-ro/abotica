@@ -78,6 +78,8 @@ const server = (tools: McpToolInfo[] | null): McpServer =>
     oauthClientId: null,
     oauthClientSecret: null,
     oauthScope: null,
+    connectTimeoutSec: null,
+    callTimeoutSec: null,
     tools,
     toolsSyncedAt: null,
     enabled: true,
@@ -401,6 +403,23 @@ describe("loadMcpTools in a run's workspace", () => {
       expect(execs).toHaveLength(1);
       expect(await run("2")).toBeInstanceOf(McpToolError);
       expect(execs).toHaveLength(2);
+      await mcp.close();
+    });
+
+    it("waits as long as the server's own call timeout says, whatever the run's default", async () => {
+      const { mcp } = await load({ hang: true }, { callTimeoutMs: 60_000 }, {}, { callTimeoutSec: 1 });
+      const execute = mcp.tools["search_test__web_search"]!.execute!;
+      const error = await execute({ query: "x" }, { toolCallId: "1", messages: [] } as never).catch((e: unknown) => e);
+      expect((error as McpToolError).message).toMatch(/^search_test__web_search did not answer within 1 s\./);
+      await mcp.close();
+    });
+
+    it("gives a server its own start timeout", async () => {
+      const { mcp } = await load({ hangStart: true }, { connectTimeoutMs: 60_000 }, {}, { connectTimeoutSec: 1 });
+      const execute = mcp.tools["search_test__web_search"]!.execute!;
+      await expect(execute({ query: "x" }, { toolCallId: "1", messages: [] } as never)).rejects.toThrow(
+        "MCP search-test did not start within 1 s",
+      );
       await mcp.close();
     });
 

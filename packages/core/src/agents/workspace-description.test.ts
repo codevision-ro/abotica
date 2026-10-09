@@ -8,6 +8,7 @@ const base: WorkspaceDescriptionInput = {
   packages: { python: [], node: [] },
   skills: [],
   commandTimeoutSec: 300,
+  idle: { pauseIdleMinutes: 15, stopIdleHours: 6, workspaceRetentionDays: 30 },
   repos: [],
   taskId: null,
   root: false,
@@ -68,6 +69,22 @@ describe("workspaceDescription", () => {
     const text = workspaceDescription(base);
     expect(text).toContain("`services start mysql`");
     expect(text).toContain("nohup");
+  });
+
+  it("states the idle pause, stop and retention from the settings", () => {
+    const text = workspaceDescription(base);
+    expect(text).toContain("After 15 minutes without use");
+    expect(text).toContain("after 6 hours they stop");
+    expect(text).toContain("unused for 30 days: then it is deleted");
+    const custom = workspaceDescription({
+      ...base,
+      idle: { pauseIdleMinutes: 1, stopIdleHours: 48, workspaceRetentionDays: 1 },
+    });
+    expect(custom).toContain("After 1 minute without use");
+    expect(custom).toContain("after 48 hours they stop");
+    expect(custom).toContain("unused for 1 day:");
+    // A project's workspace lives as long as the project.
+    expect(workspaceDescription({ ...base, scope: "project" })).not.toContain("then it is deleted");
   });
 
   it("mentions root commands only to agents that may run them", () => {

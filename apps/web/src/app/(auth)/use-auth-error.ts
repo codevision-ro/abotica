@@ -19,7 +19,9 @@ const CODES = {
 
 export function useAuthError() {
   const t = useTranslations("auth.errors");
-  return (error: { code?: string; message?: string }, fallback: string) => {
+  return (error: { code?: string; message?: string; status?: number }, fallback: string) => {
+    // better-auth's rate limit answers 429 with an English message and no code.
+    if (error.status === 429) return t("tooManyAttempts");
     const key = error.code ? CODES[error.code as keyof typeof CODES] : undefined;
     return key ? t(key) : error.message || fallback;
   };

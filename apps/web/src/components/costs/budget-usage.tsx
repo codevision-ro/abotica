@@ -35,7 +35,7 @@ async function BudgetUsageRow({ name, href, budget }: { name: string; href: stri
   );
 }
 
-/** This month's spend against the global budget from Settings > General and each project's own. */
+/** This month's spend against the global budget from Settings > Budget and each project's own. */
 export async function BudgetUsage({ budgets }: { budgets: { global: Spend | null; projects: ProjectBudget[] } }) {
   const t = await getTranslations("costs.budgets");
   return (
@@ -44,7 +44,7 @@ export async function BudgetUsage({ budgets }: { budgets: { global: Spend | null
         <SectionEmpty>{t("empty")}</SectionEmpty>
       ) : (
         <SectionList>
-          {budgets.global && <BudgetUsageRow name={t("global")} href="/settings/general" budget={budgets.global} />}
+          {budgets.global && <BudgetUsageRow name={t("global")} href="/settings/budget" budget={budgets.global} />}
           {budgets.projects.map((b) => (
             <BudgetUsageRow key={b.id} name={b.name} href={`/projects/${b.id}`} budget={b} />
           ))}

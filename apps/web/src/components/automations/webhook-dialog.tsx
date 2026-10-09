@@ -77,7 +77,15 @@ function CopyField({
   );
 }
 
-export type WebhookTarget = { id: string; name: string; event: string; token: string | null; signed: boolean };
+export type WebhookTarget = {
+  id: string;
+  name: string;
+  event: string;
+  token: string | null;
+  signed: boolean;
+  /** Requests per minute that may start runs; null (or not known) is the default. */
+  rateLimitPerMinute?: number | null;
+};
 
 export function WebhookDialog({
   open,
@@ -159,7 +167,7 @@ export function WebhookDialog({
               <p className="border-t px-3 py-2 text-xs text-muted-foreground">
                 {t.rich("response", {
                   example: EXAMPLE_RESPONSE,
-                  limit: WEBHOOK_RATE_LIMIT.requests,
+                  limit: trigger?.rateLimitPerMinute ?? WEBHOOK_RATE_LIMIT.requests,
                   code: (chunks) => <code className="font-mono text-foreground">{chunks}</code>,
                 })}
               </p>

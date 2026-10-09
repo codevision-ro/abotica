@@ -1,7 +1,7 @@
 import { agents, db, tasks } from "@abotica/db";
 import { and, eq, inArray } from "@abotica/db/orm";
 import { getTranslator, UserError } from "@abotica/i18n";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { type Run, startRun, startTaskRun } from "../runs/runs";
 import { reportTargetAgent } from "../tasks/automation-target";
 import { addTaskComment, createTask, deleteTask } from "../tasks/tasks";

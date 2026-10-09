@@ -11,7 +11,7 @@ import { and, asc, count, eq, gte, inArray, ne, sql } from "@abotica/db/orm";
 import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { enqueueTaskEvent, notify, scheduleWakeupCheck } from "../infra/queues";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { startTaskRun } from "../runs/runs";
 import { pullRequestLabel } from "./pull-requests";
 import { SETTLED_TASK_STATUSES } from "./delegation-report";
@@ -23,6 +23,7 @@ import {
   MAX_WAKES_PER_HOUR,
   nextDueAt,
   runChain,
+  WAKE_RATE_WINDOW_MS,
   type Wakeup,
   type WakeupDecision,
   type WakeupFacts,
@@ -47,7 +48,11 @@ async function commentText() {
   const settings = await getSettings();
   const locale = settingsLocale(settings);
   const t = getTranslator(locale);
-  const time = new Intl.DateTimeFormat(locale, { timeZone: settings.timezone, dateStyle: "medium", timeStyle: "short" });
+  const time = new Intl.DateTimeFormat(locale, {
+    timeZone: settings.general.timezone,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
   const describe = (view: WakeupView) => {
     const { key, values } = wakeupCondition(view, {
       time: (date) => time.format(date),
@@ -381,7 +386,7 @@ export async function checkTaskWakeups(taskId: string, now = new Date()): Promis
 
   const [facts, wakesLastHour] = await Promise.all([
     loadFacts(taskId, rules),
-    wakesSince(taskId, new Date(now.getTime() - 3_600_000)),
+    wakesSince(taskId, new Date(now.getTime() - WAKE_RATE_WINDOW_MS)),
   ]);
   const firing: Firing[] = [];
   const stopped: Stopped[] = [];

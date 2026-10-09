@@ -4,7 +4,6 @@ import {
   agentSkills,
   db,
   DEFAULT_AGENT_AVATAR,
-  DEFAULT_AGENT_LIMITS,
   type ModelRef,
   mcpOAuth,
   mcpServers,
@@ -28,7 +27,7 @@ import { actorOf, agentBySlug, blankToUndefined, clip, errorResult, optionalText
 
 /** An explicit model keeps its role's default chain behind it, so the agent survives provider outages. */
 const fallbacksFor = (ctx: RunContext, primary: ModelRef, role: ModelRole): ModelRef[] =>
-  roleDefaultModels(ctx.settings, role).filter((m) => m.provider !== primary.provider || m.model !== primary.model);
+  roleDefaultModels(ctx.settings.models, role).filter((m) => m.provider !== primary.provider || m.model !== primary.model);
 
 const modelLabel = (m: ModelRef | undefined) => (m ? `${m.provider}/${m.model}` : "not set");
 
@@ -80,7 +79,7 @@ export const agentTools: Record<string, ToolFactory> = {
           role: a.role,
           // "default" with the model it resolves to, since each role has its own default.
           model: usesDefaultModel(a)
-            ? `default (${modelLabel(roleDefaultModels(ctx.settings, modelRole(a))[0])})`
+            ? `default (${modelLabel(roleDefaultModels(ctx.settings.models, modelRole(a))[0])})`
             : `${a.provider}/${a.model}`,
           kind: a.kind,
           projects: a.projects.map((p) => ({
@@ -191,7 +190,7 @@ export const agentTools: Record<string, ToolFactory> = {
                 fallbacks: modelRef?.fallbacks ?? [],
                 reasoningEffort: "default",
                 permissions: defaultPermissions({ kind }),
-                limits: DEFAULT_AGENT_LIMITS,
+                limits: ctx.settings.agents.defaultLimits,
               },
               {},
               { note: (await versionNotes()).initial },

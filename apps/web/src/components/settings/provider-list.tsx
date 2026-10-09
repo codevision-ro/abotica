@@ -18,9 +18,10 @@ import { ProviderIcon } from "./provider-icon";
 import { SectionHeader } from "./section-header";
 import { useSubscriptionReturn } from "./use-subscription-return";
 
-/** Connected providers as cards; the rest sit behind "Add provider". */
+/** The Models page's header and its connected providers as cards; the rest sit behind "Add provider". */
 export function ProviderList({ providers, ollamaBaseUrl }: { providers: ProviderStatus[]; ollamaBaseUrl: string }) {
   const t = useTranslations("settings.providers");
+  const tm = useTranslations("settings.models");
   const router = useRouter();
   // Providers added in this visit that have nothing connected yet.
   const [added, setAdded] = useState<ProviderId[]>([]);
@@ -64,7 +65,7 @@ export function ProviderList({ providers, ollamaBaseUrl }: { providers: Provider
 
   return (
     <>
-      <SectionHeader title={t("title")} description={t("description")} actions={addMenu} />
+      <SectionHeader title={tm("title")} description={tm("description")} actions={addMenu} />
       {visible.length ? (
         <div className="grid gap-4 xl:grid-cols-2">
           {visible.map((p) => (

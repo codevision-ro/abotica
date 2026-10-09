@@ -41,7 +41,6 @@ vi.mock("../../tasks/delegation-slots", () => ({ startDelegatedTask: vi.fn(async
 vi.mock("../../tasks/delegation", () => ({
   answersUser: vi.fn(async () => false),
   loadDelegationProject: vi.fn(),
-  MAX_REDELEGATIONS: 2,
   redelegateTask: vi.fn(),
 }));
 vi.mock("../../tasks/tasks", () => ({
@@ -78,6 +77,7 @@ const ctx = {
   agent: { id: "manager", slug: "manager", kind: "manager" },
   managedProjectIds: [],
   projectId: null,
+  settings: { agents: { maxRedelegations: 2 } },
 };
 
 const delegate = (agentSlug: string) => {
@@ -126,6 +126,33 @@ describe("delegate_task and the task's circuit breaker", () => {
   it("reports a breaker that opened while it was delegating", async () => {
     vi.mocked(startDelegatedTask).mockRejectedValueOnce(new TaskCircuitOpenError("t1", AUTH_FAILURE));
     expect((await delegate("worker")).error).toContain("Task t1 is stopped");
+  });
+});
+
+describe("delegate_task sending a task back", () => {
+  const sendBack = (maxRedelegations: number) => {
+    const tool = runTools.delegate_task!({ ...ctx, settings: { agents: { maxRedelegations } } } as never);
+    const input = {
+      agentSlug: "worker",
+      taskId: TASK.id,
+      priority: "medium",
+      dependsOnTaskIds: [],
+      userAsked: false,
+      files: [],
+    };
+    return tool.execute!(input, { toolCallId: "call_1", messages: [], context: {} }) as Promise<Record<string, unknown>>;
+  };
+
+  it("stops at the send-backs Settings allow (agents.maxRedelegations)", async () => {
+    TASK.redelegations = 2;
+    try {
+      expect((await sendBack(2)).error).toContain("was already sent back 2 times");
+      expect(redelegateTask).not.toHaveBeenCalled();
+      expect(await sendBack(3)).toMatchObject({ started: true });
+      expect(redelegateTask).toHaveBeenCalledOnce();
+    } finally {
+      TASK.redelegations = 0;
+    }
   });
 });
 

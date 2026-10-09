@@ -7,12 +7,13 @@ import {
   type TaskEventJob,
 } from "@abotica/core";
 import { Worker } from "bullmq";
+import { WORKER_CONCURRENCY } from "./worker-concurrency";
 
-/** One job at a time: a task's triggers, dependents and wakeups never race each other. */
+/** One job at a time (WORKER_CONCURRENCY): a task's triggers, dependents and wakeups never race each other. */
 export function startTaskEventsWorker() {
   return new Worker<TaskEventJob>(QUEUE.taskEvents, (job) => handleTaskJob(job.data), {
     connection: createRedis(),
-    concurrency: 1,
+    concurrency: WORKER_CONCURRENCY.taskEvents,
   });
 }
 

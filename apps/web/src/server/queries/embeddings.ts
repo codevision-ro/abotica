@@ -11,7 +11,7 @@ export const getEmbeddingStatus = query(async () => {
     embeddingReadiness("openai"),
     embeddingReadiness("ollama"),
   ]);
-  return { provider: settings.embeddingProvider, readiness: { local, openai, ollama }, reindex };
+  return { provider: settings.memory.embeddingProvider, readiness: { local, openai, ollama }, reindex };
 });
 
 export type EmbeddingStatus = Awaited<ReturnType<typeof getEmbeddingStatus>>;

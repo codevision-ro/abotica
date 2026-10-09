@@ -2,6 +2,7 @@
 
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,10 +41,11 @@ export function ModelChainEditor({
       {value.map((m, i) => (
         <div
           key={i}
+          // On a phone: the label and the actions on top, then the provider and the model each on a full line.
           className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border p-2 sm:grid-cols-[auto_11rem_minmax(0,1fr)_auto]"
         >
           {/* Fixed-width label column so provider selects line up across rows. */}
-          <span className={primaryFirst ? "flex w-18 shrink-0 justify-center" : "flex w-6 shrink-0 justify-center"}>
+          <span className={cn("flex shrink-0 max-sm:justify-start sm:justify-center", primaryFirst ? "sm:w-18" : "sm:w-6")}>
             {primaryFirst && i === 0 ? (
               <Badge variant="secondary">{t("primary")}</Badge>
             ) : (
@@ -53,7 +55,10 @@ export function ModelChainEditor({
             )}
           </span>
           <Select value={m.provider} onValueChange={(p) => update(i, { provider: p, model: "" })}>
-            <SelectTrigger className="w-full min-w-0" aria-label={t("provider", { n: i + 1 })}>
+            <SelectTrigger
+              className="w-full min-w-0 max-sm:col-span-full max-sm:row-start-2"
+              aria-label={t("provider", { n: i + 1 })}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -70,9 +75,9 @@ export function ModelChainEditor({
             value={m.model}
             onChange={(model) => update(i, { model })}
             models={options.models}
-            className="max-sm:col-span-full max-sm:row-start-2"
+            className="max-sm:col-span-full max-sm:row-start-3"
           />
-          <div className="flex gap-1">
+          <div className="flex gap-1 max-sm:col-start-3 max-sm:row-start-1 max-sm:justify-self-end">
             <Button
               type="button"
               variant="ghost"

@@ -32,9 +32,9 @@ describe("isTelegramChatId", () => {
 
 describe("notifyChatOf", () => {
   it("prefers the notification chat, then the first allowed user", () => {
-    expect(notifyChatOf({ telegramNotifyChatId: "-100123", telegramAllowedUserIds: [42] })).toBe(-100123);
-    expect(notifyChatOf({ telegramNotifyChatId: null, telegramAllowedUserIds: [42, 7] })).toBe(42);
-    expect(notifyChatOf({ telegramNotifyChatId: null, telegramAllowedUserIds: [] })).toBeNull();
+    expect(notifyChatOf({ notifyChatId: "-100123", allowedUserIds: [42] })).toBe(-100123);
+    expect(notifyChatOf({ notifyChatId: null, allowedUserIds: [42, 7] })).toBe(42);
+    expect(notifyChatOf({ notifyChatId: null, allowedUserIds: [] })).toBeNull();
   });
 });
 

@@ -3,6 +3,7 @@ import { conversations, db, runs } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
 import { Worker } from "bullmq";
 import { showTelegramTyping } from "../telegram/delivery";
+import { WORKER_CONCURRENCY } from "./worker-concurrency";
 
 /**
  * Reports ended runs' delegated tasks back to their delegator. A failed delivery throws, so the job is
@@ -17,8 +18,7 @@ export function startDelegationReportsWorker() {
       const report = await reportDelegatedTasks(run);
       if (report) await showTypingIn(report.conversationId);
     },
-    // One at a time: reports for the same delegator would only race for the same tasks.
-    { connection: createRedis(), concurrency: 1 },
+    { connection: createRedis(), concurrency: WORKER_CONCURRENCY.delegationReports },
   );
 }
 

@@ -4,21 +4,23 @@ import { AppSidebar } from "@/components/app/app-sidebar";
 import { CommandMenu } from "@/components/app/command-menu";
 import { KillSwitch } from "@/components/app/kill-switch";
 import { LiveUpdates } from "@/components/app/live-updates";
+import { TimeZoneDetect } from "@/components/settings/time-zone-detect";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { getPendingApprovalCount } from "@/server/queries/dashboard";
-import { getKillSwitchState } from "@/server/queries/settings";
+import { getKillSwitchState, getTimeZoneUnset } from "@/server/queries/settings";
 import { getAvailableUpdate } from "@/server/queries/updates";
 import { requireUser } from "@/server/session";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const [t, killed, pending, update, cookieStore] = await Promise.all([
+  const [t, killed, pending, update, timeZoneUnset, cookieStore] = await Promise.all([
     getTranslations("shell.header"),
     getKillSwitchState(),
     getPendingApprovalCount(),
     getAvailableUpdate(),
+    getTimeZoneUnset(),
     cookies(),
   ]);
   // Keep the desktop sidebar collapsed across reloads (the sidebar writes this cookie when toggled).
@@ -26,6 +28,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <LiveUpdates>
+      {timeZoneUnset && <TimeZoneDetect />}
       <SidebarProvider defaultOpen={sidebarOpen}>
         <AppSidebar user={{ name: user.name, email: user.email }} badges={{ "/approvals": pending }} update={update} />
         <SidebarInset className="min-w-0 md:border md:border-border/60">

@@ -10,6 +10,7 @@ import { CostChart } from "@/components/costs/cost-chart";
 import { CostKpi } from "@/components/costs/cost-kpi";
 import { CostPeriodSelect } from "@/components/costs/cost-period-select";
 import { AgentChip } from "@/components/runs/agent-chip";
+import { parseCostPeriod } from "@/lib/cost-periods";
 import { getFormat } from "@/server/format";
 import { getCostReport } from "@/server/queries/costs";
 
@@ -18,12 +19,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("meta.title") };
 }
 
-const PERIODS = [7, 30, 90];
-
 export default async function CostsPage(props: PageProps<"/costs">) {
   const sp = await props.searchParams;
-  const requested = Number(Array.isArray(sp.days) ? sp.days[0] : sp.days);
-  const days = PERIODS.includes(requested) ? requested : 30;
+  const days = parseCostPeriod(sp.days);
   const [report, t, fmt] = await Promise.all([getCostReport(days), getTranslations("costs"), getFormat()]);
   const { total } = report;
 

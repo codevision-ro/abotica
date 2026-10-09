@@ -21,7 +21,8 @@
     "enable": "Activează",
     "disable": "Dezactivează",
     "open": "Deschide",
-    "viewAll": "Vezi tot"
+    "viewAll": "Vezi tot",
+    "showMore": "Arată mai multe"
   },
   "states": {
     "saved": "Salvat",
@@ -71,5 +72,10 @@
     "description": "Interfața, mesajele de pe Telegram și digest-ul zilnic.",
     "auto": "Limba browserului",
     "changed": "Limba a fost schimbată"
+  },
+  "pagination": {
+    "range": "{from}-{to} din {total}",
+    "previous": "Pagina anterioară",
+    "next": "Pagina următoare"
   }
 }

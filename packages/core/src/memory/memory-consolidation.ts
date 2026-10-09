@@ -12,15 +12,12 @@ export type MemoryRetention = Memory["retention"];
 
 export const MEMORY_RETENTIONS = ["permanent", "durable", "ephemeral"] as const satisfies readonly MemoryRetention[];
 
-/** How long an ephemeral entry holds after it became true (nanobot's period). */
-export const EPHEMERAL_DAYS = 30;
-
 /** A durable entry becomes permanent once memory_search returned it this often, for this many distinct queries (OpenClaw's defaults). */
 export const PROMOTION_MIN_RECALLS = 3;
 export const PROMOTION_MIN_QUERIES = 3;
 
-/** Entries never recalled and older than this are listed on the memory page for cleanup (never deleted by themselves). */
-export const NEVER_USED_DAYS = 60;
+/** Words the journal prompt asks for per day; the prompt that reads journals cuts a day at about as many (JOURNAL_DAY_MAX_CHARS). */
+export const JOURNAL_MAX_WORDS = 150;
 
 /** Existing entries consolidation compares its facts with. */
 export const CONSOLIDATION_CANDIDATES = 10;
@@ -39,11 +36,19 @@ const dayStart = (day: string) => new Date(`${day}T00:00:00Z`);
 
 const dayOf = (date: Date) => date.toISOString().slice(0, 10);
 
-/** When an entry of this retention expires: ephemeral entries `EPHEMERAL_DAYS` after they became true (null: now). */
-export function expiryFor(retention: MemoryRetention, validFrom: string | null, now: Date): Date | null {
+/**
+ * When an entry of this retention expires: ephemeral entries `ephemeralDays` (Settings, memory.ephemeralDays)
+ * after they became true (null: now).
+ */
+export function expiryFor(
+  retention: MemoryRetention,
+  validFrom: string | null,
+  now: Date,
+  ephemeralDays: number,
+): Date | null {
   if (retention !== "ephemeral") return null;
   const from = validFrom ? dayStart(validFrom) : now;
-  return new Date(from.getTime() + EPHEMERAL_DAYS * DAY_MS);
+  return new Date(from.getTime() + ephemeralDays * DAY_MS);
 }
 
 /** When an entry stopped being true: the day its replacement became true, never later than now. */
@@ -77,7 +82,7 @@ export function journalPrompt(input: {
 }) {
   return {
     instructions: [
-      `You write the daily journal of an AI agent, in the first person, in ${input.language}. Be concise and concrete: at most 150 words, the decisions and what is still open first among what you keep.`,
+      `You write the daily journal of an AI agent, in the first person, in ${input.language}. Be concise and concrete: at most ${JOURNAL_MAX_WORDS} words, the decisions and what is still open first among what you keep.`,
       scopeLine(input.project),
       `Today is ${input.day} (time zone ${input.timezone}). ${NO_RELATIVE_DATES}`,
     ].join(" "),

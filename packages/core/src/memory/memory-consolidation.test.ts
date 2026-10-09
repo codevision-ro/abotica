@@ -231,11 +231,12 @@ describe("planFact", () => {
 });
 
 describe("retention", () => {
-  it("gives ephemeral entries 30 days from when they became true", () => {
-    expect(expiryFor("ephemeral", "2026-10-08", NOW)).toEqual(new Date("2026-11-07T00:00:00Z"));
-    expect(expiryFor("ephemeral", null, NOW)).toEqual(new Date("2026-11-07T21:45:00Z"));
-    expect(expiryFor("durable", "2026-10-08", NOW)).toBeNull();
-    expect(expiryFor("permanent", null, NOW)).toBeNull();
+  it("gives ephemeral entries the configured days from when they became true", () => {
+    expect(expiryFor("ephemeral", "2026-10-08", NOW, 30)).toEqual(new Date("2026-11-07T00:00:00Z"));
+    expect(expiryFor("ephemeral", null, NOW, 30)).toEqual(new Date("2026-11-07T21:45:00Z"));
+    expect(expiryFor("ephemeral", "2026-10-08", NOW, 7)).toEqual(new Date("2026-10-15T00:00:00Z"));
+    expect(expiryFor("durable", "2026-10-08", NOW, 30)).toBeNull();
+    expect(expiryFor("permanent", null, NOW, 30)).toBeNull();
   });
 
   it("invalidates from the day the replacement became true, never in the future", () => {

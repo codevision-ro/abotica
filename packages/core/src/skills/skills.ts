@@ -18,7 +18,7 @@ import { audit } from "../platform/audit";
 import { createConversation } from "../runs/conversations";
 import { isUniqueViolation } from "../infra/db-errors";
 import { startRun } from "../runs/runs";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { checkSkillFiles, compareSkillPaths, SKILL_MD, type SkillFileEntry, type SkillPackage } from "./skill-md";
 import { fetchSkill, fetchSourceHash, hashSkillPackage, type SkillSourceRef } from "./skill-sources";
 import { slugify } from "../platform/slug";

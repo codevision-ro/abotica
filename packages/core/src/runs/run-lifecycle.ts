@@ -1,10 +1,10 @@
-import { agents, approvals, DEFAULT_AGENT_LIMITS, db, runEvents, runs, tasks } from "@abotica/db";
+import { agents, approvals, db, runEvents, runs, tasks } from "@abotica/db";
 import { and, eq, inArray } from "@abotica/db/orm";
 import { getTranslator, type Translator } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { enqueueDelegationReport, enqueueTaskEvent, notify, runJobState, type RunJobState } from "../infra/queues";
 import { redis } from "../infra/redis";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { addTaskComment, awaitsDelegatedWork, awaitsWakeup, updateTask } from "../tasks/tasks";
 import type { RunFailureKind } from "./run-failures";
 import { interruptRunMessage } from "./run-messages";
@@ -294,7 +294,8 @@ export async function recoverRuns(now = new Date()): Promise<number> {
     .leftJoin(agents, eq(agents.id, runs.agentId))
     .where(inArray(runs.status, ["queued", "running"]));
   if (!active.length) return 0;
-  const t = await translator();
+  const settings = await getSettings();
+  const t = getTranslator(settingsLocale(settings));
   const messages: Record<StaleReason, string> = {
     unqueued: t("runs.lifecycle.unqueued"),
     orphaned: t("errors.run.workerRestarted"),
@@ -303,7 +304,7 @@ export async function recoverRuns(now = new Date()): Promise<number> {
   let failed = 0;
   for (const { run, limits } of active) {
     // A deleted agent's run (agent_id set null) still has to be recovered, with the default time limit.
-    const timeoutMs = (limits ?? DEFAULT_AGENT_LIMITS).timeoutMs;
+    const timeoutMs = (limits ?? settings.agents.defaultLimits).timeoutMs;
     const reason = staleRunReason(run, await runJobState(run.id), timeoutMs, now);
     if (!reason) continue;
     if (!(await failRun(run, messages[reason], STALE_KINDS[reason], [run.status]))) continue;

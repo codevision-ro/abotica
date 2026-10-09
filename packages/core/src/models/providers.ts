@@ -6,7 +6,9 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { EmbeddingModel } from "ai";
 import { UserError } from "@abotica/i18n";
 import { isLocalProvider, isProviderId, isSubscriptionProviderId, type ProviderId } from "./catalog";
-import { type AppSettings, getSettings } from "../platform/settings";
+import { type CloudProviderId, DEFAULT_PROVIDER_BASE_URLS } from "./provider-info";
+import { getSettings } from "../settings/settings";
+import type { EmbeddingProvider, ModelSettings } from "../settings/settings-schema";
 import { getSecret } from "../platform/vault";
 import { ollamaBase } from "./ollama";
 import { LOCAL_EMBEDDING_MODEL, localEmbeddingStatus } from "./local-embeddings";
@@ -21,7 +23,13 @@ export const PROVIDER_KEY_SECRET: Record<ProviderId, string | null> = {
   ollama: null,
 };
 
-const MOONSHOT_BASE_URL = "https://api.moonshot.ai/v1";
+/**
+ * The address a cloud provider is called at: the one set in Settings, else the SDK's own (undefined).
+ * Moonshot goes through the generic OpenAI-compatible client, which has no address of its own.
+ */
+export function providerBaseUrl(baseUrls: ModelSettings["baseUrls"], provider: CloudProviderId): string | undefined {
+  return baseUrls[provider] ?? (provider === "moonshot" ? DEFAULT_PROVIDER_BASE_URLS.moonshot : undefined);
+}
 
 async function apiKey(provider: ProviderId): Promise<string> {
   if (isLocalProvider(provider)) return "ollama";
@@ -41,7 +49,7 @@ export class ProviderNotConfiguredError extends UserError {
 export type ProviderConnection = "api-key" | "plan" | "local";
 
 export async function providerConnection(provider: ProviderId): Promise<ProviderConnection | null> {
-  if (isLocalProvider(provider)) return (await getSettings()).ollamaEnabled ? "local" : null;
+  if (isLocalProvider(provider)) return (await getSettings()).models.ollama.enabled ? "local" : null;
   if (isSubscriptionProviderId(provider) && (await isSubscriptionConnected(provider))) return "plan";
   const name = PROVIDER_KEY_SECRET[provider];
   return name && (await getSecret(name)) ? "api-key" : null;
@@ -63,23 +71,21 @@ export async function languageModel(provider: string, model: string): Promise<La
     return planned;
   }
   const key = await apiKey(provider);
+  if (provider === "ollama") {
+    return createOpenAICompatible({ name: "ollama", baseURL: await ollamaApiUrl(), includeUsage: true })(model);
+  }
+  const baseURL = providerBaseUrl((await getSettings()).models.baseUrls, provider);
   switch (provider) {
     case "anthropic":
-      return createAnthropic({ apiKey: key })(model);
+      return createAnthropic({ apiKey: key, baseURL })(model);
     case "openai":
-      return createOpenAI({ apiKey: key })(model);
+      return createOpenAI({ apiKey: key, baseURL })(model);
     case "deepseek":
-      return createDeepSeek({ apiKey: key })(model);
+      return createDeepSeek({ apiKey: key, baseURL })(model);
     case "moonshot":
-      return createOpenAICompatible({ name: "moonshot", baseURL: MOONSHOT_BASE_URL, apiKey: key, includeUsage: true })(
-        model,
-      );
-    case "ollama":
-      return createOpenAICompatible({ name: "ollama", baseURL: await ollamaApiUrl(), includeUsage: true })(model);
+      return createOpenAICompatible({ name: "moonshot", baseURL: baseURL!, apiKey: key, includeUsage: true })(model);
   }
 }
-
-export type EmbeddingProvider = AppSettings["embeddingProvider"];
 
 export const EMBEDDING_MODELS = {
   local: LOCAL_EMBEDDING_MODEL.id,
@@ -88,7 +94,7 @@ export const EMBEDDING_MODELS = {
 } as const satisfies Record<EmbeddingProvider, string>;
 
 /** The provider that embeds memory, journals and knowledge, chosen in Settings. */
-export const embeddingProvider = async (): Promise<EmbeddingProvider> => (await getSettings()).embeddingProvider;
+export const embeddingProvider = async (): Promise<EmbeddingProvider> => (await getSettings()).memory.embeddingProvider;
 
 /** The providers embedding through the AI SDK; the built-in model has its own path (local-embeddings.ts). */
 export type RemoteEmbeddingProvider = Exclude<EmbeddingProvider, "local">;
@@ -105,7 +111,11 @@ export async function embeddingModel(
       ),
     };
   }
-  return { provider, model: createOpenAI({ apiKey: await apiKey("openai") }).embeddingModel(EMBEDDING_MODELS.openai) };
+  const baseURL = providerBaseUrl((await getSettings()).models.baseUrls, "openai");
+  return {
+    provider,
+    model: createOpenAI({ apiKey: await apiKey("openai"), baseURL }).embeddingModel(EMBEDDING_MODELS.openai),
+  };
 }
 
 /**
@@ -138,5 +148,8 @@ export async function embeddingReadiness(provider: EmbeddingProvider): Promise<E
 export const TRANSCRIPTION_PROVIDER = "openai" satisfies ProviderId;
 
 export async function transcriptionModel() {
-  return createOpenAI({ apiKey: await apiKey(TRANSCRIPTION_PROVIDER) }).transcription("gpt-4o-mini-transcribe");
+  return createOpenAI({
+    apiKey: await apiKey(TRANSCRIPTION_PROVIDER),
+    baseURL: providerBaseUrl((await getSettings()).models.baseUrls, TRANSCRIPTION_PROVIDER),
+  }).transcription("gpt-4o-mini-transcribe");
 }

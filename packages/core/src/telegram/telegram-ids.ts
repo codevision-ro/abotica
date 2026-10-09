@@ -24,11 +24,8 @@ export function isTelegramChatId(text: string): boolean {
 }
 
 /** Where notifications go: the chat set in Settings, else the private chat with the first allowed user. */
-export function notifyChatOf(settings: {
-  telegramNotifyChatId: string | null;
-  telegramAllowedUserIds: number[];
-}): number | null {
-  const id = settings.telegramNotifyChatId ?? settings.telegramAllowedUserIds[0];
+export function notifyChatOf(settings: { notifyChatId: string | null; allowedUserIds: number[] }): number | null {
+  const id = settings.notifyChatId ?? settings.allowedUserIds[0];
   return id === undefined ? null : Number(id);
 }
 

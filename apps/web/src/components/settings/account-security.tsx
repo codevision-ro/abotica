@@ -1,5 +1,6 @@
 "use client";
 
+import { PASSWORD_MIN_LENGTH } from "@abotica/core/limits";
 import { FormSection } from "@/components/app/form-section";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionCard, SectionEmpty, SectionIcon, SectionList, SectionRow } from "@/components/app/section-card";
@@ -17,8 +18,6 @@ import { authClient } from "@/lib/auth-client";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 
-const MIN_PASSWORD = 10;
-
 export function ChangePasswordCard() {
   const t = useTranslations("settings.security");
   const [current, setCurrent] = useState("");
@@ -26,7 +25,7 @@ export function ChangePasswordCard() {
   const [confirm, setConfirm] = useState("");
   const [pending, setPending] = useState(false);
   const mismatch = confirm.length > 0 && next !== confirm;
-  const tooShort = next.length > 0 && next.length < MIN_PASSWORD;
+  const tooShort = next.length > 0 && next.length < PASSWORD_MIN_LENGTH;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,7 +75,7 @@ export function ChangePasswordCard() {
               aria-invalid={tooShort}
               required
             />
-            <FieldDescription>{t("minLength", { min: MIN_PASSWORD })}</FieldDescription>
+            <FieldDescription>{t("minLength", { min: PASSWORD_MIN_LENGTH })}</FieldDescription>
           </Field>
           <Field data-invalid={mismatch}>
             <FieldLabel htmlFor="confirm-password">{t("confirmPassword")}</FieldLabel>

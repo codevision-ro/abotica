@@ -117,6 +117,13 @@
     "workspaceServerHint": "One process shared by every agent, with its own files.",
     "workspaceRun": "The agent's workspace",
     "workspaceRunHint": "It can read the agent's files in /workspace and saves its own where the agent can read them, but never changes the agent's files. Each project gets its own process.",
+    "advancedTitle": "Advanced",
+    "advancedSummary": "Start within {connect} s, tool calls within {call} s",
+    "connectTimeout": "Start timeout",
+    "connectTimeoutHint": "How long the server may take to start and answer. Empty uses {seconds} s.",
+    "callTimeout": "Tool call timeout",
+    "callTimeoutHint": "How long a tool call waits for its answer. Empty uses {seconds} s.",
+    "secondsUnit": "s",
     "credentialRoutes": {
       "title": "Credential routes",
       "description": "The server gets only the route's URL in the variable. Abotica's proxy adds the header with the secret to its requests to the upstream, so the secret never enters the sandbox.",
@@ -215,7 +222,9 @@
     "slugFormat": "The slug can only contain lowercase letters, digits and hyphens",
     "invalidUrl": "Invalid URL (e.g. https://server/mcp)",
     "commandRequired": "A command is required for stdio",
-    "keyRequired": "Enter the API key"
+    "keyRequired": "Enter the API key",
+    "connectTimeout": "The start timeout must be between {min} and {max} seconds",
+    "callTimeout": "The tool call timeout must be between {min} and {max} seconds"
   },
   "builtin": {
     "parallel-search": "Web search and page reading, free without a key",

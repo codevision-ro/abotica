@@ -2,7 +2,7 @@ import { agents, db, runs, tasks } from "@abotica/db";
 import { and, asc, count, eq, inArray, isNotNull, isNull, notExists, or } from "@abotica/db/orm";
 import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
 import { withLock } from "../infra/redis";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { type Run, startTaskRun } from "../runs/runs";
 import { addTaskComment, isActiveTaskRunConflict, type Task, updateTask } from "./tasks";
 
@@ -53,7 +53,7 @@ export async function startDelegatedTask(taskId: string, opts: { parentRunId?: s
   const conversationId = await delegatingConversation(taskId);
   if (!conversationId) return startTaskRun(taskId, opts);
   return withLock(lockKey(conversationId), async () => {
-    const { parallelDelegations } = await getSettings();
+    const { parallelDelegations } = (await getSettings()).agents;
     if (freePlaces(parallelDelegations, await busyPlaces(conversationId))) return startTaskRun(taskId, opts);
     await db.update(tasks).set({ waitingForSlotSince: new Date() }).where(eq(tasks.id, taskId));
     await updateTask(taskId, { status: "backlog" }, "system");
@@ -139,7 +139,7 @@ async function startClaimed(task: Task): Promise<StartOutcome> {
  */
 export async function startWaitingTasks(conversationId: string): Promise<number> {
   return withLock(lockKey(conversationId), async () => {
-    const { parallelDelegations } = await getSettings();
+    const { parallelDelegations } = (await getSettings()).agents;
     let free = freePlaces(parallelDelegations, await busyPlaces(conversationId));
     let started = 0;
     while (free > 0) {

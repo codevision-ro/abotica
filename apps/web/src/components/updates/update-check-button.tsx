@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { checkUpdatesNow } from "@/server/actions/updates";
 
-/** The page's primary action: ask GitHub now, even with automatic checks off. */
+/** Asks GitHub now, even with automatic checks off. Outline: the settings form owns the primary action. */
 export function UpdateCheckButton() {
   const t = useTranslations("settings.updates");
   const router = useRouter();
@@ -30,7 +30,7 @@ export function UpdateCheckButton() {
   }
 
   return (
-    <Button onClick={check} disabled={pending}>
+    <Button variant="outline" size="sm" onClick={check} disabled={pending}>
       {pending ? <Spinner /> : <RefreshCw />} {t("checkNow")}
     </Button>
   );

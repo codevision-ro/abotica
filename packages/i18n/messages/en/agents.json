@@ -168,8 +168,8 @@
     "modelDescription": "The model the agent runs on.",
     "useDefault": "Default model",
     "defaultNotSet": "Not set yet",
-    "defaultHint": "{role, select, orchestrator {The super agent's default.} manager {The managers' default, since this agent is a manager.} other {The specialists' default.}} Change it in <link>Settings → AI providers</link> for every agent that uses it.",
-    "defaultMissing": "The default model is not set: <link>set it in Settings → AI providers</link>",
+    "defaultHint": "{role, select, orchestrator {The super agent's default.} manager {The managers' default, since this agent is a manager.} other {The specialists' default.}} Change it in <link>Settings → Models</link> for every agent that uses it.",
+    "defaultMissing": "The default model is not set: <link>set it in Settings → Models</link>",
     "useCustom": "Choose a model",
     "useCustomDescription": "A provider and model only for this agent.",
     "provider": "Provider",
@@ -224,9 +224,6 @@
     "created": "Agent created",
     "savedVersion": "Saved as v{version}",
     "savedNoVersion": "Saved, no version change",
-    "invalidMaxSteps": "Max steps: between 1 and 100",
-    "invalidTimeout": "Timeout: at least 1 minute",
-    "invalidBudget": "The budget must be a positive number or empty",
     "pickModel": "Choose a model or use the default model",
     "fallbackModel": "Fill in the model for each fallback",
     "managesProject": "Manages this project. Choose another manager in the project's Team tab first."
@@ -451,8 +448,9 @@
     "unknownProvider": "Unknown provider",
     "pickModel": "Choose a model",
     "nameRequired": "Name is required",
-    "timeoutMin": "Minimum timeout: 1 minute",
-    "budgetPositive": "The budget must be positive"
+    "maxSteps": "Max steps: between {min} and {max}",
+    "timeout": "Timeout: between {min} and {max} minutes",
+    "budget": "Budget: between ${min} and ${max}, or empty for no limit"
   },
   "unsaved": {
     "title": "Leave without saving?",

@@ -12,6 +12,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { SEARCH_DEBOUNCE_MS } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import { fetchSkillPreview, searchSkillsSh } from "@/server/actions/skills";
 import { SkillIcon } from "./skill-icon";
@@ -21,7 +22,6 @@ import { SkillPreview, SkillPreviewSkeleton, useInstallSkill } from "./skill-pre
 const TOPICS = ["pdf", "react", "design", "testing", "seo", "marketing", "database", "writing"];
 
 const MIN_QUERY = 2;
-const DEBOUNCE_MS = 300;
 
 type Search = { query: string; results: SkillsShResult[] } | { query: string; error: string };
 
@@ -62,7 +62,7 @@ export function SkillDiscover({
     return () => clearTimeout(timer.current);
   }, [restored, run]);
 
-  function update(value: string, delay = DEBOUNCE_MS) {
+  function update(value: string, delay = SEARCH_DEBOUNCE_MS) {
     setQuery(value);
     clearTimeout(timer.current);
     const q = value.trim();

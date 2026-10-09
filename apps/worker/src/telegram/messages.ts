@@ -2,6 +2,7 @@ import {
   appendUserMessage,
   type Conversation,
   ConversationBusyError,
+  env,
   filePart,
   getSettings,
   projectProviderPolicy,
@@ -20,11 +21,11 @@ import { botTranslator } from "./bot";
 import { currentConversation } from "./chat";
 import type { TelegramOrigin } from "./delivery";
 import { incomingFileName, mediaGroupCollector, TELEGRAM_DOWNLOAD_MAX_BYTES } from "./incoming-files";
-import { replyError } from "./send";
+import { replyError, TELEGRAM_TEXT_LIMIT } from "./send";
 
 async function download(bot: Bot, fileId: string): Promise<{ data: Buffer; path: string }> {
   const file = await bot.api.getFile(fileId);
-  const res = await fetch(`https://api.telegram.org/file/bot${bot.token}/${file.file_path}`);
+  const res = await fetch(`${env().TELEGRAM_API_URL}/file/bot${bot.token}/${file.file_path}`);
   if (!res.ok) throw new Error(`File download failed (${res.status})`);
   return { data: Buffer.from(await res.arrayBuffer()), path: file.file_path ?? "" };
 }
@@ -80,7 +81,7 @@ async function showProgress(bot: Bot, ctx: Context, runId: string) {
       if (!isPrivate || !view || view === lastShown || Date.now() - lastSent < 900) continue;
       lastShown = view;
       lastSent = Date.now();
-      await bot.api.sendMessageDraft(chatId, draftId, view.slice(-4000)).catch(() => {});
+      await bot.api.sendMessageDraft(chatId, draftId, view.slice(-TELEGRAM_TEXT_LIMIT)).catch(() => {});
     }
   } finally {
     clearInterval(typing);
@@ -136,7 +137,7 @@ export function registerMessageHandlers(bot: Bot) {
       return ctx.reply((await botTranslator())("telegram.voiceNotAllowed"));
     }
     const { data } = await download(bot, media.file_id);
-    const { locale } = await getSettings();
+    const { locale } = (await getSettings()).general;
     const { text } = await transcribe({
       model: await transcriptionModel(),
       audio: data,

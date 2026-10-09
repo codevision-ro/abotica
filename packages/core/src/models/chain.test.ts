@@ -10,7 +10,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 const AGENTS = [{ provider: "deepseek", model: "chat" }];
 const MANAGERS = [{ provider: "openai", model: "gpt" }];
-const settings = { defaultModels: AGENTS, orchestratorModels: [], managerModels: MANAGERS };
+const settings = { chains: { agent: AGENTS, orchestrator: [], manager: MANAGERS } };
 const onDefault = { provider: null, model: null, fallbacks: [] };
 
 describe("resolveModelChain", () => {

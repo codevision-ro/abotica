@@ -97,8 +97,7 @@
       "title": "Limite",
       "description": "Cât poate rula o singură comandă.",
       "commandTimeout": "Timp maxim per comandă",
-      "commandTimeoutHint": "Secunde, de la {min} la {max}.",
-      "seconds": "s"
+      "commandTimeoutHint": "Secunde, de la {min} la {max}."
     },
     "docker": {
       "title": "Containere",
@@ -124,7 +123,24 @@
       },
       "gvisorMissing": "gVisor nu este instalat pe acest host Docker."
     },
-    "saved": "Setările de sandbox au fost salvate. Worker-ul le verifică din nou."
+    "advanced": {
+      "title": "Avansat",
+      "summary": "{pids} procese, pauză după {pause} min, oprire după {stop} h, workspace-urile din chat păstrate {days, plural, one {# zi} few {# zile} other {# de zile}}",
+      "pids": "Procese",
+      "pidsHint": "Numărul maxim de procese per container, de la {min} la {max}.",
+      "pauseIdle": "Pauză la inactivitate",
+      "pauseIdleHint": "Minute fără comenzi după care un container este pus pe pauză (procesele lui îngheață), de la {min} la {max}.",
+      "stopIdle": "Oprire la inactivitate",
+      "stopIdleHint": "Ore de inactivitate după care un container pus pe pauză este oprit, de la {min} la {max}.",
+      "retention": "Păstrarea workspace-urilor din chat",
+      "retentionHint": "Zile în care workspace-ul nefolosit al unui chat este păstrat, apoi este șters cu fișierele lui, de la {min} la {max}."
+    },
+    "units": {
+      "seconds": "s",
+      "minutes": "min",
+      "hours": "h",
+      "days": "zile"
+    }
   },
   "project": {
     "title": "Sandbox",

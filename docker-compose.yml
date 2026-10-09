@@ -57,8 +57,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Previews: http://<code>.preview.localhost:3100 (browsers send *.localhost to this machine).
+    # The worker reads PREVIEW_PORT from .env too; with another port, set PREVIEW_URL to match.
     ports:
-      - "127.0.0.1:3100:3100"
+      - "127.0.0.1:${PREVIEW_PORT:-3100}:${PREVIEW_PORT:-3100}"
     volumes:
       - ./apps/worker/src:/app/apps/worker/src:ro
       - ./packages/core/src:/app/packages/core/src:ro

@@ -2,13 +2,14 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import type * as Budgets from "./budgets";
 
 let budgetAlertKey: typeof Budgets.budgetAlertKey;
+let budgetAlertThresholds: typeof Budgets.budgetAlertThresholds;
 let crossedThreshold: typeof Budgets.crossedThreshold;
 let monthKey: typeof Budgets.monthKey;
 let tightestBudget: typeof Budgets.tightestBudget;
 
 beforeAll(async () => {
   vi.stubEnv("DATABASE_URL", "postgres://test@localhost/test");
-  ({ budgetAlertKey, crossedThreshold, monthKey, tightestBudget } = await import("./budgets"));
+  ({ budgetAlertKey, budgetAlertThresholds, crossedThreshold, monthKey, tightestBudget } = await import("./budgets"));
 });
 
 const PROJECT_ID = "11111111-2222-4333-8444-555555555555";
@@ -21,30 +22,61 @@ const project = (budgetUsd: number, spentUsd: number) => ({
   spentUsd,
 });
 
+describe("budgetAlertThresholds", () => {
+  it("warns at each configured percent and always at 100", () => {
+    expect(budgetAlertThresholds([80])).toEqual([80, 100]);
+    expect(budgetAlertThresholds([90, 50, 75])).toEqual([50, 75, 90, 100]);
+  });
+
+  it("alerts only at 100 when no warnings are configured", () => {
+    expect(budgetAlertThresholds([])).toEqual([100]);
+  });
+
+  it("does not repeat 100 or a percent given twice", () => {
+    expect(budgetAlertThresholds([100, 80, 80])).toEqual([80, 100]);
+  });
+});
+
 describe("crossedThreshold", () => {
+  const thresholds = [80, 100];
+
   it("is null below 80%", () => {
-    expect(crossedThreshold(0, 50)).toBe(null);
-    expect(crossedThreshold(39.99, 50)).toBe(null);
+    expect(crossedThreshold(0, 50, thresholds)).toBe(null);
+    expect(crossedThreshold(39.99, 50, thresholds)).toBe(null);
   });
 
   it("is 80 from 80% up to the budget", () => {
-    expect(crossedThreshold(40, 50)).toBe(80);
-    expect(crossedThreshold(49.99, 50)).toBe(80);
+    expect(crossedThreshold(40, 50, thresholds)).toBe(80);
+    expect(crossedThreshold(49.99, 50, thresholds)).toBe(80);
   });
 
   it("is 100 once the budget is reached or passed", () => {
-    expect(crossedThreshold(50, 50)).toBe(100);
-    expect(crossedThreshold(120, 50)).toBe(100);
+    expect(crossedThreshold(50, 50, thresholds)).toBe(100);
+    expect(crossedThreshold(120, 50, thresholds)).toBe(100);
   });
 
   it("does not miss 80% to floating point", () => {
-    expect(crossedThreshold(0.8, 1)).toBe(80);
-    expect(crossedThreshold(1.16, 1.45)).toBe(80);
+    expect(crossedThreshold(0.8, 1, thresholds)).toBe(80);
+    expect(crossedThreshold(1.16, 1.45, thresholds)).toBe(80);
   });
 
   it("sends nothing for a budget of 0", () => {
-    expect(crossedThreshold(0, 0)).toBe(null);
-    expect(crossedThreshold(3, 0)).toBe(null);
+    expect(crossedThreshold(0, 0, thresholds)).toBe(null);
+    expect(crossedThreshold(3, 0, thresholds)).toBe(null);
+  });
+
+  it("follows the configured percents, the highest crossed first", () => {
+    const configured = budgetAlertThresholds([50, 90]);
+    expect(crossedThreshold(20, 50, configured)).toBe(null);
+    expect(crossedThreshold(25, 50, configured)).toBe(50);
+    expect(crossedThreshold(44, 50, configured)).toBe(50);
+    expect(crossedThreshold(46, 50, configured)).toBe(90);
+    expect(crossedThreshold(50, 50, configured)).toBe(100);
+  });
+
+  it("with no warnings configured, alerts only once the budget is reached", () => {
+    expect(crossedThreshold(49, 50, budgetAlertThresholds([]))).toBe(null);
+    expect(crossedThreshold(50, 50, budgetAlertThresholds([]))).toBe(100);
   });
 });
 

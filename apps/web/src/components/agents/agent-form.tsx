@@ -2,8 +2,10 @@
 
 import { kindPrompt } from "@abotica/core/agents/kind-prompts";
 import type { ToolPermissions } from "@abotica/core/agents/permissions";
+import { AGENT_NAME_MAX_LENGTH, AGENT_PROMPT_MAX_LENGTH, AGENT_ROLE_MAX_LENGTH } from "@abotica/core/limits";
 import { modelRole, roleDefaultEffort, roleDefaultModels } from "@abotica/core/models/model-role";
 import type { ReasoningEffort } from "@abotica/core/models/reasoning";
+import { SETTINGS_LIMITS } from "@abotica/core/settings";
 import type { AgentKind } from "@abotica/db";
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import {
@@ -84,6 +86,9 @@ const SECTIONS = {
 } as const;
 
 /** Permission keys sorted, so undoing a change makes the form clean again. */
+/** Bounds of an agent's limits, the same as those of the default limits in Settings > Agents. */
+const LIMITS = SETTINGS_LIMITS.agents;
+
 const sortedKeys = (obj: ToolPermissions) => Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)));
 
 const toggle = (list: string[], item: string, on: boolean) =>
@@ -102,6 +107,7 @@ export function AgentForm({
   isTemplate?: boolean;
 }) {
   const t = useTranslations("agents.form");
+  const tv = useTranslations("agents.validation");
   const te = useTranslations("agents.effort");
   const tc = useTranslations("common.actions");
   const router = useRouter();
@@ -188,10 +194,15 @@ export function AgentForm({
       setAdvancedOpen(true);
       toast.error(message);
     };
-    if (!Number.isInteger(steps) || steps < 1 || steps > 100) return advancedError(t("invalidMaxSteps"));
-    if (!Number.isFinite(minutes) || minutes < 1) return advancedError(t("invalidTimeout"));
-    if (budgetUsd !== null && (!Number.isFinite(budgetUsd) || budgetUsd <= 0)) {
-      return advancedError(t("invalidBudget"));
+    const within = (n: number, range: { min: number; max: number }) => n >= range.min && n <= range.max;
+    if (!Number.isInteger(steps) || !within(steps, LIMITS.maxSteps)) {
+      return advancedError(tv("maxSteps", LIMITS.maxSteps));
+    }
+    if (!Number.isFinite(minutes) || !within(minutes, LIMITS.timeoutMinutes)) {
+      return advancedError(tv("timeout", LIMITS.timeoutMinutes));
+    }
+    if (budgetUsd !== null && (!Number.isFinite(budgetUsd) || !within(budgetUsd, LIMITS.budgetUsd))) {
+      return advancedError(tv("budget", LIMITS.budgetUsd));
     }
     if (!usesDefault && !v.model?.trim()) return toast.error(t("pickModel"));
     if (v.fallbacks.some((f) => !f.model.trim())) return advancedError(t("fallbackModel"));
@@ -382,7 +393,7 @@ export function AgentForm({
             value={v.name}
             onChange={(e) => set("name", e.target.value)}
             required
-            maxLength={80}
+            maxLength={AGENT_NAME_MAX_LENGTH}
             autoComplete="off"
             placeholder={t("namePlaceholder")}
             className={cn(heroFieldVariants({ kind: "title" }), editing ? "text-lg" : "text-2xl sm:text-3xl")}
@@ -394,7 +405,7 @@ export function AgentForm({
             id="agent-role"
             value={v.role}
             onChange={(e) => set("role", e.target.value)}
-            maxLength={200}
+            maxLength={AGENT_ROLE_MAX_LENGTH}
             autoComplete="off"
             placeholder={t("rolePlaceholder")}
             className={cn(heroFieldVariants({ kind: "subtitle" }), editing ? "py-0.5 text-sm" : "py-1 text-base")}
@@ -458,6 +469,7 @@ export function AgentForm({
             aria-label={profession ? t("systemPrompt") : t("additionalPrompt")}
             value={v.systemPrompt}
             onChange={(e) => set("systemPrompt", e.target.value)}
+            maxLength={AGENT_PROMPT_MAX_LENGTH}
             placeholder={profession ? t("promptPlaceholder") : undefined}
             spellCheck={false}
             className="max-h-[60vh] min-h-44 resize-none rounded-none border-0 bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed shadow-none focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
@@ -497,11 +509,13 @@ export function AgentForm({
 
         {usesDefault ? (
           defaultChain.length ? (
-            <p className="text-xs text-muted-foreground">{t.rich("defaultHint", { role, link: link("/settings") })}</p>
+            <p className="text-xs text-muted-foreground">
+              {t.rich("defaultHint", { role, link: link("/settings/models") })}
+            </p>
           ) : (
             <p className="flex items-center gap-1.5 text-xs text-warning">
               <TriangleAlertIcon className="size-3.5 shrink-0" aria-hidden />
-              {t.rich("defaultMissing", { link: link("/settings") })}
+              {t.rich("defaultMissing", { link: link("/settings/models") })}
             </p>
           )
         ) : (
@@ -527,7 +541,7 @@ export function AgentForm({
               {provider && !provider.configured && (
                 <FieldDescription className="flex items-center gap-1.5 text-warning">
                   <TriangleAlertIcon className="size-3.5" />
-                  {t.rich("providerMissingKey", { link: link("/settings") })}
+                  {t.rich("providerMissingKey", { link: link("/settings/models") })}
                 </FieldDescription>
               )}
             </Field>
@@ -638,8 +652,8 @@ export function AgentForm({
               <Input
                 id="limit-steps"
                 type="number"
-                min={1}
-                max={100}
+                min={LIMITS.maxSteps.min}
+                max={LIMITS.maxSteps.max}
                 step={1}
                 value={maxSteps}
                 onChange={(e) => setMaxSteps(e.target.value)}
@@ -651,7 +665,8 @@ export function AgentForm({
               <Input
                 id="limit-timeout"
                 type="number"
-                min={1}
+                min={LIMITS.timeoutMinutes.min}
+                max={LIMITS.timeoutMinutes.max}
                 step={1}
                 value={timeoutMin}
                 onChange={(e) => setTimeoutMin(e.target.value)}

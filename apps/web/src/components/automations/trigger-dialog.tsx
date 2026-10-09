@@ -1,8 +1,16 @@
 "use client";
 
 import type { AgentAvatar } from "@abotica/db/avatar";
-import { eventKey, TRIGGER_EVENTS, type TriggerEvent, usesWebhook } from "@abotica/core/trigger-events";
 import {
+  eventKey,
+  TRIGGER_EVENTS,
+  type TriggerEvent,
+  usesWebhook,
+  WEBHOOK_RATE_LIMIT,
+  WEBHOOK_RATE_LIMIT_BOUNDS,
+} from "@abotica/core/trigger-events";
+import {
+  ChevronRightIcon,
   CircleCheckIcon,
   type LucideIcon,
   MailIcon,
@@ -16,7 +24,9 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { OptionCards } from "@/components/app/option-cards";
+import { SettingsNumberField } from "@/components/settings/settings-number-field";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -36,6 +46,16 @@ export type TriggerDraft = {
   event: string;
   prompt: string;
   enabled: boolean;
+  /** Webhook requests per minute; null uses the default. Missing when not known: saving keeps the stored one. */
+  rateLimitPerMinute?: number | null;
+};
+
+export type SavedTrigger = {
+  id: string;
+  name: string;
+  event: string;
+  token: string | null;
+  rateLimitPerMinute: number | null;
 };
 
 /** Icon of each trigger event, shared by the event picker and the trigger cards. */
@@ -62,7 +82,7 @@ export function TriggerDialog({
   initial: TriggerDraft;
   agents: Option[];
   projects: Option[];
-  onSaved: (saved: { id: string; name: string; event: string; token: string | null }, created: boolean) => void;
+  onSaved: (saved: SavedTrigger, created: boolean) => void;
 }) {
   const edited = useRef(false);
   useEffect(() => {
@@ -103,9 +123,10 @@ function TriggerForm({
   agents: Option[];
   projects: Option[];
   onEdit: () => void;
-  onSaved: (saved: { id: string; name: string; event: string; token: string | null }, created: boolean) => void;
+  onSaved: (saved: SavedTrigger, created: boolean) => void;
 }) {
   const t = useTranslations("automations.triggerDialog");
+  const tv = useTranslations("automations.validation");
   const tf = useTranslations("automations.fields");
   const te = useTranslations("automations.events");
   const th = useTranslations("automations.eventHints");
@@ -116,16 +137,28 @@ function TriggerForm({
   const [event, setEvent] = useState<TriggerEvent>((initial.event as TriggerEvent) || "webhook");
   const [prompt, setPrompt] = useState(initial.prompt);
   const [enabled, setEnabled] = useState(initial.enabled);
+  const [rateLimit, setRateLimit] = useState(initial.rateLimitPerMinute ?? null);
+  const [advancedOpen, setAdvancedOpen] = useState(rateLimit !== null);
   const [pending, startTransition] = useTransition();
+  const { min, max } = WEBHOOK_RATE_LIMIT_BOUNDS;
+  const rateLimitError =
+    rateLimit === null || (Number.isInteger(rateLimit) && rateLimit >= min && rateLimit <= max)
+      ? undefined
+      : tv("rateLimit", { min, max });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Unknown and left empty: nothing to send, so the stored limit stays.
+    const limit = initial.rateLimitPerMinute !== undefined || rateLimit !== null ? rateLimit : undefined;
     startTransition(async () => {
-      const input = { name, agentId, projectId, event, prompt, enabled };
+      const input = { name, agentId, projectId, event, prompt, enabled, rateLimitPerMinute: limit };
       const res = initial.id ? await updateTrigger({ ...input, id: initial.id }) : await createTrigger(input);
       if (!res.ok) return void toast.error(res.error);
       toast.success(initial.id ? t("updated") : t("created"));
-      onSaved({ id: res.data.id, name, event, token: res.data.token }, !initial.id);
+      onSaved(
+        { id: res.data.id, name, event, token: res.data.token, rateLimitPerMinute: res.data.rateLimitPerMinute },
+        !initial.id,
+      );
     });
   };
 
@@ -170,7 +203,36 @@ function TriggerForm({
           }))}
         />
         {usesWebhook(event) && (
-          <p className="-mt-1 text-xs text-muted-foreground">{initial.id ? t("webhookHintKeep") : t("webhookHint")}</p>
+          <>
+            <p className="-mt-1 text-xs text-muted-foreground">{initial.id ? t("webhookHintKeep") : t("webhookHint")}</p>
+            <Collapsible
+              open={advancedOpen}
+              onOpenChange={setAdvancedOpen}
+              className="group/advanced flex min-w-0 flex-col gap-3"
+            >
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" className="-ml-2 self-start">
+                  <ChevronRightIcon className="transition-transform group-data-[state=open]/advanced:rotate-90" />
+                  {t("advanced")}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SettingsNumberField
+                  id="trigger-rate-limit"
+                  nullable
+                  label={t("rateLimit")}
+                  hint={t("rateLimitHint", { count: WEBHOOK_RATE_LIMIT.requests })}
+                  value={rateLimit}
+                  onChange={setRateLimit}
+                  placeholder={String(WEBHOOK_RATE_LIMIT.requests)}
+                  min={min}
+                  max={max}
+                  unit={t("perMinute")}
+                  error={rateLimitError}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          </>
         )}
       </DialogGroup>
 
@@ -196,7 +258,12 @@ function TriggerForm({
 
       <DialogFooter className={stickyFooterClass}>
         <DialogActiveSwitch id="trigger-enabled" label={tf("active")} checked={enabled} onCheckedChange={setEnabled} />
-        <Button type="submit" disabled={pending || !name.trim() || !agentId || !prompt.trim()}>
+        <Button
+          type="submit"
+          disabled={
+            pending || !name.trim() || !agentId || !prompt.trim() || (usesWebhook(event) && Boolean(rateLimitError))
+          }
+        >
           {pending ? <Spinner /> : initial.id ? <SaveIcon /> : <PlusIcon />}
           {initial.id ? tCommon("actions.save") : t("create")}
         </Button>

@@ -15,9 +15,9 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { deleteConversation } from "@/server/actions/chat";
+import { deleteConversation, loadConversationList } from "@/server/actions/chat";
 import type { ChatAgent, ChatProject } from "@/server/queries/chat";
-import { ALL, filterQuery, NO_PROJECT } from "@/lib/conversation-filter";
+import { ALL, CHAT_LIST_PAGE_SIZE, filterQuery, NO_PROJECT } from "@/lib/conversation-filter";
 import { NewConversationDialog } from "./new-conversation-dialog";
 
 type Conversation = {
@@ -31,8 +31,11 @@ type Conversation = {
   project: { id: string; name: string } | null;
 };
 
+type ConversationList = { rows: Conversation[]; total: number };
+
 type Props = {
-  conversations: Conversation[];
+  /** The newest conversations under the filter (the first page), and how many there are in all. */
+  list: ConversationList;
   agents: ChatAgent[];
   projects: ChatProject[];
   /** Projects that have conversations: the filter's choices. */
@@ -101,16 +104,42 @@ export function ConversationListTrigger({ className }: { className?: string }) {
  * The conversation list with its project filter. The filter lives in the URL and the server lists the
  * matching conversations; changing it keeps the open conversation.
  */
-export function ConversationPanel({ conversations, agents, projects, filterProjects, filter }: Props) {
+export function ConversationPanel({ list, agents, projects, filterProjects, filter }: Props) {
   const params = useParams<{ id?: string }>();
   const pathname = usePathname();
   const router = useRouter();
   const t = useTranslations("chat.list");
+  const tc = useTranslations("common.actions");
   const { inSheet, close } = use(PlacementContext);
   const [creating, setCreating] = useState(false);
   const query = filterQuery(filter);
   const listRef = useRef<HTMLDivElement>(null);
   const setFilter = (value: string) => router.replace(`${pathname}${filterQuery(value)}`, { scroll: false });
+  // "Show more" grows the list past the first page the server renders; `grownTo` is how far.
+  const [grown, setGrown] = useState<ConversationList | null>(null);
+  const grownTo = useRef(0);
+  const [loading, startLoading] = useTransition();
+  const load = (limit: number) =>
+    startLoading(async () => {
+      const res = await loadConversationList({ filter, limit });
+      if (!res.ok) return void toast.error(res.error);
+      grownTo.current = limit;
+      setGrown(res.data);
+    });
+  // When the server list refreshes (a new message, a rename, a delete), the grown list is fetched again.
+  useEffect(() => {
+    const limit = grownTo.current;
+    if (!limit) return;
+    let stale = false;
+    void loadConversationList({ filter, limit }).then((res) => {
+      if (!stale && res.ok) setGrown(res.data);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [list, filter]);
+  const shown = grown ?? list;
+  const conversations = shown.rows;
   // Keep the open conversation visible when it is far down the list.
   useEffect(() => {
     listRef.current?.querySelector("[data-active=true]")?.scrollIntoView({ block: "nearest" });
@@ -121,9 +150,7 @@ export function ConversationPanel({ conversations, agents, projects, filterProje
       <div className={cn("flex h-16 shrink-0 items-center justify-between gap-2 px-4", inSheet && "pr-12")}>
         <span className="flex items-baseline gap-1.5 text-sm font-semibold">
           {t("title")}
-          {conversations.length > 0 && (
-            <span className="tabular text-xs font-normal text-muted-foreground">{conversations.length}</span>
-          )}
+          {shown.total > 0 && <span className="tabular text-xs font-normal text-muted-foreground">{shown.total}</span>}
         </span>
         <Button size="sm" variant="outline" className="bg-card/70" onClick={() => setCreating(true)}>
           <SquarePenIcon /> {t("new")}
@@ -226,6 +253,19 @@ export function ConversationPanel({ conversations, agents, projects, filterProje
               </li>
             );
           })}
+          {conversations.length < shown.total && (
+            <li>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                disabled={loading}
+                onClick={() => load(conversations.length + CHAT_LIST_PAGE_SIZE)}
+              >
+                {loading && <Spinner />} {tc("showMore")}
+              </Button>
+            </li>
+          )}
         </ul>
       </div>
     </div>

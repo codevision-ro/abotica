@@ -10,7 +10,7 @@ import { sandboxQueue, sandboxQueueEvents } from "../infra/queues";
 import { requestWorkspaceRemoval } from "../sandbox/sandbox";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
 import { builtinMcp } from "../mcp/mcp-builtins";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import {
   GLOBAL_SECRETS,
   OWNER_SECRETS,

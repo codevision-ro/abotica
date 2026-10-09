@@ -1,5 +1,4 @@
 import { defaultPermissions } from "@abotica/core";
-import { DEFAULT_AGENT_LIMITS } from "@abotica/db";
 import { DEFAULT_AGENT_AVATAR } from "@abotica/db/avatar";
 import { ArrowLeftIcon, FilePlus2Icon } from "lucide-react";
 import type { Metadata } from "next";
@@ -58,7 +57,7 @@ export default async function NewAgentPage(props: PageProps<"/agents/new">) {
         fallbacks: [],
         reasoningEffort: "default",
         permissions: defaultPermissions({ kind: "specialist" }),
-        limits: DEFAULT_AGENT_LIMITS,
+        limits: options.defaultLimits,
         skillIds: [],
         mcpServerIds: [],
         projectIds: [],

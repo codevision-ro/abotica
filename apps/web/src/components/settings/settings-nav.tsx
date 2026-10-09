@@ -1,73 +1,85 @@
 "use client";
 
-import { Boxes, CircleArrowUp, Cpu, KeyRound, ScrollText, Send, Shield, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef } from "react";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger } from "@/components/ui/select";
+import { requestNavigation } from "@/lib/navigation-guard";
 import { cn } from "@/lib/utils";
+import { isSettingsPageActive, SETTINGS_GROUPS, SETTINGS_PAGES } from "./settings-pages";
 
-const ITEMS = [
-  { href: "/settings", label: "providers", icon: Cpu },
-  { href: "/settings/general", label: "general", icon: SlidersHorizontal },
-  { href: "/settings/sandbox", label: "sandbox", icon: Boxes },
-  { href: "/settings/vault", label: "vault", icon: KeyRound },
-  { href: "/settings/security", label: "security", icon: Shield },
-  { href: "/settings/audit", label: "audit", icon: ScrollText },
-  { href: "/settings/telegram", label: "telegram", icon: Send },
-  { href: "/settings/updates", label: "updates", icon: CircleArrowUp },
-] as const;
-
-/** Vertical list on desktop, horizontally scrollable pills on mobile. */
+/**
+ * The settings pages: grouped links on desktop; on mobile, where thirteen pills would not fit, one menu
+ * that shows the current page and lists the others by group.
+ */
 export function SettingsNav() {
   const t = useTranslations("settings.nav");
   const pathname = usePathname();
-  const activeRef = useRef<HTMLAnchorElement>(null);
-  // On mobile the pills scroll horizontally; keep the active one visible.
-  useEffect(() => {
-    const el = activeRef.current;
-    const nav = el?.closest("nav");
-    if (el && nav && nav.scrollWidth > nav.clientWidth) {
-      const r = el.getBoundingClientRect();
-      const n = nav.getBoundingClientRect();
-      nav.scrollLeft += r.left - n.left - (n.width - r.width) / 2;
-    }
-  }, [pathname]);
+  const router = useRouter();
+  const current = SETTINGS_PAGES.find((page) => isSettingsPageActive(pathname, page.href)) ?? SETTINGS_PAGES[0]!;
+
+  // Lets an unsaved-changes guard on the current page ask first, as a link click would.
+  const go = (href: string) => requestNavigation(href, () => router.push(href as never));
+
   return (
-    <nav
-      aria-label={t("label")}
-      className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0"
-    >
-      <ul className="flex gap-1.5 md:flex-col md:gap-0.5">
-        {ITEMS.map((item) => {
-          const active = item.href === "/settings" ? pathname === "/settings" : pathname.startsWith(item.href);
-          return (
-            <li key={item.href} className="shrink-0">
-              <Link
-                href={item.href}
-                ref={active ? activeRef : undefined}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "group/nav flex items-center gap-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                  "h-9 rounded-full border px-3.5 md:h-9 md:rounded-lg md:border-0 md:px-2.5",
-                  active
-                    ? "border-primary/25 bg-primary/8 font-medium text-foreground dark:bg-primary/15"
-                    : "border-border/70 bg-card/70 text-muted-foreground hover:bg-muted/60 hover:text-foreground md:bg-transparent dark:bg-card/40 md:dark:bg-transparent",
-                )}
-              >
-                <item.icon
-                  className={cn(
-                    "size-4 shrink-0 transition-colors",
-                    active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
-                  )}
-                  aria-hidden
-                />
-                {t(item.label)}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <>
+      <Select value={current.href} onValueChange={go}>
+        <SelectTrigger aria-label={t("label")} className="h-10 w-full md:hidden">
+          <span className="flex min-w-0 items-center gap-2">
+            <current.icon className="size-4 shrink-0 text-primary" aria-hidden />
+            <span className="truncate font-medium">{t(current.key)}</span>
+          </span>
+        </SelectTrigger>
+        <SelectContent position="popper" className="max-h-[min(28rem,70svh)]">
+          {SETTINGS_GROUPS.map((group) => (
+            <SelectGroup key={group.key}>
+              <SelectLabel>{t(`groups.${group.key}`)}</SelectLabel>
+              {group.pages.map((page) => (
+                <SelectItem key={page.href} value={page.href}>
+                  <page.icon aria-hidden />
+                  {t(page.key)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <nav aria-label={t("label")} className="hidden flex-col gap-4 md:flex">
+        {SETTINGS_GROUPS.map((group) => (
+          <div key={group.key} className="flex flex-col gap-0.5">
+            <h3 className="px-2.5 pb-1 text-xs font-medium text-muted-foreground/80">{t(`groups.${group.key}`)}</h3>
+            <ul className="flex flex-col gap-0.5">
+              {group.pages.map((page) => {
+                const active = page === current;
+                return (
+                  <li key={page.href}>
+                    <Link
+                      href={page.href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "group/nav flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        active
+                          ? "bg-primary/8 font-medium text-foreground dark:bg-primary/15"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                      )}
+                    >
+                      <page.icon
+                        className={cn(
+                          "size-4 shrink-0 transition-colors",
+                          active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
+                        )}
+                        aria-hidden
+                      />
+                      {t(page.key)}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </>
   );
 }

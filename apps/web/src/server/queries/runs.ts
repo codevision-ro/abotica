@@ -124,22 +124,32 @@ export const getRunDetail = query(async (id: string) => {
   return { ...row, events, approvals: runApprovals, children, parent };
 });
 
-export const listApprovalHistory = query(async (limit: number = 100) => {
-  return db
-    .select({
-      id: approvals.id,
-      runId: approvals.runId,
-      toolName: approvals.toolName,
-      status: approvals.status,
-      reason: approvals.reason,
-      decidedAt: approvals.decidedAt,
-      createdAt: approvals.createdAt,
-      agentName: agents.name,
-      agentAvatar: agents.avatar,
-    })
-    .from(approvals)
-    .innerJoin(agents, eq(agents.id, approvals.agentId))
-    .where(ne(approvals.status, "pending"))
-    .orderBy(desc(sql`coalesce(${approvals.decidedAt}, ${approvals.createdAt})`))
-    .limit(limit);
+export const APPROVALS_PAGE_SIZE = 50;
+
+/** One page of the decided approvals, the latest decision first. */
+export const getApprovalHistoryPage = query(async (page: number = 1) => {
+  const p = Math.max(1, page);
+  const decided = ne(approvals.status, "pending");
+  const [rows, [total]] = await Promise.all([
+    db
+      .select({
+        id: approvals.id,
+        runId: approvals.runId,
+        toolName: approvals.toolName,
+        status: approvals.status,
+        reason: approvals.reason,
+        decidedAt: approvals.decidedAt,
+        createdAt: approvals.createdAt,
+        agentName: agents.name,
+        agentAvatar: agents.avatar,
+      })
+      .from(approvals)
+      .innerJoin(agents, eq(agents.id, approvals.agentId))
+      .where(decided)
+      .orderBy(desc(sql`coalesce(${approvals.decidedAt}, ${approvals.createdAt})`), desc(approvals.id))
+      .limit(APPROVALS_PAGE_SIZE)
+      .offset((p - 1) * APPROVALS_PAGE_SIZE),
+    db.select({ n: count() }).from(approvals).where(decided),
+  ]);
+  return { rows, total: total?.n ?? 0, page: p };
 });

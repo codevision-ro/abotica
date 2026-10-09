@@ -11,6 +11,7 @@
  *   They aim at phrases that rarely occur in a genuine fact, so a few legitimate notes (a curl how-to
  *   with a `$TOKEN`) are held for review rather than refused.
  */
+import { MIN_SECRET_LENGTH } from "../agents/redact";
 
 export type MemoryFindingKind = "secret" | "injection" | "exfiltration" | "instruction-file" | "invisible";
 
@@ -20,9 +21,6 @@ export type MemoryFinding = { kind: MemoryFindingKind; reason: string };
 /** Kinds that hold a write for the user's review, most serious first (see memory-write-gate.ts). */
 export const FLAG_KINDS = ["exfiltration", "instruction-file", "injection"] as const satisfies MemoryFindingKind[];
 export type MemoryFlagKind = (typeof FLAG_KINDS)[number];
-
-/** Values shorter than this would match inside ordinary text; the same floor as redact.ts. */
-const MIN_KNOWN_SECRET_LENGTH = 8;
 
 type Pattern = { pattern: RegExp; reason: string };
 
@@ -170,7 +168,7 @@ export function scanMemoryContent(text: string, opts: { knownSecrets?: readonly 
   // Matched on the text as stored, so a secret split by a zero-width character is still found.
   const visible = stripInvisible(text);
   for (const secret of opts.knownSecrets ?? []) {
-    if (secret.length >= MIN_KNOWN_SECRET_LENGTH && visible.includes(secret)) add("secret", "a known secret value");
+    if (secret.length >= MIN_SECRET_LENGTH && visible.includes(secret)) add("secret", "a known secret value");
   }
   const folded = forPatterns(text);
   for (const { pattern, reason } of SECRET_PATTERNS) if (pattern.test(folded)) add("secret", reason);

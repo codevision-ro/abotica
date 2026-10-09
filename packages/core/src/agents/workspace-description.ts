@@ -2,6 +2,8 @@
 import type { WorkspacePaths } from "@abotica/sandbox";
 import type { RepoProvider } from "../projects/repo-url";
 import type { NetworkPolicy, SandboxPackages } from "../sandbox/sandbox-policy";
+import type { SandboxSettings } from "../settings/settings-schema";
+import { TOOL_OUTPUT_RETENTION_MS } from "./tool-output";
 import { INPUTS_DIR, KNOWLEDGE_DIR, repoPath, taskBranch, taskWorktreePath, TOOL_OUTPUT_DIR } from "./workspace-paths";
 
 export type DescribedRepo = {
@@ -20,6 +22,8 @@ export type WorkspaceDescriptionInput = {
   /** Skill folders available under `paths.bundles`. */
   skills: string[];
   commandTimeoutSec: number;
+  /** When an idle workspace is paused, stopped and (for a conversation) deleted. */
+  idle: Pick<SandboxSettings, "pauseIdleMinutes" | "stopIdleHours" | "workspaceRetentionDays">;
   /** The project's git repositories. */
   repos: DescribedRepo[];
   /** The run's task, whose changes go in its own worktrees. */
@@ -27,6 +31,8 @@ export type WorkspaceDescriptionInput = {
   /** The agent may run commands as root (shell_run_root). */
   root: boolean;
 };
+
+const count = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
 
 const PROVIDER_LABEL: Record<RepoProvider, string> = { github: "GitHub", gitlab: "GitLab" };
 
@@ -84,10 +90,11 @@ function packagesText(packages: SandboxPackages): string {
 
 export function workspaceDescription(input: WorkspaceDescriptionInput): string {
   const { paths } = input;
+  const { idle } = input;
   const shared =
     input.scope === "project"
       ? "They persist between commands and between runs, and every conversation of this project uses the same workspace."
-      : "They persist between commands and between runs of this conversation.";
+      : `They persist between commands and between runs of this conversation, until the workspace goes unused for ${count(idle.workspaceRetentionDays, "day")}: then it is deleted.`;
   return [
     "You have a sandboxed workspace where you can run shell commands, install packages and create files.",
     `- Working directory: ${paths.workspace}. ${shared}`,
@@ -101,14 +108,15 @@ export function workspaceDescription(input: WorkspaceDescriptionInput): string {
     `- HOME is ${paths.home}; pip, npm and other caches persist there.`,
     `- ${networkText(input.network)}`,
     `- ${packagesText(input.packages)}`,
-    "- Database servers: `services start mysql` (or postgres, redis) starts one on 127.0.0.1 and prints how to connect; its data stays in .services. Servers stop when the workspace is idle, so start the one you need at the beginning of a run; `services status` shows which run.",
+    "- Database servers: `services start mysql` (or postgres, redis) starts one on 127.0.0.1 and prints how to connect; its data stays in .services. `services status` shows which run.",
+    `- After ${count(idle.pauseIdleMinutes, "minute")} without use, the workspace's processes freeze and resume with the next command; after ${count(idle.stopIdleHours, "hour")} they stop (database servers and background processes included, files stay). Start the server you need at the beginning of a run.`,
     "- A command finishes only when its output ends. Start long-running processes (a dev server, a queue worker) in the background with their output in a file, e.g. `nohup php artisan serve > serve.log 2>&1 &`.",
     input.root
       ? "- shell_run_root runs a command as root, for system packages: `apt-get update && apt-get install -y <package>`. It reaches the package registries whatever the network setting. What it installs outside the workspace lasts until the workspace is recreated (for example after a sandbox update), so install again when a tool is missing. Use shell_run for everything else."
       : null,
     reposText(input.repos, input.taskId),
     `- A command stops after ${input.commandTimeoutSec} seconds; split long jobs into smaller steps.`,
-    `- Long tool output is cut in the middle, and the full text is kept under ${paths.workspace}/${TOOL_OUTPUT_DIR} for 7 days: the cut names the file, read it with file_read line ranges or grep.`,
+    `- Long tool output is cut in the middle, and the full text is kept under ${paths.workspace}/${TOOL_OUTPUT_DIR} for ${count(TOOL_OUTPUT_RETENTION_MS / 86_400_000, "day")}: the cut names the file, read it with file_read line ranges or grep.`,
     "- To show the user a page, a mockup or a document, publish it with preview_publish; for an app you started, use preview_open. They return a link to give the user.",
     "- The user sees no workspace file until you share it. To give them a file, including one another agent produced, call file_share with its workspace path; they get a download link. Do not paste long file contents into your answer.",
   ]

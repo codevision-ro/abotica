@@ -5,7 +5,8 @@ import { type Experimental_SandboxSession, tool } from "ai";
 import { and, desc, eq, gte, inArray, isNull, ne, or } from "@abotica/db/orm";
 import { z } from "zod";
 import { audit } from "../../platform/audit";
-import { answersUser, loadDelegationProject, MAX_REDELEGATIONS, redelegateTask } from "../../tasks/delegation";
+import { FILE_MAX_BYTES } from "../../platform/limits";
+import { answersUser, loadDelegationProject, redelegateTask } from "../../tasks/delegation";
 import { deleteFile, readFileBytes, saveFile } from "../../files/files";
 import { cancelRun } from "../../runs/runs";
 import { startDelegatedTask } from "../../tasks/delegation-slots";
@@ -154,7 +155,7 @@ export const runTools: Record<string, ToolFactory> = {
         files: z
           .preprocess(blankToUndefined, z.array(z.string().trim().min(1)).default([]))
           .describe(
-            "Workspace paths of files the agent needs (e.g. inputs/1a2b3c4d/contract.pdf), at most 50 MB each; it finds them in its inputs. With taskId, a file of the same name replaces the one handed over before.",
+            `Workspace paths of files the agent needs (e.g. inputs/1a2b3c4d/contract.pdf), at most ${FILE_MAX_BYTES / (1024 * 1024)} MB each; it finds them in its inputs. With taskId, a file of the same name replaces the one handed over before.`,
           ),
       }),
       execute: async (input, { abortSignal, experimental_sandbox: sandbox }) => {
@@ -205,7 +206,7 @@ export const runTools: Record<string, ToolFactory> = {
           }
           // A retry counts as the user's only in a turn that answers them, never in one answering a notice.
           const userAsked = input.userAsked && (await answersUser(ctx.run.conversationId));
-          if (!userAsked && task.redelegations >= MAX_REDELEGATIONS) {
+          if (!userAsked && task.redelegations >= ctx.settings.agents.maxRedelegations) {
             return {
               error: `Task ${task.id} was already sent back ${task.redelegations} times. Ask the user how to proceed; if they ask for another attempt, call again with userAsked=true.`,
             };

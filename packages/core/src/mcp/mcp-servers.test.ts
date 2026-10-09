@@ -11,6 +11,7 @@ import {
   sealMcpCredentials,
 } from "./mcp-servers";
 import { MCP_OAUTH_REQUIRED } from "../agents/mcp-oauth";
+import { MCP_TIMEOUTS } from "./mcp-stored-values";
 import { sealValue } from "../platform/vault";
 
 // Only the pure parts are tested: nothing here reaches the database.
@@ -208,5 +209,30 @@ describe("mcpTestFailure", () => {
     expect(mcpTestFailure("Unauthorized")).toBe("oauthRequired");
     expect(mcpTestFailure("ENOENT: npx")).toBeUndefined();
     expect(mcpTestFailure(undefined)).toBeUndefined();
+  });
+});
+
+describe("server timeouts", () => {
+  /** The message key a draft fails with. */
+  const failure = (overrides: Partial<McpServerDraft>) => {
+    try {
+      normalizeMcpServerValues(draft(overrides), null);
+    } catch (error) {
+      return isUserError(error) ? { key: error.key, values: error.values } : error;
+    }
+    return undefined;
+  };
+
+  it("keeps whole seconds within the bounds, and null for the default", () => {
+    expect(normalizeMcpServerValues(draft(), null)).toMatchObject({ connectTimeoutSec: null, callTimeoutSec: null });
+    const values = normalizeMcpServerValues(draft({ connectTimeoutSec: 300, callTimeoutSec: 600 }), null);
+    expect(values).toMatchObject({ connectTimeoutSec: 300, callTimeoutSec: 600 });
+  });
+
+  it("refuses a timeout outside its bounds, naming them", () => {
+    const { min, max } = MCP_TIMEOUTS.connectSec;
+    expect(failure({ connectTimeoutSec: min - 1 })).toEqual({ key: "mcp.validation.connectTimeout", values: { min, max } });
+    expect(failure({ connectTimeoutSec: 30.5 })).toMatchObject({ key: "mcp.validation.connectTimeout" });
+    expect(failure({ callTimeoutSec: MCP_TIMEOUTS.callSec.max + 1 })).toMatchObject({ key: "mcp.validation.callTimeout" });
   });
 });

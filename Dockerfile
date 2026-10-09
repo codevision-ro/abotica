@@ -21,7 +21,7 @@ FROM source AS web-build
 # Placeholders: modules read these lazily, nothing connects during the build.
 RUN DATABASE_URL=postgres://build:build@localhost:5432/build pnpm --filter @abotica/web build
 
-# The release, from the tag (release.yml); Settings > Updates compares it with the latest one.
+# The release, from the tag (release.yml); Settings > System compares it with the latest one.
 FROM base AS web
 ARG ABOTICA_VERSION=""
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 ABOTICA_VERSION=$ABOTICA_VERSION

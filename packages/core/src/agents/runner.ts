@@ -25,7 +25,7 @@ import {
 } from "../runs/run-messages";
 import type { Run } from "../runs/runs";
 import { isKillSwitchActive } from "../platform/kill-switch";
-import { settingsLocale } from "../platform/settings";
+import { settingsLocale } from "../settings/settings";
 import { approxTokens, effectiveWindow } from "./compaction";
 import { createCompactor, summaryMessages, toolsUsedInHistory } from "./compactor";
 import { buildInstructions, type DeferredToolGroup, loadRunContext, type RunContext, withSentTimes } from "./context";
@@ -274,7 +274,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       effort: inheritedEffort(
         ctx.conversation?.reasoningEffort,
         ctx.agent.reasoningEffort,
-        roleDefaultEffort(ctx.settings, modelRole(ctx.agent)),
+        roleDefaultEffort(ctx.settings.models, modelRole(ctx.agent)),
       ),
       onFallback: (e) => logEventInBackground(runId, "fallback", e),
       onRetry: (e) => logEventInBackground(runId, "retry", e),
@@ -349,7 +349,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       // Results of tools this run lacks and stored errors go in wrapped too, as their tools would.
       wrapUntrustedResults(
         await convertToModelMessages(
-          await withModelFiles(withSentTimes(withUndeliveredNotes(withRecall(messages)), ctx.settings.timezone), {
+          await withModelFiles(withSentTimes(withUndeliveredNotes(withRecall(messages)), ctx.settings.general.timezone), {
             store: { get: getFile, read: readFileBytes },
             workspace: ctx.sandbox !== null,
             readsDirectly: (mediaType) => model.acceptsSomewhere(mediaType),

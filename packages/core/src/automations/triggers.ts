@@ -3,14 +3,14 @@ import { agents, db, tasks, triggers } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
 import { getTranslator, UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { loadDelegationProject } from "../tasks/delegation";
 import { env } from "../infra/env";
 import type { Run } from "../runs/runs";
 import { startDelegatedTask } from "../tasks/delegation-slots";
 import { TaskCircuitOpenError, unblockedDependents } from "../tasks/tasks";
 import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-rules";
-import { usesWebhook } from "./trigger-events";
+import { usesWebhook, WEBHOOK_RATE_LIMIT_BOUNDS } from "./trigger-events";
 import { encrypt } from "../platform/vault";
 import { newSigningSecret } from "./webhook-signature";
 import { newMarkerId } from "../agents/untrusted-id";
@@ -18,7 +18,11 @@ import { type UntrustedSource, wrapUntrusted } from "../agents/untrusted";
 import { startAutomationWork } from "./automation-work";
 
 export type Trigger = typeof triggers.$inferSelect;
-type TriggerValues = Pick<typeof triggers.$inferInsert, "name" | "agentId" | "projectId" | "event" | "prompt" | "enabled">;
+/** `rateLimitPerMinute`: null for the default, undefined (an agent's edit) keeps the saved one. */
+type TriggerValues = Pick<
+  typeof triggers.$inferInsert,
+  "name" | "agentId" | "projectId" | "event" | "prompt" | "enabled" | "rateLimitPerMinute"
+>;
 
 const newToken = () => randomBytes(24).toString("base64url");
 
@@ -49,6 +53,13 @@ export async function assertAutomationAgent(agentId: string, projectId: string |
  */
 export async function saveTrigger(values: TriggerValues, id?: string, opts: { by?: Delegator } = {}): Promise<Trigger> {
   const row = { ...values, projectId: values.projectId ?? null };
+  const limit = values.rateLimitPerMinute;
+  if (
+    limit != null &&
+    (!Number.isInteger(limit) || limit < WEBHOOK_RATE_LIMIT_BOUNDS.min || limit > WEBHOOK_RATE_LIMIT_BOUNDS.max)
+  ) {
+    throw new UserError("automations.validation.rateLimit", { ...WEBHOOK_RATE_LIMIT_BOUNDS });
+  }
   if (!id) {
     await assertAutomationAgent(row.agentId, row.projectId, opts.by);
     const [created] = await db

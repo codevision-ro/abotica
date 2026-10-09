@@ -16,6 +16,7 @@ import {
   providerConnection,
   PROVIDERS,
   type ProviderId,
+  storedSettings,
   type SubscriptionStatus,
   TELEGRAM_TOKEN_SECRET,
 } from "@abotica/core";
@@ -23,8 +24,21 @@ import { agents, auditLogs, db, projects, secrets } from "@abotica/db";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "@abotica/db/orm";
 import { publicQuery, query } from "@/server/query";
 
-/** The app-wide settings (Settings > General). */
+/** The app-wide settings, every domain with its defaults filled in. */
 export const getAppSettings = query(() => getSettings());
+
+/** Once a time zone is stored it stays stored, so after that the check costs nothing (per process). */
+let timeZoneStored = false;
+
+/**
+ * Whether no time zone was ever saved (a new install): the app layout then saves the browser's once
+ * (TimeZoneDetect). Installs from before keep the one the migration stored.
+ */
+export const getTimeZoneUnset = query(async (): Promise<boolean> => {
+  if (timeZoneStored) return false;
+  timeZoneStored = (await storedSettings()).general?.timezone !== undefined;
+  return !timeZoneStored;
+});
 
 /** Whether the kill switch is stopping all runs. Public: the webhook route needs it, and it is one boolean. */
 export const getKillSwitchState = publicQuery(() => isKillSwitchActive());
@@ -155,8 +169,8 @@ export const getTelegramStatus = query(async () => {
   return {
     /** When the bot token last changed; null without one. */
     tokenUpdatedAt,
-    allowedUserIds: current.telegramAllowedUserIds,
-    notifyChatId: current.telegramNotifyChatId,
+    allowedUserIds: current.telegram.allowedUserIds,
+    notifyChatId: current.telegram.notifyChatId,
     /** What the worker's bot reports; null while it starts, or when no worker runs it. */
     bot,
     topics,

@@ -18,12 +18,22 @@ export const usesWebhook = (event: string) => (WEBHOOK_EVENTS as string[]).inclu
 
 /**
  * Requests that may start runs per webhook trigger and window, counted from the first one: every
- * request for a trigger without a signing secret, only verified ones for a trigger with one.
+ * request for a trigger without a signing secret, only verified ones for a trigger with one. A trigger
+ * may set its own number per minute, within WEBHOOK_RATE_LIMIT_BOUNDS.
  */
 export const WEBHOOK_RATE_LIMIT = { requests: 30, windowSeconds: 60 } as const;
 
 /** Requests that fail verification per webhook trigger and window before they are answered with 429. */
 export const WEBHOOK_REFUSED_LIMIT = { requests: 120, windowSeconds: 60 } as const;
+
+/** A trigger's own run limit per minute; below the refused limit, so failed requests never use up the real sender's. */
+export const WEBHOOK_RATE_LIMIT_BOUNDS = { min: 1, max: 100 } as const;
+
+/** The run limit of a trigger: its own per minute, or the default. */
+export const webhookRateLimit = (trigger: { rateLimitPerMinute: number | null }) => ({
+  requests: trigger.rateLimitPerMinute ?? WEBHOOK_RATE_LIMIT.requests,
+  windowSeconds: WEBHOOK_RATE_LIMIT.windowSeconds,
+});
 
 /** How far a signed request's timestamp may be from now, in either direction. */
 export const WEBHOOK_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;

@@ -114,7 +114,7 @@ main() {
   echo "    $app_url/signup${code:+?code=$code}"
   echo
   echo "  The first account is the only one. Then connect a model provider under"
-  echo "  Settings > AI providers."
+  echo "  Settings > Models."
   if grep -q '^ABOTICA_DOMAIN=.' .env; then
     local d
     d="$(sed -n 's/^ABOTICA_DOMAIN=//p' .env)"

@@ -20,7 +20,7 @@ import { getTranslator, UserError } from "@abotica/i18n";
 import { sanitizePermissions } from "./permissions";
 import { audit } from "../platform/audit";
 import { cancelRun } from "../runs/runs";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { slugify } from "../platform/slug";
 import { kindChangeError } from "../tasks/team-rules";
 

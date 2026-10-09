@@ -12,6 +12,7 @@ type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: s
  *
  * Messages reach the user translated: throw `new UserError("area.errors.key", values)` for
  * expected failures, and use full message keys as zod messages (`z.string().min(1, "area.validation.key")`).
+ * A refinement's `params` are the message's values (`.refine(fn, { message, params: { max } })`).
  */
 export function action<S extends z.ZodType, T>(
   schema: S,
@@ -22,7 +23,9 @@ export function action<S extends z.ZodType, T>(
     const t = getTranslator(await getLocale());
     const parsed = schema.safeParse(input);
     if (!parsed.success) {
-      const messages = parsed.error.issues.map((issue) => translateKey(t, issue.message));
+      const messages = parsed.error.issues.map((issue) =>
+        translateKey(t, issue.message, "params" in issue ? (issue.params as Record<string, string | number>) : undefined),
+      );
       return { ok: false, error: [...new Set(messages)].join("\n") };
     }
     try {

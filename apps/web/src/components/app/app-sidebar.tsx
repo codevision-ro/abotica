@@ -136,11 +136,11 @@ export function AppSidebar({ user, badges, update }: Props) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                isActive={isActive(pathname, "/settings/updates")}
+                isActive={isActive(pathname, "/settings/system")}
                 tooltip={t("updateTooltip", { version: `v${update}` })}
                 className="h-9 gap-2.5 rounded-lg px-2.5 text-sidebar-foreground/80 hover:bg-primary/8 hover:text-sidebar-foreground data-[active=true]:bg-primary/8 data-[active=true]:text-sidebar-foreground dark:hover:bg-primary/15 dark:data-[active=true]:bg-primary/15 [&>svg]:text-primary"
               >
-                <Link href="/settings/updates" onClick={closeOnMobile}>
+                <Link href="/settings/system" onClick={closeOnMobile}>
                   <CircleArrowUp />
                   <span>{t("updateAvailable")}</span>
                   <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-px font-mono text-[11px] font-medium text-primary dark:bg-primary/20">

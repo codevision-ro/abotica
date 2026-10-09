@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "./client";
-import { agents, DEFAULT_AGENT_LIMITS, settings } from "./schema";
+import { agents, appState, DEFAULT_AGENT_LIMITS } from "./schema";
 import { AGENT_PERMISSIONS, MANAGER_PERMISSIONS, NO_SHELL_PERMISSIONS, ORCHESTRATOR_PERMISSIONS } from "./seed-permissions";
 
 /**
@@ -93,12 +93,12 @@ const seeds: (typeof agents.$inferInsert)[] = [
 ];
 
 /**
- * Templates seeded at least once, by slug. A template is inserted only the first time, so one the
+ * Templates seeded at least once, by slug, in app_state. A template is inserted only the first time, so one the
  * user deletes stays deleted on later deploys, while templates added in a new release still arrive.
  */
 const SEEDED_TEMPLATES_KEY = "seeded_templates";
 
-const [record] = await db.select({ value: settings.value }).from(settings).where(eq(settings.key, SEEDED_TEMPLATES_KEY));
+const [record] = await db.select({ value: appState.value }).from(appState).where(eq(appState.key, SEEDED_TEMPLATES_KEY));
 const seeded = new Set<string>(Array.isArray(record?.value) ? (record.value as string[]) : []);
 if (!record) {
   // An install from before this record: its templates were all seeded already, and one missing now
@@ -124,7 +124,7 @@ for (const seed of seeds) {
 
 const value = [...seeded];
 await db
-  .insert(settings)
+  .insert(appState)
   .values({ key: SEEDED_TEMPLATES_KEY, value })
-  .onConflictDoUpdate({ target: settings.key, set: { value } });
+  .onConflictDoUpdate({ target: appState.key, set: { value } });
 process.exit(0);

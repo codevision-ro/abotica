@@ -40,6 +40,8 @@ export default async function NewMcpPage() {
           sandboxed: true,
           workspace: "server",
           credentialRoutes: [],
+          connectTimeoutSec: null,
+          callTimeoutSec: null,
           auth: "headers",
           oauthClientId: "",
           oauthClientSecret: "",

@@ -3,9 +3,10 @@ import type { Bot, Context } from "grammy";
 import type { InlineKeyboardMarkup } from "grammy/types";
 import { botTranslator } from "./bot";
 
-const PLAIN_LIMIT = 4000;
+/** Characters of one message: Telegram takes 4096, the rest is room for what entities add. */
+export const TELEGRAM_TEXT_LIMIT = 4000;
 
-function splitText(text: string, limit = PLAIN_LIMIT): string[] {
+function splitText(text: string, limit = TELEGRAM_TEXT_LIMIT): string[] {
   const parts: string[] = [];
   let rest = text;
   while (rest.length > limit) {

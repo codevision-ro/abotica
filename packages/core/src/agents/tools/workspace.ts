@@ -44,7 +44,9 @@ async function readText(sandbox: Sandbox, file: string, abortSignal?: AbortSigna
   if (!stream) return { error: `File ${file} does not exist.` };
   const bytes = await readAtMost(stream, TEXT_FILE_MAX_BYTES);
   if (!bytes) {
-    return { error: `File ${file} is larger than 10 MB. Use shell_run with head, tail, sed or grep to read parts of it.` };
+    return {
+      error: `File ${file} is larger than ${TEXT_FILE_MAX_BYTES / (1024 * 1024)} MB. Use shell_run with head, tail, sed or grep to read parts of it.`,
+    };
   }
   const text = decodeText(bytes);
   if (text === null) {
@@ -226,8 +228,7 @@ export const workspaceTools: Record<string, ToolFactory> = {
 
   file_share: (ctx) =>
     tool({
-      description:
-        "Give the user a file from your workspace (max 50 MB), including one another agent produced (under inputs/): it appears as a download in the conversation. When you work on a task, the file goes with the task's result to whoever delegated it. Use it for every file the user should get; do not paste long file contents into your answer.",
+      description: `Give the user a file from your workspace (max ${FILE_MAX_BYTES / (1024 * 1024)} MB), including one another agent produced (under inputs/): it appears as a download in the conversation. When you work on a task, the file goes with the task's result to whoever delegated it. Use it for every file the user should get; do not paste long file contents into your answer.`,
       inputSchema: z.object({
         path: pathInput,
         name: z.preprocess(

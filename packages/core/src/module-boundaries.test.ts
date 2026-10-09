@@ -18,6 +18,7 @@ const CLIENT_SAFE = [
   "files/file-types",
   "mcp/mcp-builtins",
   "mcp/mcp-stored-values",
+  "models/provider-info",
   "models/reasoning",
   "platform/audit-actions",
   "platform/limits",
@@ -25,9 +26,11 @@ const CLIENT_SAFE = [
   "platform/slug",
   "runs/compaction-record",
   "sandbox/sandbox-policy",
+  "settings/settings-schema",
   "skills/skill-md",
   "tasks/delegation-report",
   "tasks/wakeup-rules",
+  "telegram/telegram-commands",
   "telegram/telegram-ids",
 ];
 

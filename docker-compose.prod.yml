@@ -104,9 +104,9 @@ services:
     # before Docker kills the process.
     stop_grace_period: 60s
     # Previews, for a reverse proxy on this machine (the caddy service, or your own); never published
-    # to the outside.
+    # to the outside. PREVIEW_PORT (default 3100) is read from .env by the worker as well.
     ports:
-      - "127.0.0.1:3100:3100"
+      - "127.0.0.1:${PREVIEW_PORT:-3100}:${PREVIEW_PORT:-3100}"
     # default: Postgres, Redis, providers. sandbox: the egress proxy (port 3128) for sandbox containers.
     # docker-api: the only way to docker-proxy.
     networks: [default, sandbox, docker-api]
@@ -122,7 +122,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://localhost:3100/__abotica/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+          "fetch('http://localhost:${PREVIEW_PORT:-3100}/__abotica/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
         ]
       interval: 30s
       timeout: 5s
@@ -196,7 +196,7 @@ services:
       worker: { condition: service_started }
 
   # Local embeddings: pull the model once (docker compose exec ollama ollama pull nomic-embed-text), then
-  # in Settings > AI providers set the Ollama address to http://ollama:11434 and the embeddings to Ollama.
+  # in Settings > Models set the Ollama address to http://ollama:11434, and in Settings > Memory the embeddings to Ollama.
   ollama:
     profiles: [ollama]
     image: ollama/ollama:latest
@@ -204,13 +204,16 @@ services:
       - ollama:/root/.ollama
     restart: unless-stopped
 
-  # Daily backup into ./backups, 14 days kept: pg_dump of the database (memory, journals and
-  # everything else) and a tar of the uploads volume (the stored files, one per database row).
+  # Backup into ./backups, every BACKUP_INTERVAL_SECONDS (default 86400, a day), kept for
+  # BACKUP_RETENTION_DAYS (default 14): pg_dump of the database (memory, journals and everything
+  # else) and a tar of the uploads volume (the stored files, one per database row).
   backup:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-abotica}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
     volumes:
       - ./backups:/backups
       - uploads:/data/uploads:ro
@@ -222,8 +225,8 @@ services:
           stamp=$$(date +%Y%m%d-%H%M)
           pg_dump -h postgres -U abotica -Fc abotica > /backups/abotica-$$stamp.dump
           tar -czf /backups/uploads-$$stamp.tar.gz -C /data uploads
-          find /backups \( -name 'abotica-*.dump' -o -name 'uploads-*.tar.gz' \) -mtime +14 -delete
-          sleep 86400
+          find /backups \( -name 'abotica-*.dump' -o -name 'uploads-*.tar.gz' \) -mtime +$$BACKUP_RETENTION_DAYS -delete
+          sleep $$BACKUP_INTERVAL_SECONDS
         done
     depends_on:
       postgres: { condition: service_healthy }
@@ -233,7 +236,7 @@ configs:
     content: |
       {
         on_demand_tls {
-          ask http://worker:3100/__abotica/tls
+          ask http://worker:${PREVIEW_PORT:-3100}/__abotica/tls
         }
       }
 
@@ -245,7 +248,7 @@ configs:
         tls {
           on_demand
         }
-        reverse_proxy worker:3100
+        reverse_proxy worker:${PREVIEW_PORT:-3100}
       }
 
 networks:

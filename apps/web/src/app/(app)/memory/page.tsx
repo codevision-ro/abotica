@@ -1,4 +1,3 @@
-import { NEVER_USED_DAYS } from "@abotica/core";
 import { Bot, CircleDashed, FolderKanban, Globe, History, MessagesSquare, Pin, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -24,9 +23,9 @@ import {
   getConversationPage,
   getMemoryCounts,
   getMemoryOptions,
+  getMemoryPage,
   getMemorySearchResults,
   getPinnedUsage,
-  listMemories,
   listPendingMemories,
 } from "@/server/queries/memory";
 
@@ -131,7 +130,15 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
           )}
 
           {(tab === "global" || tab === "project" || tab === "agent") && (
-            <ScopeTab scope={tab} project={project} agent={agent} origin={origin} params={params} options={options} />
+            <ScopeTab
+              scope={tab}
+              project={project}
+              agent={agent}
+              origin={origin}
+              page={page}
+              params={params}
+              options={options}
+            />
           )}
           {tab === "pending" && <PendingTab />}
           {tab === "conversations" && <ConversationsTab page={page} params={params} />}
@@ -150,6 +157,7 @@ async function ScopeTab({
   project,
   agent,
   origin,
+  page,
   params,
   options,
 }: {
@@ -157,10 +165,11 @@ async function ScopeTab({
   project?: string;
   agent?: string;
   origin?: string;
+  page: number;
   params: Record<string, string | undefined>;
   options: Awaited<ReturnType<typeof getMemoryOptions>>;
 }) {
-  const rows = await listMemories({
+  const data = await getMemoryPage({
     scope,
     projectId: project,
     agentId: agent,
@@ -168,7 +177,9 @@ async function ScopeTab({
     pinned: params.pinned === "1",
     history: params.history === "1",
     neverUsed: params.neverUsed === "1",
+    page,
   });
+  const rows = data.rows;
   // What every run of the level takes of the pinned budget: one project's or agent's runs add the global entries.
   const usage =
     scope === "global"
@@ -193,7 +204,20 @@ async function ScopeTab({
   return (
     <MemoryPanel
       icon={SCOPE_ICON[scope]}
-      footer={usage && <PinnedBudget usage={usage} withGlobal={scope !== "global"} />}
+      footer={
+        (usage || data.pageCount > 1) && (
+          <div className="flex flex-col gap-3">
+            {usage && <PinnedBudget usage={usage} withGlobal={scope !== "global"} />}
+            <PageLinks
+              basePath="/memory"
+              params={params}
+              page={data.page}
+              hasNext={data.page < data.pageCount}
+              label={t("list.pageLabel", { total: data.total, page: data.page, pageCount: data.pageCount })}
+            />
+          </div>
+        )
+      }
       description={t(`dialog.scopeHelp.${scope}`)}
       action={
         <>
@@ -233,7 +257,7 @@ async function ScopeTab({
           <ParamToggle param="pinned" params={params}>
             <Pin /> {t("filters.pinned")}
           </ParamToggle>
-          <ParamToggle param="neverUsed" params={params} title={t("filters.neverUsedHint", { days: NEVER_USED_DAYS })}>
+          <ParamToggle param="neverUsed" params={params} title={t("filters.neverUsedHint", { days: options.unusedDays })}>
             <CircleDashed /> {t("filters.neverUsed")}
           </ParamToggle>
           <ParamToggle param="history" params={params}>
@@ -277,7 +301,7 @@ async function PendingTab() {
         <PanelEmpty>
           {t.rich("empty", {
             settings: (chunks) => (
-              <Link href="/settings/general" className={inlineLink}>
+              <Link href="/settings/memory" className={inlineLink}>
                 {chunks}
               </Link>
             ),

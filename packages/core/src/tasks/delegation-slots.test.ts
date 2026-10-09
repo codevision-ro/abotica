@@ -67,8 +67,8 @@ vi.mock("../infra/redis", () => ({ withLock: vi.fn((_key: string, fn: () => Prom
 vi.mock("../infra/events", () => ({ publish: vi.fn() }));
 vi.mock("../infra/queues", () => ({ enqueueDelegationReport: vi.fn(), notify: vi.fn() }));
 vi.mock("../infra/env", () => ({ env: () => ({ APP_URL: "http://localhost" }) }));
-vi.mock("../platform/settings", () => ({
-  getSettings: async () => ({ parallelDelegations: 2 }),
+vi.mock("../settings/settings", () => ({
+  getSettings: async () => ({ agents: { parallelDelegations: 2 } }),
   settingsLocale: () => "en",
 }));
 vi.mock("../runs/runs", () => ({

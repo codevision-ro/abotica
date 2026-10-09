@@ -1,6 +1,6 @@
 "use client";
 
-import type { StoredValue } from "@abotica/core/mcp-stored-values";
+import { MCP_TIMEOUTS, type StoredValue } from "@abotica/core/mcp-stored-values";
 import type { NetworkPolicy } from "@abotica/core/sandbox-policy";
 import { slugify } from "@abotica/core/slug";
 import {
@@ -12,6 +12,7 @@ import {
   LogInIcon,
   RefreshCwIcon,
   SaveIcon,
+  SlidersHorizontalIcon,
   TriangleAlertIcon,
   UsersRoundIcon,
 } from "lucide-react";
@@ -22,10 +23,11 @@ import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { DangerZoneCard } from "@/components/app/danger-zone-card";
 import { FormPage } from "@/components/app/form-page";
-import { FormSection, FormSubsection } from "@/components/app/form-section";
+import { FormSection, FormSectionCollapsible, FormSubsection } from "@/components/app/form-section";
 import { OptionCards } from "@/components/app/option-cards";
 import { SummaryItem, SummaryList, type SummaryStatus } from "@/components/app/summary-rail";
 import { NetworkPolicyEditor, usePolicySummary } from "@/components/sandbox/sandbox-policy-editor";
+import { SettingsNumberField } from "@/components/settings/settings-number-field";
 import type { PickerOption } from "@/components/skills/assignment-picker";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -79,6 +81,9 @@ type McpFormValue = {
   workspace: "server" | "run";
   /** Sandboxed stdio only: the egress proxy adds a secret header to the server's requests upstream. */
   credentialRoutes: CredentialRouteValue[];
+  /** Seconds; null uses the default (MCP_TIMEOUTS). */
+  connectTimeoutSec: number | null;
+  callTimeoutSec: number | null;
   auth: "headers" | "oauth";
   oauthClientId: string;
   /** The saved client secret when it references the vault; empty otherwise. */
@@ -105,8 +110,13 @@ const SECTIONS = {
   sandbox: "mcp-sandbox",
   auth: "mcp-auth",
   test: "mcp-test",
+  advanced: "mcp-advanced",
   assignment: "mcp-assignment",
 } as const;
+
+/** Whether a timeout field holds whole seconds within its bounds; empty (null) is the default. */
+const validTimeout = (value: number | null, bounds: { min: number; max: number }) =>
+  value === null || (Number.isInteger(value) && value >= bounds.min && value <= bounds.max);
 
 const keyCount = (rows: KeyValueRow[]) => rows.filter((r) => r.key.trim()).length;
 
@@ -137,6 +147,7 @@ export function McpForm({
   const ts = useTranslations("sandbox.mcp");
   const tn = useTranslations("sandbox.network");
   const te = useTranslations("errors");
+  const tv = useTranslations("mcp.validation");
   const policySummary = usePolicySummary();
   const router = useRouter();
   const isNew = !initial.id;
@@ -153,6 +164,9 @@ export function McpForm({
   const [sandboxed, setSandboxed] = useState(initial.sandboxed);
   const [workspace, setWorkspace] = useState(initial.workspace);
   const [routeRows, setRouteRows] = useState(toRouteRows(initial.credentialRoutes));
+  const [connectTimeout, setConnectTimeout] = useState(initial.connectTimeoutSec);
+  const [callTimeout, setCallTimeout] = useState(initial.callTimeoutSec);
+  const [advancedOpen, setAdvancedOpen] = useState(initial.connectTimeoutSec !== null || initial.callTimeoutSec !== null);
   const [auth, setAuth] = useState(initial.auth);
   const [client, setClient] = useState<OAuthClientValue>({
     clientId: initial.oauthClientId,
@@ -173,6 +187,13 @@ export function McpForm({
   const detection = useMcpAuthDetection({ initialUrl: initial.url, transport, isNew, setAuth });
 
   const slugError = slug && !SLUG_RE.test(slug) ? t("slugInvalid") : null;
+  const connectTimeoutError = validTimeout(connectTimeout, MCP_TIMEOUTS.connectSec)
+    ? undefined
+    : tv("connectTimeout", MCP_TIMEOUTS.connectSec);
+  const callTimeoutError = validTimeout(callTimeout, MCP_TIMEOUTS.callSec)
+    ? undefined
+    : tv("callTimeout", MCP_TIMEOUTS.callSec);
+  const invalid = Boolean(slugError || connectTimeoutError || callTimeoutError);
   const { dirty, markSaved } = useDirtySnapshot([
     name,
     slug,
@@ -186,6 +207,8 @@ export function McpForm({
     sandboxed,
     workspace,
     routeRows,
+    connectTimeout,
+    callTimeout,
     auth,
     client,
     enabled,
@@ -226,6 +249,8 @@ export function McpForm({
     sandboxed,
     workspace,
     credentialRoutes: toRouteDrafts(routeRows),
+    connectTimeoutSec: connectTimeout,
+    callTimeoutSec: callTimeout,
     auth,
     oauthClientId: client.clientId.trim() || null,
     oauthClientSecret: clientSecret,
@@ -262,7 +287,7 @@ export function McpForm({
   /** Saves pending edits first (one step for the user), then sends the browser to the authorization page. */
   async function connectOAuth() {
     const mustSave = dirty || isNew;
-    if (mustSave && (slugError || !formRef.current?.reportValidity())) return;
+    if (mustSave && (invalid || !formRef.current?.reportValidity())) return;
     setConnecting(true);
     let leaving = false;
     try {
@@ -312,7 +337,7 @@ export function McpForm({
   }
 
   const vaultLink = (chunks: React.ReactNode) => (
-    <Link href="/settings/vault" className="underline underline-offset-2">
+    <Link href="/settings/secrets" className="underline underline-offset-2">
       {chunks}
     </Link>
   );
@@ -340,7 +365,7 @@ export function McpForm({
     : tc("save");
   const busy = pending || connecting;
   const submitButton = (className?: string) => (
-    <Button type="submit" disabled={busy || Boolean(slugError)} className={className}>
+    <Button type="submit" disabled={busy || invalid} className={className}>
       {busy ? <Spinner /> : !willConnect ? <SaveIcon /> : reconnecting ? <RefreshCwIcon /> : <LogInIcon />}
       {submitLabel}
     </Button>
@@ -388,6 +413,10 @@ export function McpForm({
         ...(routes ? [t("credentialRoutes.count", { count: routes })] : []),
       ].join(" · ")
     : ts("outside");
+  const advancedSummary = t("advancedSummary", {
+    connect: connectTimeout ?? MCP_TIMEOUTS.connectSec.default,
+    call: callTimeout ?? MCP_TIMEOUTS.callSec.default,
+  });
   const assignmentSummary = global
     ? t("globalSummary")
     : `${tl("agents", { count: agentIds.length })} · ${tl("projects", { count: projectIds.length })}`;
@@ -639,6 +668,42 @@ export function McpForm({
         toolCount={toolCount}
         onTest={test}
       />
+
+      <FormSectionCollapsible
+        id={SECTIONS.advanced}
+        icon={SlidersHorizontalIcon}
+        title={t("advancedTitle")}
+        summary={advancedSummary}
+        open={advancedOpen}
+        onOpenChange={setAdvancedOpen}
+      >
+        <SettingsNumberField
+          id="mcp-connect-timeout"
+          nullable
+          label={t("connectTimeout")}
+          hint={t("connectTimeoutHint", { seconds: MCP_TIMEOUTS.connectSec.default })}
+          value={connectTimeout}
+          onChange={setConnectTimeout}
+          placeholder={String(MCP_TIMEOUTS.connectSec.default)}
+          min={MCP_TIMEOUTS.connectSec.min}
+          max={MCP_TIMEOUTS.connectSec.max}
+          unit={t("secondsUnit")}
+          error={connectTimeoutError}
+        />
+        <SettingsNumberField
+          id="mcp-call-timeout"
+          nullable
+          label={t("callTimeout")}
+          hint={t("callTimeoutHint", { seconds: MCP_TIMEOUTS.callSec.default })}
+          value={callTimeout}
+          onChange={setCallTimeout}
+          placeholder={String(MCP_TIMEOUTS.callSec.default)}
+          min={MCP_TIMEOUTS.callSec.min}
+          max={MCP_TIMEOUTS.callSec.max}
+          unit={t("secondsUnit")}
+          error={callTimeoutError}
+        />
+      </FormSectionCollapsible>
 
       <FormSection
         id={SECTIONS.assignment}

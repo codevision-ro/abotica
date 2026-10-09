@@ -63,3 +63,18 @@ describe("renderTriggerInput", () => {
     expect(first).not.toBe(second);
   });
 });
+
+describe("saveTrigger", () => {
+  const values = { name: "Orders", agentId: "a", projectId: null, event: "webhook", prompt: "{{payload}}", enabled: true };
+
+  it("refuses a rate limit outside its bounds before saving anything", async () => {
+    const { saveTrigger } = await load();
+    const { WEBHOOK_RATE_LIMIT_BOUNDS: bounds } = await import("./trigger-events");
+    for (const rateLimitPerMinute of [0, bounds.max + 1, 2.5]) {
+      await expect(saveTrigger({ ...values, rateLimitPerMinute })).rejects.toMatchObject({
+        key: "automations.validation.rateLimit",
+        values: { min: bounds.min, max: bounds.max },
+      });
+    }
+  });
+});

@@ -3,8 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-
-const COST_PERIODS = [7, 30, 90];
+import { COST_PERIODS } from "@/lib/cost-periods";
 
 export function CostPeriodSelect({ value }: { value: number }) {
   const t = useTranslations("costs.period");

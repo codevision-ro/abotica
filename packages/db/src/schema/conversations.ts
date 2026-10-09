@@ -17,7 +17,7 @@ export const conversations = pgTable(
     projectId: uuid().references(() => projects.id, { onDelete: "cascade" }),
     /** Telegram chat id (plus topic) for telegram conversations. */
     externalId: text(),
-    title: text().notNull().default("New conversation"),
+    title: text().notNull(),
     /** Model chosen in the chat for this conversation only; null means the agent's models. */
     modelOverride: jsonb().$type<ModelRef>(),
     /** Reasoning effort chosen in the chat for this conversation only; null means the agent's effort. */

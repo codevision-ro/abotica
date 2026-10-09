@@ -1,86 +1,54 @@
 "use client";
 
-import type { ModelRole } from "@abotica/core/models/model-role";
+import type { ModelRole, ModelSettings } from "@abotica/core/settings";
 import type { ReasoningEffort } from "@abotica/core/models/reasoning";
-import { CrownIcon, Layers, type LucideIcon, PlusIcon, Save, SparklesIcon, Undo2Icon, UsersIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { CrownIcon, Layers, type LucideIcon, PlusIcon, SparklesIcon, Undo2Icon, UsersIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { FormSection } from "@/components/app/form-section";
 import { chainLabel, ModelChainEditor, type ModelRef } from "@/components/agents/model-chain-editor";
 import { type InheritedEffort, ReasoningEffortControl } from "@/components/agents/reasoning-effort-control";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import { updateDefaultModels } from "@/server/actions/settings";
+import { FieldError } from "@/components/ui/field";
 import type { AgentFormOptions } from "@/server/queries/agents";
 
-type ChainOptions = Pick<AgentFormOptions, "providers" | "models">;
+export type ChainOptions = Pick<AgentFormOptions, "providers" | "models">;
 
-type RoleDefaults = Pick<
-  AgentFormOptions,
-  | "defaultModels"
-  | "orchestratorModels"
-  | "managerModels"
-  | "defaultReasoningEffort"
-  | "orchestratorReasoningEffort"
-  | "managerReasoningEffort"
->;
+type RoleDefaults = Pick<ModelSettings, "chains" | "reasoningEffort">;
 
 /**
  * The defaults by role (see modelRole), from the widest to the narrowest: the specialists' chain and effort
- * are required, and the managers and the super agent follow them while theirs are empty. One save for all.
+ * are required, and the managers and the super agent follow them while theirs are empty. Controlled: the
+ * models form saves them with the rest of the page (ModelsSettingsForm).
  */
-export function DefaultModelsForm({
-  initial,
+export function DefaultModelsSection({
+  value,
+  onChange,
+  errors,
   options,
   inheritingAgents,
 }: {
-  initial: RoleDefaults;
+  value: RoleDefaults;
+  onChange: (patch: {
+    chains?: Partial<ModelSettings["chains"]>;
+    reasoningEffort?: Partial<ModelSettings["reasoningEffort"]>;
+  }) => void;
+  /** The problem of each role's chain, if any. */
+  errors: Partial<Record<ModelRole, string>>;
   options: ChainOptions;
   /** Agents on "default" per role. */
   inheritingAgents: Record<ModelRole, number>;
 }) {
   const t = useTranslations("settings.defaultModels");
-  const tc = useTranslations("common.actions");
-  const router = useRouter();
   const firstConfigured = options.providers.find((p) => p.configured)?.id ?? "";
-  const [chain, setChain] = useState<ModelRef[]>(
-    initial.defaultModels.length ? initial.defaultModels : [{ provider: firstConfigured, model: "" }],
-  );
-  const [managerChain, setManagerChain] = useState<ModelRef[]>(initial.managerModels);
-  const [orchestratorChain, setOrchestratorChain] = useState<ModelRef[]>(initial.orchestratorModels);
-  const [effort, setEffort] = useState(initial.defaultReasoningEffort);
-  const [managerEffort, setManagerEffort] = useState(initial.managerReasoningEffort);
-  const [orchestratorEffort, setOrchestratorEffort] = useState(initial.orchestratorReasoningEffort);
-  const [pending, startTransition] = useTransition();
-  const agentsChain = chain.filter((m) => m.model.trim());
-  // The specialists' default also serves the roles whose saved chain is empty.
+  const { chains, reasoningEffort } = value;
+  const agentsChain = chains.agent.filter((m) => m.model.trim());
+  // The specialists' default also serves the roles whose chain is empty.
   const agentsUsing =
     inheritingAgents.agent +
-    (initial.managerModels.length ? 0 : inheritingAgents.manager) +
-    (initial.orchestratorModels.length ? 0 : inheritingAgents.orchestrator);
+    (chains.manager.length ? 0 : inheritingAgents.manager) +
+    (chains.orchestrator.length ? 0 : inheritingAgents.orchestrator);
   const describe = (text: string, count: number) => (count > 0 ? `${text} ${t("inheriting", { count })}` : text);
-  const agentsEffort: InheritedEffort = { effort, source: t("roles.agent.title") };
-
-  function save() {
-    if ([...chain, ...managerChain, ...orchestratorChain].some((m) => !m.model.trim())) {
-      return void toast.error(t("pickModelEachRow"));
-    }
-    startTransition(async () => {
-      const res = await updateDefaultModels({
-        defaultModels: chain,
-        managerModels: managerChain,
-        orchestratorModels: orchestratorChain,
-        defaultReasoningEffort: effort,
-        managerReasoningEffort: managerEffort,
-        orchestratorReasoningEffort: orchestratorEffort,
-      });
-      if (!res.ok) return void toast.error(res.error);
-      toast.success(t("saved"));
-      router.refresh();
-    });
-  }
+  const agentsEffort: InheritedEffort = { effort: reasoningEffort.agent, source: t("roles.agent.title") };
 
   return (
     <FormSection id="default-models" icon={Layers} title={t("title")} description={t("description")}>
@@ -89,47 +57,39 @@ export function DefaultModelsForm({
         title={t("roles.agent.title")}
         description={describe(t("roles.agent.description"), agentsUsing)}
       >
-        <ModelChainEditor value={chain} onChange={setChain} options={options} primaryFirst addLabel={t("addModel")} />
+        <ModelChainEditor
+          value={chains.agent}
+          onChange={(agent) => onChange({ chains: { agent } })}
+          options={options}
+          primaryFirst
+          addLabel={t("addModel")}
+        />
+        {errors.agent && <FieldError>{errors.agent}</FieldError>}
         <EffortFor
           chain={agentsChain}
           options={options}
-          value={effort}
-          onChange={(next) => setEffort(next ?? "default")}
+          value={reasoningEffort.agent}
+          onChange={(next) => onChange({ reasoningEffort: { agent: next ?? "default" } })}
           inherited={{ effort: "default" }}
         />
       </RoleCard>
-      <RoleDefault
-        icon={CrownIcon}
-        title={t("roles.manager.title")}
-        description={describe(t("roles.manager.description"), inheritingAgents.manager)}
-        chain={managerChain}
-        onChainChange={setManagerChain}
-        effort={managerEffort}
-        onEffortChange={setManagerEffort}
-        agentsChain={agentsChain}
-        agentsEffort={agentsEffort}
-        firstConfigured={firstConfigured}
-        options={options}
-      />
-      <RoleDefault
-        icon={SparklesIcon}
-        title={t("roles.orchestrator.title")}
-        description={describe(t("roles.orchestrator.description"), inheritingAgents.orchestrator)}
-        chain={orchestratorChain}
-        onChainChange={setOrchestratorChain}
-        effort={orchestratorEffort}
-        onEffortChange={setOrchestratorEffort}
-        agentsChain={agentsChain}
-        agentsEffort={agentsEffort}
-        firstConfigured={firstConfigured}
-        options={options}
-      />
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={pending || !chain.length}>
-          {pending ? <Spinner /> : <Save />}
-          {tc("save")}
-        </Button>
-      </div>
+      {(["manager", "orchestrator"] as const).map((role) => (
+        <RoleDefault
+          key={role}
+          icon={role === "manager" ? CrownIcon : SparklesIcon}
+          title={t(`roles.${role}.title`)}
+          description={describe(t(`roles.${role}.description`), inheritingAgents[role])}
+          chain={chains[role]}
+          onChainChange={(next) => onChange({ chains: { [role]: next } })}
+          effort={reasoningEffort[role]}
+          onEffortChange={(next) => onChange({ reasoningEffort: { [role]: next } })}
+          error={errors[role]}
+          agentsChain={agentsChain}
+          agentsEffort={agentsEffort}
+          firstConfigured={firstConfigured}
+          options={options}
+        />
+      ))}
     </FormSection>
   );
 }
@@ -150,17 +110,20 @@ function RoleCard({
 }) {
   return (
     <div className="rounded-xl border border-border/70 bg-background/60 dark:bg-background/30">
-      <div className="flex items-center gap-3 px-4 py-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-3 py-3 sm:px-4">
+        <span className="row-[1/3] flex size-7 shrink-0 items-center max-sm:self-start justify-center rounded-md bg-muted text-muted-foreground">
           <Icon className="size-3.5" aria-hidden />
         </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium">{title}</h3>
-          <p className="text-xs text-pretty text-muted-foreground">{description}</p>
-        </div>
-        {action}
+        <h3 className="col-start-2 row-start-1 text-sm font-medium">{title}</h3>
+        {/* On a phone the action goes under the description, so a long label does not crowd the title. */}
+        {action && (
+          <div className="shrink-0 max-sm:col-start-2 max-sm:row-start-3 max-sm:-ml-2.5 sm:col-start-3 sm:row-[1/3]">
+            {action}
+          </div>
+        )}
+        <p className="col-[2/-1] row-start-2 text-xs text-pretty text-muted-foreground sm:col-[2/3]">{description}</p>
       </div>
-      <div className="flex flex-col gap-4 border-t border-border/60 px-4 py-4">{children}</div>
+      <div className="flex flex-col gap-4 border-t border-border/60 p-3 sm:p-4">{children}</div>
     </div>
   );
 }
@@ -205,6 +168,7 @@ function RoleDefault({
   onChainChange,
   effort,
   onEffortChange,
+  error,
   agentsChain,
   agentsEffort,
   firstConfigured,
@@ -217,6 +181,7 @@ function RoleDefault({
   onChainChange: (next: ModelRef[]) => void;
   effort: ReasoningEffort | null;
   onEffortChange: (next: ReasoningEffort | null) => void;
+  error?: string;
   agentsChain: ModelRef[];
   agentsEffort: InheritedEffort;
   firstConfigured: string;
@@ -256,6 +221,7 @@ function RoleDefault({
           </Button>
         </div>
       )}
+      {error && <FieldError>{error}</FieldError>}
       <EffortFor
         chain={chain.length ? chain.filter((m) => m.model.trim()) : agentsChain}
         options={options}

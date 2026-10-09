@@ -7,10 +7,7 @@
     "title": "Rulări",
     "description": "Fiecare execuție a unui agent, cu pașii, uneltele și costul ei.",
     "empty": "Nicio rulare încă. Apar când vorbești cu un agent sau pornește un task ori o programare. <link>Deschide chatul</link>",
-    "emptyFiltered": "Nicio rulare pentru filtrele alese. <link>Resetează filtrele</link>",
-    "range": "{from}-{to} din {total}",
-    "previousPage": "Pagina anterioară",
-    "nextPage": "Pagina următoare"
+    "emptyFiltered": "Nicio rulare pentru filtrele alese. <link>Resetează filtrele</link>"
   },
   "filters": {
     "status": "Status",
@@ -174,11 +171,11 @@
     },
     "budget": {
       "label": "Buget atins",
-      "hint": "Mărește bugetul (limitele agentului, proiectul sau Setări > General) sau așteaptă luna următoare."
+      "hint": "Mărește bugetul (limitele agentului, proiectul sau Setări > Buget) sau așteaptă luna următoare."
     },
     "no_model": {
       "label": "Niciun model",
-      "hint": "Alege un model pentru agent sau setează modelul implicit în Setări > Provideri AI."
+      "hint": "Alege un model pentru agent sau setează modelul implicit în Setări > Modele."
     },
     "provider_not_allowed": {
       "label": "Provider nepermis",
@@ -190,7 +187,7 @@
     },
     "provider_auth": {
       "label": "Providerul a respins cheia",
-      "hint": "Verifică cheia API sau conexiunea în Setări > Provideri AI."
+      "hint": "Verifică cheia API sau conexiunea în Setări > Modele."
     },
     "rate_limited": {
       "label": "Limită de cereri",
@@ -202,7 +199,7 @@
     },
     "providers_unavailable": {
       "label": "Provideri indisponibili",
-      "hint": "Niciun model al agentului nu a răspuns. Verifică providerii în Setări > Provideri AI și modelele agentului, apoi încearcă din nou."
+      "hint": "Niciun model al agentului nu a răspuns. Verifică providerii în Setări > Modele și modelele agentului, apoi încearcă din nou."
     },
     "context_overflow": {
       "label": "Context plin",

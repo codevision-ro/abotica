@@ -3,7 +3,7 @@ import { embed, embedMany } from "ai";
 import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
-import { getSettings } from "../platform/settings";
+import { getSettings } from "../settings/settings";
 import {
   CONFLICTS_WITH_OWNER,
   CONSOLIDATION_CANDIDATES,
@@ -36,7 +36,8 @@ import {
   type ProviderPolicy,
 } from "../models/provider-policy";
 import { embedLocal } from "../models/local-embeddings";
-import { type EmbeddingProvider, embeddingModel, embeddingProvider } from "../models/providers";
+import { embeddingModel, embeddingProvider } from "../models/providers";
+import type { EmbeddingProvider } from "../settings/settings-schema";
 
 export type Memory = typeof memories.$inferSelect;
 export type MemoryScope = Memory["scope"];
@@ -151,7 +152,7 @@ async function insertMemory(input: MemoryInput, checked: StoredWrite, embedding:
       embedding,
       retention,
       validFrom,
-      expiresAt: expiryFor(retention, validFrom, new Date()),
+      expiresAt: expiryFor(retention, validFrom, new Date(), (await getSettings()).memory.ephemeralDays),
       pinned: input.pinned ?? false,
       runId: input.runId ?? null,
     })
@@ -197,7 +198,7 @@ export async function rememberFact(
   },
 ): Promise<FactOutcome> {
   const { replaces = [], conflictsWithOwner = false, ...rest } = input;
-  const held = input.origin === "untrusted" && (await getSettings()).memoryRequiresApproval;
+  const held = input.origin === "untrusted" && (await getSettings()).memory.requiresApproval;
   const fact: MemoryInput = { ...rest, source: "consolidation", status: held ? "pending" : "active" };
   const checked = await checkInput(fact, {}).catch((error: unknown) => {
     if (!(error instanceof MemorySecretError)) throw error;
@@ -533,7 +534,7 @@ export async function updateMemory(
       ...(checked.status && { status: checked.status }),
       ...(opts.retention && {
         retention: opts.retention,
-        expiresAt: expiryFor(opts.retention, memory!.validFrom, new Date()),
+        expiresAt: expiryFor(opts.retention, memory!.validFrom, new Date(), (await getSettings()).memory.ephemeralDays),
       }),
     })
     .where(eq(memories.id, id));

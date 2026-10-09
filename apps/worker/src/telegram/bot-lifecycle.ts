@@ -1,4 +1,5 @@
-import { clearTelegramBotStatus, getTelegramToken, setTelegramBotStatus, type TelegramBotStatus } from "@abotica/core";
+import { clearTelegramBotStatus, env, getTelegramToken, setTelegramBotStatus, type TelegramBotStatus } from "@abotica/core";
+import { TELEGRAM_COMMANDS } from "@abotica/core/telegram-commands";
 import { defaultLocale, getTranslator, locales } from "@abotica/i18n";
 import { Bot } from "grammy";
 import { setBotSource } from "./bot";
@@ -16,7 +17,7 @@ const storeStatus = (write: Promise<void>) =>
 async function setCommandMenu(bot: Bot) {
   for (const locale of locales) {
     const t = getTranslator(locale);
-    const commands = (["status", "tasks", "new", "stop", "resume"] as const).map((command) => ({
+    const commands = TELEGRAM_COMMANDS.map((command) => ({
       command,
       description: t(`telegram.commands.${command}`),
     }));
@@ -30,7 +31,7 @@ async function setCommandMenu(bot: Bot) {
  * page shows, with the token masked.
  */
 function launch(token: string): Bot {
-  const bot = new Bot(token);
+  const bot = new Bot(token, { client: { apiRoot: env().TELEGRAM_API_URL } });
   registerHandlers(bot);
   void bot
     .start({

@@ -71,6 +71,9 @@ const serverInput = z
     /** Stdio only: "run" starts the process in the workspace of the run that uses it. */
     workspace: z.enum(["server", "run"]).default("server"),
     credentialRoutes: z.array(credentialRoute).max(10).default([]),
+    /** Seconds, or null for the default: the bounds are checked in core's `normalize` (MCP_TIMEOUTS). */
+    connectTimeoutSec: z.number().nullish(),
+    callTimeoutSec: z.number().nullish(),
   })
   .superRefine((v, ctx) => {
     if (v.transport === "http") {
@@ -151,6 +154,8 @@ const rowValues = (row: McpRow): McpServerValues => ({
   sandboxed: row.sandboxed,
   workspace: row.workspace,
   credentialRoutes: row.credentialRoutes,
+  connectTimeoutSec: row.connectTimeoutSec,
+  callTimeoutSec: row.callTimeoutSec,
 });
 
 /** A bundled server: only whether it is enabled, offered to every agent and its assignments change. */
@@ -278,7 +283,7 @@ export const setBuiltinMcpKey = action(
       await audit({ actor: "user", action: "secret.deleted", entityType: "secret", entityId: name });
     }
     revalidateServer(id);
-    revalidatePath("/settings/vault");
+    revalidatePath("/settings/secrets");
     return value !== null;
   },
 );

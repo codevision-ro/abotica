@@ -94,7 +94,8 @@
     "restore": "Restore",
     "restored": "Memory restored: agents read it again",
     "recalls": "{count, plural, =0 {never used} one {used once} other {used # times}}",
-    "recallsHint": "How often runs used this entry: recalled into a run or found by memory search."
+    "recallsHint": "How often runs used this entry: recalled into a run or found by memory search.",
+    "pageLabel": "{total, plural, one {# entry} other {# entries}} · page {page} of {pageCount}"
   },
   "budget": {
     "label": "Pinned memory budget",

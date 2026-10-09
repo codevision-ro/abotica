@@ -5,10 +5,11 @@ import { createHash } from "node:crypto";
  * and stores what it is doing here, for the settings page.
  */
 import { UserError } from "@abotica/i18n";
+import { env } from "../infra/env";
 import { publish } from "../infra/events";
 import { redis } from "../infra/redis";
 import { audit } from "../platform/audit";
-import { getSettings, updateSettings } from "../platform/settings";
+import { getSettings, updateSettings } from "../settings/settings";
 import { deleteSecret, getSecret, setSecret } from "../platform/vault";
 import { notifyChatOf } from "./telegram-ids";
 
@@ -26,8 +27,8 @@ export async function getTelegramToken(): Promise<string | undefined> {
 
 /** Who may talk to the bot and the chat notifications go to (null: nowhere). */
 export async function telegramAccess(): Promise<{ allowedUserIds: number[]; notifyChatId: number | null }> {
-  const current = await getSettings();
-  return { allowedUserIds: current.telegramAllowedUserIds, notifyChatId: notifyChatOf(current) };
+  const { telegram } = await getSettings();
+  return { allowedUserIds: telegram.allowedUserIds, notifyChatId: notifyChatOf(telegram) };
 }
 
 /**
@@ -38,7 +39,7 @@ export async function fetchTelegramBot(token: string): Promise<{ username: strin
   if (!TOKEN_FORMAT.test(token)) throw new UserError("settings.telegram.errors.tokenFormat");
   let res: Response;
   try {
-    res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(10_000) });
+    res = await fetch(`${env().TELEGRAM_API_URL}/bot${token}/getMe`, { signal: AbortSignal.timeout(10_000) });
   } catch {
     throw new UserError("settings.telegram.errors.unreachable");
   }
@@ -66,23 +67,11 @@ export async function removeTelegramToken(): Promise<void> {
 export type TelegramAccess = { allowedUserIds: number[]; notifyChatId: string | null };
 
 /**
- * Saves who may talk to the bot and the notification chat. The worker reads them from the settings on
- * every update, so they apply at once, without a restart.
+ * Saves who may talk to the bot and the notification chat (updateSettings audits the change). The
+ * worker reads them from the settings on every update, so they apply at once, without a restart.
  */
 export async function saveTelegramAccess(access: TelegramAccess): Promise<void> {
-  const before = await getSettings();
-  await updateSettings({ telegramAllowedUserIds: access.allowedUserIds, telegramNotifyChatId: access.notifyChatId });
-  const changed = {
-    ...(before.telegramAllowedUserIds.join() !== access.allowedUserIds.join() && {
-      telegramAllowedUserIds: { from: before.telegramAllowedUserIds, to: access.allowedUserIds },
-    }),
-    ...(before.telegramNotifyChatId !== access.notifyChatId && {
-      telegramNotifyChatId: { from: before.telegramNotifyChatId, to: access.notifyChatId },
-    }),
-  };
-  if (Object.keys(changed).length) {
-    await audit({ actor: "user", action: "settings.updated", entityType: "settings", entityId: "app", data: changed });
-  }
+  await updateSettings("telegram", { allowedUserIds: access.allowedUserIds, notifyChatId: access.notifyChatId });
 }
 
 /** Tells the worker the token may have changed (also after an edit on the vault page). */

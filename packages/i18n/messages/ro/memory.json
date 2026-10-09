@@ -94,7 +94,8 @@
     "restore": "Restaurează",
     "restored": "Memorie restaurată: agenții o citesc din nou",
     "recalls": "{count, plural, =0 {nefolosită} one {folosită o dată} few {folosită de # ori} other {folosită de # de ori}}",
-    "recallsHint": "De câte ori au folosit-o rulările: adusă în context sau găsită prin căutarea în memorie."
+    "recallsHint": "De câte ori au folosit-o rulările: adusă în context sau găsită prin căutarea în memorie.",
+    "pageLabel": "{total, plural, one {# intrare} few {# intrări} other {# de intrări}} · pagina {page} din {pageCount}"
   },
   "budget": {
     "label": "Bugetul memoriei fixate",

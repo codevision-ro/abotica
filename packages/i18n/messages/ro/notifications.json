@@ -24,7 +24,7 @@
   "budget": {
     "global": {
       "warning": "⚠️ Cheltuiala din această lună a ajuns la {threshold}% din bugetul lunar global: {spent} din {budget} USD.",
-      "reached": "🛑 Bugetul lunar global a fost atins: {spent} din {budget} USD cheltuiți luna aceasta. Rulările se opresc până luna viitoare sau până mărești bugetul din Setări → General."
+      "reached": "🛑 Bugetul lunar global a fost atins: {spent} din {budget} USD cheltuiți luna aceasta. Rulările se opresc până luna viitoare sau până mărești bugetul din Setări → Buget."
     },
     "project": {
       "warning": "⚠️ Proiectul **{project}** a ajuns la {threshold}% din bugetul lunar: {spent} din {budget} USD.",

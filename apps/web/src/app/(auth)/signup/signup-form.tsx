@@ -1,5 +1,6 @@
 "use client";
 
+import { PASSWORD_MIN_LENGTH } from "@abotica/core/limits";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -50,8 +51,15 @@ export function SignupForm({ setupCode }: { setupCode: { header: string; initial
           </Field>
           <Field>
             <FieldLabel htmlFor="password">{t("fields.password")}</FieldLabel>
-            <Input id="password" name="password" type="password" autoComplete="new-password" minLength={10} required />
-            <FieldDescription>{t("signup.passwordHint")}</FieldDescription>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              minLength={PASSWORD_MIN_LENGTH}
+              required
+            />
+            <FieldDescription>{t("signup.passwordHint", { min: PASSWORD_MIN_LENGTH })}</FieldDescription>
           </Field>
           {setupCode && (
             <Field>

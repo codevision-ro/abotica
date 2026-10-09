@@ -24,6 +24,7 @@ import { dynamicTool, type JSONSchema7, jsonSchema, type Tool, type ToolSet } fr
 import { touchWorkspace } from "../sandbox/sandbox";
 import { DEFAULT_MCP_NETWORK, setupEgressFor } from "../sandbox/sandbox-policy";
 import { syncBuiltinMcpServers } from "../mcp/mcp-servers";
+import { MCP_TIMEOUTS } from "../mcp/mcp-stored-values";
 import { currentSandboxBackend } from "../sandbox/sandbox-runtime";
 import { GLOBAL_SECRETS, type SecretScope } from "../platform/vault";
 import type { McpServer } from "./context";
@@ -72,9 +73,9 @@ export type McpRunOptions = McpConnectOptions & {
   onUntrusted?: () => void;
   /** Redacted from what the servers send back, besides the secrets their connections resolve: the repository tokens. */
   knownSecrets?: readonly string[];
-  /** How long a tool call waits for its answer; MCP_CALL_TIMEOUT_MS when missing. */
+  /** How long a tool call waits for its answer when the server sets no time of its own; MCP_CALL_TIMEOUT_MS when missing. */
   callTimeoutMs?: number;
-  /** How long a server may take to start and answer the handshake; MCP_CONNECT_TIMEOUT_MS when missing. */
+  /** How long a server may take to start and answer the handshake when it sets no time of its own; MCP_CONNECT_TIMEOUT_MS when missing. */
   connectTimeoutMs?: number;
 };
 
@@ -82,13 +83,17 @@ export type McpRunOptions = McpConnectOptions & {
  * How long a tool call waits for the server's answer. `@ai-sdk/mcp` has no default, so a server
  * that never answers would hold the run until its own time limit; past this the call fails instead.
  */
-export const MCP_CALL_TIMEOUT_MS = 120_000;
+export const MCP_CALL_TIMEOUT_MS = MCP_TIMEOUTS.callSec.default * 1000;
 
 /**
  * How long a server may take to start: long enough for `npx -y` or `uvx` to download it on a first
  * start, short enough that a server stuck before its handshake does not hold the run.
  */
-export const MCP_CONNECT_TIMEOUT_MS = 90_000;
+export const MCP_CONNECT_TIMEOUT_MS = MCP_TIMEOUTS.connectSec.default * 1000;
+
+/** A server's own timeout (its form's Advanced section), else the run's, else the default. */
+const serverTimeoutMs = (serverSec: number | null | undefined, runMs: number | undefined, defaultMs: number) =>
+  serverSec ? serverSec * 1000 : (runMs ?? defaultMs);
 
 /** The only host variables an unsandboxed stdio server gets; the worker's secrets stay out. */
 function hostBaseEnv(): Record<string, string> {
@@ -207,7 +212,7 @@ async function connectMcp(server: McpServer, opts: McpRunOptions): Promise<McpCo
  * process or request is stopped, and a connection that still completes late is closed.
  */
 async function connectWithin(server: McpServer, opts: McpRunOptions): Promise<McpConnected> {
-  const timeoutMs = opts.connectTimeoutMs ?? MCP_CONNECT_TIMEOUT_MS;
+  const deadlineMs = serverTimeoutMs(server.connectTimeoutSec, opts.connectTimeoutMs, MCP_CONNECT_TIMEOUT_MS);
   const deadline = new AbortController();
   const signal = opts.signal ? AbortSignal.any([opts.signal, deadline.signal]) : deadline.signal;
   const connecting = connectMcp(server, { ...opts, signal });
@@ -215,8 +220,8 @@ async function connectWithin(server: McpServer, opts: McpRunOptions): Promise<Mc
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       deadline.abort();
-      reject(new Error(`MCP ${server.slug} did not start within ${Math.round(timeoutMs / 1000)} s`));
-    }, timeoutMs);
+      reject(new Error(`MCP ${server.slug} did not start within ${Math.round(deadlineMs / 1000)} s`));
+    }, deadlineMs);
   });
   connecting.then(
     (late) => {
@@ -377,7 +382,7 @@ function serverTools(
   const toModelOutput = modelOutput(server.slug, opts.onUntrusted);
   // As a replay names it: from the runtime tool name, which is all a stored message keeps.
   const errorSource = `mcp:${prefix(server.slug)}` as const;
-  const timeoutMs = opts.callTimeoutMs ?? MCP_CALL_TIMEOUT_MS;
+  const callMs = serverTimeoutMs(server.callTimeoutSec, opts.callTimeoutMs, MCP_CALL_TIMEOUT_MS);
   for (const definition of definitions) {
     // As `@ai-sdk/mcp` builds it: no extra keys, and an object even when the server lists no properties.
     const schema = (definition.inputSchema ?? { type: "object" }) as JSONSchema7;
@@ -389,7 +394,7 @@ function serverTools(
         options?.abortSignal?.throwIfAborted();
         const connected = await connection.connect();
         const { client, folder } = connected;
-        const timeout = AbortSignal.timeout(timeoutMs);
+        const timeout = AbortSignal.timeout(callMs);
         const signal = options?.abortSignal ? AbortSignal.any([options.abortSignal, timeout]) : timeout;
         const result = await client
           .callTool({ name: definition.name, arguments: args as Record<string, unknown>, options: { signal } })
@@ -402,7 +407,7 @@ function serverTools(
               // starts a fresh process. Calls still waiting on this one fail with it. Over HTTP every
               // request stands alone, so the connection stays.
               if (server.transport === "stdio") connection.reset(connected);
-              const text = callTimeoutText(`${prefix(server.slug)}__${definition.name}`, timeoutMs);
+              const text = callTimeoutText(`${prefix(server.slug)}__${definition.name}`, callMs);
               return { isError: true, content: [{ type: "text", text }] };
             }
             const message = error instanceof Error ? error.message : String(error);

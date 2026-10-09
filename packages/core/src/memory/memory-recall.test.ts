@@ -64,7 +64,7 @@ describe("recallForRun", () => {
     input: "Where do deploys go?",
     agentId: "a1",
     projectId: null,
-    settings: { memoryPinnedTokens: 2000, memoryRecallTokens },
+    settings: { memory: { pinnedTokens: 2000, recallTokens: memoryRecallTokens } },
   });
   const empty = { memoryIds: [], text: "" };
 

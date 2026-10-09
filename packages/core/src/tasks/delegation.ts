@@ -24,7 +24,7 @@ import {
   startRun,
 } from "../runs/runs";
 import { superAgentInbox } from "../runs/super-agent-inbox";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { addTaskComment, createTask, deleteTask, updateTask } from "./tasks";
 import { reportTargetAgent } from "./automation-target";
 import { startWaitingTasks } from "./delegation-slots";
@@ -34,12 +34,10 @@ import type { DelegationProject } from "./team-rules";
 
 const OUTPUT_LIMIT = 6_000;
 
-/** Times a delegating agent may send a task back on its own before the user decides. */
-export const MAX_REDELEGATIONS = 2;
-
 /**
  * Hands an existing task to an agent again; its result goes back to the delegating run's conversation.
- * Sending it back on its own counts towards MAX_REDELEGATIONS; a retry the user asked for starts the count over.
+ * Sending it back on its own counts towards agents.maxRedelegations (Settings); a retry the user asked for
+ * starts the count over.
  */
 export async function redelegateTask(
   taskId: string,
@@ -107,11 +105,13 @@ export function reportMessage(
   settled: Settled[],
   ownTaskId: string | null,
   opts: {
+    /** Times the delegator may send a task back on its own (Settings, agents.maxRedelegations). */
+    maxRedelegations: number;
     /** The tasks are work a schedule or trigger fired (tasks.reportsUp), not tasks this agent delegated. */
     fromAutomation?: boolean;
     /** The agent's own task is such work too: it may end it with nothingNew. */
     ownTaskQuiet?: boolean;
-  } = {},
+  },
 ): UIMessage {
   const id = newMarkerId();
   const wrap = (text: string) => wrapUntrusted(text, { source: "delegated-task", id });
@@ -141,7 +141,7 @@ export function reportMessage(
       ownTaskId
         ? "- Needs the user's decision, or you doubt it: leave it in review and say so in your own task's output."
         : "- Needs the user's decision, or you doubt it: leave it in review and ask the user.",
-      `- Incomplete or wrong: say what to fix in a task_comment and send it back with delegate_task and its taskId. After ${MAX_REDELEGATIONS} send-backs, ${ownTaskId ? "set your own task to 'blocked' and explain why" : "ask the user instead"}.`,
+      `- Incomplete or wrong: say what to fix in a task_comment and send it back with delegate_task and its taskId. After ${opts.maxRedelegations} send-back${opts.maxRedelegations === 1 ? "" : "s"}, ${ownTaskId ? "set your own task to 'blocked' and explain why" : "ask the user instead"}.`,
     ].join("\n"),
     settled.some((t) => t.files.length)
       ? ownTaskId
@@ -443,6 +443,7 @@ async function deliverReport(
       projectId: delegator.projectId,
       parentRunId: finished.id,
       message: reportMessage(settled, delegator.taskId, {
+        maxRedelegations: (await getSettings()).agents.maxRedelegations,
         ownTaskQuiet: Boolean(own?.reportsUp && !own.delegatedByRunId),
       }),
     });
@@ -511,7 +512,10 @@ async function deliverUp(finished: Run, task: typeof tasks.$inferSelect): Promis
       trigger: inbox.channel === "telegram" ? "telegram" : "chat",
       conversationId: inbox.id,
       parentRunId: finished.id,
-      message: reportMessage(settled, null, { fromAutomation: true }),
+      message: reportMessage(settled, null, {
+        maxRedelegations: (await getSettings()).agents.maxRedelegations,
+        fromAutomation: true,
+      }),
     });
   } catch (error) {
     // The notice is saved; the run active in that conversation answers it in its follow-up.
@@ -531,7 +535,8 @@ async function handToManager(
   settled: Settled[],
   finished: Run,
 ): Promise<Run> {
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const settings = await getSettings();
+  const t = getTranslator(settingsLocale(settings));
   const review = await createTask(
     {
       title: task.title,
@@ -552,7 +557,11 @@ async function handToManager(
       projectId: task.projectId,
       parentRunId: finished.id,
       title: review.title,
-      message: reportMessage(settled, review.id, { fromAutomation: true, ownTaskQuiet: true }),
+      message: reportMessage(settled, review.id, {
+        maxRedelegations: settings.agents.maxRedelegations,
+        fromAutomation: true,
+        ownTaskQuiet: true,
+      }),
     });
   } catch (error) {
     // No run will settle it, so it must not stay in progress; the work is reported again later.

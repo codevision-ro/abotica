@@ -22,7 +22,8 @@ const mono = (chunks: React.ReactNode) => <span className="font-mono text-xs">{c
 
 /**
  * What embeds memory, journals and knowledge, whether it can right now, and the re-embedding a change
- * starts. The page refreshes on the worker's progress events (see LiveUpdates).
+ * starts. Saved on its own, since a change embeds everything again. The page refreshes on the worker's
+ * progress events (see LiveUpdates).
  */
 export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: EmbeddingStatus; ollamaBaseUrl: string }) {
   const t = useTranslations("settings.embeddings");
@@ -84,12 +85,20 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
             </p>
           </div>
         )}
-        {changed && <ProviderNotice>{t("changeNotice", { provider: label(choice) })}</ProviderNotice>}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={pending || !changed}>
-            {pending ? <Spinner /> : <Save />} {tc("save")}
-          </Button>
-        </div>
+        {/* Shown only for a change, so it does not compete with the page's save bar. */}
+        {changed && (
+          <>
+            <ProviderNotice>{t("changeNotice", { provider: label(choice) })}</ProviderNotice>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setChoice(status.provider)} disabled={pending}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? <Spinner /> : <Save />} {tc("save")}
+              </Button>
+            </div>
+          </>
+        )}
       </form>
     </FormSection>
   );

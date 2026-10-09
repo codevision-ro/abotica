@@ -1,4 +1,5 @@
 import type { RunFailureKind } from "../runs/run-failures";
+import type { SettingsDomain } from "../settings/settings-schema";
 import { createRedis, redis } from "./redis";
 
 /** Live events pushed from the worker to the web UI over Redis pub/sub. */
@@ -19,8 +20,11 @@ export type AppEvent =
   | { type: "telegram.config-changed" }
   /** The worker stored a new bot status; read it with getTelegramBotStatus(). */
   | { type: "telegram.status" }
-  /** The app settings were saved; the worker applies what it holds in memory (the run concurrency). */
-  | { type: "settings.updated" }
+  /**
+   * A settings domain was saved; every process drops its cached settings and the worker applies what it
+   * holds in memory (run concurrency, maintenance schedules).
+   */
+  | { type: "settings.updated"; domain: SettingsDomain }
   /** The re-embedding after an embedding provider change moved on; read it with getReindexState(). */
   | { type: "embeddings.reindex" };
 

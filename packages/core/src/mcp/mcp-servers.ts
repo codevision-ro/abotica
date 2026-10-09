@@ -32,7 +32,7 @@ import { MCP_OAUTH_REQUIRED } from "../agents/mcp-oauth";
 import { mcpRouteId } from "../agents/mcp-routes";
 import { audit } from "../platform/audit";
 import { BUILTIN_MCP_SERVERS, type BuiltinMcp, builtinMcp } from "./mcp-builtins";
-import { type KeepStored, resolveStoredRecord, resolveStoredSecret } from "./mcp-stored-values";
+import { type KeepStored, MCP_TIMEOUTS, resolveStoredRecord, resolveStoredSecret } from "./mcp-stored-values";
 import { DEFAULT_MCP_NETWORK, parseNetworkPolicy } from "../sandbox/sandbox-policy";
 import { OWNER_SECRETS, sealValue, unsealValue } from "../platform/vault";
 
@@ -57,6 +57,9 @@ export type McpServerValues = {
   sandboxed: boolean;
   workspace: "server" | "run";
   credentialRoutes: McpCredentialRoute[];
+  /** Seconds; null uses the default (MCP_TIMEOUTS). */
+  connectTimeoutSec: number | null;
+  callTimeoutSec: number | null;
 };
 
 /** A credential route as the form sends it; a value it could not show comes back as `{ keep: <saved baseUrlEnv> }`. */
@@ -86,6 +89,9 @@ export type McpServerDraft = {
   workspace: "server" | "run";
   /** Sandboxed stdio only, checked by `normalizeCredentialRoutes`. */
   credentialRoutes?: McpCredentialRouteDraft[];
+  /** Within MCP_TIMEOUTS; null or missing uses the default. */
+  connectTimeoutSec?: number | null;
+  callTimeoutSec?: number | null;
 };
 
 /** An environment variable a route may set; it also names the route (`mcpRouteId`). */
@@ -149,7 +155,18 @@ export function normalizeMcpServerValues(v: McpServerDraft, saved: McpCredential
     workspace: !http && sandboxed ? v.workspace : "server",
     credentialRoutes:
       !http && sandboxed ? normalizeCredentialRoutes(v.credentialRoutes ?? [], saved?.credentialRoutes ?? null) : [],
+    connectTimeoutSec: timeoutSec(v.connectTimeoutSec, MCP_TIMEOUTS.connectSec, "mcp.validation.connectTimeout"),
+    callTimeoutSec: timeoutSec(v.callTimeoutSec, MCP_TIMEOUTS.callSec, "mcp.validation.callTimeout"),
   };
+}
+
+/** A timeout of the form: whole seconds within its bounds, or null for the default. */
+function timeoutSec(value: number | null | undefined, bounds: { min: number; max: number }, key: string): number | null {
+  if (value === null || value === undefined) return null;
+  if (!Number.isInteger(value) || value < bounds.min || value > bounds.max) {
+    throw new UserError(key, { min: bounds.min, max: bounds.max });
+  }
+  return value;
 }
 
 const mapValues = (record: Record<string, string>, fn: (value: string) => string) =>
@@ -229,6 +246,8 @@ function builtinValues(b: BuiltinMcp): McpServerValues {
     sandboxed: true,
     workspace: http ? "server" : "run",
     credentialRoutes: [],
+    connectTimeoutSec: null,
+    callTimeoutSec: null,
   };
 }
 
@@ -282,6 +301,8 @@ export async function saveMcpServer(id: string | undefined, input: SaveMcpServer
           workspace: values.workspace,
           credentialRoutes: values.credentialRoutes.length,
         }),
+        ...(values.connectTimeoutSec !== null && { connectTimeoutSec: values.connectTimeoutSec }),
+        ...(values.callTimeoutSec !== null && { callTimeoutSec: values.callTimeoutSec }),
         agents: agentIds.length,
         projects: projectIds.length,
       },

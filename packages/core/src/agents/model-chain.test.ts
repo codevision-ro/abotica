@@ -15,9 +15,7 @@ const MANAGERS = [
   { provider: "deepseek", model: "chat" },
 ];
 const settings = {
-  defaultModels: AGENTS,
-  orchestratorModels: [],
-  managerModels: MANAGERS,
+  models: { chains: { agent: AGENTS, orchestrator: [], manager: MANAGERS } },
 } as unknown as RunContext["settings"];
 const agentOf = (kind: string) => ({ provider: null, model: null, fallbacks: [], kind }) as unknown as RunContext["agent"];
 const agent = agentOf("manager");

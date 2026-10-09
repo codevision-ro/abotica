@@ -19,7 +19,7 @@ export async function OnboardingCard({
       title: t("keys.title"),
       description: t("keys.description"),
       done: state.hasKeys,
-      href: "/settings",
+      href: "/settings/models",
       cta: t("keys.cta"),
     },
     {

@@ -16,7 +16,7 @@ import { publish } from "../infra/events";
 import { enqueueTaskEvent } from "../infra/queues";
 import { claimFiles, fileIdsOwnedBy, removeFileBytes, type StoredFile } from "../files/files";
 import type { RunFailureKind } from "../runs/run-failures";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskStatus = Task["status"];

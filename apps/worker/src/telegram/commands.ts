@@ -42,7 +42,7 @@ export function registerCommands(bot: Bot) {
     const [active, tasks, cost] = await Promise.all([
       listActiveRuns(),
       countTasksByStatus(),
-      costSince(dayBounds(settings.timezone).start),
+      costSince(dayBounds(settings.general.timezone).start),
     ]);
     const lines = [
       t("telegram.status.title"),

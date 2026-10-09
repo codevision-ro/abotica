@@ -19,7 +19,14 @@ import {
   uniqueAgentSlug,
   updateAgentConfig,
 } from "@abotica/core";
+import {
+  AGENT_NAME_MAX_LENGTH,
+  AGENT_PROMPT_MAX_LENGTH,
+  AGENT_ROLE_MAX_LENGTH,
+  VERSION_NOTE_MAX_LENGTH,
+} from "@abotica/core/limits";
 import { REASONING_EFFORTS } from "@abotica/core/models/reasoning";
+import { type Range, SETTINGS_LIMITS } from "@abotica/core/settings";
 import { AGENT_KINDS, agents, agentVersions, db, toAgentAvatar } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
@@ -30,6 +37,14 @@ import { action } from "../action";
 import { getAgentRelations } from "../queries/agents";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** A number within `range`, `scale` times its unit (minutes in milliseconds); the message shows the bounds. */
+const inRange = (key: string, { min, max }: Range, scale = 1) =>
+  z
+    .number()
+    .refine((n) => Number.isInteger(n) && n >= min * scale && n <= max * scale, { message: key, params: { min, max } });
+
+const LIMITS = SETTINGS_LIMITS.agents;
 
 const modelRef = z.object({
   provider: z.string().refine(isProviderId, "agents.validation.unknownProvider"),
@@ -48,23 +63,30 @@ const agentAvatar = z.object({
 });
 
 const agentFields = z.object({
-  name: z.string().trim().min(1, "agents.validation.nameRequired").max(80),
-  role: z.string().trim().max(200),
+  name: z.string().trim().min(1, "agents.validation.nameRequired").max(AGENT_NAME_MAX_LENGTH),
+  role: z.string().trim().max(AGENT_ROLE_MAX_LENGTH),
   avatar: agentAvatar,
   // Core refuses a kind the team rules do not allow (the super agent is one, a manager leading a project stays one).
   kind: z.enum(AGENT_KINDS),
   /** A specialist's profession, or a manager's or the super agent's additional instructions. */
-  systemPrompt: z.string().max(100_000),
+  systemPrompt: z.string().max(AGENT_PROMPT_MAX_LENGTH),
   // Null provider and model: the agent follows the default models from settings.
   provider: z.string().refine(isProviderId, "agents.validation.unknownProvider").nullable(),
   model: z.string().trim().min(1, "agents.validation.pickModel").max(200).nullable(),
   fallbacks: z.array(modelRef).max(10),
   reasoningEffort: z.enum(REASONING_EFFORTS),
   permissions: z.record(z.string(), z.enum(TOOL_PERMISSIONS)),
+  // Same bounds as the default limits in Settings > Agents.
   limits: z.object({
-    maxSteps: z.number().int().min(1).max(100),
-    timeoutMs: z.number().int().min(60_000, "agents.validation.timeoutMin"),
-    budgetUsd: z.number().positive("agents.validation.budgetPositive").nullable(),
+    maxSteps: inRange("agents.validation.maxSteps", LIMITS.maxSteps),
+    timeoutMs: inRange("agents.validation.timeout", LIMITS.timeoutMinutes, 60_000),
+    budgetUsd: z
+      .number()
+      .refine((n) => n >= LIMITS.budgetUsd.min && n <= LIMITS.budgetUsd.max, {
+        message: "agents.validation.budget",
+        params: LIMITS.budgetUsd,
+      })
+      .nullable(),
   }),
   skillIds: z.array(z.uuid()),
   mcpServerIds: z.array(z.uuid()),
@@ -118,7 +140,7 @@ export const createAgent = action(
 );
 
 export const updateAgent = action(
-  agentFields.extend({ id: z.uuid(), note: z.string().trim().max(300).optional() }),
+  agentFields.extend({ id: z.uuid(), note: z.string().trim().max(VERSION_NOTE_MAX_LENGTH).optional() }),
   async ({ id, note, projectIds, ...patch }) => {
     // Core refuses a team change (leaving a project the agent manages, a manager joining a team) or a
     // change of kind that breaks the team rules, and then nothing more is saved. Teams change first,

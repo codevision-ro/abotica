@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { isCrossOriginWrite } from "./same-origin";
+
+vi.mock("@abotica/core/app-origins", () => ({
+  appOrigins: () => ["https://abotica.example.com", "https://tunnel.example.dev"],
+}));
 
 const request = (method: string, headers: Record<string, string>) =>
   new Request("https://abotica.example.com/api/chat", { method, headers });
@@ -12,6 +16,9 @@ describe("isCrossOriginWrite", () => {
   it("accepts writes from the app's own pages", () => {
     expect(isCrossOriginWrite(request("POST", { "sec-fetch-site": "same-origin" }))).toBe(false);
     expect(isCrossOriginWrite(request("POST", { origin: "https://abotica.example.com" }))).toBe(false);
+    expect(
+      isCrossOriginWrite(request("POST", { origin: "https://tunnel.example.dev", "sec-fetch-site": "cross-site" })),
+    ).toBe(false);
   });
 
   it("refuses writes from a preview subdomain or another site", () => {

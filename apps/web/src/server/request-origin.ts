@@ -1,4 +1,5 @@
 import "server-only";
+import { trustedAppOrigin } from "@abotica/core/app-origins";
 import { headers } from "next/headers";
 
 /** The origin the browser used for this request, behind a tunnel or proxy too. */
@@ -12,5 +13,5 @@ export async function requestOrigin(): Promise<string | null> {
   return `${proto}://${host}`;
 }
 
-/** The configured public base URL, without a trailing slash. */
-export const appUrl = () => (process.env.APP_URL || "http://localhost:3000").replace(/\/+$/, "");
+/** The configured public base URL (APP_URL's origin), without a trailing slash. */
+export const appUrl = () => trustedAppOrigin();

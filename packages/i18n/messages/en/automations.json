@@ -113,6 +113,10 @@
     "event": "Event",
     "webhookHint": "After saving you get a unique webhook URL.",
     "webhookHintKeep": "After saving you get a unique webhook URL (the existing token is kept).",
+    "advanced": "Advanced",
+    "rateLimit": "Requests per minute",
+    "rateLimitHint": "Over this many in a minute, the webhook answers 429 and starts no run. Empty uses {count}.",
+    "perMinute": "/ min",
     "promptPlaceholder": "E.g. A new order came in. Check it and create a delivery task.\n\n{payload}",
     "payloadHelp": {
       "webhook": "{payload} becomes the POST request body (formatted JSON or text).",
@@ -184,6 +188,7 @@
     "invalidTimezone": "Invalid time zone",
     "promptRequired": "Prompt is required",
     "invalidCron": "Invalid cron expression (5 fields)",
-    "chooseDateTime": "Choose the date and time"
+    "chooseDateTime": "Choose the date and time",
+    "rateLimit": "Between {min} and {max} requests per minute"
   }
 }

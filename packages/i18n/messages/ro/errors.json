@@ -1,7 +1,7 @@
 {
   "unknown": "Ceva n-a mers",
-  "providerNotConfigured": "Provider neconectat (conectează-l în Setări → Provideri AI)",
-  "noModel": "Nu există niciun model setat: alege unul pentru agent sau setează modelul implicit în Setări → Provideri AI",
+  "providerNotConfigured": "Provider neconectat (conectează-l în Setări → Modele)",
+  "noModel": "Nu există niciun model setat: alege unul pentru agent sau setează modelul implicit în Setări → Modele",
   "conversationBusy": "Agentul încă lucrează în această conversație; mesajul a intrat în coadă",
   "allProvidersFailed": "Toți providerii au eșuat:\n{failures}",
   "allProvidersRateLimited": "Toate modelele din lanț au atins limita de cereri, inclusiv după reîncercări; încearcă din nou mai târziu:\n{failures}",

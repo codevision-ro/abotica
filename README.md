@@ -95,7 +95,7 @@ The script installs Docker if it is missing (Linux; on a Mac, install [OrbStack]
 Then:
 
 1. Open the sign-up link the installer prints and create your account. The link carries a setup code that only you have, so nobody else can claim the instance first.
-2. Connect a model provider under **Settings > AI providers**. Keys are stored encrypted, and are set only there.
+2. Connect a model provider under **Settings > Models**. Keys are stored encrypted, and are set only there.
 3. Optionally, connect Telegram ([DEPLOY.md](DEPLOY.md#telegram)) and enable 2FA under **Settings > Security**.
 
 To update, run the same command again. To install with Docker by hand, or without Docker, see [DEPLOY.md](DEPLOY.md).

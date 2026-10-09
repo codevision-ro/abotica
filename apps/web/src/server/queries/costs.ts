@@ -16,7 +16,7 @@ import { query } from "@/server/query";
 type DailyCostPoint = { day: string } & Record<string, number | string>;
 
 /** Days and months follow the configured timezone, like the budget checks in core. */
-const timezone = async () => (await getSettings()).timezone;
+const timezone = async () => (await getSettings()).general.timezone;
 
 /** The YYYY-MM-DD day `offset` days away from `day`. */
 function shiftDay(day: string, offset: number): string {

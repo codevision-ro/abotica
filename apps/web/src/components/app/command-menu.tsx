@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useStartConversation } from "@/components/chat/start-conversation";
+import { SETTINGS_GROUPS, type SettingsPage } from "@/components/settings/settings-pages";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -15,6 +16,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  CommandShortcut,
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { requestNavigation } from "@/lib/navigation-guard";
@@ -57,6 +59,7 @@ export function CommandMenu() {
   };
   const t = useTranslations("shell.commandMenu");
   const tNav = useTranslations("nav");
+  const tSettings = useTranslations("settings.nav");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -94,6 +97,21 @@ export function CommandMenu() {
         <span className="truncate">{tNav(`items.${item.key}`)}</span>
       </CommandItem>
     ));
+  // Each settings page on its own, so "time zone" or "budget" finds where it is set.
+  const settingsItems = (pages: SettingsPage[]) =>
+    pages.map((page) => (
+      <CommandItem
+        key={`settings:${page.href}`}
+        value={`${tSettings("label")} ${tSettings(page.key)} ${page.href}`}
+        keywords={[tSettings(`keywords.${page.key}`)]}
+        onSelect={() => go(page.href)}
+        className={ITEM}
+      >
+        <ItemIcon icon={page.icon} />
+        <span className="truncate">{tSettings(page.key)}</span>
+        <CommandShortcut className="tracking-normal">{tSettings("label")}</CommandShortcut>
+      </CommandItem>
+    ));
 
   return (
     <>
@@ -123,6 +141,7 @@ export function CommandMenu() {
               <CommandGroup>
                 {actionItems}
                 {navItems(NAV.flatMap((group) => group.items))}
+                {settingsItems(SETTINGS_GROUPS.flatMap((group) => group.pages))}
               </CommandGroup>
             ) : (
               <>
@@ -133,6 +152,9 @@ export function CommandMenu() {
                     {navItems(group.items)}
                   </CommandGroup>
                 ))}
+                <CommandGroup heading={tSettings("label")}>
+                  {settingsItems(SETTINGS_GROUPS.flatMap((group) => group.pages))}
+                </CommandGroup>
               </>
             )}
           </CommandList>

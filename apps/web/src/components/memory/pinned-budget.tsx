@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 export type PinnedUsage = { count: number; usedTokens: number; omitted: number; budgetTokens: number };
 
 /**
- * How much of the pinned budget (Settings > General) pinned entries take in every run, and how many do
+ * How much of the pinned budget (Settings > Memory) pinned entries take in every run, and how many do
  * not fit. `withGlobal` on an agent's or a project's memory, whose runs also get the global ones.
  */
 export function PinnedBudget({

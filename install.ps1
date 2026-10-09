@@ -282,7 +282,7 @@ function Install-Abotica {
   Write-Host "    $signup"
   Write-Host ""
   Write-Host "  The first account is the only one. Then connect a model provider under"
-  Write-Host "  Settings > AI providers."
+  Write-Host "  Settings > Models."
   $d = Read-EnvValue "ABOTICA_DOMAIN"
   if ($d) {
     Write-Host ""

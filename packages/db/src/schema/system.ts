@@ -28,7 +28,15 @@ export const auditLogs = pgTable(
   (t) => [index().on(t.createdAt), index().on(t.entityType, t.entityId)],
 );
 
+/** The app settings, one row per domain (key = domain); only the saved fields, see core settings.ts. */
 export const settings = pgTable("settings", {
+  key: text().primaryKey(),
+  value: jsonb().notNull(),
+  updatedAt: updatedAt(),
+});
+
+/** Internal bookkeeping that is not configuration: one-time imports, progress of background work. */
+export const appState = pgTable("app_state", {
   key: text().primaryKey(),
   value: jsonb().notNull(),
   updatedAt: updatedAt(),

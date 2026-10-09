@@ -3,7 +3,7 @@ import { db, memories, memoryRecalls, messages, runs, type Tx } from "@abotica/d
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "@abotica/db/orm";
 import { CHARS_PER_TOKEN } from "../agents/compaction";
 import { projectProviderPolicy } from "../models/provider-policy";
-import type { AppSettings } from "../platform/settings";
+import type { AppSettings } from "../settings/settings";
 import type { ConversationHistory } from "../runs/run-messages";
 import { currentMemories, embedText, memoriesVisibleTo, type MemoryOwner } from "./memory";
 import { fitBudget, memoryTokens, type MessageRecall, recallQuery, recallTarget, recallText } from "./memory-budget";
@@ -165,7 +165,7 @@ export async function recallForRun(
   run: MemoryReader & {
     id: string;
     input: string;
-    settings: Pick<AppSettings, "memoryPinnedTokens" | "memoryRecallTokens">;
+    settings: { memory: Pick<AppSettings["memory"], "pinnedTokens" | "recallTokens"> };
   },
 ): Promise<ConversationHistory> {
   const index = recallTarget(history.messages);
@@ -174,8 +174,8 @@ export async function recallForRun(
   const target = history.messages[index]!;
   const query = recallQuery(target.message, run.input);
   const reader: MemoryReader = { agentId: run.agentId, projectId: run.projectId, notesProjectId: run.notesProjectId };
-  const searches = run.settings.memoryRecallTokens > 0 && !(await allFit(reader, run.settings.memoryPinnedTokens));
-  const found = searches ? await recallMemories(query, { ...reader, budgetTokens: run.settings.memoryRecallTokens }) : [];
+  const searches = run.settings.memory.recallTokens > 0 && !(await allFit(reader, run.settings.memory.pinnedTokens));
+  const found = searches ? await recallMemories(query, { ...reader, budgetTokens: run.settings.memory.recallTokens }) : [];
   // Saved even when empty: a continuation must not search again and change a turn the model has seen,
   // also after recall was turned on or memory outgrew the instructions.
   const recall: MessageRecall = { memoryIds: found.map((m) => m.id), text: recallText(found) };

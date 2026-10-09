@@ -117,6 +117,13 @@
     "workspaceServerHint": "Un singur proces pentru toți agenții, cu fișierele lui.",
     "workspaceRun": "Workspace-ul agentului",
     "workspaceRunHint": "Poate citi fișierele agentului din /workspace și își salvează fișierele unde agentul le poate citi, dar nu modifică niciodată fișierele agentului. Fiecare proiect primește propriul proces.",
+    "advancedTitle": "Avansat",
+    "advancedSummary": "Pornire în {connect} s, apeluri de tool în {call} s",
+    "connectTimeout": "Timp de pornire",
+    "connectTimeoutHint": "Cât poate dura până când serverul pornește și răspunde. Gol: {seconds} s.",
+    "callTimeout": "Timp pentru un apel de tool",
+    "callTimeoutHint": "Cât așteaptă un apel de tool răspunsul. Gol: {seconds} s.",
+    "secondsUnit": "s",
     "credentialRoutes": {
       "title": "Rute de credențiale",
       "description": "Serverul primește în variabilă doar URL-ul rutei. Proxy-ul Abotica adaugă header-ul cu secretul la cererile lui către upstream, așa că secretul nu intră niciodată în sandbox.",
@@ -215,7 +222,9 @@
     "slugFormat": "Slug-ul poate conține doar litere mici, cifre și cratime",
     "invalidUrl": "URL invalid (ex: https://server/mcp)",
     "commandRequired": "Comanda este obligatorie pentru stdio",
-    "keyRequired": "Introdu cheia API"
+    "keyRequired": "Introdu cheia API",
+    "connectTimeout": "Timpul de pornire trebuie să fie între {min} și {max} secunde",
+    "callTimeout": "Timpul unui apel de tool trebuie să fie între {min} și {max} secunde"
   },
   "builtin": {
     "parallel-search": "Căutare pe web și citirea paginilor, gratuit fără cheie",

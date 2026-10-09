@@ -3,6 +3,7 @@ import {
   applyConsolidationOutsideProjects,
   applyCraftLessons,
   backfillEmbeddings,
+  CATALOG_REFRESH_MS,
   checkForUpdates,
   type ConsolidationTarget,
   consolidationCandidates,
@@ -53,6 +54,7 @@ import { sendMarkdown } from "../telegram/send";
 import { groupByJournal, type JournalKey, journalHeading, splitByProject, verbatimJournals } from "./journal-groups";
 import { systemCompletion } from "./llm";
 import { describeSandbox } from "./sandbox";
+import { WORKER_CONCURRENCY } from "./worker-concurrency";
 
 /** Removes unclaimed uploads and bytes without a row; logs only when something went. */
 async function sweepStoredFiles() {
@@ -128,9 +130,13 @@ const unlessNoAllowedProvider =
 /** One journal per agent, per project and day: an agent working on two projects writes two. */
 export async function writeJournals() {
   const settings = await getSettings();
-  const { day, start, end } = dayBounds(settings.timezone);
+  const { day, start, end } = dayBounds(settings.general.timezone);
   // Run times in the user's time zone, like the day the journal is written for.
-  const time = new Intl.DateTimeFormat("en-GB", { timeZone: settings.timezone, hour: "2-digit", minute: "2-digit" });
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: settings.general.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const language = localeEnglishNames[settingsLocale(settings)];
   const allRuns = await db
     .select()
@@ -178,7 +184,13 @@ export async function writeJournals() {
       agent,
       projectId,
       purpose: `Journal ${day}`,
-      ...journalPrompt({ day, timezone: settings.timezone, language, project: projectId && names.get(projectId), log }),
+      ...journalPrompt({
+        day,
+        timezone: settings.general.timezone,
+        language,
+        project: projectId && names.get(projectId),
+        log,
+      }),
     }).catch(unlessNoAllowedProvider(`journal of ${agent.slug}`));
     if (summary === null) continue;
     const embedding = await embedText(summary, await projectProviderPolicy(projectId));
@@ -201,8 +213,8 @@ async function sendDigest(period: "daily" | "weekly") {
   const settings = await getSettings();
   const language = localeEnglishNames[settingsLocale(settings)];
   const days = period === "daily" ? 1 : 7;
-  const { start } = dayBounds(settings.timezone, new Date(Date.now() - (days - 1) * 86_400_000));
-  const startDay = new Intl.DateTimeFormat("en-CA", { timeZone: settings.timezone }).format(start);
+  const { start } = dayBounds(settings.general.timezone, new Date(Date.now() - (days - 1) * 86_400_000));
+  const startDay = new Intl.DateTimeFormat("en-CA", { timeZone: settings.general.timezone }).format(start);
 
   const recentJournals = await db
     .select({
@@ -238,7 +250,7 @@ async function sendDigest(period: "daily" | "weekly") {
   // Content of a project whose restriction the digest's models do not satisfy never reaches them:
   // its tasks are left out and its journals follow the digest as they were written.
   const orchestrator = await getOrchestrator();
-  const closed = await projectsClosedTo(resolveModelChain(orchestrator, settings, "orchestrator"));
+  const closed = await projectsClosedTo(resolveModelChain(orchestrator, settings.models, "orchestrator"));
   const journalsBy = splitByProject(recentJournals, closed);
   const doneTitles = splitByProject(done, closed).open.map((t) => t.title);
   const waitingTitles = splitByProject(waiting, closed).open.map((t) => `${t.title} (${t.status})`);
@@ -392,36 +404,35 @@ async function distilCraft(
   }
 }
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * How often each periodic maintenance job runs. The ones whose time follows Settings (journals, reports,
+ * consolidation) are scheduled by syncSettingsSchedules.
+ */
+export const MAINTENANCE_INTERVALS_MS = {
+  catalog: CATALOG_REFRESH_MS,
+  "sandbox-reap": 5 * MINUTE_MS,
+  "runs-reap": MINUTE_MS,
+  // A batch at a time (PR_SYNC_BATCH): each open pull request comes up in turn.
+  "prs-sync": MINUTE_MS,
+  // Picks up a re-embedding after a restart, and tries again after a provider error; idle, one query.
+  "embeddings-reindex": MINUTE_MS,
+  "files-sweep": HOUR_MS,
+  "previews-sweep": HOUR_MS,
+  "updates-check": 6 * HOUR_MS,
+} as const satisfies Partial<Record<MaintenanceJob["kind"], number>>;
+
+type PeriodicJob = keyof typeof MAINTENANCE_INTERVALS_MS;
+
 export async function registerMaintenanceSchedules() {
   await syncSettingsSchedules();
   const q = maintenanceQueue();
-  await q.upsertJobScheduler("catalog", { every: 12 * 3600_000 }, { name: "catalog", data: { kind: "catalog" } });
-  await q.upsertJobScheduler(
-    "sandbox-reap",
-    { every: 5 * 60_000 },
-    { name: "sandbox-reap", data: { kind: "sandbox-reap" } },
-  );
-  await q.upsertJobScheduler("runs-reap", { every: 60_000 }, { name: "runs-reap", data: { kind: "runs-reap" } });
-  // Every minute, a batch at a time (PR_SYNC_BATCH): each open pull request comes up in turn.
-  await q.upsertJobScheduler("prs-sync", { every: 60_000 }, { name: "prs-sync", data: { kind: "prs-sync" } });
-  // Picks up a re-embedding after a restart, and tries again after a provider error; idle, one query.
-  await q.upsertJobScheduler(
-    "embeddings-reindex",
-    { every: 60_000 },
-    { name: "embeddings-reindex", data: { kind: "embeddings-reindex" } },
-  );
-  await q.upsertJobScheduler("files-sweep", { every: 3600_000 }, { name: "files-sweep", data: { kind: "files-sweep" } });
-  await q.upsertJobScheduler(
-    "previews-sweep",
-    { every: 3600_000 },
-    { name: "previews-sweep", data: { kind: "previews-sweep" } },
-  );
-  // Every 6 hours, and once now so a fresh install or an update knows where it stands.
-  await q.upsertJobScheduler(
-    "updates-check",
-    { every: 6 * 3600_000 },
-    { name: "updates-check", data: { kind: "updates-check" } },
-  );
+  for (const [kind, every] of Object.entries(MAINTENANCE_INTERVALS_MS) as [PeriodicJob, number][]) {
+    await q.upsertJobScheduler(kind, { every }, { name: kind, data: { kind } });
+  }
+  // Once now as well, so a fresh install or an update knows where it stands.
   await q.add("updates-check", { kind: "updates-check" }, { removeOnComplete: true, removeOnFail: true });
 }
 
@@ -460,6 +471,6 @@ export function startMaintenanceWorker() {
           return reindexEmbeddings();
       }
     },
-    { connection: createRedis(), concurrency: 1 },
+    { connection: createRedis(), concurrency: WORKER_CONCURRENCY.maintenance },
   );
 }

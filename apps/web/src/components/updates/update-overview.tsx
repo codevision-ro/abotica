@@ -59,8 +59,11 @@ function VersionTile({
   );
 }
 
-/** Settings > Updates: the version running here, the latest release and how the last check went. */
-export function UpdateOverview({ status }: { status: UpdateStatus }) {
+/**
+ * Settings > System: the version running here, the latest release and how the last check went;
+ * `action` (Check now) sits on the line of the last check.
+ */
+export function UpdateOverview({ status, action }: { status: UpdateStatus; action?: React.ReactNode }) {
   const t = useTranslations("settings.updates");
   const state = stateOf(status);
   return (
@@ -101,10 +104,13 @@ export function UpdateOverview({ status }: { status: UpdateStatus }) {
           </p>
         )}
 
-        {status.checkedAt && (
-          <p className="text-xs text-muted-foreground">
-            {t.rich("checked", { time: () => <RelativeTime date={status.checkedAt!} /> })}
-          </p>
+        {(status.checkedAt || action) && (
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p className="text-xs text-muted-foreground">
+              {status.checkedAt && t.rich("checked", { time: () => <RelativeTime date={status.checkedAt!} /> })}
+            </p>
+            {action}
+          </div>
         )}
       </div>
     </SectionCard>

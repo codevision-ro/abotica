@@ -20,7 +20,7 @@ import { query } from "@/server/query";
 export type ProjectFilter = "active" | "all" | "archived";
 
 /** Month spend uses the configured timezone, like the costs page. */
-const monthStart = async () => startOfMonth((await getSettings()).timezone);
+const monthStart = async () => startOfMonth((await getSettings()).general.timezone);
 
 export const listProjects = query(async (filter: ProjectFilter) => {
   const where =

@@ -71,3 +71,13 @@ describe("preview cookies", () => {
     expect(validPreviewCookie(undefined, ID, now)).toBe(false);
   });
 });
+
+describe("preview lifetime", () => {
+  it("follows the preview settings: hours for a live link, days for a static copy", async () => {
+    const { previewTtlMs } = await load("https://preview.example.com");
+    expect(previewTtlMs("live", { liveHours: 24, staticDays: 7 })).toBe(24 * 3600_000);
+    expect(previewTtlMs("static", { liveHours: 24, staticDays: 7 })).toBe(7 * 86_400_000);
+    expect(previewTtlMs("live", { liveHours: 2, staticDays: 30 })).toBe(2 * 3600_000);
+    expect(previewTtlMs("static", { liveHours: 2, staticDays: 30 })).toBe(30 * 86_400_000);
+  });
+});

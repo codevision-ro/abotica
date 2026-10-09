@@ -1,3 +1,4 @@
+import { VERSION_NOTE_MAX_LENGTH } from "@abotica/core/limits";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -72,7 +73,7 @@ export function FormPage({
         onChange={(e) => versionNote.onChange(e.target.value)}
         placeholder={versionNote.placeholder}
         aria-label={versionNote.label}
-        maxLength={300}
+        maxLength={VERSION_NOTE_MAX_LENGTH}
         className={className}
       />
     );

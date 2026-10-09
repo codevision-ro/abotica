@@ -4,7 +4,7 @@ import { modelRole, roleDefaultEffort, roleDefaultModels } from "./model-role";
 const AGENTS = [{ provider: "deepseek", model: "chat" }];
 const MANAGERS = [{ provider: "openai", model: "gpt" }];
 const ORCHESTRATOR = [{ provider: "anthropic", model: "opus" }];
-const settings = { defaultModels: AGENTS, orchestratorModels: ORCHESTRATOR, managerModels: MANAGERS };
+const settings = { chains: { agent: AGENTS, orchestrator: ORCHESTRATOR, manager: MANAGERS } };
 
 describe("modelRole", () => {
   it("follows the agent's kind", () => {
@@ -22,18 +22,14 @@ describe("roleDefaultModels", () => {
   });
 
   it("falls back to the agents' chain for a role whose chain is empty", () => {
-    const unset = { defaultModels: AGENTS, orchestratorModels: [], managerModels: [] };
+    const unset = { chains: { agent: AGENTS, orchestrator: [], manager: [] } };
     expect(roleDefaultModels(unset, "orchestrator")).toEqual(AGENTS);
     expect(roleDefaultModels(unset, "manager")).toEqual(AGENTS);
   });
 });
 
 describe("roleDefaultEffort", () => {
-  const efforts = {
-    defaultReasoningEffort: "medium",
-    orchestratorReasoningEffort: "low",
-    managerReasoningEffort: null,
-  } as const;
+  const efforts = { reasoningEffort: { agent: "medium", orchestrator: "low", manager: null } } as const;
 
   it("gives a role its own effort, and the agents' effort to a role without one", () => {
     expect(roleDefaultEffort(efforts, "orchestrator")).toBe("low");
@@ -42,6 +38,8 @@ describe("roleDefaultEffort", () => {
   });
 
   it("keeps a role's own choice to let the model decide", () => {
-    expect(roleDefaultEffort({ ...efforts, managerReasoningEffort: "default" }, "manager")).toBe("default");
+    expect(roleDefaultEffort({ reasoningEffort: { ...efforts.reasoningEffort, manager: "default" } }, "manager")).toBe(
+      "default",
+    );
   });
 });

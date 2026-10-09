@@ -3,9 +3,13 @@ import {
   env,
   getSettings,
   importLegacyEnv,
+  invalidateSettings,
+  requestSandboxCheck,
   setDefaultUploadsRoot,
   settleEmbeddingProvider,
+  type SettingsDomain,
   subscribe,
+  syncSettingsSchedules,
 } from "@abotica/core";
 import { prepareBuiltinMcpServers } from "@abotica/core/agents/mcp-runtime";
 import { encryptLegacyMcpCredentials } from "@abotica/core/mcp-servers";
@@ -58,7 +62,7 @@ async function main() {
   await settleEmbeddingProvider().catch((error: unknown) =>
     console.error("[embeddings] settling the embedding provider failed:", error),
   );
-  const concurrency = (await getSettings()).runConcurrency;
+  const concurrency = (await getSettings()).system.runConcurrency;
 
   // Before the runs worker starts, so the first runs already get their workspace tools.
   try {
@@ -95,7 +99,7 @@ async function main() {
   await registerMaintenanceSchedules();
 
   // The kill switch stops everything running here; a cancel stops one run, wherever it is executing.
-  // A Telegram token saved or removed in Settings restarts or stops the bot.
+  // A Telegram token saved or removed in Settings restarts or stops the bot; saved settings apply here.
   const unsubscribe = subscribe((event) => {
     if (event.type === "kill-switch" && event.active) {
       if (event.reason) abortAllRuns(event.reason, "kill_switch");
@@ -103,7 +107,7 @@ async function main() {
     }
     if (event.type === "run.cancel") abortRun(event.runId, event.reason, event.kind);
     if (event.type === "telegram.config-changed") void reloadBot();
-    if (event.type === "settings.updated") void applyRunConcurrency(runsWorker);
+    if (event.type === "settings.updated") void applySettings(event.domain, runsWorker);
   });
 
   await reloadBot();
@@ -140,12 +144,30 @@ async function main() {
 }
 
 /**
- * Applies the run concurrency saved in Settings without a restart. BullMQ reads it before fetching each
- * job: a lower value lets the runs in progress finish, a higher one starts more once a place is free.
+ * Applies a saved settings domain without a restart: the cached settings are dropped, and what this
+ * process holds in memory follows (the run concurrency, the maintenance schedules of journals and reports,
+ * the sandbox backend, which the sandbox check builds again from the settings).
+ */
+async function applySettings(domain: SettingsDomain, runsWorker: Worker) {
+  invalidateSettings();
+  if (domain === "system") await applyRunConcurrency(runsWorker);
+  if (domain === "sandbox") {
+    await requestSandboxCheck().catch((error: unknown) => console.error("[sandbox] requesting a check failed:", error));
+  }
+  if (domain === "general" || domain === "reports") {
+    await syncSettingsSchedules().catch((error: unknown) =>
+      console.error("[settings] rescheduling the journals and reports failed:", error),
+    );
+  }
+}
+
+/**
+ * Applies the run concurrency saved in Settings. BullMQ reads it before fetching each job: a lower value
+ * lets the runs in progress finish, a higher one starts more once a place is free.
  */
 async function applyRunConcurrency(worker: Worker) {
   try {
-    const { runConcurrency } = await getSettings();
+    const { runConcurrency } = (await getSettings()).system;
     if (worker.concurrency === runConcurrency) return;
     worker.concurrency = runConcurrency;
     console.log(`[worker] run concurrency is now ${runConcurrency}`);

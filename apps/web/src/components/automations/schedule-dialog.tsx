@@ -42,12 +42,15 @@ export function ScheduleDialog({
   initial,
   agents,
   projects,
+  defaultTimezone,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial: ScheduleDraft;
   agents: Option[];
   projects: Option[];
+  /** The time zone in Settings, shown as the example of the field. */
+  defaultTimezone: string;
 }) {
   const edited = useRef(false);
   useEffect(() => {
@@ -65,6 +68,7 @@ export function ScheduleDialog({
             initial={initial}
             agents={agents}
             projects={projects}
+            defaultTimezone={defaultTimezone}
             onEdit={() => (edited.current = true)}
             onDone={() => onOpenChange(false)}
           />
@@ -78,12 +82,14 @@ function ScheduleForm({
   initial,
   agents,
   projects,
+  defaultTimezone,
   onEdit,
   onDone,
 }: {
   initial: ScheduleDraft;
   agents: Option[];
   projects: Option[];
+  defaultTimezone: string;
   onEdit: () => void;
   onDone: () => void;
 }) {
@@ -137,7 +143,7 @@ function ScheduleForm({
         value={timezone}
         onChange={(e) => setTimezone(e.target.value)}
         aria-invalid={!tzValid}
-        placeholder="Europe/Bucharest"
+        placeholder={defaultTimezone}
       />
       {/* Recurring schedules show this in the preview below instead. */}
       {!tzValid && kind === "once" && <FieldError>{t("timezoneInvalid")}</FieldError>}

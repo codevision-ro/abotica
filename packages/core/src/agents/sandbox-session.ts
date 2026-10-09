@@ -223,7 +223,7 @@ export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Prom
   const key = ctx.project ? projectWorkspaceKey(ctx.project.id) : conversationWorkspaceKey(conversationId!);
   const policy = ctx.project?.sandbox ?? ctx.settings.sandbox.defaults;
   const bundles = await skillBundles(ctx.skills);
-  const commandTimeoutSec = ctx.settings.sandbox.commandTimeoutSec;
+  const { commandTimeoutSec, pauseIdleMinutes, stopIdleHours, workspaceRetentionDays } = ctx.settings.sandbox;
   const repos = ctx.repos;
   const git = repoGitAccess(repos, gitAuthor(ctx.agent));
   return createSandboxSession({
@@ -242,6 +242,7 @@ export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Prom
       packages: policy.packages,
       skills: bundles.map((b) => b.name),
       commandTimeoutSec,
+      idle: { pauseIdleMinutes, stopIdleHours, workspaceRetentionDays },
       repos,
       taskId: ctx.run.taskId,
       root: workspaceToolsOf(ctx.agent).includes("shell_run_root"),

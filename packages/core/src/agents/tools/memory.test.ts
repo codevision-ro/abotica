@@ -162,7 +162,7 @@ function runContext(over: { untrustedSeen?: boolean; memoryRequiresApproval?: bo
     agent: { id: "a1", slug: "dev", kind: "specialist" },
     projectId: "p1",
     repos: [{ token: REPO_TOKEN }],
-    settings: { memoryRequiresApproval: over.memoryRequiresApproval ?? false },
+    settings: { memory: { requiresApproval: over.memoryRequiresApproval ?? false, ephemeralDays: 30 } },
     untrustedSeen: over.untrustedSeen ?? false,
   } as unknown as RunContext;
 }

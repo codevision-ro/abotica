@@ -1,0 +1,134 @@
+"use client";
+
+import type { AppSettings } from "@abotica/core/settings";
+import { CalendarDays, CalendarRange } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { useMemo } from "react";
+import { FormSection } from "@/components/app/form-section";
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { SettingsSaveBar } from "./settings-save-bar";
+import { useSettingsForm } from "./use-settings-form";
+
+/** Weekdays as stored (0 = Sunday), listed from Monday. */
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];
+
+/** Hour and weekday names in the interface language; 2023-01-01 was a Sunday. */
+function useCalendarNames() {
+  const locale = useLocale();
+  return useMemo(() => {
+    const hour = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+    const weekday = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
+    return {
+      hour: (h: number) => hour.format(Date.UTC(2023, 0, 1, h)),
+      weekday: (d: number) => weekday.format(Date.UTC(2023, 0, 1 + d)),
+    };
+  }, [locale]);
+}
+
+/** Settings > Reports: the daily and the weekly summary, each on or off at a time of the configured time zone. */
+export function ReportsSettingsForm({ initial }: { initial: AppSettings["reports"] }) {
+  const t = useTranslations("settings.reports");
+  const form = useSettingsForm("reports", initial);
+  const { values, set } = form;
+  const names = useCalendarNames();
+  const hours = Array.from({ length: 24 }, (_, h) => h);
+
+  const hourSelect = (id: string, value: number, disabled: boolean, onChange: (hour: number) => void) => (
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))} disabled={disabled}>
+      <SelectTrigger id={id} className="sm:w-36">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {hours.map((h) => (
+          <SelectItem key={h} value={String(h)}>
+            {names.hour(h)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <FormSection id="reports-daily" icon={CalendarDays} title={t("daily.title")} description={t("daily.description")}>
+        <FieldGroup>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLabel htmlFor="reports-daily-enabled">{t("daily.enabled")}</FieldLabel>
+              <FieldDescription>{t("daily.enabledHint")}</FieldDescription>
+            </FieldContent>
+            <Switch
+              id="reports-daily-enabled"
+              checked={values.daily.enabled}
+              onCheckedChange={(enabled) => set({ daily: { enabled } })}
+            />
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-disabled={!values.daily.enabled}>
+            <FieldContent>
+              <FieldLabel htmlFor="reports-daily-hour">{t("hour")}</FieldLabel>
+            </FieldContent>
+            {hourSelect("reports-daily-hour", values.daily.hour, !values.daily.enabled, (hour) => set({ daily: { hour } }))}
+          </Field>
+        </FieldGroup>
+      </FormSection>
+
+      <FormSection id="reports-weekly" icon={CalendarRange} title={t("weekly.title")} description={t("weekly.description")}>
+        <FieldGroup>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLabel htmlFor="reports-weekly-enabled">{t("weekly.enabled")}</FieldLabel>
+              <FieldDescription>{t("weekly.enabledHint")}</FieldDescription>
+            </FieldContent>
+            <Switch
+              id="reports-weekly-enabled"
+              checked={values.weekly.enabled}
+              onCheckedChange={(enabled) => set({ weekly: { enabled } })}
+            />
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-disabled={!values.weekly.enabled}>
+            <FieldContent>
+              <FieldLabel htmlFor="reports-weekly-day">{t("weekday")}</FieldLabel>
+            </FieldContent>
+            <Select
+              value={String(values.weekly.weekday)}
+              onValueChange={(v) => set({ weekly: { weekday: Number(v) } })}
+              disabled={!values.weekly.enabled}
+            >
+              <SelectTrigger id="reports-weekly-day" className="sm:w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WEEKDAYS.map((d) => (
+                  <SelectItem key={d} value={String(d)}>
+                    {names.weekday(d)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <FieldSeparator />
+          <Field orientation="responsive" data-disabled={!values.weekly.enabled}>
+            <FieldContent>
+              <FieldLabel htmlFor="reports-weekly-hour">{t("hour")}</FieldLabel>
+            </FieldContent>
+            {hourSelect("reports-weekly-hour", values.weekly.hour, !values.weekly.enabled, (hour) =>
+              set({ weekly: { hour } }),
+            )}
+          </Field>
+        </FieldGroup>
+      </FormSection>
+
+      <SettingsSaveBar
+        dirty={form.dirty}
+        invalid={form.invalid}
+        pending={form.pending}
+        onSave={form.save}
+        onReset={form.reset}
+      />
+    </div>
+  );
+}

@@ -1,43 +1,19 @@
+import { env } from "../infra/env";
 import { redis } from "../infra/redis";
 import { inputFromOllama } from "./input-modalities";
 import { ollamaBase } from "./ollama";
 import { isSubscriptionConnected, listSubscriptionModels } from "./subscriptions/connections";
+import { isProviderId, PROVIDER_IDS, PROVIDERS, type ProviderId, type ProviderInfo } from "./provider-info";
 import { type ModelsDevReasoningOption, type ReasoningSupport, supportFromModelsDev, supportFromOllama } from "./reasoning";
 
 /** Model catalog and pricing from models.dev (USD per 1M tokens). */
-const CATALOG_URL = "https://models.dev/api.json";
 // Versioned: a cached entry from before a shape change is ignored, not misread.
 const CACHE_KEY = "abotica:catalog:v5";
 const CACHE_TTL_SECONDS = 24 * 3600;
+/** How often the worker refreshes the catalog: at half its lifetime, so a failed refresh gets a second try. */
+export const CATALOG_REFRESH_MS = (CACHE_TTL_SECONDS * 1000) / 2;
 
-type ProviderInfo = {
-  label: string;
-  /** models.dev provider id: the model list and prices with an API key, model metadata with a plan. */
-  catalogId: string | null;
-  /** Runs on a local server: no key, no per-token cost. */
-  local?: true;
-  /**
-   * The plan the provider can be connected through instead of an API key (one or the other):
-   * the account then lists the models and calls cost nothing per token.
-   */
-  plan?: string;
-};
-
-export const PROVIDERS = {
-  anthropic: { label: "Anthropic", catalogId: "anthropic" },
-  openai: { label: "OpenAI", catalogId: "openai", plan: "ChatGPT" },
-  deepseek: { label: "DeepSeek", catalogId: "deepseek" },
-  moonshot: { label: "Kimi (Moonshot)", catalogId: "moonshotai" },
-  ollama: { label: "Ollama", catalogId: null, local: true },
-} as const satisfies Record<string, ProviderInfo>;
-
-export type ProviderId = keyof typeof PROVIDERS;
-
-export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[];
-
-export function isProviderId(value: string): value is ProviderId {
-  return value in PROVIDERS;
-}
+export { isProviderId, PROVIDER_IDS, PROVIDERS, type ProviderId, type ProviderInfo } from "./provider-info";
 
 const info = (id: ProviderId): ProviderInfo => PROVIDERS[id];
 
@@ -96,7 +72,7 @@ type ModelsDevModel = {
 type ModelsDev = Record<string, { models: Record<string, ModelsDevModel> }>;
 
 async function fetchModelsDev(): Promise<ModelsDev> {
-  const res = await fetch(CATALOG_URL, { signal: AbortSignal.timeout(15_000) });
+  const res = await fetch(env().CATALOG_URL, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`models.dev responded ${res.status}`);
   return (await res.json()) as ModelsDev;
 }

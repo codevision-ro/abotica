@@ -113,6 +113,10 @@
     "event": "Eveniment",
     "webhookHint": "După salvare primești un URL unic de webhook.",
     "webhookHintKeep": "După salvare primești un URL unic de webhook (token-ul existent se păstrează).",
+    "advanced": "Avansat",
+    "rateLimit": "Cereri pe minut",
+    "rateLimitHint": "Peste atâtea cereri într-un minut, webhook-ul răspunde cu 429 și nu pornește nicio rulare. Gol: {count}.",
+    "perMinute": "/ min",
     "promptPlaceholder": "Ex: A sosit o comandă nouă. Verific-o și creează un task pentru livrare.\n\n{payload}",
     "payloadHelp": {
       "webhook": "{payload} devine corpul cererii POST (JSON formatat sau text).",
@@ -184,6 +188,7 @@
     "invalidTimezone": "Fus orar invalid",
     "promptRequired": "Promptul e obligatoriu",
     "invalidCron": "Expresie cron invalidă (5 câmpuri)",
-    "chooseDateTime": "Alege data și ora"
+    "chooseDateTime": "Alege data și ora",
+    "rateLimit": "Între {min} și {max} cereri pe minut"
   }
 }

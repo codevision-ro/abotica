@@ -24,7 +24,7 @@
   "budget": {
     "global": {
       "warning": "⚠️ This month's spend is at {threshold}% of the global monthly budget: {spent} of {budget} USD.",
-      "reached": "🛑 The global monthly budget has been reached: {spent} of {budget} USD spent this month. Runs stop until next month or until you raise the budget in Settings → General."
+      "reached": "🛑 The global monthly budget has been reached: {spent} of {budget} USD spent this month. Runs stop until next month or until you raise the budget in Settings → Budget."
     },
     "project": {
       "warning": "⚠️ Project **{project}** is at {threshold}% of its monthly budget: {spent} of {budget} USD.",

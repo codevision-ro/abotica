@@ -7,7 +7,7 @@
 export const REINDEX_TABLES = ["memories", "journals", "knowledge_chunks"] as const;
 export type ReindexTable = (typeof REINDEX_TABLES)[number];
 
-/** Where a re-embedding stands. Stored in the settings table, so it goes on after a restart. */
+/** Where a re-embedding stands. Stored in the app_state table, so it goes on after a restart. */
 export type ReindexState = {
   provider: "local" | "openai" | "ollama";
   /** When the provider changed: tells this re-embedding from a later one that replaced it. */

@@ -21,7 +21,8 @@
     "enable": "Enable",
     "disable": "Disable",
     "open": "Open",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "showMore": "Show more"
   },
   "states": {
     "saved": "Saved",
@@ -71,5 +72,10 @@
     "description": "Interface, Telegram messages and the daily digest.",
     "auto": "Browser language",
     "changed": "Language changed"
+  },
+  "pagination": {
+    "range": "{from}-{to} of {total}",
+    "previous": "Previous page",
+    "next": "Next page"
   }
 }

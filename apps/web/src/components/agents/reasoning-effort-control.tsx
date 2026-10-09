@@ -99,7 +99,8 @@ export function ReasoningEffortControl({
             const picked = next || (inheriting ? "" : shown);
             if (picked) onChange(picked === DEFAULT ? null : (picked as Stop));
           }}
-          className="w-full rounded-md bg-muted p-0.5"
+          // Below 24rem the segments go in rows of three, so no label is cut.
+          className="grid w-full grid-cols-3 rounded-md bg-muted p-0.5 @sm/effort:flex"
         >
           <ToggleGroupItem value={DEFAULT} aria-label={defaultLine} title={defaultLine} className={segment}>
             <span className="truncate">{label("default")}</span>

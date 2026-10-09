@@ -1,12 +1,13 @@
 "use client";
 
-import { RelativeTime } from "@/components/app/relative-time";
-import { SectionEmpty, SectionIcon, SectionList, sectionCardClass } from "@/components/app/section-card";
-import { Ellipsis, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowUpRight, Ellipsis, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { RelativeTime } from "@/components/app/relative-time";
+import { SectionEmpty, SectionIcon, SectionList, sectionCardClass } from "@/components/app/section-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,10 +34,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
-import { deleteVaultSecret, setVaultSecret } from "@/server/actions/settings";
+import { deleteVaultSecret, setVaultSecret } from "@/server/actions/secrets";
 import type { VaultSecretRow } from "@/server/queries/settings";
 import { SecretInput } from "./secret-input";
 import { SectionHeader } from "./section-header";
+
+/** Where a secret is used: the page that sets it up (Models, Telegram, the project's secrets). */
+export type SecretUse = { label: string; href: string; title: string };
+
+type SecretRow = VaultSecretRow & { use: SecretUse | null };
 
 type Draft = {
   name: string;
@@ -49,6 +55,7 @@ type Draft = {
 const GLOBAL = "__global";
 const NAME_RE = /^[A-Z0-9_]+$/;
 
+/** Settings > Secrets: every secret in the vault with where it is used; values can be replaced, never read. */
 export function VaultManager({
   title,
   description,
@@ -57,16 +64,16 @@ export function VaultManager({
 }: {
   title: string;
   description: string;
-  secrets: VaultSecretRow[];
+  secrets: SecretRow[];
   projects: { id: string; name: string }[];
 }) {
-  const t = useTranslations("settings.vault");
+  const t = useTranslations("settings.secrets");
   const tc = useTranslations("common.actions");
   const fmt = useFormat();
   const secretRef = `{{secret:${t("refName")}}}`;
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<VaultSecretRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<SecretRow | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [saving, startSave] = useTransition();
   const [deleting, startDelete] = useTransition();
@@ -85,7 +92,7 @@ export function VaultManager({
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDraft({ name: "", value: "", description: "", projectId: null, replacing: false });
   };
-  const openReplace = (s: VaultSecretRow) =>
+  const openReplace = (s: SecretRow) =>
     setDraft({ name: s.name, value: "", description: s.description, projectId: s.projectId, replacing: true });
 
   const nameInvalid = Boolean(draft?.name) && !NAME_RE.test(draft!.name);
@@ -117,6 +124,21 @@ export function VaultManager({
       router.refresh();
     });
   }
+
+  /** Where a secret is used, linked; "global" for one nothing in the app names. */
+  const usageBadge = (s: SecretRow) =>
+    s.use ? (
+      <Badge asChild variant="outline" className="max-w-28 font-normal sm:max-w-40">
+        <Link href={s.use.href} title={s.use.title}>
+          <span className="truncate">{s.use.label}</span>
+          <ArrowUpRight data-icon="inline-end" className="text-muted-foreground" aria-hidden />
+        </Link>
+      </Badge>
+    ) : (
+      <Badge variant="secondary" className="font-normal">
+        {t("global")}
+      </Badge>
+    );
 
   return (
     <>
@@ -154,16 +176,10 @@ export function VaultManager({
                       {s.description}
                     </div>
                   )}
+                  {/* On a phone the badge goes under the name, which keeps the whole width. */}
+                  <div className="mt-1.5 flex sm:hidden">{usageBadge(s)}</div>
                 </div>
-                {s.projectName ? (
-                  <Badge variant="outline" className="max-w-28 font-normal sm:max-w-40" title={s.projectName}>
-                    <span className="truncate">{s.projectName}</span>
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="font-normal">
-                    {t("global")}
-                  </Badge>
-                )}
+                <div className="hidden shrink-0 sm:flex">{usageBadge(s)}</div>
                 <span aria-hidden className="hidden w-20 font-mono text-xs tracking-widest text-muted-foreground md:block">
                   ••••••••
                 </span>

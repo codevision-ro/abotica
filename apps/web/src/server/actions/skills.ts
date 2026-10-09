@@ -1,6 +1,7 @@
 "use server";
 
 import * as core from "@abotica/core";
+import { SKILL_DESCRIPTION_MAX_LENGTH, SKILL_NAME_MAX_LENGTH, VERSION_NOTE_MAX_LENGTH } from "@abotica/core/limits";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { action } from "../action";
@@ -15,9 +16,9 @@ const slug = z
 const file = z.object({ path: z.string().min(1).max(255), content: z.string() });
 
 const skillInput = z.object({
-  name: z.string().trim().min(1, "skills.validation.nameRequired").max(120),
+  name: z.string().trim().min(1, "skills.validation.nameRequired").max(SKILL_NAME_MAX_LENGTH),
   slug,
-  description: z.string().trim().max(1024).default(""),
+  description: z.string().trim().max(SKILL_DESCRIPTION_MAX_LENGTH).default(""),
   metadata: z.record(z.string(), z.unknown()).default({}),
   files: z.array(file).min(1, "skills.files.missingSkillMd"),
   enabled: z.boolean().default(true),
@@ -54,7 +55,7 @@ export const importSkill = action(skillInput.omit({ slug: true }), async (input)
 });
 
 export const updateSkill = action(
-  skillInput.partial().extend({ id: z.uuid(), note: z.string().trim().max(300).optional() }),
+  skillInput.partial().extend({ id: z.uuid(), note: z.string().trim().max(VERSION_NOTE_MAX_LENGTH).optional() }),
   async ({ id, note, ...change }) => {
     const result = await core.updateSkill(id, change, { note });
     revalidateSkill(id);

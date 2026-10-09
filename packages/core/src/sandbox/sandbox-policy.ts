@@ -31,28 +31,8 @@ export const PACKAGE_REGISTRY_HOSTS = [
 export const SANDBOX_RUNTIMES = ["auto", "runc", "runsc"] as const;
 export type SandboxRuntime = (typeof SANDBOX_RUNTIMES)[number];
 
-export type SandboxSettings = {
-  /** Agents get Docker workspaces; off, they work without one. */
-  enabled: boolean;
-  /** Policy of chats without a project and of projects that follow the default. */
-  defaults: SandboxPolicy;
-  /** Longest a single command may run, in seconds. */
-  commandTimeoutSec: number;
-  /** Container runtime ("auto" uses gVisor when installed). */
-  runtime: SandboxRuntime;
-  /** Memory limit per workspace container. */
-  memoryMb: number;
-  /** CPU limit per workspace container. */
-  cpus: number;
-};
-
-export const SANDBOX_LIMITS = {
-  commandTimeoutSec: { min: 10, max: 3600 },
-  memoryMb: { min: 256, max: 65_536 },
-  cpus: { min: 0.25, max: 64 },
-  domains: 100,
-  packages: 50,
-} as const;
+/** Bounds of a policy's lists; the numeric sandbox settings have theirs in settings-schema.ts. */
+export const SANDBOX_LIMITS = { domains: 100, packages: 50 } as const;
 
 export const DEFAULT_SANDBOX_POLICY: SandboxPolicy = {
   network: { mode: "packages", domains: [] },
@@ -61,15 +41,6 @@ export const DEFAULT_SANDBOX_POLICY: SandboxPolicy = {
 
 /** Stdio MCP servers usually call their own API, so they start with any public host allowed. */
 export const DEFAULT_MCP_NETWORK: NetworkPolicy = { mode: "full", domains: [] };
-
-export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
-  enabled: true,
-  defaults: DEFAULT_SANDBOX_POLICY,
-  commandTimeoutSec: 300,
-  runtime: "auto",
-  memoryMb: 2048,
-  cpus: 2,
-};
 
 /**
  * Hosts a sandboxed process may reach under a policy: a list of host patterns, or "public" for any
@@ -170,26 +141,4 @@ export function parsePackages(input: unknown): SandboxPackages {
 export function parseSandboxPolicy(input: unknown): SandboxPolicy {
   if (!isRecord(input)) throw new UserError("sandbox.errors.invalidPolicy");
   return { network: parseNetworkPolicy(input.network), packages: parsePackages(input.packages) };
-}
-
-const clamp = (value: unknown, { min, max }: { min: number; max: number }, fallback: number) => {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
-};
-
-/** Validates the Settings > Sandbox form; numbers are clamped to their limits. */
-export function parseSandboxSettings(input: unknown): SandboxSettings {
-  if (!isRecord(input)) throw new UserError("sandbox.errors.invalidPolicy");
-  const d = DEFAULT_SANDBOX_SETTINGS;
-  const runtime = (SANDBOX_RUNTIMES as readonly unknown[]).includes(input.runtime)
-    ? (input.runtime as SandboxRuntime)
-    : d.runtime;
-  return {
-    enabled: typeof input.enabled === "boolean" ? input.enabled : d.enabled,
-    defaults: parseSandboxPolicy(input.defaults),
-    commandTimeoutSec: Math.round(clamp(input.commandTimeoutSec, SANDBOX_LIMITS.commandTimeoutSec, d.commandTimeoutSec)),
-    runtime,
-    memoryMb: Math.round(clamp(input.memoryMb, SANDBOX_LIMITS.memoryMb, d.memoryMb)),
-    cpus: clamp(input.cpus, SANDBOX_LIMITS.cpus, d.cpus),
-  };
 }

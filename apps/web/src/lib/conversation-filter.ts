@@ -8,6 +8,9 @@ export const ALL = "all";
 /** Filter value (and project choice) for conversations outside any project. */
 export const NO_PROJECT = "none";
 
+/** Conversations the chat list shows at first, and adds with each "Show more". */
+export const CHAT_LIST_PAGE_SIZE = 50;
+
 /** `?project=` for a filter, so links and redirects keep it; empty for "all". */
 export const filterQuery = (filter: string) => (filter === ALL ? "" : `?project=${filter}`);
 

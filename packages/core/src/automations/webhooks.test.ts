@@ -1,6 +1,11 @@
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WEBHOOK_RATE_LIMIT, WEBHOOK_REFUSED_LIMIT, WEBHOOK_SIGNATURE_TOLERANCE_SECONDS } from "./trigger-events";
+import {
+  WEBHOOK_RATE_LIMIT,
+  WEBHOOK_RATE_LIMIT_BOUNDS,
+  WEBHOOK_REFUSED_LIMIT,
+  WEBHOOK_SIGNATURE_TOLERANCE_SECONDS,
+} from "./trigger-events";
 
 /** Enough of Redis for these checks: the rate script's INCR and EXPIRE, SET NX with a TTL, DEL. */
 const store = new Map<string, { value: number; ttl: number }>();
@@ -27,31 +32,43 @@ const { takeRefusedWebhookRequest, takeWebhookRequest, verifyWebhookRequest } = 
 const { newSigningSecret } = await import("./webhook-signature");
 
 const TRIGGER_ID = "11111111-2222-4333-8444-555555555555";
+const TRIGGER = { id: TRIGGER_ID, rateLimitPerMinute: null };
 
 beforeEach(() => store.clear());
 
 describe("webhook rate limit", () => {
   it("allows the limit, then refuses with the time left in the window", async () => {
     for (let i = 0; i < WEBHOOK_RATE_LIMIT.requests; i++) {
-      expect(await takeWebhookRequest(TRIGGER_ID)).toEqual({ allowed: true });
+      expect(await takeWebhookRequest(TRIGGER)).toEqual({ allowed: true });
     }
-    expect(await takeWebhookRequest(TRIGGER_ID)).toEqual({
+    expect(await takeWebhookRequest(TRIGGER)).toEqual({
       allowed: false,
       retryAfter: WEBHOOK_RATE_LIMIT.windowSeconds,
       firstRefusal: true,
     });
-    expect(await takeWebhookRequest(TRIGGER_ID)).toMatchObject({ allowed: false, firstRefusal: false });
+    expect(await takeWebhookRequest(TRIGGER)).toMatchObject({ allowed: false, firstRefusal: false });
+  });
+
+  it("uses the trigger's own limit when it sets one", async () => {
+    const own = { ...TRIGGER, rateLimitPerMinute: 3 };
+    for (let i = 0; i < 3; i++) expect(await takeWebhookRequest(own)).toEqual({ allowed: true });
+    expect(await takeWebhookRequest(own)).toEqual({
+      allowed: false,
+      retryAfter: WEBHOOK_RATE_LIMIT.windowSeconds,
+      firstRefusal: true,
+    });
   });
 
   it("counts each trigger on its own", async () => {
-    for (let i = 0; i <= WEBHOOK_RATE_LIMIT.requests; i++) await takeWebhookRequest(TRIGGER_ID);
-    expect(await takeWebhookRequest("99999999-2222-4333-8444-555555555555")).toEqual({ allowed: true });
+    for (let i = 0; i <= WEBHOOK_RATE_LIMIT.requests; i++) await takeWebhookRequest(TRIGGER);
+    expect(await takeWebhookRequest({ ...TRIGGER, id: "99999999-2222-4333-8444-555555555555" })).toEqual({ allowed: true });
   });
 });
 
 describe("refused webhook requests", () => {
   it("have a higher limit of their own, so failed requests do not use up the run limit", async () => {
     expect(WEBHOOK_REFUSED_LIMIT.requests).toBeGreaterThan(WEBHOOK_RATE_LIMIT.requests);
+    expect(WEBHOOK_REFUSED_LIMIT.requests).toBeGreaterThan(WEBHOOK_RATE_LIMIT_BOUNDS.max);
     for (let i = 0; i < WEBHOOK_REFUSED_LIMIT.requests; i++) {
       expect(await takeRefusedWebhookRequest(TRIGGER_ID)).toEqual({ allowed: true });
     }
@@ -61,11 +78,11 @@ describe("refused webhook requests", () => {
       firstRefusal: true,
     });
     expect(await takeRefusedWebhookRequest(TRIGGER_ID)).toMatchObject({ allowed: false, firstRefusal: false });
-    expect(await takeWebhookRequest(TRIGGER_ID)).toEqual({ allowed: true });
+    expect(await takeWebhookRequest(TRIGGER)).toEqual({ allowed: true });
   });
 
   it("are not limited by a full run limit", async () => {
-    for (let i = 0; i <= WEBHOOK_RATE_LIMIT.requests; i++) await takeWebhookRequest(TRIGGER_ID);
+    for (let i = 0; i <= WEBHOOK_RATE_LIMIT.requests; i++) await takeWebhookRequest(TRIGGER);
     expect(await takeRefusedWebhookRequest(TRIGGER_ID)).toEqual({ allowed: true });
   });
 });

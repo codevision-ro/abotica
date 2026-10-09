@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { SEARCH_DEBOUNCE_MS } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { TaskOptions } from "@/server/queries/tasks";
 import { SELECT_WITH_MEDIA, TaskPriorityIcon } from "./task-icons";
@@ -69,7 +70,7 @@ export function TaskToolbar({ options }: { options: TaskOptions }) {
     const timer = setTimeout(() => {
       pushed.current = next;
       setParams({ q: next || null }, "replace");
-    }, 300);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [query, setParams]);
 

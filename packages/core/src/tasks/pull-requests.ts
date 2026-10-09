@@ -12,23 +12,16 @@ import { wrapUntrusted } from "../agents/untrusted";
 import { newMarkerId } from "../agents/untrusted-id";
 import { publish } from "../infra/events";
 import { enqueueTaskEvent, notify } from "../infra/queues";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { decrypt } from "../platform/vault";
 import { readCheckLogTail, readPullRequest } from "../projects/pull-request-api";
 import type { FailedCheck, PullRequestFeedback, PullRequestStatus } from "../projects/pull-request-status";
 import type { PullRequest, RepoAccess } from "../projects/repo-api";
 import type { RepoProvider } from "../projects/repo-url";
 import { startTaskRun } from "../runs/runs";
-import { MAX_REDELEGATIONS } from "./delegation";
 import { activeTaskRun, addTaskComment, TaskBusyError, updateTask } from "./tasks";
 
 type Row = typeof taskPullRequests.$inferSelect;
-
-/**
- * Automatic wake-ups of the assignee per pull request; past them the task is blocked for the user,
- * whose own start gives them back (resetFixRounds).
- */
-export const MAX_FIX_ROUNDS = MAX_REDELEGATIONS;
 
 /**
  * Pull requests synced per tick (every 60 s), the longest unsynced first. A GitHub token allows 5,000
@@ -131,16 +124,22 @@ const feedbackSignature = (feedback: PullRequestFeedback[]) =>
 /**
  * What to do about a pull request, from its stored record and what the provider reports now. Pure:
  * the caller applies it and stores the signatures only once applied, so a reaction that could not be
- * applied (its task busy) comes back at the next poll, and one applied never does.
+ * applied (its task busy) comes back at the next poll, and one applied never does. `maxFixRounds`
+ * (Settings, agents.maxFixRounds): automatic wake-ups of the assignee per pull request; past them the
+ * task is blocked for the user, whose own start gives them back (resetFixRounds).
  */
-export function prReactions(before: PullRequestRecord, after: PullRequestStatus): PullRequestReactions {
+export function prReactions(
+  before: PullRequestRecord,
+  after: PullRequestStatus,
+  maxFixRounds: number,
+): PullRequestReactions {
   const sent = before.nudgeSignature;
   const reactions: PullRequestReactions = {
     merged: after.state === "merged" && before.state !== "merged",
     closed: after.state === "closed" && !sent.closed,
     checksDenied: after.checksDenied && !sent.checksDenied,
     nudges: [],
-    action: before.fixRounds >= MAX_FIX_ROUNDS ? "block" : "wake",
+    action: before.fixRounds >= maxFixRounds ? "block" : "wake",
   };
   if (after.state !== "open") return reactions;
   if (after.checks === "failure" && after.headSha && after.failedChecks.length) {
@@ -242,6 +241,7 @@ async function applyNudges(
   reactions: PullRequestReactions,
   applied: Applied,
   t: Translator,
+  maxFixRounds: number,
 ): Promise<void> {
   const { nudges } = reactions;
   if (!nudges.length) return;
@@ -259,7 +259,7 @@ async function applyNudges(
         title: task.title,
         label: pullRequestLabel(row),
         url: row.url,
-        rounds: MAX_FIX_ROUNDS,
+        rounds: maxFixRounds,
         reason: reason ?? "",
       }),
       projectId: task.projectId,
@@ -268,7 +268,7 @@ async function applyNudges(
   if (reactions.action === "block") {
     await addTaskComment(
       task.id,
-      t("tasks.pr.comments.capReached", { label: pullRequestLabel(row), rounds: MAX_FIX_ROUNDS }),
+      t("tasks.pr.comments.capReached", { label: pullRequestLabel(row), rounds: maxFixRounds }),
       "system",
     );
     if (task.status !== "blocked") await updateTask(task.id, { status: "blocked" }, "system");
@@ -304,12 +304,12 @@ async function applyNudges(
 }
 
 /** Reads one pull request and applies what changed. */
-async function syncPullRequest(row: Row, repo: RepoAccess, t: Translator): Promise<void> {
+async function syncPullRequest(row: Row, repo: RepoAccess, t: Translator, maxFixRounds: number): Promise<void> {
   const status = await readPullRequest(repo, row, {
     since: row.lastCommentAt ?? row.createdAt,
     settledChecks: row.headSha && row.checks === "success" ? { headSha: row.headSha, checks: row.checks } : null,
   });
-  const reactions = prReactions(row, status);
+  const reactions = prReactions(row, status, maxFixRounds);
   const [task] = await db
     .select({
       id: tasks.id,
@@ -332,7 +332,7 @@ async function syncPullRequest(row: Row, repo: RepoAccess, t: Translator): Promi
       `[prs] the token of ${repo.host}/${repo.path} cannot read the checks of ${row.url}: CI is not followed, the state and reviews are`,
     );
   }
-  await applyNudges(row, repo, task, reactions, applied, t);
+  await applyNudges(row, repo, task, reactions, applied, t, maxFixRounds);
   if (reactions.closed) {
     await addTaskComment(task.id, t("tasks.pr.comments.closed", { label: pullRequestLabel(row), url: row.url }), "system");
     await notify({
@@ -406,13 +406,14 @@ export async function syncPullRequests(limit = PR_SYNC_BATCH): Promise<number> {
         rows.map((r) => r.repoId),
       ),
     );
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const settings = await getSettings();
+  const t = getTranslator(settingsLocale(settings));
   let synced = 0;
   for (const row of rows) {
     const repo = repos.find((r) => r.id === row.repoId);
     if (!repo) continue;
     try {
-      await syncPullRequest(row, { ...repo, token: decrypt(repo.token) }, t);
+      await syncPullRequest(row, { ...repo, token: decrypt(repo.token) }, t, settings.agents.maxFixRounds);
       synced++;
     } catch (error) {
       console.warn(`[prs] syncing ${row.url} failed:`, error instanceof Error ? error.message : error);

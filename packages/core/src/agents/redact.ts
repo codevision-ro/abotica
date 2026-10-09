@@ -5,8 +5,11 @@
  */
 export const REDACTED = "[redacted]";
 
-/** Shorter values would be replaced inside ordinary text; real tokens are far longer. */
-const MIN_SECRET_LENGTH = 8;
+/**
+ * Shorter values would be replaced inside ordinary text; real tokens are far longer. Memory writes
+ * (memory-scan.ts) look for known secrets from the same length.
+ */
+export const MIN_SECRET_LENGTH = 8;
 
 /**
  * Well-known credential shapes, for values Abotica does not know (a key a server prints from its own

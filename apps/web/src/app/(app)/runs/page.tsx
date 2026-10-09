@@ -1,13 +1,11 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
+import { ListPager } from "@/components/app/list-pager";
 import { PageBody, PageHeader } from "@/components/app/page-header";
 import { sectionCardClass, SectionEmpty, SectionEmptyLink } from "@/components/app/section-card";
 import { RunsFilters } from "@/components/runs/runs-filters";
 import { RunsTable } from "@/components/runs/runs-table";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRunFilterOptions, getRunPage, RUNS_PAGE_SIZE } from "@/server/queries/runs";
 
@@ -21,14 +19,6 @@ const resetLink = (chunks: React.ReactNode) => <SectionEmptyLink href="/runs">{c
 
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
-function PageButton({ href, label, children }: { href: string | null; label: string; children: React.ReactNode }) {
-  return (
-    <Button variant="ghost" size="icon-sm" asChild={Boolean(href)} disabled={!href} aria-label={label}>
-      {href ? <Link href={href}>{children}</Link> : children}
-    </Button>
-  );
-}
-
 export default async function RunsPage(props: PageProps<"/runs">) {
   const sp = await props.searchParams;
   const t = await getTranslations("runs");
@@ -39,7 +29,7 @@ export default async function RunsPage(props: PageProps<"/runs">) {
     project: first(sp.project),
     page: Number(first(sp.page)) || 1,
   };
-  const [{ rows, total, page, pageCount }, options] = await Promise.all([getRunPage(filters), getRunFilterOptions()]);
+  const [{ rows, total, page }, options] = await Promise.all([getRunPage(filters), getRunFilterOptions()]);
   const filtered = Boolean(filters.status || filters.agent || filters.trigger || filters.project);
 
   const pageHref = (p: number) => {
@@ -67,28 +57,7 @@ export default async function RunsPage(props: PageProps<"/runs">) {
         ) : (
           <>
             <RunsTable rows={rows} />
-            <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground sm:px-5">
-              <span className="tabular">
-                {t("list.range", {
-                  from: (page - 1) * RUNS_PAGE_SIZE + 1,
-                  to: (page - 1) * RUNS_PAGE_SIZE + rows.length,
-                  total,
-                })}
-              </span>
-              {pageCount > 1 && (
-                <div className="flex items-center gap-0.5">
-                  <PageButton href={page > 1 ? pageHref(page - 1) : null} label={t("list.previousPage")}>
-                    <ChevronLeft />
-                  </PageButton>
-                  <span className="tabular px-1.5">
-                    {page} / {pageCount}
-                  </span>
-                  <PageButton href={page < pageCount ? pageHref(page + 1) : null} label={t("list.nextPage")}>
-                    <ChevronRight />
-                  </PageButton>
-                </div>
-              )}
-            </div>
+            <ListPager page={page} pageSize={RUNS_PAGE_SIZE} rowCount={rows.length} total={total} href={pageHref} />
           </>
         )}
       </section>

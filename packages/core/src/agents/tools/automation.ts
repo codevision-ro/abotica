@@ -48,7 +48,7 @@ async function runnerAgent(ctx: RunContext, slug: string | undefined) {
 export const automationTools: Record<string, ToolFactory> = {
   schedule_manage: (ctx) =>
     tool({
-      description: `Manage schedules: list, create (cron or one-off), update (change fields, pause with enabled=false, resume) and delete. Cron uses the standard 5-field format, timezone ${ctx.settings.timezone}.`,
+      description: `Manage schedules: list, create (cron or one-off), update (change fields, pause with enabled=false, resume) and delete. Cron uses the standard 5-field format, timezone ${ctx.settings.general.timezone}.`,
       inputSchema: z.object({
         action: z.enum(["list", "create", "update", "delete"]),
         scheduleId: optionalId().describe("For update and delete"),
@@ -132,7 +132,7 @@ export const automationTools: Record<string, ToolFactory> = {
               projectId: input.projectId ?? null,
               name: input.name,
               ...timing,
-              timezone: ctx.settings.timezone,
+              timezone: ctx.settings.general.timezone,
               prompt: input.prompt,
               enabled: input.enabled ?? true,
             },

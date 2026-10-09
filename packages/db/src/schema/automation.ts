@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./_shared";
 import { agents } from "./agents";
 import { scheduleKind } from "./enums";
@@ -16,7 +16,7 @@ export const schedules = pgTable("schedules", {
   cron: text(),
   /** Fire time for kind=once. */
   runAt: timestamp({ withTimezone: true }),
-  timezone: text().notNull().default("Europe/Bucharest"),
+  timezone: text().notNull().default("UTC"),
   prompt: text().notNull(),
   enabled: boolean().notNull().default(true),
   lastRunAt: timestamp({ withTimezone: true }),
@@ -39,6 +39,8 @@ export const triggers = pgTable(
     token: text().unique(),
     /** Vault-encrypted secret that webhook requests must be signed with; null accepts unsigned requests. */
     signingSecret: text(),
+    /** Webhook requests that may start runs per minute; null uses the default (WEBHOOK_RATE_LIMIT). */
+    rateLimitPerMinute: integer(),
     /** Prompt template; `{{payload}}` is replaced with the event payload. */
     prompt: text().notNull(),
     enabled: boolean().notNull().default(true),

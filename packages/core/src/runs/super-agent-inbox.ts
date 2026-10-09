@@ -1,7 +1,7 @@
 import { conversations, db, projects } from "@abotica/db";
 import { and, desc, eq, isNull, sql } from "@abotica/db/orm";
 import { getTranslator } from "@abotica/i18n";
-import { getSettings, settingsLocale } from "../platform/settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 import { getTelegramToken, telegramAccess } from "../telegram/telegram-config";
 import { telegramConversationKey } from "../telegram/telegram-ids";
 import type { Conversation } from "./conversations";

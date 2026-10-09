@@ -93,7 +93,10 @@ export const listBoardTasks = query(async (filters: TaskFilters) => {
   }));
 });
 
-/** Data for selects: projects, agents and open tasks (for dependencies and parent). */
+/**
+ * Data for selects: projects, agents and open tasks (for dependencies and parent). Every open task, a few
+ * short columns each, so the pickers can filter them as you type.
+ */
 export const getTaskOptions = query(async () => {
   const [projectRows, agentRows, openTasks] = await Promise.all([
     db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
@@ -111,8 +114,7 @@ export const getTaskOptions = query(async () => {
       .select({ id: tasks.id, title: tasks.title, status: tasks.status, parentId: tasks.parentId })
       .from(tasks)
       .where(ne(tasks.status, "done"))
-      .orderBy(desc(tasks.createdAt))
-      .limit(500),
+      .orderBy(desc(tasks.createdAt)),
   ]);
   return { projects: projectRows, agents: agentRows, openTasks };
 });

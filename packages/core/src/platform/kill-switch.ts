@@ -4,7 +4,7 @@ import { getTranslator } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { redis } from "../infra/redis";
 import { cancelQueuedRuns } from "../runs/run-lifecycle";
-import { getSettings, settingsLocale } from "./settings";
+import { getSettings, settingsLocale } from "../settings/settings";
 
 const KILL_KEY = "abotica:kill-switch";
 

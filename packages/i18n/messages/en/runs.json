@@ -7,10 +7,7 @@
     "title": "Runs",
     "description": "Every agent run, with its steps, tools and cost.",
     "empty": "No runs yet. They show up when you talk to an agent or a task or schedule starts. <link>Open chat</link>",
-    "emptyFiltered": "No runs match these filters. <link>Reset filters</link>",
-    "range": "{from}-{to} of {total}",
-    "previousPage": "Previous page",
-    "nextPage": "Next page"
+    "emptyFiltered": "No runs match these filters. <link>Reset filters</link>"
   },
   "filters": {
     "status": "Status",
@@ -174,11 +171,11 @@
     },
     "budget": {
       "label": "Budget reached",
-      "hint": "Raise the budget (the agent's limits, the project, or Settings > General), or wait for next month."
+      "hint": "Raise the budget (the agent's limits, the project, or Settings > Budget), or wait for next month."
     },
     "no_model": {
       "label": "No model",
-      "hint": "Pick a model for the agent, or set the default model in Settings > AI providers."
+      "hint": "Pick a model for the agent, or set the default model in Settings > Models."
     },
     "provider_not_allowed": {
       "label": "Provider not allowed",
@@ -190,7 +187,7 @@
     },
     "provider_auth": {
       "label": "Provider rejected the key",
-      "hint": "Check the API key or the connection in Settings > AI providers."
+      "hint": "Check the API key or the connection in Settings > Models."
     },
     "rate_limited": {
       "label": "Rate limited",
@@ -202,7 +199,7 @@
     },
     "providers_unavailable": {
       "label": "Providers unavailable",
-      "hint": "No model of the agent answered. Check the providers in Settings > AI providers and the agent's models, then try again."
+      "hint": "No model of the agent answered. Check the providers in Settings > Models and the agent's models, then try again."
     },
     "context_overflow": {
       "label": "Context full",

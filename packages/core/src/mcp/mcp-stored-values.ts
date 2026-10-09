@@ -51,3 +51,14 @@ export function resolveStoredSecret(
   if (saved === null) throw new UserError("mcp.errors.storedValueMissing", { key: "client secret" });
   return saved;
 }
+
+/**
+ * Timeouts a server may set for itself (Advanced in its form), in seconds; a server without one uses
+ * the default. Here because the form checks them with the bounds the server action applies.
+ */
+export const MCP_TIMEOUTS = {
+  /** Starting and the handshake: long enough for `npx -y` or `uvx` to download the server on a first start. */
+  connectSec: { default: 90, min: 10, max: 600 },
+  /** One tool call's answer. */
+  callSec: { default: 120, min: 10, max: 3600 },
+} as const;

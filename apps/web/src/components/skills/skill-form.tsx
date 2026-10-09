@@ -1,5 +1,6 @@
 "use client";
 
+import { SKILL_DESCRIPTION_MAX_LENGTH, SKILL_NAME_MAX_LENGTH } from "@abotica/core/limits";
 import { checkSkillFiles, SKILL_MD, type SkillFileEntry, type SkillFilesProblem } from "@abotica/core/skill-md";
 import { slugify } from "@abotica/core/slug";
 import type { SkillSource } from "@abotica/db";
@@ -261,7 +262,7 @@ export function SkillForm({
             value={v.name}
             onChange={(e) => onNameChange(e.target.value)}
             required
-            maxLength={120}
+            maxLength={SKILL_NAME_MAX_LENGTH}
             autoComplete="off"
             // A new skill starts with the name: the rest has a template or can wait.
             autoFocus={!editing}
@@ -276,7 +277,7 @@ export function SkillForm({
             value={v.description}
             onChange={(e) => set("description", e.target.value)}
             rows={1}
-            maxLength={1024}
+            maxLength={SKILL_DESCRIPTION_MAX_LENGTH}
             placeholder={t("descriptionPlaceholder")}
             className={cn(
               heroFieldVariants({ kind: "subtitle" }),

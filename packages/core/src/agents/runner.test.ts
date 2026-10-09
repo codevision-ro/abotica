@@ -56,7 +56,7 @@ vi.mock("../infra/queues", () => ({ notify: vi.fn() }));
 vi.mock("../files/files", () => ({ getFile: vi.fn(), readFileBytes: vi.fn() }));
 vi.mock("../platform/budgets", () => ({ applicableBudgets: async () => [], tightestBudget: vi.fn() }));
 vi.mock("../platform/kill-switch", () => ({ isKillSwitchActive: vi.fn() }));
-vi.mock("../platform/settings", () => ({ settingsLocale: () => "en" }));
+vi.mock("../settings/settings", () => ({ settingsLocale: () => "en" }));
 vi.mock("../models/catalog", () => ({ estimateCost: vi.fn(), getCatalog: vi.fn() }));
 vi.mock("../models/chain", async () => {
   const { UserError } = await import("@abotica/i18n");
@@ -142,11 +142,11 @@ vi.mock("./tools/memory", async () => {
   const { z } = await import("zod");
   return {
     memoryTools: {
-      memory_save: (ctx: { settings: { memoryRequiresApproval: boolean }; untrustedSeen: boolean }) =>
+      memory_save: (ctx: { settings: { memory: { requiresApproval: boolean } }; untrustedSeen: boolean }) =>
         tool({
           inputSchema: z.object({ content: z.string() }),
           execute: async ({ content }) => {
-            saved.push({ content, pending: ctx.settings.memoryRequiresApproval, untrusted: ctx.untrustedSeen });
+            saved.push({ content, pending: ctx.settings.memory.requiresApproval, untrusted: ctx.untrustedSeen });
             return { saved: true, id: `mem${saved.length}` };
           },
         }),
@@ -192,9 +192,9 @@ function useContext(
       limits: { maxSteps: 20, timeoutMs: 60_000, budgetUsd: null, ...over.limits },
     },
     settings: {
-      timezone: "UTC",
-      defaultReasoningEffort: "default",
-      memoryRequiresApproval: over.memoryRequiresApproval ?? false,
+      general: { timezone: "UTC" },
+      models: { reasoningEffort: { agent: "default", manager: null, orchestrator: null } },
+      memory: { requiresApproval: over.memoryRequiresApproval ?? false },
     },
     project: null,
     projectId: null,

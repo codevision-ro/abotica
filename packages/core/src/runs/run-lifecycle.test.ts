@@ -43,7 +43,6 @@ vi.mock("@abotica/db", () => {
     Object.fromEntries([["name", name], ...columns.map((c) => [c, `${name}.${c}`])]) as Record<string, string>;
   const runs = table("runs", "id", "status", "agentId");
   return {
-    DEFAULT_AGENT_LIMITS: { maxSteps: 20, timeoutMs: 10 * 60_000, budgetUsd: 1 },
     runs,
     agents: table("agents", "id", "limits"),
     approvals: table("approvals", "runId", "status"),
@@ -85,7 +84,10 @@ vi.mock("../infra/queues", () => ({
 }));
 vi.mock("../infra/events", () => ({ publish: vi.fn(async () => {}) }));
 vi.mock("../infra/redis", () => ({ redis: () => ({}) }));
-vi.mock("../platform/settings", () => ({ getSettings: async () => ({}), settingsLocale: () => "en" }));
+vi.mock("../settings/settings", () => ({
+  getSettings: async () => ({ agents: { defaultLimits: { maxSteps: 20, timeoutMs: 10 * 60_000, budgetUsd: 1 } } }),
+  settingsLocale: () => "en",
+}));
 vi.mock("../tasks/tasks", () => ({
   addTaskComment: vi.fn(),
   awaitsDelegatedWork: vi.fn(),

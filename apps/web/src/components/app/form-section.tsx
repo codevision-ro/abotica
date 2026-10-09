@@ -18,9 +18,14 @@ function SectionDivider() {
   return <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />;
 }
 
-function SectionIcon({ icon: Icon }: { icon: LucideIcon }) {
+function SectionIcon({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary dark:bg-primary/15">
+    <span
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary dark:bg-primary/15",
+        className,
+      )}
+    >
       <Icon className="size-4" aria-hidden />
     </span>
   );
@@ -50,15 +55,25 @@ export function FormSection({
 }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className={cn(SECTION_CARD, className)}>
-      <div className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
-        <SectionIcon icon={icon} />
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <h2 id={`${id}-title`} className="text-base leading-snug font-semibold tracking-tight">
-            {title}
-          </h2>
-          {description && <p className="text-sm text-pretty text-muted-foreground">{description}</p>}
-        </div>
-        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+      {/* Same header as SectionCard: on phones the description runs under the action, so it keeps its width. */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-4 py-3.5 sm:px-5">
+        <SectionIcon icon={icon} className={cn(description && "row-[1/3]")} />
+        <h2 id={`${id}-title`} className="col-start-2 row-start-1 text-base leading-snug font-semibold tracking-tight">
+          {title}
+        </h2>
+        {action && (
+          <div
+            className={cn(
+              "col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2",
+              description && "sm:row-[1/3]",
+            )}
+          >
+            {action}
+          </div>
+        )}
+        {description && (
+          <p className="col-[2/-1] row-start-2 text-sm text-pretty text-muted-foreground sm:col-[2/3]">{description}</p>
+        )}
       </div>
       <SectionDivider />
       <div className="flex flex-col gap-4 p-4 sm:p-5">{children}</div>

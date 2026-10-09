@@ -13,7 +13,8 @@ export type Snapshot = {
 };
 
 /** Most a static preview holds. */
-export const PREVIEW_MAX_BYTES = 50 * 1024 * 1024;
+export const PREVIEW_MAX_MB = 50;
+export const PREVIEW_MAX_BYTES = PREVIEW_MAX_MB * 1024 * 1024;
 export const PREVIEW_MAX_FILES = 2000;
 
 export class SnapshotTooLargeError extends Error {
@@ -93,9 +94,7 @@ export function readSnapshotTar(archive: Uint8Array): Snapshot {
     }
     total += size;
     if (files.length >= PREVIEW_MAX_FILES || total > PREVIEW_MAX_BYTES) {
-      throw new SnapshotTooLargeError(
-        `A preview holds at most ${PREVIEW_MAX_FILES} files and ${PREVIEW_MAX_BYTES / (1024 * 1024)} MB.`,
-      );
+      throw new SnapshotTooLargeError(`A preview holds at most ${PREVIEW_MAX_FILES} files and ${PREVIEW_MAX_MB} MB.`);
     }
     files.push({ path, data: data.slice() });
   }

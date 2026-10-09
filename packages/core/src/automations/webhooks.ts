@@ -1,5 +1,5 @@
 import { redis } from "../infra/redis";
-import { WEBHOOK_RATE_LIMIT, WEBHOOK_REFUSED_LIMIT, WEBHOOK_SIGNATURE_TOLERANCE_SECONDS } from "./trigger-events";
+import { WEBHOOK_REFUSED_LIMIT, WEBHOOK_SIGNATURE_TOLERANCE_SECONDS, webhookRateLimit } from "./trigger-events";
 import type { Trigger } from "./triggers";
 import { decrypt } from "../platform/vault";
 import { type SignatureFailure, verifyWebhookSignature } from "./webhook-signature";
@@ -35,12 +35,12 @@ async function take(key: string, { requests, windowSeconds }: { requests: number
 }
 
 /**
- * Counts a request against the trigger's run limit. A trigger without a signing secret counts every
- * request; one with a secret counts only verified ones, so requests forged by someone who has just
- * the URL cannot use up the real sender's quota.
+ * Counts a request against the trigger's run limit (its own, or the default). A trigger without a
+ * signing secret counts every request; one with a secret counts only verified ones, so requests forged
+ * by someone who has just the URL cannot use up the real sender's quota.
  */
-export function takeWebhookRequest(triggerId: string): Promise<WebhookRate> {
-  return take(`${RATE_KEY}${triggerId}`, WEBHOOK_RATE_LIMIT);
+export function takeWebhookRequest(trigger: Pick<Trigger, "id" | "rateLimitPerMinute">): Promise<WebhookRate> {
+  return take(`${RATE_KEY}${trigger.id}`, webhookRateLimit(trigger));
 }
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { isTelegramChatId, parseTelegramUserIds } from "@abotica/core/telegram-ids";
-import { Bot, CircleCheck, Save, Trash2, TriangleAlert, Users } from "lucide-react";
+import { Bot, CircleCheck, Trash2, TriangleAlert, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -10,13 +10,13 @@ import { ConfirmButton } from "@/components/app/confirm-dialog";
 import { FormSection } from "@/components/app/form-section";
 import { RelativeTime } from "@/components/app/relative-time";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import { deleteTelegramToken, updateTelegramSettings } from "@/server/actions/settings";
+import { useDirtySnapshot } from "@/hooks/use-dirty-snapshot";
+import { deleteTelegramToken, updateTelegramSettings } from "@/server/actions/telegram";
 import type { TelegramStatus } from "@/server/queries/settings";
 import { SecretInput } from "./secret-input";
+import { SettingsSaveBar } from "./settings-save-bar";
 
 type Props = Pick<TelegramStatus, "tokenUpdatedAt" | "allowedUserIds" | "notifyChatId" | "bot">;
 
@@ -28,11 +28,13 @@ const mono = (chunks: React.ReactNode) => <span className="font-mono text-[0.9em
  */
 export function TelegramSettingsForm({ tokenUpdatedAt, allowedUserIds, notifyChatId, bot }: Props) {
   const t = useTranslations("settings.telegram");
+  const tv = useTranslations("settings.validation.telegram");
   const tc = useTranslations("common.actions");
   const router = useRouter();
   const [token, setToken] = useState("");
-  const [users, setUsers] = useState(allowedUserIds.join(", "));
-  const [notify, setNotify] = useState(notifyChatId ?? "");
+  const [saved, setSaved] = useState({ users: allowedUserIds.join(", "), notify: notifyChatId ?? "" });
+  const [users, setUsers] = useState(saved.users);
+  const [notify, setNotify] = useState(saved.notify);
   const [saving, startSave] = useTransition();
   const [removing, startRemove] = useTransition();
   const hasToken = tokenUpdatedAt !== null;
@@ -41,18 +43,33 @@ export function TelegramSettingsForm({ tokenUpdatedAt, allowedUserIds, notifyCha
   const notifyValue = notify.trim() || null;
   const usersInvalid = userIds === null;
   const notifyInvalid = notifyValue !== null && !isTelegramChatId(notifyValue);
-  const invalid = usersInvalid || notifyInvalid;
+  const snapshot = (u: string, n: string, tok: string) => ({
+    users: parseTelegramUserIds(u) ?? u,
+    notify: n.trim(),
+    tok: tok.trim(),
+  });
+  const { dirty, markSaved } = useDirtySnapshot(snapshot(users, notify, token));
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function save() {
     if (!userIds || notifyInvalid) return;
     startSave(async () => {
       const res = await updateTelegramSettings({ token, allowedUserIds: userIds, notifyChatId: notifyValue });
       if (!res.ok) return void toast.error(res.error);
+      const next = { users: userIds.join(", "), notify: notifyValue ?? "" };
       setToken("");
+      setUsers(next.users);
+      setNotify(next.notify);
+      setSaved(next);
+      markSaved(snapshot(next.users, next.notify, ""));
       toast.success(res.data.username ? t("savedConnected", { username: res.data.username }) : t("saved"));
       router.refresh();
     });
+  }
+
+  function reset() {
+    setToken("");
+    setUsers(saved.users);
+    setNotify(saved.notify);
   }
 
   function removeToken() {
@@ -65,7 +82,7 @@ export function TelegramSettingsForm({ tokenUpdatedAt, allowedUserIds, notifyCha
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <FormSection
         id="telegram-bot"
         icon={Bot}
@@ -120,9 +137,7 @@ export function TelegramSettingsForm({ tokenUpdatedAt, allowedUserIds, notifyCha
               aria-invalid={usersInvalid}
               className="font-mono"
             />
-            <FieldDescription>
-              {usersInvalid ? t("validation.userIds") : t.rich("allowedUsersHint", { mono })}
-            </FieldDescription>
+            <FieldDescription>{usersInvalid ? tv("userIds") : t.rich("allowedUsersHint", { mono })}</FieldDescription>
           </Field>
           <FieldSeparator />
           <Field data-invalid={notifyInvalid}>
@@ -137,17 +152,19 @@ export function TelegramSettingsForm({ tokenUpdatedAt, allowedUserIds, notifyCha
               aria-invalid={notifyInvalid}
               className="font-mono sm:w-64"
             />
-            <FieldDescription>{notifyInvalid ? t("validation.chatId") : t("notifyChatHint")}</FieldDescription>
+            <FieldDescription>{notifyInvalid ? tv("chatId") : t("notifyChatHint")}</FieldDescription>
           </Field>
         </FieldGroup>
       </FormSection>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={saving || invalid}>
-          {saving ? <Spinner /> : <Save />} {token.trim() ? t("saveAndConnect") : tc("save")}
-        </Button>
-      </div>
-    </form>
+      <SettingsSaveBar
+        dirty={dirty}
+        invalid={usersInvalid || notifyInvalid}
+        pending={saving}
+        onSave={save}
+        onReset={reset}
+      />
+    </div>
   );
 }
 

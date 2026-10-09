@@ -61,11 +61,10 @@ const ctx = {
   managedProjectIds: [],
   skills: [],
   settings: {
-    timezone: "UTC",
-    journalDays: 3,
-    memoryPinnedTokens: 2000,
-    memoryRecallTokens: 1000,
-    agentInstructions: "",
+    general: { timezone: "UTC" },
+    memory: { journalDays: 3, pinnedTokens: 2000, recallTokens: 1000 },
+    agents: { instructions: "" },
+    models: { chains: { agent: [], manager: [], orchestrator: [] } },
   },
   sandbox: null,
 } as unknown as RunContext;
@@ -90,7 +89,7 @@ describe("buildInstructions", () => {
     const told = {
       ...ctx,
       agent: { ...ctx.agent, systemPrompt: "You write clear copy." },
-      settings: { ...ctx.settings, agentInstructions: "  I am Alex; my company is Crumb.\n" },
+      settings: { ...ctx.settings, agents: { instructions: "  I am Alex; my company is Crumb.\n" } },
     } as RunContext;
     expect(await buildInstructions(told)).toContain(
       "# Your profession\nYou write clear copy.\n\n# From the user (all agents)\nI am Alex; my company is Crumb.\n\n# Context",
@@ -141,7 +140,7 @@ describe("buildInstructions", () => {
     const orchestrator = {
       ...ctx,
       agent: { ...ctx.agent, kind: "orchestrator" },
-      settings: { ...ctx.settings, defaultModels: [], managerModels: [], orchestratorModels: [] },
+      settings: { ...ctx.settings, models: { chains: { agent: [], manager: [], orchestrator: [] } } },
       topicProject: { id: "p1", name: "Site" },
       notesProjectId: "p1",
     } as unknown as RunContext;
@@ -254,7 +253,10 @@ describe("buildInstructions", () => {
   it("says nothing about recall when it is off", async () => {
     const { buildInstructions } = await load();
     pinned.current = { all: false, omitted: 0, global: [], craft: [], team: [], notes: [] };
-    const off = { ...ctx, settings: { ...ctx.settings, memoryRecallTokens: 0 } } as RunContext;
+    const off = {
+      ...ctx,
+      settings: { ...ctx.settings, memory: { ...ctx.settings.memory, recallTokens: 0 } },
+    } as RunContext;
     const prompt = await buildInstructions(off);
     expect(prompt).toContain("# Memory\nPinned entries; memory_search finds the rest.");
     expect(prompt).not.toContain("recalled");

@@ -19,7 +19,8 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { action } from "../action";
-import { getConversationMessages } from "../queries/chat";
+import { parseConversationFilter } from "@/lib/conversation-filter";
+import { getConversationList, getConversationMessages } from "../queries/chat";
 
 /**
  * Creates a web conversation for the caller to open. In a project core picks the manager when no agent
@@ -48,6 +49,12 @@ export const deleteConversation = action(z.object({ id: z.string().uuid() }), as
 /** Fresh messages for an open chat, when a run starts there without the chat sending a message. */
 export const loadConversationMessages = action(z.object({ id: z.string().uuid() }), async ({ id }) =>
   getConversationMessages(id),
+);
+
+/** The chat list grown past its first page ("Show more"): its newest `limit` conversations under `filter`. */
+export const loadConversationList = action(
+  z.object({ filter: z.string(), limit: z.number().int().positive() }),
+  async ({ filter, limit }) => getConversationList(parseConversationFilter(filter), limit),
 );
 
 /**
@@ -83,7 +90,7 @@ export const setConversationModel = action(
       throw new UserError("chat.model.errors.providerNotConfigured", { provider: model.provider });
     }
 
-    const primary = resolveModelChain(row, await getSettings(), modelRole(row))[0];
+    const primary = resolveModelChain(row, (await getSettings()).models, modelRole(row))[0];
     const sameAsAgent = model && primary?.provider === model.provider && primary.model === model.model;
     const modelOverride = model && !sameAsAgent ? { provider: model.provider, model: model.model } : null;
 

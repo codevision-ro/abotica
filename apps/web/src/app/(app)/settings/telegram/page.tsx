@@ -1,4 +1,5 @@
-import { FolderKanban, Hash, ListOrdered } from "lucide-react";
+import { TELEGRAM_COMMANDS } from "@abotica/core/telegram-commands";
+import { FolderKanban, Hash, ListOrdered, SquareSlash } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { SectionCard, SectionEmpty, SectionIcon, SectionList, SectionRow } from "@/components/app/section-card";
@@ -13,11 +14,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("telegram") };
 }
 
-/** Registered by the worker each time it starts the bot (apps/worker/src/telegram/bot-lifecycle.ts). */
-const BOT_COMMANDS = "/status, /tasks, /project, /new, /stop, /resume";
-
 export default async function TelegramPage() {
-  const [status, t] = await Promise.all([getTelegramStatus(), getTranslations("settings.telegram")]);
+  const [status, t, tb] = await Promise.all([
+    getTelegramStatus(),
+    getTranslations("settings.telegram"),
+    getTranslations("telegram.commands"),
+  ]);
   const mono = (chunks: React.ReactNode) => <span className="font-mono text-[0.9em]">{chunks}</span>;
   const statusLabel = (value: string) => {
     const key = `projectStatus.${value}` as Parameters<typeof t>[0];
@@ -25,7 +27,7 @@ export default async function TelegramPage() {
   };
   const steps = [
     t.rich("step1", { mono }),
-    t.rich("step2", { mono, commands: BOT_COMMANDS }),
+    t.rich("step2", { mono }),
     t.rich("step3", { mono }),
     t.rich("step4", { mono }),
     t.rich("step5", { mono }),
@@ -40,6 +42,17 @@ export default async function TelegramPage() {
         notifyChatId={status.notifyChatId}
         bot={status.bot}
       />
+
+      <SectionCard icon={SquareSlash} title={t("commandsTitle")} description={t("commandsDescription")} flush>
+        <SectionList>
+          {TELEGRAM_COMMANDS.map((command) => (
+            <li key={command} className="flex min-w-0 items-baseline gap-3 px-4 py-2.5 sm:px-5">
+              <span className="w-20 shrink-0 font-mono text-sm font-medium">/{command}</span>
+              <span className="min-w-0 text-sm text-pretty text-muted-foreground">{tb(command)}</span>
+            </li>
+          ))}
+        </SectionList>
+      </SectionCard>
 
       <SectionCard
         icon={Hash}

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { AgentAvatar } from "@/components/app/agent-avatar";
+import { ListPager } from "@/components/app/list-pager";
 import { PageBody, PageHeader } from "@/components/app/page-header";
 import { sectionCardClass, SectionIcon, SectionList } from "@/components/app/section-card";
 import { ApprovalCard, ToolName } from "@/components/approvals/approval-card";
@@ -13,7 +14,7 @@ import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { getFormat } from "@/server/format";
 import { listPendingApprovals } from "@/server/queries/dashboard";
-import { listApprovalHistory } from "@/server/queries/runs";
+import { APPROVALS_PAGE_SIZE, getApprovalHistoryPage } from "@/server/queries/runs";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("approvals");
@@ -22,9 +23,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ApprovalsPage(props: PageProps<"/approvals">) {
   const sp = await props.searchParams;
-  const [pending, history] = await Promise.all([listPendingApprovals(), listApprovalHistory()]);
-  const [t, fmt] = await Promise.all([getTranslations("approvals"), getFormat()]);
   const tab = sp.tab === "history" ? "history" : "pending";
+  const page = Number(sp.page) || 1;
+  const [pending, history] = await Promise.all([listPendingApprovals(), getApprovalHistoryPage(page)]);
+  const [t, fmt] = await Promise.all([getTranslations("approvals"), getFormat()]);
+  const pageHref = (p: number) => (p > 1 ? `/approvals?tab=history&page=${p}` : "/approvals?tab=history");
 
   return (
     <PageBody>
@@ -58,7 +61,7 @@ export default async function ApprovalsPage(props: PageProps<"/approvals">) {
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
-          {history.length === 0 ? (
+          {history.rows.length === 0 ? (
             <div className={cn(sectionCardClass, "flex items-center gap-3 px-4 py-3.5 sm:px-5")}>
               <SectionIcon icon={History} />
               <p className="min-w-0 text-sm text-muted-foreground">{t("history.empty")}</p>
@@ -66,7 +69,7 @@ export default async function ApprovalsPage(props: PageProps<"/approvals">) {
           ) : (
             <div className={cn(sectionCardClass, "overflow-hidden")}>
               <SectionList>
-                {history.map((a) => (
+                {history.rows.map((a) => (
                   <li key={a.id}>
                     <Link
                       href={`/runs/${a.runId}`}
@@ -102,6 +105,13 @@ export default async function ApprovalsPage(props: PageProps<"/approvals">) {
                   </li>
                 ))}
               </SectionList>
+              <ListPager
+                page={history.page}
+                pageSize={APPROVALS_PAGE_SIZE}
+                rowCount={history.rows.length}
+                total={history.total}
+                href={pageHref}
+              />
             </div>
           )}
         </TabsContent>

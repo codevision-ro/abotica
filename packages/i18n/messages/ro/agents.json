@@ -168,8 +168,8 @@
     "modelDescription": "Modelul pe care rulează agentul.",
     "useDefault": "Modelul implicit",
     "defaultNotSet": "Nesetat încă",
-    "defaultHint": "{role, select, orchestrator {Modelul implicit al super agentului.} manager {Modelul implicit al managerilor, pentru că acest agent este manager.} other {Modelul implicit al specialiștilor.}} Se schimbă din <link>Setări → Provideri AI</link> pentru toți agenții care îl folosesc.",
-    "defaultMissing": "Modelul implicit nu e setat: <link>setează-l în Setări → Provideri AI</link>",
+    "defaultHint": "{role, select, orchestrator {Modelul implicit al super agentului.} manager {Modelul implicit al managerilor, pentru că acest agent este manager.} other {Modelul implicit al specialiștilor.}} Se schimbă din <link>Setări → Modele</link> pentru toți agenții care îl folosesc.",
+    "defaultMissing": "Modelul implicit nu e setat: <link>setează-l în Setări → Modele</link>",
     "useCustom": "Alege un model",
     "useCustomDescription": "Un provider și un model doar pentru acest agent.",
     "provider": "Provider",
@@ -224,9 +224,6 @@
     "created": "Agent creat",
     "savedVersion": "Salvat ca v{version}",
     "savedNoVersion": "Salvat, fără modificări de versiune",
-    "invalidMaxSteps": "Max pași: între 1 și 100",
-    "invalidTimeout": "Timeout: minim 1 minut",
-    "invalidBudget": "Bugetul trebuie să fie un număr pozitiv sau gol",
     "pickModel": "Alege un model sau folosește modelul implicit",
     "fallbackModel": "Completează modelul pentru fiecare fallback",
     "managesProject": "Conduce acest proiect. Alege mai întâi alt manager în tabul Echipă al proiectului."
@@ -451,8 +448,9 @@
     "unknownProvider": "Provider necunoscut",
     "pickModel": "Alege un model",
     "nameRequired": "Numele este obligatoriu",
-    "timeoutMin": "Timeout minim: 1 minut",
-    "budgetPositive": "Bugetul trebuie să fie pozitiv"
+    "maxSteps": "Max pași: între {min} și {max}",
+    "timeout": "Timeout: între {min} și {max} minute",
+    "budget": "Buget: între ${min} și ${max}, sau gol pentru nelimitat"
   },
   "unsaved": {
     "title": "Pleci fără să salvezi?",

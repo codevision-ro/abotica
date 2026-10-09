@@ -27,11 +27,12 @@ async function delegatedFromTelegram(delegatorRunId: string): Promise<boolean> {
   return origin?.channel === "telegram";
 }
 
-const APPROVAL_PREVIEW = 600;
+/** Characters of a notice's quoted text: an approval's tool input, why a task is blocked, a result. */
+const PREVIEW_CHARS = { approval: 600, blockedReason: 1_500, result: 3_000 } as const;
 
 const asText = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
 
-const preview = (value: unknown, max = APPROVAL_PREVIEW) => {
+const preview = (value: unknown, max: number) => {
   const text = asText(value);
   return text.length > max ? `${text.slice(0, max)}…` : text;
 };
@@ -73,13 +74,13 @@ async function handle(job: NotificationJob) {
       t("notifications.approval.request", { agent: row.agent, tool: row.approval.toolName }),
       row.approval.reason ? t("notifications.approval.reason", { reason: row.approval.reason }) : null,
       "",
-      preview(input),
+      preview(input, PREVIEW_CHARS.approval),
       // The buttons approve the whole input, not only the part shown here.
-      ...(input.length > APPROVAL_PREVIEW
+      ...(input.length > PREVIEW_CHARS.approval
         ? [
             "",
             t("approvals.telegram.inputTruncated", {
-              shown: APPROVAL_PREVIEW,
+              shown: PREVIEW_CHARS.approval,
               total: input.length,
               url: new URL("/approvals", env().APP_URL).toString(),
             }),
@@ -127,14 +128,14 @@ async function handle(job: NotificationJob) {
       await sendMarkdown(
         bot,
         target,
-        `${t("notifications.taskBlocked", values)}${reason ? `\n\n${preview(reason.body, 1_500)}` : ""}${link}`,
+        `${t("notifications.taskBlocked", values)}${reason ? `\n\n${preview(reason.body, PREVIEW_CHARS.blockedReason)}` : ""}${link}`,
       );
     } else {
       const result = task?.output ?? row.run.output ?? "";
       await sendMarkdown(
         bot,
         target,
-        `${t(`notifications.runSucceeded.${subject}`, values)}\n\n${preview(result, 3_000)}${link}`,
+        `${t(`notifications.runSucceeded.${subject}`, values)}\n\n${preview(result, PREVIEW_CHARS.result)}${link}`,
       );
     }
   }
