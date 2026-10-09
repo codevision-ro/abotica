@@ -37,15 +37,12 @@ export function PermissionControl({
   value,
   onChange,
   label,
-  disabled,
   className,
 }: {
   value: ToolPermission | "mixed";
   onChange: (permission: ToolPermission) => void;
   /** Accessible name, e.g. "Permission for Search memory". */
   label: string;
-  /** Options that cannot be chosen. */
-  disabled?: readonly ToolPermission[];
   className?: string;
 }) {
   const t = useTranslations("agents.permissions");
@@ -65,12 +62,7 @@ export function PermissionControl({
         return (
           <Tooltip key={p}>
             <TooltipTrigger asChild>
-              <ToggleGroupItem
-                value={p}
-                disabled={disabled?.includes(p)}
-                aria-label={name}
-                className={cn("size-8 text-muted-foreground", SELECTED[p])}
-              >
+              <ToggleGroupItem value={p} aria-label={name} className={cn("size-8 text-muted-foreground", SELECTED[p])}>
                 <Icon aria-hidden />
               </ToggleGroupItem>
             </TooltipTrigger>

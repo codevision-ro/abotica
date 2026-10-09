@@ -129,9 +129,9 @@
       "pids": "Processes",
       "pidsHint": "Most processes per container, from {min} to {max}.",
       "pauseIdle": "Pause when idle",
-      "pauseIdleHint": "Minutes without commands before a container is paused (its processes freeze), from {min} to {max}.",
+      "pauseIdleHint": "Minutes without commands before a container is paused, from {min} to {max}. A container with something still running in the background (a build, a server) is not paused.",
       "stopIdle": "Stop when idle",
-      "stopIdleHint": "Idle hours before a paused container is stopped, from {min} to {max}.",
+      "stopIdleHint": "Hours without commands before a container is stopped, with whatever still runs in it, from {min} to {max}.",
       "retention": "Keep chat workspaces",
       "retentionHint": "Days a chat's unused workspace is kept before it is deleted with its files, from {min} to {max}."
     },

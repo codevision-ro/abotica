@@ -129,9 +129,9 @@
       "pids": "Procese",
       "pidsHint": "Numărul maxim de procese per container, de la {min} la {max}.",
       "pauseIdle": "Pauză la inactivitate",
-      "pauseIdleHint": "Minute fără comenzi după care un container este pus pe pauză (procesele lui îngheață), de la {min} la {max}.",
+      "pauseIdleHint": "Minute fără comenzi după care un container este pus pe pauză, de la {min} la {max}. Un container în care ceva încă rulează în fundal (un build, un server) nu este pus pe pauză.",
       "stopIdle": "Oprire la inactivitate",
-      "stopIdleHint": "Ore de inactivitate după care un container pus pe pauză este oprit, de la {min} la {max}.",
+      "stopIdleHint": "Ore fără comenzi după care un container este oprit, cu tot ce încă rulează în el, de la {min} la {max}.",
       "retention": "Păstrarea workspace-urilor din chat",
       "retentionHint": "Zile în care workspace-ul nefolosit al unui chat este păstrat, apoi este șters cu fișierele lui, de la {min} la {max}."
     },

@@ -7,10 +7,6 @@ export type ToolInfo = {
   orchestratorOnly?: boolean;
   /** With orchestratorOnly: managers (kind "manager") get it too. */
   managers?: boolean;
-  /** Never runs without approval: the agent can be set to ask or deny, not allow. */
-  alwaysAsk?: boolean;
-  /** Permission a new agent starts with; allow when not set. */
-  defaultPermission?: "ask";
   /** Offered only in runs of a project with a git repository. */
   needsRepos?: boolean;
   /** Rarely used: left out of the request until the agent loads it with tool_search. */
@@ -31,7 +27,6 @@ export const TOOL_CATALOG: ToolInfo[] = [
     label: "Delete memory",
     description: "Remove a wrong or outdated memory entry",
     group: "memory",
-    defaultPermission: "ask",
     deferred: true,
   },
   { name: "journal_search", label: "Search journals", description: "Search the daily journals", group: "memory" },
@@ -62,9 +57,8 @@ export const TOOL_CATALOG: ToolInfo[] = [
   {
     name: "task_delete",
     label: "Delete tasks",
-    description: "Delete a task with its subtasks (requires approval)",
+    description: "Delete a task with its subtasks",
     group: "tasks",
-    alwaysAsk: true,
     deferred: true,
   },
   { name: "task_comment", label: "Comment", description: "Add comments to tasks", group: "tasks" },
@@ -164,19 +158,17 @@ export const TOOL_CATALOG: ToolInfo[] = [
   {
     name: "agent_create",
     label: "Create agents",
-    description: "Create new agents (requires approval)",
+    description: "Create new agents",
     group: "orchestration",
     orchestratorOnly: true,
-    alwaysAsk: true,
     deferred: true,
   },
   {
     name: "agent_update",
     label: "Edit agents",
-    description: "Change an agent's profession, role or model (requires approval)",
+    description: "Change an agent's profession, role or model",
     group: "orchestration",
     orchestratorOnly: true,
-    alwaysAsk: true,
     deferred: true,
   },
   {
@@ -190,10 +182,9 @@ export const TOOL_CATALOG: ToolInfo[] = [
   {
     name: "registry_assign",
     label: "Assign skills and MCP",
-    description: "Give or take skills and MCP servers from agents and projects (requires approval)",
+    description: "Give or take skills and MCP servers from agents and projects",
     group: "orchestration",
     orchestratorOnly: true,
-    alwaysAsk: true,
     deferred: true,
   },
   {
@@ -233,7 +224,6 @@ export const TOOL_CATALOG: ToolInfo[] = [
     group: "orchestration",
     orchestratorOnly: true,
     deferred: true,
-    defaultPermission: "ask",
   },
   {
     name: "trigger_manage",
@@ -242,6 +232,5 @@ export const TOOL_CATALOG: ToolInfo[] = [
     group: "orchestration",
     orchestratorOnly: true,
     deferred: true,
-    defaultPermission: "ask",
   },
 ];

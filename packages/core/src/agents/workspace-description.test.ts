@@ -94,6 +94,33 @@ describe("workspaceDescription", () => {
     expect(text).toContain("apt-get install");
   });
 
+  it("tells the agent how to see what it builds", () => {
+    const text = workspaceDescription({
+      ...base,
+      paths: { ...base.paths, mcpOutput: "/opt/abotica/mcp/out" },
+    });
+    expect(text).toContain("file_read also shows you images");
+    expect(text).toContain("http://localhost:8000");
+    expect(text).toContain("python3 -m http.server 8000 --directory site");
+    expect(text).toContain("file:// is not available");
+    expect(text).toContain("saved in /opt/abotica/mcp/out/playwright, read-only for you");
+    expect(text).toContain("to upload one to a site, use a browser script of your own");
+    expect(text).toContain("$CHROMIUM_PATH");
+    expect(text).toContain("executablePath: process.env.CHROMIUM_PATH");
+    expect(text).toContain('executable_path=os.environ["CHROMIUM_PATH"]');
+    expect(text).toContain("abotica-proxy-run node");
+    expect(text).toContain("Do not run `playwright install`");
+    // Without an MCP output folder the browser keeps its files elsewhere: no path is named.
+    expect(workspaceDescription(base)).not.toContain("/playwright");
+  });
+
+  it("does not tell the agent to stop at blocked hosts on the full network", () => {
+    const text = workspaceDescription({ ...base, network: { mode: "full", domains: [] } });
+    expect(text).not.toContain("tell the user which host");
+    expect(text).not.toContain("HTTP 403");
+    expect(text).toContain("ssh, scp and rsync");
+  });
+
   it("names every registry the packages mode allows", () => {
     const text = workspaceDescription(base);
     for (const name of ["PyPI", "npm", "Packagist", "Debian"]) expect(text).toContain(name);

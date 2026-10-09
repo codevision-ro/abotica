@@ -63,7 +63,7 @@
   },
   "task_delete": {
     "label": "Delete tasks",
-    "description": "Deletes a task with its subtasks, after approval",
+    "description": "Deletes a task with its subtasks",
     "running": "Deleting a task"
   },
   "task_comment": {

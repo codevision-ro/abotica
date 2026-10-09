@@ -6,10 +6,13 @@ import { deleteConversation, getSandboxStatus, listFiles, setDefaultUploadsRoot,
 /**
  * End-to-end check of the bundled MCP servers: a real agent with no MCP assignment finds each one
  * through tool_search (they are global) and uses it: Parallel Search, Context7, Playwright in its
- * own workspace (a screenshot it then shares) and Scrapling past a Cloudflare challenge. Needs the
- * worker running with the sandbox (docker compose), the sandbox image built, and a provider key.
+ * own workspace (a screenshot it then shares) and Scrapling past a Cloudflare challenge. The
+ * "vision" scenario has the agent build a page, serve it in its workspace, open it in the browser
+ * and look at the screenshot with file_read: it needs a model that sees images (the catalog lists
+ * "image" among its input modalities), which the default model below does not. Needs the worker
+ * running with the sandbox (docker compose), the sandbox image built, and a provider key.
  * Usage: E2E_PROVIDER=deepseek E2E_MODEL=deepseek-v4-flash pnpm --filter @abotica/core e2e:mcp
- * E2E_ONLY=parallel-search (or context7, playwright, scrapling) runs one scenario.
+ * E2E_ONLY=parallel-search (or context7, playwright, scrapling, vision) runs one scenario.
  */
 // Same default as the worker, which stores shared files where the web app serves them.
 setDefaultUploadsRoot(path.resolve(import.meta.dirname, "../../../apps/web/.data/uploads"));
@@ -24,26 +27,33 @@ async function waitRun(id: string) {
   throw new Error("timeout");
 }
 
-/** Prints the run's tool calls and errors; returns the names of the tools it called and their results. */
+/**
+ * Prints the run's tool calls and errors; returns the names of the tools it called, their inputs and
+ * results as JSON, and the results by tool name.
+ */
 async function printRun(label: string, runId: string) {
   const result = await waitRun(runId);
   console.log(`${label}:`, result.status, result.error ?? "", "steps", result.steps, result.provider, result.model);
   const events = await db.select().from(runEvents).where(eq(runEvents.runId, runId)).orderBy(asc(runEvents.id));
   const called: string[] = [];
+  const inputs: string[] = [];
   const outputs: string[] = [];
+  const results: { name: string; output: string }[] = [];
   for (const e of events) {
     for (const c of (e.data.toolCalls as { name: string; input: unknown }[] | undefined) ?? []) {
       called.push(c.name);
+      inputs.push(JSON.stringify(c.input));
       console.log("  call", c.name, JSON.stringify(c.input).slice(0, 160));
     }
     for (const r of (e.data.toolResults as { name: string; output: unknown }[] | undefined) ?? []) {
       outputs.push(JSON.stringify(r.output));
+      results.push({ name: r.name, output: JSON.stringify(r.output) });
       console.log("    ->", r.name, JSON.stringify(r.output).slice(0, 220));
     }
     if (e.type.endsWith("error")) console.log("  event", e.type, JSON.stringify(e.data).slice(0, 400));
   }
   console.log("  answer:", (result.output ?? "").slice(0, 300).replace(/\n/g, " "));
-  return { result, called, outputs };
+  return { result, called, inputs, outputs, results };
 }
 
 const status = await getSandboxStatus();
@@ -67,7 +77,7 @@ const [agent] = await db
     name: "E2E MCP",
     ...model,
     // Workspace tools give the run a sandbox, where Playwright and Scrapling start.
-    permissions: { shell_run: "allow", file_read: "allow", file_share: "allow" },
+    permissions: { shell_run: "allow", file_read: "allow", file_write: "allow", file_share: "allow" },
     systemPrompt: "You are a test agent. Always use tools when asked. Be brief.",
   })
   .returning();
@@ -107,6 +117,30 @@ try {
         "playwright: read the page",
       );
       check(r.called.includes("file_share"), "playwright: shared the screenshot");
+    },
+  );
+  await scenario(
+    "vision",
+    "Write site/index.html: a page with a solid red background and the code QX-4271 in large white text. Serve the site folder on port 8000 in the background, open http://localhost:8000 with the Playwright browser tools, take a screenshot, then look at the screenshot with file_read. Tell me the background color and the code you see in it.",
+    (r) => {
+      check(
+        r.inputs.some((i) => i.includes("site/index.html")),
+        "vision: wrote the page",
+      );
+      check(
+        r.results.some(
+          (x) =>
+            x.name.endsWith("browser_navigate") &&
+            x.output.includes("localhost:8000") &&
+            x.output.includes("Page Title") &&
+            !x.output.includes("Blocked by the sandbox"),
+        ),
+        "vision: the browser opened the workspace's server",
+      );
+      check(!r.called.some((n) => n.endsWith("browser_run_code_unsafe")), "vision: no browser_run_code_unsafe workaround");
+      check(r.called.includes("file_read"), "vision: looked at the screenshot with file_read");
+      const answer = (r.result.output ?? "").toLowerCase();
+      check(answer.includes("red") && answer.includes("qx-4271"), "vision: saw the color and the code");
     },
   );
   await scenario(

@@ -32,7 +32,9 @@
     "deleted": "Deleted agent"
   },
   "json": {
-    "empty": "(empty)"
+    "empty": "(empty)",
+    "image": "[image, {kb} KB, shown above]",
+    "imageAlt": "Image from the tool result"
   },
   "actions": {
     "rerun": "Run again",
@@ -157,6 +159,7 @@
     "taskCancelled": "The run was cancelled: {reason}",
     "unqueued": "The run never started: its job is no longer in the queue",
     "overdue": "The run went past its time limit and was stopped",
+    "stoppedAtLimit": "The run stopped at a limit before the work was finished: {reason}. The task is not complete: what was done so far is kept, and the rest still has to be done.",
     "interrupted": "The run was interrupted: {reason}",
     "toolInterrupted": "Interrupted: the worker stopped while this tool was running. It may or may not have taken effect; check before repeating it."
   },

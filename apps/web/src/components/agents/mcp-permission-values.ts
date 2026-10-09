@@ -1,6 +1,6 @@
 /**
  * What the permissions editor shows for MCP tools and stores when one changes: a level the user set
- * wins, and a tool without one shows the default from its hints. Pure, so it is tested without a browser.
+ * wins, and a tool without one shows its default (mcpToolDefault). Pure, so it is tested without a browser.
  */
 import {
   MCP_ALL_KEY,
@@ -19,7 +19,7 @@ type McpServerTools = { slug: string; builtin: string | null; tools: McpToolInfo
 export const common = (values: ToolPermission[]): ToolPermission | "mixed" =>
   values.every((v) => v === values[0]) && values[0] ? values[0] : "mixed";
 
-/** A tool matching what it would inherit (its server's setting, or its hints) needs no entry of its own. */
+/** A tool matching what it would inherit (its server's setting, or its default) needs no entry of its own. */
 export function withMcpTool(
   perms: ToolPermissions,
   server: Pick<McpServerTools, "slug" | "builtin">,
@@ -34,7 +34,7 @@ export function withMcpTool(
   return next;
 }
 
-/** Sets "mcp:*", or with null removes it, so every tool without a closer entry starts from its hints. */
+/** Sets "mcp:*", or with null removes it, so every tool without a closer entry starts at its default. */
 export function withMcpDefault(perms: ToolPermissions, permission: ToolPermission | null): ToolPermissions {
   const next = { ...perms };
   if (permission) next[MCP_ALL_KEY] = permission;
@@ -43,8 +43,8 @@ export function withMcpDefault(perms: ToolPermissions, permission: ToolPermissio
 }
 
 /**
- * A server's control: what its tools without an entry of their own get, "mixed" when their hints give
- * different values. A server whose tools are not known shows the default of an unknown tool.
+ * A server's control: what its tools without an entry of their own get, "mixed" when their defaults
+ * differ. A server whose tools are not known shows the default of an unknown tool.
  */
 export function mcpServerValue(perms: ToolPermissions, server: McpServerTools): ToolPermission | "mixed" {
   const tools = server.tools ?? [];
@@ -56,7 +56,7 @@ export function mcpServerValue(perms: ToolPermissions, server: McpServerTools): 
 
 /**
  * The "mcp:*" control: its entry, else what the tools of the listed servers without their own setting
- * start at from their hints ("mixed" when those differ or no tool is known).
+ * start at ("mixed" when those differ or no tool is known).
  */
 export function mcpDefaultValue(perms: ToolPermissions, servers: McpServerTools[]): ToolPermission | "mixed" {
   const setting = perms[MCP_ALL_KEY];

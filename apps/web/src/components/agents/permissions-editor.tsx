@@ -2,7 +2,6 @@
 
 import {
   builtinPermission,
-  clampPermission,
   MCP_ALL_KEY,
   type McpToolHint,
   mcpServerKey,
@@ -20,7 +19,6 @@ import { builtinMcp } from "@abotica/core/mcp-builtins";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
-  LockIcon,
   PlusIcon,
   RefreshCwIcon,
   ServerIcon,
@@ -62,22 +60,11 @@ const GROUPS: ToolInfo["group"][] = ["memory", "tasks", "web", "workspace", "orc
 const toolsFor = ({ kind }: PermissionSubject) =>
   TOOL_CATALOG.filter((tool) => kind === "orchestrator" || !tool.orchestratorOnly || (tool.managers && kind === "manager"));
 
-/** A manager's manager tool: without an entry it gets its default, so "deny" is stored. */
-const isManagerTool = (tool: ToolInfo, kind: PermissionSubject["kind"]) => Boolean(tool.managers) && kind === "manager";
-
-/** Built-in denials are stored as absence, like the server sanitizes them; a manager tool keeps "deny". */
-function withBuiltin(
-  perms: ToolPermissions,
-  tool: ToolInfo,
-  permission: ToolPermission,
-  kind: PermissionSubject["kind"],
-): ToolPermissions {
-  const next = { ...perms };
-  const value = clampPermission(tool, permission);
-  if (value === "deny" && !isManagerTool(tool, kind)) delete next[tool.name];
-  else next[tool.name] = value;
-  return next;
-}
+/** Every choice is stored, denials included: a built-in tool without an entry is allowed. */
+const withBuiltin = (perms: ToolPermissions, tool: ToolInfo, permission: ToolPermission): ToolPermissions => ({
+  ...perms,
+  [tool.name]: permission,
+});
 
 /** Sets a server's permission and drops its per-tool overrides. */
 function withServer(perms: ToolPermissions, slug: string, permission: ToolPermission | null): ToolPermissions {
@@ -152,7 +139,7 @@ export function PermissionsEditor({
   function setAll(permission: ToolPermission) {
     setPermissions((prev) => {
       let next = prev;
-      for (const tool of tools) next = withBuiltin(next, tool, permission, kind);
+      for (const tool of tools) next = withBuiltin(next, tool, permission);
       for (const server of offered) next = withServer(next, server.slug, permission);
       return next;
     });
@@ -211,9 +198,7 @@ export function PermissionsEditor({
                 control={
                   <PermissionControl
                     value={common(values)}
-                    onChange={(p) =>
-                      setPermissions((prev) => list.reduce((acc, tool) => withBuiltin(acc, tool, p, kind), prev))
-                    }
+                    onChange={(p) => setPermissions((prev) => list.reduce((acc, tool) => withBuiltin(acc, tool, p), prev))}
                     label={t("groupControlFor", { group: name })}
                   />
                 }
@@ -221,18 +206,11 @@ export function PermissionsEditor({
                 {list.map((tool) => {
                   const label = toolText(tool, "label");
                   return (
-                    <ToolRow
-                      key={tool.name}
-                      label={label}
-                      name={tool.name}
-                      description={toolText(tool, "description")}
-                      note={tool.alwaysAsk ? t("alwaysAsk") : undefined}
-                    >
+                    <ToolRow key={tool.name} label={label} name={tool.name} description={toolText(tool, "description")}>
                       <PermissionControl
                         value={builtinPermission(permissions, tool.name, subject)}
-                        onChange={(p) => setPermissions((prev) => withBuiltin(prev, tool, p, kind))}
+                        onChange={(p) => setPermissions((prev) => withBuiltin(prev, tool, p))}
                         label={t("controlFor", { name: label })}
-                        disabled={tool.alwaysAsk ? ["allow"] : undefined}
                       />
                     </ToolRow>
                   );
@@ -578,8 +556,8 @@ export function StateSummary({ values }: { values: ToolPermission[] }) {
 }
 
 /**
- * What an MCP tool declares about itself; the title names the permission it starts at, which a bundled
- * server can set instead of its hints.
+ * What an MCP tool declares about itself; the title names the permission it starts at, which the hints
+ * do not change (a bundled server can set its own).
  */
 function ToolHintBadge({ annotations, builtin }: { annotations?: Record<string, unknown>; builtin: string | null }) {
   const t = useTranslations("agents.permissions");
@@ -600,7 +578,6 @@ function ToolRow({
   label,
   name,
   description,
-  note,
   badges,
   mono,
   children,
@@ -608,8 +585,6 @@ function ToolRow({
   label: string;
   name?: string;
   description?: string;
-  /** Why an option is unavailable; replaces the description line so it stays visible on touch. */
-  note?: string;
   badges?: React.ReactNode;
   mono?: boolean;
   children: React.ReactNode;
@@ -638,19 +613,12 @@ function ToolRow({
               {name}
             </span>
           )}
-          {note && <LockIcon className={cn("size-3.5 shrink-0", PERMISSION_TEXT.ask)} aria-hidden />}
           {badges}
         </div>
-        {note ? (
-          <p className={cn("line-clamp-2 text-xs", PERMISSION_TEXT.ask)} title={description}>
-            {note}
+        {description && (
+          <p className="truncate text-xs text-muted-foreground" title={description}>
+            {description}
           </p>
-        ) : (
-          description && (
-            <p className="truncate text-xs text-muted-foreground" title={description}>
-              {description}
-            </p>
-          )
         )}
       </div>
       {children}

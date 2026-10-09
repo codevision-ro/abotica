@@ -215,17 +215,26 @@ export class TaskBusyError extends UserError {
 }
 
 /** Counted failed runs in a row after which a task's runs no longer start on their own. */
-export const CIRCUIT_BREAKER_FAILURES = 3;
+export const CIRCUIT_BREAKER_FAILURES = 5;
 /** Failures of the setup (key, provider, model): the next run fails the same way, so one is enough. */
 const SETUP_FAILURES = new Set<RunFailureKind>(["provider_auth", "provider_not_allowed", "no_model"]);
-/** Failures that say nothing about the task or its setup: passing, or the user's own stop. */
+/**
+ * Failures that say nothing about the task or its setup: passing (a provider's rate or usage limit, a
+ * worker restart), the user's own stop, or a limit of the run. A run stopped by its step limit, time
+ * limit or the loop detector now ends as succeeded with a note; the kinds stay here for the runs that
+ * failed with them before, which must not open the breaker either.
+ */
 const UNCOUNTED_FAILURES = new Set<RunFailureKind>([
   "rate_limited",
+  "usage_limit",
   "worker_restarted",
   "unqueued",
   "overdue",
   "cancelled_by_user",
   "kill_switch",
+  "step_limit",
+  "timeout",
+  "loop",
 ]);
 /** Recent runs the breaker looks at; an open breaker is never more than a few runs back. */
 const STREAK_WINDOW = 20;

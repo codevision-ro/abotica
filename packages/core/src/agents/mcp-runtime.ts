@@ -23,6 +23,7 @@ import { shellQuote } from "@abotica/sandbox/shell";
 import { dynamicTool, type JSONSchema7, jsonSchema, type Tool, type ToolSet } from "ai";
 import { touchWorkspace } from "../sandbox/sandbox";
 import { DEFAULT_MCP_NETWORK, setupEgressFor } from "../sandbox/sandbox-policy";
+import { withoutHiddenTools } from "../mcp/mcp-builtins";
 import { syncBuiltinMcpServers } from "../mcp/mcp-servers";
 import { MCP_TIMEOUTS } from "../mcp/mcp-stored-values";
 import { currentSandboxBackend } from "../sandbox/sandbox-runtime";
@@ -458,7 +459,8 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
           clients.push(client);
           current = connected;
           // The server may have changed since the cache was written; the next run uses the new list.
-          const definitions = await listToolDefinitions(client).catch(() => null);
+          const listed = await listToolDefinitions(client).catch(() => null);
+          const definitions = listed && withoutHiddenTools(server.builtin, listed);
           if (definitions && !sameToolDefinitions(server.tools, definitions)) {
             await saveMcpToolCache(server.id, definitions).catch(() => {});
           }
@@ -488,17 +490,19 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
   const listings = await Promise.all(
     servers.map(async (server) => {
       if (isComplete(server.tools)) {
+        // A cache written before a tool was hidden still lists it.
+        const definitions = withoutHiddenTools(server.builtin, server.tools);
         return {
           server,
-          definitions: server.tools,
-          tools: serverTools(server, server.tools, lazyClient(server), opts, redactor),
+          definitions,
+          tools: serverTools(server, definitions, lazyClient(server), opts, redactor),
         };
       }
       // No usable cache yet: connect now, list the tools and remember them for the next runs.
       try {
         const connected = await connectWithin(server, opts);
         clients.push(connected.client);
-        const definitions = await listToolDefinitions(connected.client);
+        const definitions = withoutHiddenTools(server.builtin, await listToolDefinitions(connected.client));
         // The cache only feeds the agent form and later runs; a failed write must never fail this one.
         if (!sameToolDefinitions(server.tools, definitions)) await saveMcpToolCache(server.id, definitions).catch(() => {});
         return {
@@ -556,7 +560,7 @@ export async function prepareBuiltinMcpServers(): Promise<void> {
     if (server.transport === "stdio" && !currentSandboxBackend()) continue;
     // Nobody asked for this listing: the server gets the global secrets only.
     const result = await probeMcpServer(server, GLOBAL_SECRETS);
-    if (result.ok) await saveMcpToolCache(server.id, result.tools);
+    if (result.ok) await saveMcpToolCache(server.id, withoutHiddenTools(server.builtin, result.tools));
     else console.error(`[mcp] listing the tools of ${server.slug} failed: ${result.error}`);
   }
 }

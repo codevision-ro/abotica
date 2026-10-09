@@ -26,7 +26,8 @@ const DAY_MS = 24 * HOUR_MS;
 
 /**
  * When idle workspaces are paused, stopped and deleted (Settings > Sandbox). A paused container keeps
- * its memory and what runs in it (dev servers, databases) waits, frozen; a stopped one keeps its volume.
+ * its memory, frozen; one with a process still running in the background (a build, a crawl, a dev
+ * server) is not paused, so that work goes on. A stopped container keeps its volume.
  */
 export function idleTimings(settings: SandboxSettings) {
   return {

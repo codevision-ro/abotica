@@ -258,7 +258,6 @@
     "managerGroup": "{group} (a manager's tools)",
     "controlFor": "Permission for {name}",
     "groupControlFor": "Permission for every tool in {group}",
-    "alwaysAsk": "Always waits for your approval, it cannot run on its own",
     "mcpTitle": "MCP servers",
     "mcpDescription": "Tools from external servers. The default applies to servers without their own setting, including those the agent gets through its projects.",
     "mcpDefault": "Default for MCP servers",
@@ -281,14 +280,14 @@
     "builtinBadge": "Built-in",
     "offForAgent": "off for this agent",
     "globalNote": "Every agent gets it. Deny turns it off for this one.",
-    "mcpDefaultFromHints": "From each tool's hints: read-only and non-destructive tools run, the others ask",
-    "useHints": "Use each tool's hints instead",
+    "mcpDefaultFromHints": "Every tool runs unless you choose otherwise for it or its server",
+    "useHints": "Use the default instead",
     "hintReadOnly": "Read-only",
     "hintNonDestructive": "Non-destructive",
     "hintDestructive": "Destructive",
     "hintNone": "No hints",
     "bundledDefault": "Default for this bundled server: {permission}",
-    "hintDefault": "Default from the server's hints: {permission}"
+    "hintDefault": "Default: {permission}. The hints describe the tool, they do not set its permission"
   },
   "effort": {
     "label": "Reasoning effort",

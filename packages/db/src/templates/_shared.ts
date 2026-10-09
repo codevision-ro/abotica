@@ -7,10 +7,11 @@ import type { AgentLimits, agents } from "../schema";
  */
 export type AgentTemplate = Omit<typeof agents.$inferInsert, "isTemplate">;
 
-export const limits = (maxSteps: number, minutes: number, budgetUsd: number): AgentLimits => ({
+/** Generous run limits with no budget per run: the monthly budget is what guards the cost. */
+export const limits = (maxSteps: number, minutes: number): AgentLimits => ({
   maxSteps,
   timeoutMs: minutes * 60_000,
-  budgetUsd,
+  budgetUsd: null,
 });
 
 /** Paragraphs separated by a blank line; a paragraph given as lines keeps them on their own lines. */

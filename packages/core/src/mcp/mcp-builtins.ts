@@ -22,6 +22,11 @@ type BuiltinBase = {
    * tool's hints (agents/permissions.ts `mcpToolDefault`).
    */
   defaultPermission?: ToolPermission;
+  /**
+   * Tools of the server no agent gets. Only for what would cross the one line Abotica keeps: a tool that
+   * runs code as the MCP user could read the other MCP servers' credentials from their processes.
+   */
+  hiddenTools?: readonly string[];
 };
 
 export type BuiltinHttpMcp = BuiltinBase & {
@@ -74,12 +79,18 @@ export const BUILTIN_MCP_SERVERS: readonly BuiltinMcp[] = [
     // Browsing is clicks and typing, which Playwright MCP declares destructive: asking for each would
     // make the browser unusable. It runs in the sandbox with a fresh profile per run (--isolated).
     defaultPermission: "allow",
+    // Runs JavaScript in the server's own Node process (its description says "RCE-equivalent"): as the
+    // MCP user it could read the other MCP servers' environments, where their keys are. Page scripts
+    // (browser_evaluate) run in the browser and stay available.
+    hiddenTools: ["browser_run_code_unsafe"],
     transport: "stdio",
     command: "abotica-proxy-run",
     // Fresh profile per run. Screenshots land in the folder it starts in, which in a run's workspace
     // is outside the volume and readable by the agent (`mcpOutputFolder`): it can share them from
-    // there, and Playwright reads and writes files only inside that folder. Images stay out of the
-    // answers: not every model reads them, and the snapshot is the page.
+    // there, and Playwright reads and writes files only inside that folder. Screenshots also go to
+    // the model with the answer, so an agent can see the page it builds (a model that reads no
+    // images gets a line saying so, see input-modalities.ts). Loopback skips the proxy, which
+    // refuses it, so the browser opens the servers the agent runs in the workspace.
     args: [
       "playwright-mcp",
       "--headless",
@@ -87,10 +98,10 @@ export const BUILTIN_MCP_SERVERS: readonly BuiltinMcp[] = [
       "--browser",
       "chromium",
       "--proxy-server={proxy}",
+      "--proxy-bypass",
+      "localhost,127.0.0.1,[::1]",
       "--output-dir",
       ".",
-      "--image-responses",
-      "omit",
       "--codegen",
       "none",
     ],
@@ -110,3 +121,9 @@ export const BUILTIN_MCP_SERVERS: readonly BuiltinMcp[] = [
 
 export const builtinMcp = (key: string | null | undefined): BuiltinMcp | undefined =>
   key ? BUILTIN_MCP_SERVERS.find((b) => b.key === key) : undefined;
+
+/** The tool definitions of a server without the ones its bundled entry hides from agents (`hiddenTools`). */
+export function withoutHiddenTools<T extends { name: string }>(builtin: string | null | undefined, tools: T[]): T[] {
+  const hidden = builtinMcp(builtin)?.hiddenTools;
+  return hidden?.length ? tools.filter((tool) => !hidden.includes(tool.name)) : tools;
+}

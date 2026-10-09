@@ -8,6 +8,7 @@ import {
   effectiveWindow,
   estimateTokens,
   historyCut,
+  IMAGE_TOKENS,
   keepBudget,
   measuredPrompt,
   pickCut,
@@ -51,6 +52,36 @@ describe("effectiveWindow", () => {
     ).toBe(200_000);
     expect(effectiveWindow([{ provider: "ollama", model: "local" }], catalog)).toBeNull();
     expect(effectiveWindow([{ provider: "openai", model: "unlisted" }], catalog)).toBeNull();
+  });
+});
+
+describe("approxTokens", () => {
+  const base64 = "A".repeat(400_000);
+
+  it("counts text and JSON at about 4 characters a token", () => {
+    expect(approxTokens("12345678")).toBe(2);
+    expect(approxTokens({ a: "1234" })).toBe(Math.ceil('{"a":"1234"}'.length / 4));
+    // A long string outside an image is text, however long.
+    expect(approxTokens({ content: base64 })).toBeGreaterThan(100_000);
+  });
+
+  it("counts an image as IMAGE_TOKENS, not by its base64", () => {
+    const read = { path: "shot.png", mediaType: "image/png", bytes: 300_000, image: base64 };
+    const mcp = { content: [{ type: "image", mimeType: "image/png", data: base64 }] };
+    const modelPart = { type: "file", mediaType: "image/png", data: { type: "data", data: base64 } };
+    for (const value of [read, mcp, [{ type: "content", value: [modelPart] }]]) {
+      const tokens = approxTokens(value);
+      expect(tokens).toBeGreaterThan(IMAGE_TOKENS);
+      expect(tokens).toBeLessThan(IMAGE_TOKENS + 100);
+    }
+    expect(approxTokens([read, read])).toBeGreaterThan(2 * IMAGE_TOKENS);
+  });
+
+  it("keeps short data and files that are not images as text", () => {
+    const icon = { mediaType: "image/png", image: "iVBORw0KGgo=" };
+    expect(approxTokens(icon)).toBe(Math.ceil(JSON.stringify(icon).length / 4));
+    const pdf = { mediaType: "application/pdf", data: base64 };
+    expect(approxTokens(pdf)).toBeGreaterThan(100_000);
   });
 });
 

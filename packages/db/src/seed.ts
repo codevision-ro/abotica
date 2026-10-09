@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "./client";
-import { agents, appState, DEFAULT_AGENT_LIMITS } from "./schema";
+import { agents, appState } from "./schema";
 import { ORCHESTRATOR_PERMISSIONS } from "./seed-permissions";
 import { AGENT_TEMPLATES, RETIRED_TEMPLATES } from "./templates";
 
@@ -17,7 +17,8 @@ const seeds: (typeof agents.$inferInsert)[] = [
     role: "Super agent (orchestrator)",
     kind: "orchestrator",
     permissions: ORCHESTRATOR_PERMISSIONS,
-    limits: { ...DEFAULT_AGENT_LIMITS, maxSteps: 30, budgetUsd: 2 },
+    // No budget per run: the monthly budget is what guards the cost.
+    limits: { maxSteps: 150, timeoutMs: 120 * 60_000, budgetUsd: null },
   },
   ...AGENT_TEMPLATES.map((template) => ({ ...template, isTemplate: true })),
 ];

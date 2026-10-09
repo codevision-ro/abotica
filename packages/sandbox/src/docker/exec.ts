@@ -47,6 +47,13 @@ done
 exit 0
 `;
 
+/**
+ * Hosts a process reaches directly: the workspace's own servers (a dev server, a database from
+ * `services`, a page served to check in the browser), which the egress proxy refuses as loopback.
+ * Credential routes keep going through the proxy: their reserved host (routes.ts) is not one of these.
+ */
+export const NO_PROXY_HOSTS = "localhost,127.0.0.1,::1";
+
 /** Proxy variables for every tool we know of: curl, pip, uv, npm, git, Node's fetch (NODE_USE_ENV_PROXY). */
 export function proxyEnv(url: string): Record<string, string> {
   return {
@@ -56,8 +63,8 @@ export function proxyEnv(url: string): Record<string, string> {
     http_proxy: url,
     https_proxy: url,
     all_proxy: url,
-    NO_PROXY: "",
-    no_proxy: "",
+    NO_PROXY: NO_PROXY_HOSTS,
+    no_proxy: NO_PROXY_HOSTS,
     NODE_USE_ENV_PROXY: "1",
   };
 }

@@ -1,8 +1,9 @@
 import path from "node:path";
-import { type Experimental_SandboxSession, tool } from "ai";
+import { type Experimental_SandboxSession, type JSONValue, tool } from "ai";
 import { z } from "zod";
 import { fileUrl } from "../../files/file-types";
 import { type FileOwner, saveFile } from "../../files/files";
+import { type ImageMediaType, imageMediaType, imageSize } from "../../files/image-info";
 import { FILE_MAX_BYTES } from "../../platform/limits";
 import { logRunEvent } from "../../runs/run-lifecycle";
 import type { Agent, RunContext } from "../context";
@@ -38,8 +39,53 @@ const pathInput = z
 
 type Sandbox = Experimental_SandboxSession;
 
-/** A text file's content, or an error for the model when it is missing, binary or too large. */
-async function readText(sandbox: Sandbox, file: string, abortSignal?: AbortSignal): Promise<string | { error: string }> {
+/**
+ * Largest image file_read returns. Providers take about 5 MB of base64 per image, which is 3.75 MB
+ * of file; past that the whole step would fail, so the agent is asked for a smaller copy instead.
+ */
+const IMAGE_MAX_BYTES = 3_750_000;
+
+/** An image file_read returns, as base64; toModelOutput turns it into a file part the model sees. */
+type ImageRead = {
+  path: string;
+  mediaType: ImageMediaType;
+  bytes: number;
+  width?: number;
+  height?: number;
+  image: string;
+};
+
+const isImageRead = (value: unknown): value is ImageRead =>
+  typeof value === "object" && value !== null && typeof (value as ImageRead).image === "string";
+
+/** An image the model can look at, or an error when it is too large for a provider to take. */
+function imageRead(file: string, bytes: Uint8Array, mediaType: ImageMediaType): ImageRead | { error: string } {
+  if (bytes.length > IMAGE_MAX_BYTES) {
+    return {
+      error: `Image ${file} is ${(bytes.length / 1_000_000).toFixed(1)} MB; file_read shows images up to ${IMAGE_MAX_BYTES / 1_000_000} MB. Save a smaller copy (e.g. \`convert ${file} -resize 50% small.jpg\`) and read that.`,
+    };
+  }
+  const size = imageSize(bytes, mediaType);
+  return {
+    path: file,
+    mediaType,
+    bytes: bytes.length,
+    ...size,
+    image: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64"),
+  };
+}
+
+/**
+ * A text file's content, or an error for the model when it is missing, binary or too large. With
+ * `images` (file_read), a PNG, JPEG, GIF or WebP comes back as an image for the model to look at;
+ * file_edit leaves it out, an image is not text to edit.
+ */
+async function readText(
+  sandbox: Sandbox,
+  file: string,
+  abortSignal?: AbortSignal,
+  { images = false }: { images?: boolean } = {},
+): Promise<string | ImageRead | { error: string }> {
   const stream = await sandbox.readFile({ path: file, abortSignal });
   if (!stream) return { error: `File ${file} does not exist.` };
   const bytes = await readAtMost(stream, TEXT_FILE_MAX_BYTES);
@@ -48,11 +94,36 @@ async function readText(sandbox: Sandbox, file: string, abortSignal?: AbortSigna
       error: `File ${file} is larger than ${TEXT_FILE_MAX_BYTES / (1024 * 1024)} MB. Use shell_run with head, tail, sed or grep to read parts of it.`,
     };
   }
+  const mediaType = images ? imageMediaType(bytes) : null;
+  if (mediaType) return imageRead(file, bytes, mediaType);
   const text = decodeText(bytes);
   if (text === null) {
-    return { error: `File ${file} is not a text file. Inspect it with shell_run (file, xxd, or a script).` };
+    const kind = images ? "a text file or an image" : "a text file";
+    return { error: `File ${file} is not ${kind}. Inspect it with shell_run (file, xxd, or a script).` };
   }
   return text;
+}
+
+/**
+ * What the model gets from file_read: an image as a file part after a line naming it, anything else
+ * as JSON, as the AI SDK sends a tool result by default.
+ */
+function fileReadModelOutput({ output }: { output: unknown }) {
+  if (!isImageRead(output)) return { type: "json" as const, value: output as JSONValue };
+  const size = output.width && output.height ? `, ${output.width}x${output.height} px` : "";
+  const kb = Math.max(1, Math.round(output.bytes / 1024));
+  return {
+    type: "content" as const,
+    value: [
+      { type: "text" as const, text: `${output.path}: ${output.mediaType}${size}, ${kb} KB.` },
+      {
+        type: "file" as const,
+        mediaType: output.mediaType,
+        filename: path.posix.basename(output.path),
+        data: { type: "data" as const, data: output.image },
+      },
+    ],
+  };
 }
 
 /** A workspace file's bytes (at most FILE_MAX_BYTES), or an error for the model. */
@@ -165,7 +236,7 @@ export const workspaceTools: Record<string, ToolFactory> = {
   file_read: (ctx) =>
     tool({
       description:
-        "Read a text file from your workspace. Optionally pass a line range (1-based, inclusive). Returns the content and the total number of lines; the first read in a repository folder also returns its instructions for coding agents (repoInstructions).",
+        "Read a text file from your workspace. Optionally pass a line range (1-based, inclusive). Returns the content and the total number of lines; the first read in a repository folder also returns its instructions for coding agents (repoInstructions). An image (PNG, JPEG, GIF, WebP) is shown to you as a picture, e.g. a screenshot to check a page you built.",
       inputSchema: z.object({
         path: pathInput,
         startLine: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).optional()),
@@ -174,7 +245,7 @@ export const workspaceTools: Record<string, ToolFactory> = {
       execute: ({ path: file, startLine, endLine }, { abortSignal, experimental_sandbox: sandbox }) =>
         guarded(abortSignal, async () => {
           if (!sandbox) return NO_SANDBOX;
-          const text = await readText(sandbox, file, abortSignal);
+          const text = await readText(sandbox, file, abortSignal, { images: true });
           if (typeof text !== "string") return text;
           const { content, totalLines } = sliceLines(text, startLine, endLine);
           const shown = clip(content, READ_CHARS)!;
@@ -190,6 +261,7 @@ export const workspaceTools: Record<string, ToolFactory> = {
             ...(repoInstructions && { repoInstructions }),
           };
         }),
+      toModelOutput: fileReadModelOutput,
     }),
 
   file_write: () =>

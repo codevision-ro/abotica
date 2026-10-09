@@ -54,15 +54,19 @@ describe("failureStreak (the task's circuit breaker)", () => {
   const streak = async (history: Outcome[], assignee: string | null = "a1") =>
     (await load()).failureStreak(history as never, assignee);
 
-  it("opens after 3 counted failures in a row, with the last one's error", async () => {
-    expect(await streak([failed("loop"), failed("other")])).toEqual({
-      failures: 2,
-      reason: "failed: other",
+  const times = (n: number, outcome: () => Outcome) => Array.from({ length: n }, outcome);
+
+  it("opens after CIRCUIT_BREAKER_FAILURES counted failures in a row, with the last one's error", async () => {
+    const { CIRCUIT_BREAKER_FAILURES } = await load();
+    expect(CIRCUIT_BREAKER_FAILURES).toBe(5);
+    expect(await streak([...times(3, () => failed("other")), failed("context_overflow")])).toEqual({
+      failures: 4,
+      reason: "failed: context_overflow",
       open: false,
     });
-    expect(await streak([failed("loop"), failed("other"), failed("step_limit")])).toEqual({
-      failures: 3,
-      reason: "failed: step_limit",
+    expect(await streak([...times(4, () => failed("other")), failed("providers_unavailable")])).toEqual({
+      failures: 5,
+      reason: "failed: providers_unavailable",
       open: true,
     });
   });
@@ -73,16 +77,26 @@ describe("failureStreak (the task's circuit breaker)", () => {
     }
   });
 
-  it("does not count transient failures and the user's stops, nor let them break the streak", async () => {
-    const skipped = ["rate_limited", "worker_restarted", "unqueued", "overdue", "cancelled_by_user", "kill_switch"];
-    for (const kind of skipped)
-      expect(await streak([failed(kind), failed(kind), failed(kind)])).toMatchObject({ open: false });
+  it("does not count transient failures, the user's stops and the run's limits, nor let them break the streak", async () => {
+    const skipped = [
+      "rate_limited",
+      "usage_limit",
+      "worker_restarted",
+      "unqueued",
+      "overdue",
+      "cancelled_by_user",
+      "kill_switch",
+      "step_limit",
+      "timeout",
+      "loop",
+    ];
+    for (const kind of skipped) expect(await streak(times(10, () => failed(kind)))).toMatchObject({ open: false });
     expect(
-      await streak([failed("loop"), failed("rate_limited"), failed("loop"), failed("worker_restarted")]),
+      await streak([failed("other"), failed("rate_limited"), failed("other"), failed("worker_restarted"), failed("loop")]),
     ).toMatchObject({ failures: 2, open: false });
     // A manager stopping a run to redirect the work is not a failure either.
     const cancelledByAgent = { ...failed("other"), status: "cancelled" };
-    expect(await streak([failed("loop"), failed("loop"), cancelledByAgent])).toMatchObject({ failures: 2, open: false });
+    expect(await streak([failed("other"), failed("other"), cancelledByAgent])).toMatchObject({ failures: 2, open: false });
   });
 
   it("skips runs from before failure kinds were recorded", async () => {
@@ -91,18 +105,18 @@ describe("failureStreak (the task's circuit breaker)", () => {
   });
 
   it("resets on a success", async () => {
-    expect(await streak([failed("loop"), failed("loop"), succeeded(), failed("loop")])).toMatchObject({
+    expect(await streak([failed("other"), failed("other"), succeeded(), failed("other")])).toMatchObject({
       failures: 1,
       open: false,
     });
   });
 
   it("counts only the current assignee's runs", async () => {
-    expect(await streak([failed("provider_auth", "a0"), failed("loop", "a0"), failed("loop", "a0")])).toMatchObject({
+    expect(await streak([failed("provider_auth", "a0"), failed("other", "a0"), failed("other", "a0")])).toMatchObject({
       failures: 0,
       open: false,
     });
-    expect(await streak([failed("loop"), failed("loop"), failed("loop", "a0"), failed("loop")])).toMatchObject({
+    expect(await streak([failed("other"), failed("other"), failed("other", "a0"), failed("other")])).toMatchObject({
       failures: 1,
     });
   });
@@ -110,9 +124,9 @@ describe("failureStreak (the task's circuit breaker)", () => {
   it("starts over with a run started while open, which only the user's forced start does", async () => {
     // A forced run that fails the same setup way opens it again at once.
     expect(await streak([failed("provider_auth"), failed("provider_auth")])).toMatchObject({ failures: 1, open: true });
-    // Other failures get their 3 attempts again.
-    const opened = [failed("loop"), failed("loop"), failed("loop")];
-    expect(await streak([...opened, failed("loop")])).toMatchObject({ failures: 1, open: false });
+    // Other failures get their attempts again.
+    const opened = times(5, () => failed("other"));
+    expect(await streak([...opened, failed("other")])).toMatchObject({ failures: 1, open: false });
     // A forced run that is still going leaves nothing open.
     const running = { agentId: "a1", status: "running", failureKind: null, error: null };
     expect(await streak([...opened, running])).toMatchObject({ failures: 0, open: false });

@@ -63,7 +63,7 @@
   },
   "task_delete": {
     "label": "Șterge task-uri",
-    "description": "Șterge un task cu sub-task-urile lui, după aprobare",
+    "description": "Șterge un task cu sub-task-urile lui",
     "running": "Șterge un task"
   },
   "task_comment": {

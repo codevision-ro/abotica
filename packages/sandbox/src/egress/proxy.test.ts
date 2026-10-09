@@ -5,6 +5,7 @@ import type net from "node:net";
 import type { Duplex } from "node:stream";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { NO_PROXY_HOSTS } from "../docker/exec";
 import { testCertificate } from "../testing";
 import { startEgressProxy, type EgressProxy } from "./proxy";
 import { ROUTE_HOST, routeUrl } from "./routes";
@@ -433,8 +434,8 @@ describe("credential routes", () => {
             HTTPS_PROXY: proxyUrl,
             http_proxy: proxyUrl,
             https_proxy: proxyUrl,
-            NO_PROXY: "",
-            no_proxy: "",
+            NO_PROXY: NO_PROXY_HOSTS,
+            no_proxy: NO_PROXY_HOSTS,
             NODE_USE_ENV_PROXY: "1",
           },
         });

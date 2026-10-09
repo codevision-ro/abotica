@@ -11,7 +11,7 @@ import {
   staleRunReason,
 } from "./run-lifecycle";
 import { interruptRunMessage } from "./run-messages";
-import { awaitsDelegatedWork, awaitsWakeup, updateTask } from "../tasks/tasks";
+import { addTaskComment, awaitsDelegatedWork, awaitsWakeup, updateTask } from "../tasks/tasks";
 
 type Run = {
   id: string;
@@ -311,11 +311,11 @@ describe("finishRun with the run's task", () => {
     vi.mocked(awaitsDelegatedWork).mockResolvedValue(false);
   });
 
-  const finish = async () => {
+  const finish = async (end: { error?: string; unfinished?: boolean } = {}) => {
     const running = { ...run("r1", "running", MINUTE), taskId: "t1", trigger: "task" };
     active.push({ run: running, limits: null });
     taskRows.push({ id: "t1", status: "in_progress", output: null });
-    await finishRun(running as never, { status: "succeeded", output: "Done", actor: "agent:dev" });
+    await finishRun(running as never, { status: "succeeded", output: "Done", actor: "agent:dev", ...end });
   };
 
   it("moves the task to review when it waits for nothing", async () => {
@@ -323,6 +323,19 @@ describe("finishRun with the run's task", () => {
     await finish();
     expect(updateTask).toHaveBeenCalledWith("t1", { status: "review", output: "Done" }, "agent:dev");
     expect(enqueueTaskEvent).not.toHaveBeenCalled();
+    expect(addTaskComment).not.toHaveBeenCalled();
+  });
+
+  it("moves a task whose run stopped at a limit to review, with a comment that it is not finished", async () => {
+    vi.mocked(awaitsWakeup).mockResolvedValue(false);
+    await finish({ error: "The run used up its 150 steps while still working", unfinished: true });
+    expect(updateTask).toHaveBeenCalledWith("t1", { status: "review", output: "Done" }, "agent:dev");
+    expect(updateTask).not.toHaveBeenCalledWith("t1", { status: "blocked" }, expect.anything());
+    expect(addTaskComment).toHaveBeenCalledExactlyOnceWith(
+      "t1",
+      expect.stringMatching(/used up its 150 steps.*The task is not complete/),
+      "system",
+    );
   });
 
   it("keeps a task waiting for a wakeup in progress and has its wakeups checked", async () => {

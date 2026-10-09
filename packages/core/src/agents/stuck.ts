@@ -4,13 +4,17 @@ import { type StepPreparer, withUserMessage } from "./step-preparation";
 
 /**
  * Loop detection: a run that keeps making the same tool calls and getting the same results burns steps
- * and money until a limit stops it. The signals and their thresholds are OpenHands' stuck detector
- * (sdk/conversation/stuck_detector.py, thresholds in conversation/types.py). Pure: it reads only the
- * run's steps, the steps streamText hands to stop conditions and to prepareStep.
+ * and money until a limit stops it. The signals are OpenHands' stuck detector
+ * (sdk/conversation/stuck_detector.py). Pure: it reads only the run's steps, the steps streamText hands
+ * to stop conditions and to prepareStep.
  */
 
-/** Steps in a row that make a loop: the same calls with the same results, the same calls failing, A-B-A-B. */
-export const LOOP_THRESHOLDS = { repeat: 4, error: 3, alternation: 6 } as const;
+/**
+ * Steps in a row that make a loop: the same calls with the same results, the same calls failing, A-B-A-B.
+ * Twice OpenHands' values (4, 3, 6): agents here do long work, where a check repeated a few times is
+ * normal, and a stop ends the run with its answer so far instead of failing it.
+ */
+export const LOOP_THRESHOLDS = { repeat: 8, error: 6, alternation: 12 } as const;
 
 export type LoopPattern = keyof typeof LOOP_THRESHOLDS;
 
@@ -19,8 +23,22 @@ export type LoopHit = { pattern: LoopPattern; tools: string[]; steps: number };
 
 type Step = Pick<StepResult<ToolSet>, "content">;
 
-/** A step's tool calls, fingerprinted: `calls` the calls alone, `outcome` the calls with their results. */
-type StepPrint = { calls: string; outcome: string; tools: string[]; failed: boolean };
+/**
+ * A step's tool calls, fingerprinted: `calls` the calls alone, `outcome` the calls with their results.
+ * `waits`: every call waited before it looked (a shell command with a sleep), so the step is a poll.
+ */
+type StepPrint = { calls: string; outcome: string; tools: string[]; failed: boolean; waits: boolean };
+
+const SHELL_TOOLS = new Set(["shell_run", "shell_run_root"]);
+/** `sleep 30`, `sleep 1m`, `sleep 0.5`: a command that waits on purpose before it checks. */
+const SLEEP_RE = /\bsleep\s+\d/;
+
+/** A shell command that sleeps: polling a build, a crawl or a server, which reads the same until it changes. */
+function waitsBeforeChecking(tool: string, input: unknown): boolean {
+  if (!SHELL_TOOLS.has(tool) || typeof input !== "object" || input === null) return false;
+  const command = (input as { command?: unknown }).command;
+  return typeof command === "string" && SLEEP_RE.test(command);
+}
 
 /** JSON with object keys sorted, so equal values give the same text whatever the order of their keys. */
 function stableJson(value: unknown): string {
@@ -45,11 +63,12 @@ function stepPrint(step: Step): StepPrint | null {
     if (part.type !== "tool-result" && part.type !== "tool-error") return [];
     if (part.type === "tool-result" && part.preliminary) return [];
     const call = `${part.toolName}:${stableJson(part.input)}`;
-    if (part.type === "tool-error") return [{ tool: part.toolName, call, result: "error", failed: true }];
+    const waits = waitsBeforeChecking(part.toolName, part.input);
+    if (part.type === "tool-error") return [{ tool: part.toolName, call, result: "error", failed: true, waits }];
     // A cut output names the file with its full text after the call id (tool-output.ts): without the
     // id, the same output twice reads the same.
     const result = stableJson(part.output).replaceAll(part.toolCallId, "");
-    return [{ tool: part.toolName, call, result, failed: isErrorOutput(part.output) }];
+    return [{ tool: part.toolName, call, result, failed: isErrorOutput(part.output), waits }];
   });
   if (!outcomes.length) return null;
   // Parallel calls come back in any order.
@@ -59,6 +78,7 @@ function stepPrint(step: Step): StepPrint | null {
     outcome: digest(outcomes.map((o) => `${o.call}\n${o.result}`).join("\n")),
     tools: [...new Set(outcomes.map((o) => o.tool))],
     failed: outcomes.every((o) => o.failed),
+    waits: outcomes.every((o) => o.waits),
   };
 }
 
@@ -86,11 +106,15 @@ export function detectLoop(steps: Step[]): LoopHit | null {
 
   const failing = last(LOOP_THRESHOLDS.error);
   if (failing?.every((p) => p.failed && p.calls === failing[0]!.calls)) return hit("error", failing);
+  // Polling is not a loop: a status that has not changed yet reads the same each time it is checked.
+  // The run's step and time limits still bound it.
   const repeated = last(LOOP_THRESHOLDS.repeat);
-  if (repeated?.every((p) => p.outcome === repeated[0]!.outcome)) return hit("repeat", repeated);
+  if (repeated?.every((p) => p.outcome === repeated[0]!.outcome) && !repeated[0]!.waits) return hit("repeat", repeated);
   const alternating = last(LOOP_THRESHOLDS.alternation);
   if (
     alternating &&
+    // Sleeping, then checking: polling too.
+    !alternating.some((p) => p.waits) &&
     alternating[0]!.outcome !== alternating[1]!.outcome &&
     alternating.every((p, i) => i < 2 || p.outcome === alternating[i - 2]!.outcome)
   ) {
@@ -122,8 +146,8 @@ export type LoopGuard = {
 
 /**
  * Loop handling for one run: the first loop gets a nudge (a user message appended to the prompt, which
- * stays for the later steps), a loop after it stops the run. `onNudge` reports the nudge, e.g. as a run
- * event.
+ * stays for the later steps), a loop after it stops the run, which ends with its answer so far (not as
+ * a failure: see runner.ts). `onNudge` reports the nudge, e.g. as a run event.
  */
 export function loopGuard(onNudge: (loop: LoopHit, text: string) => void): LoopGuard {
   let nudged = false;

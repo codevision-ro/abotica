@@ -13,6 +13,6 @@ export const MANAGEMENT_TEMPLATES: AgentTemplate[] = [
     role: "Project manager",
     kind: "manager",
     permissions: MANAGER_PERMISSIONS,
-    limits: limits(40, 20, 2),
+    limits: limits(150, 120),
   },
 ];

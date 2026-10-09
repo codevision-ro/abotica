@@ -31,10 +31,10 @@ export type EmbeddingProvider = (typeof EMBEDDING_PROVIDERS)[number];
 /** Bounds of every numeric setting, by domain; forms show them and the schemas enforce them. */
 export const SETTINGS_LIMITS = {
   agents: {
-    parallelDelegations: { min: 1, max: 10 },
-    maxRedelegations: { min: 0, max: 10 },
-    maxFixRounds: { min: 0, max: 10 },
-    maxSteps: { min: 1, max: 100 },
+    parallelDelegations: { min: 1, max: 50 },
+    maxRedelegations: { min: 0, max: 50 },
+    maxFixRounds: { min: 0, max: 50 },
+    maxSteps: { min: 1, max: 2000 },
     timeoutMinutes: { min: 1, max: 24 * 60 },
     budgetUsd: { min: 0.01, max: 1000 },
     instructionsLength: { min: 0, max: 10_000 },
@@ -48,7 +48,7 @@ export const SETTINGS_LIMITS = {
     unusedDays: { min: 7, max: 365 },
   },
   sandbox: {
-    commandTimeoutSec: { min: 10, max: 3600 },
+    commandTimeoutSec: { min: 10, max: 6 * 3600 },
     memoryMb: { min: 256, max: 65_536 },
     cpus: { min: 0.25, max: 64 },
     pids: { min: 64, max: 32_768 },
@@ -61,7 +61,7 @@ export const SETTINGS_LIMITS = {
   reports: { hour: { min: 0, max: 23 }, weekday: { min: 0, max: 6 } },
   budget: { monthlyUsd: { min: 0.01, max: 1_000_000 }, alertPercent: { min: 1, max: 99 }, alerts: { min: 0, max: 4 } },
   security: { sessionDays: { min: 1, max: 365 } },
-  system: { runConcurrency: { min: 1, max: 20 } },
+  system: { runConcurrency: { min: 1, max: 100 } },
 } as const satisfies Record<string, Record<string, Range>>;
 
 export type GeneralSettings = {
@@ -127,9 +127,9 @@ export type SandboxSettings = {
   cpus: number;
   /** Process limit per workspace container. */
   pids: number;
-  /** An idle container is paused after this many minutes (its processes freeze). */
+  /** A container without commands is paused after this many minutes, unless something runs in its background. */
   pauseIdleMinutes: number;
-  /** A paused container is stopped after this many idle hours. */
+  /** A container without commands is stopped after this many hours, with whatever still runs in it. */
   stopIdleHours: number;
   /** A chat's workspace is deleted after this many days unused. */
   workspaceRetentionDays: number;
@@ -215,10 +215,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   agents: {
     instructions: "",
-    parallelDelegations: 2,
-    maxRedelegations: 2,
-    maxFixRounds: 2,
-    defaultLimits: { maxSteps: 20, timeoutMs: 10 * 60_000, budgetUsd: 1 },
+    parallelDelegations: 5,
+    maxRedelegations: 5,
+    maxFixRounds: 5,
+    // Room for real work (a build, a crawl, a refactor): cost is held by the monthly budget the user
+    // sets, not by a small limit per run, so a run has no budget of its own unless an agent is given one.
+    defaultLimits: { maxSteps: 150, timeoutMs: 120 * 60_000, budgetUsd: null },
   },
   memory: {
     embeddingProvider: "local",
@@ -232,11 +234,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sandbox: {
     enabled: true,
     defaults: DEFAULT_SANDBOX_POLICY,
-    commandTimeoutSec: 300,
+    // A single command may be a long build, test suite or data job.
+    commandTimeoutSec: 3600,
     runtime: "auto",
-    memoryMb: 2048,
-    cpus: 2,
-    pids: 512,
+    memoryMb: 4096,
+    cpus: 4,
+    pids: 4096,
     pauseIdleMinutes: 15,
     stopIdleHours: 6,
     workspaceRetentionDays: 30,

@@ -59,11 +59,6 @@ export type RunContext = {
   notesProjectId: string | null;
   skills: SkillRef[];
   mcpServers: McpServer[];
-  /**
-   * Slugs of the servers a project manager has only through its project: it gets their read-only
-   * tools alone (permissions.ts `mcpRunPermission`), since it briefs and reviews rather than produces.
-   */
-  readOnlyMcpServers: Set<string>;
   /** The project's git repositories, with their tokens; empty outside a project. */
   repos: RunRepo[];
   settings: AppSettings;
@@ -129,8 +124,6 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
     .where(eq(agentMcpServers.agentId, agent.id));
   // Global servers reach every agent; an agent opts out by denying the server in its permissions.
   mcpRows.push(...(await db.select({ server: mcpServers }).from(mcpServers).where(eq(mcpServers.global, true))));
-  const ownServerIds = new Set(mcpRows.map((r) => r.server.id));
-  const readOnlyMcpServers = new Set<string>();
   if (project) {
     skillRows.push(
       ...(await db
@@ -152,9 +145,6 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
         .innerJoin(mcpServers, eq(mcpServers.id, projectMcpServers.mcpServerId))
         .where(eq(projectMcpServers.projectId, project.id))),
     );
-    if (project.managerAgentId === agent.id) {
-      for (const { server } of mcpRows) if (!ownServerIds.has(server.id)) readOnlyMcpServers.add(server.slug);
-    }
   }
 
   // A skill test conversation adds the skill under test, even when it is disabled or not assigned.
@@ -195,7 +185,6 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
       mcpRows.map((r) => r.server).filter((s) => s.enabled),
       (s) => s.id,
     ),
-    readOnlyMcpServers,
     repos: project ? await runRepos(project.id) : [],
     settings: await getSettings(),
     sandbox: null,

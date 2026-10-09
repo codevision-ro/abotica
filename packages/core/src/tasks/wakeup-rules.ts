@@ -18,16 +18,24 @@ export const WAKEUP_KINDS: readonly WakeupKind[] = [
   "task_status",
 ];
 
-/** Fires a repeating wakeup makes unless the agent asks for fewer (Multica's default). */
-export const DEFAULT_MAX_FIRES = 20;
-/** The most fires an agent may ask of a repeating wakeup. */
-export const MAX_FIRES_LIMIT = 100;
-/** Wake runs of one task in an hour; past them its wakeups pause (Multica's value). */
-export const MAX_WAKES_PER_HOUR = 12;
+/**
+ * The most fires a repeating wakeup may have. It is the default too, which in practice means no limit:
+ * a check every 30 minutes would run for years. A repeating wait lasts as long as the work it watches
+ * (a crawl, a monitor, a long CI); the agent may ask for fewer, and the hourly rate below still holds.
+ */
+export const MAX_FIRES_LIMIT = 100_000;
+/** Fires a repeating wakeup makes unless the agent asks for fewer: effectively unlimited. */
+export const DEFAULT_MAX_FIRES = MAX_FIRES_LIMIT;
+/** Wake runs of one task in an hour; past them its wakeups pause. One a minute, which no real wait needs. */
+export const MAX_WAKES_PER_HOUR = 60;
 /** The window MAX_WAKES_PER_HOUR counts in. */
 export const WAKE_RATE_WINDOW_MS = 3_600_000;
-/** Times a wakeup may appear in the chain behind it before it pauses as a loop: a third pass. */
-export const MAX_CHAIN_PASSES = 2;
+/**
+ * Times a wakeup may appear in the chain behind it before it pauses as a loop. An agent that checks
+ * something run after run (setting the same wait again each time) is often doing legitimate work, so
+ * this only stops a chain that keeps going without a person for many runs.
+ */
+export const MAX_CHAIN_PASSES = 10;
 /** A delayed job may run a moment before its time by the clocks: a timer this close is due. */
 const DUE_SLACK_MS = 1_000;
 
@@ -116,8 +124,8 @@ export const armedFingerprint = (
 
 /**
  * The runaway limit a wakeup about to fire has reached, or null: its fires are used up, it passed
- * through the chain behind it twice already without a person in between, or its task was woken
- * MAX_WAKES_PER_HOUR times in the last hour.
+ * through the chain behind it MAX_CHAIN_PASSES times already without a person in between, or its task
+ * was woken MAX_WAKES_PER_HOUR times in the last hour.
  */
 export function wakeupGuard(rule: WakeupRule, wakesLastHour: number): WakeupPausedReason | null {
   if (rule.fires >= rule.maxFires) return "max_fires";

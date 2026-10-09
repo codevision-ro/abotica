@@ -1,0 +1,107 @@
+#!/usr/bin/python3 -I
+# ssh's ProxyCommand in the sandbox (/etc/ssh/ssh_config.d/abotica-proxy.conf), so ssh, scp, rsync
+# and git over ssh reach their hosts: the container has no route out, only the HTTP egress proxy.
+# Opens an HTTP CONNECT tunnel to <host>:<port> through HTTPS_PROXY, with the credentials in its
+# URL (the per-exec token the proxy checks; nc -X connect cannot send them), then relays stdin and
+# stdout. Hosts in NO_PROXY (the workspace's own loopback) and runs without a proxy connect directly.
+# Python with -I and an absolute interpreter: nothing on the sandbox user's PATH or in the working
+# folder is loaded.
+#
+#   abotica-ssh-proxy <host> <port>
+import base64
+import os
+import select
+import socket
+import sys
+from urllib.parse import unquote, urlsplit
+
+PROXY_VARIABLES = ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy")
+TIMEOUT_SECONDS = 30
+
+
+def fail(message):
+    sys.stderr.write(f"abotica-ssh-proxy: {message}\n")
+    sys.exit(1)
+
+
+def bypassed(host):
+    names = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").split(",")
+    host = host.strip("[]").lower()
+    return any(name.strip().strip("[]").lower() == host for name in names if name.strip())
+
+
+def tunnel(proxy, host, port):
+    url = urlsplit(proxy if "://" in proxy else f"http://{proxy}")
+    if url.scheme != "http" or not url.hostname:
+        fail(f"unsupported proxy {url.scheme}://{url.hostname}")
+    sock = socket.create_connection((url.hostname, url.port or 80), timeout=TIMEOUT_SECONDS)
+    target = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    request = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n"
+    if url.username is not None:
+        credentials = f"{unquote(url.username)}:{unquote(url.password or '')}".encode()
+        request += f"Proxy-Authorization: Basic {base64.b64encode(credentials).decode()}\r\n"
+    sock.sendall(f"{request}\r\n".encode())
+    response = b""
+    while b"\r\n\r\n" not in response:
+        chunk = sock.recv(4096)
+        if not chunk:
+            fail(f"the proxy closed the connection to {target}")
+        response += chunk
+        if len(response) > 65536:
+            fail("the proxy's answer is too long")
+    head, _, rest = response.partition(b"\r\n\r\n")
+    status = head.split(b"\r\n", 1)[0].decode("latin-1")
+    parts = status.split(" ", 2)
+    if len(parts) < 2 or parts[1] != "200":
+        # The proxy says why in its body (e.g. a host the network setting does not allow).
+        body = rest.decode("utf-8", "replace").strip()
+        fail(f"{target}: {status}{f' ({body})' if body else ''}")
+    return sock, rest
+
+
+def relay(sock, pending):
+    sock.settimeout(None)
+    stdin = sys.stdin.buffer.fileno()
+    stdout = sys.stdout.buffer.fileno()
+    if pending:
+        os.write(stdout, pending)
+    sources = [stdin, sock]
+    while sources:
+        readable, _, _ = select.select(sources, [], [])
+        if stdin in readable:
+            data = os.read(stdin, 65536)
+            if data:
+                sock.sendall(data)
+            else:
+                sources.remove(stdin)
+                sock.shutdown(socket.SHUT_WR)
+        if sock in readable:
+            data = sock.recv(65536)
+            if not data:
+                return
+            view = memoryview(data)
+            while view:
+                view = view[os.write(stdout, view) :]
+
+
+def main():
+    if len(sys.argv) != 3:
+        sys.stderr.write("usage: abotica-ssh-proxy <host> <port>\n")
+        sys.exit(2)
+    host, port = sys.argv[1], int(sys.argv[2])
+    proxy = next((os.environ[name] for name in PROXY_VARIABLES if os.environ.get(name)), "")
+    try:
+        if proxy and not bypassed(host):
+            sock, pending = tunnel(proxy, host, port)
+        else:
+            sock, pending = socket.create_connection((host, port), timeout=TIMEOUT_SECONDS), b""
+        relay(sock, pending)
+    except BrokenPipeError:
+        # ssh went away first: the session is over.
+        sys.exit(0)
+    except OSError as error:
+        fail(f"{host}:{port}: {error}")
+
+
+if __name__ == "__main__":
+    main()

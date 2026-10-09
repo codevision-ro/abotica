@@ -54,9 +54,43 @@ export function effectiveWindow(
   return windows.length ? Math.min(...windows) : null;
 }
 
-/** Tokens of a text, or of a value sent as JSON, at about 4 characters a token. */
-export const approxTokens = (value: unknown): number =>
-  Math.ceil((typeof value === "string" ? value : (JSON.stringify(value) ?? "")).length / CHARS_PER_TOKEN);
+/**
+ * What one image costs in a prompt, about: providers count images by their pixels (Anthropic about
+ * 1,600 tokens for an image at its largest size), not by the length of their base64.
+ */
+export const IMAGE_TOKENS = 1600;
+
+/** Base64 shorter than this is left as text: a tiny icon costs little either way. */
+const IMAGE_DATA_MIN_CHARS = 1000;
+
+const isImageType = (type: unknown) => typeof type === "string" && type.toLowerCase().startsWith("image/");
+
+/**
+ * Tokens of a text, or of a value sent as JSON, at about 4 characters a token. An image inside the
+ * value (an object whose mediaType or mimeType is image/*, holding its data in a long string, at any
+ * depth below it) counts as IMAGE_TOKENS: a screenshot's base64 alone would count as hundreds of
+ * thousands of tokens and compact the conversation for nothing.
+ */
+export function approxTokens(value: unknown): number {
+  if (typeof value === "string") return Math.ceil(value.length / CHARS_PER_TOKEN);
+  const images = new WeakSet<object>();
+  let imageCount = 0;
+  const json =
+    JSON.stringify(value, function (this: unknown, _key, item: unknown) {
+      const inImage = typeof this === "object" && this !== null && images.has(this);
+      if (typeof item === "object" && item !== null) {
+        const typed = item as { mediaType?: unknown; mimeType?: unknown };
+        if (inImage || isImageType(typed.mediaType) || isImageType(typed.mimeType)) images.add(item);
+        return item;
+      }
+      if (inImage && typeof item === "string" && item.length > IMAGE_DATA_MIN_CHARS) {
+        imageCount += 1;
+        return "";
+      }
+      return item;
+    }) ?? "";
+  return Math.ceil(json.length / CHARS_PER_TOKEN) + imageCount * IMAGE_TOKENS;
+}
 
 /** A prompt size in tokens, and the time after which messages are not in it. */
 export type MeasuredPrompt = { tokens: number; since: Date };

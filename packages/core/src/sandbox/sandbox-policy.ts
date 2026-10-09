@@ -34,8 +34,13 @@ export type SandboxRuntime = (typeof SANDBOX_RUNTIMES)[number];
 /** Bounds of a policy's lists; the numeric sandbox settings have theirs in settings-schema.ts. */
 export const SANDBOX_LIMITS = { domains: 100, packages: 50 } as const;
 
+/**
+ * Workspaces start with the public internet, as an employee's machine has: agents research, download
+ * and call APIs as part of ordinary work. What must stay out of reach (private and internal addresses,
+ * cloud metadata, the hosts that hold secrets) is refused by the egress proxy in every mode.
+ */
 export const DEFAULT_SANDBOX_POLICY: SandboxPolicy = {
-  network: { mode: "packages", domains: [] },
+  network: { mode: "full", domains: [] },
   packages: { python: [], node: [] },
 };
 

@@ -92,7 +92,7 @@ describe("loadMcpTools", () => {
     const onLazyError = vi.fn();
     const mcp = await loadMcpTools([server(cached)], { secrets: GLOBAL_SECRETS, onLazyError });
     expect(Object.keys(mcp.tools)).toEqual(["search_test__web_search", "search_test__web_fetch"]);
-    // With the default permission the hints the server declared give each tool.
+    // Every tool starts at allow whatever its hints; readOnly still records what the server declared.
     expect(mcp.sources).toEqual({
       search_test__web_search: {
         serverSlug: "search-test",
@@ -100,7 +100,7 @@ describe("loadMcpTools", () => {
         defaultPermission: "allow",
         readOnly: true,
       },
-      search_test__web_fetch: { serverSlug: "search-test", tool: "web_fetch", defaultPermission: "ask", readOnly: false },
+      search_test__web_fetch: { serverSlug: "search-test", tool: "web_fetch", defaultPermission: "allow", readOnly: false },
     });
     expect(mcp.errors).toEqual([]);
     expect(onLazyError).not.toHaveBeenCalled();
@@ -113,6 +113,20 @@ describe("loadMcpTools", () => {
     // A failed start is not remembered: the next call tries again.
     await expect(execute({ query: "x" }, { toolCallId: "2", messages: [] } as never)).rejects.toThrow();
     expect(onLazyError).toHaveBeenCalledTimes(2);
+    await mcp.close();
+  });
+
+  it("never offers a tool the bundled server hides, even from an older cache", async () => {
+    const playwright = {
+      ...server([
+        { name: "browser_navigate", description: "Navigate", inputSchema: { type: "object" } },
+        { name: "browser_run_code_unsafe", description: "Run code", inputSchema: { type: "object" } },
+      ]),
+      slug: "playwright",
+      builtin: "playwright",
+    } as McpServer;
+    const mcp = await loadMcpTools([playwright], { secrets: GLOBAL_SECRETS });
+    expect(Object.keys(mcp.tools)).toEqual(["playwright__browser_navigate"]);
     await mcp.close();
   });
 

@@ -40,11 +40,11 @@ export type EgressProxyOptions = {
   host: string;
   /** Default 3128; 0 picks a free port. */
   port?: number;
-  /** Resolving and connecting upstream, default 10 s. */
+  /** Resolving and connecting upstream, default DEFAULT_CONNECT_TIMEOUT_MS. */
   connectTimeoutMs?: number;
-  /** A connection with no traffic either way is closed after this long, default 10 min. */
+  /** A connection with no traffic either way is closed after this long, default DEFAULT_IDLE_TIMEOUT_MS. */
   idleTimeoutMs?: number;
-  /** Concurrent upstream connections per token, default 64. */
+  /** Concurrent upstream connections per token, default DEFAULT_MAX_CONNECTIONS_PER_TOKEN. */
   maxConnectionsPerToken?: number;
   /** Tests only: allow loopback upstreams so local test servers are reachable. */
   unsafeAllowLoopback?: boolean;
@@ -209,11 +209,20 @@ function connectTo(address: string, port: number, timeoutMs: number): Promise<ne
   });
 }
 
+/**
+ * Per-token caps. They stop a runaway workspace from exhausting the worker's sockets, not real work: a
+ * crawler or a parallel download opens many connections at once, a slow server takes a while to accept,
+ * and a long poll or a quiet build log stream keeps a connection open without traffic for many minutes.
+ */
+export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+export const DEFAULT_IDLE_TIMEOUT_MS = 60 * 60_000;
+export const DEFAULT_MAX_CONNECTIONS_PER_TOKEN = 256;
+
 /** Starts the proxy; resolves once it listens. */
 export async function startEgressProxy(options: EgressProxyOptions): Promise<EgressProxy> {
-  const connectTimeoutMs = options.connectTimeoutMs ?? 10_000;
-  const idleTimeoutMs = options.idleTimeoutMs ?? 10 * 60_000;
-  const maxPerToken = options.maxConnectionsPerToken ?? 64;
+  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+  const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const maxPerToken = options.maxConnectionsPerToken ?? DEFAULT_MAX_CONNECTIONS_PER_TOKEN;
   const grants = new Map<string, GrantState>();
   const tunnels = new Set<Duplex>();
   /** Tunnels to the route host, with the grant of the CONNECT request that opened each one. */

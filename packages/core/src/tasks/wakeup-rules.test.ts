@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   armedFingerprint,
   decideWakeup,
+  DEFAULT_MAX_FIRES,
   firedState,
+  MAX_CHAIN_PASSES,
+  MAX_FIRES_LIMIT,
   MAX_WAKES_PER_HOUR,
   nextDueAt,
   nextTimerAt,
@@ -16,6 +19,9 @@ import {
 
 const NOW = new Date("2026-10-08T12:00:00Z");
 const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000);
+
+/** A chain in which `id` passed `n` times. */
+const passes = (n: number, id = "w1") => Array.from({ length: n }, () => id);
 
 const rule = (over: Partial<WakeupRule> = {}): WakeupRule => ({
   id: "w1",
@@ -134,24 +140,32 @@ describe("decideWakeup", () => {
   it("pauses instead of firing once a runaway limit is reached", () => {
     const due = rule({ nextCheckAt: minutes(-1) });
     expect(decide({ ...due, maxFires: 20, fires: 20 })).toEqual({ action: "pause", reason: "max_fires" });
-    expect(decide({ ...due, chain: ["w1", "w0", "w1"] })).toEqual({ action: "pause", reason: "loop" });
+    expect(decide({ ...due, chain: [...passes(MAX_CHAIN_PASSES), "w0"] })).toEqual({ action: "pause", reason: "loop" });
     expect(decide(due, facts(), MAX_WAKES_PER_HOUR)).toEqual({ action: "pause", reason: "rate" });
     expect(decide(due, facts(), MAX_WAKES_PER_HOUR - 1)).toMatchObject({ action: "fire" });
   });
 });
 
 describe("wakeupGuard", () => {
-  it("lets a wakeup pass through its chain twice, and pauses the third pass as a loop", () => {
+  it(`lets a wakeup pass through its chain ${MAX_CHAIN_PASSES} times, and pauses the next pass as a loop`, () => {
     expect(wakeupGuard(rule({ chain: [] }), 0)).toBeNull();
-    expect(wakeupGuard(rule({ chain: ["w1"] }), 0)).toBeNull();
-    expect(wakeupGuard(rule({ chain: ["w1", "w1"] }), 0)).toBe("loop");
+    expect(wakeupGuard(rule({ chain: passes(MAX_CHAIN_PASSES - 1) }), 0)).toBeNull();
+    expect(wakeupGuard(rule({ chain: passes(MAX_CHAIN_PASSES) }), 0)).toBe("loop");
     // Other wakeups in the chain do not count against this one.
-    expect(wakeupGuard(rule({ chain: ["w2", "w2", "w1"] }), 0)).toBeNull();
+    expect(wakeupGuard(rule({ chain: [...passes(MAX_CHAIN_PASSES, "w2"), "w1"] }), 0)).toBeNull();
   });
 
   it("checks the fires first, then the loop, then the rate", () => {
-    expect(wakeupGuard(rule({ maxFires: 3, fires: 3, chain: ["w1", "w1"] }), 50)).toBe("max_fires");
-    expect(wakeupGuard(rule({ chain: ["w1", "w1"] }), 50)).toBe("loop");
+    const looped = passes(MAX_CHAIN_PASSES);
+    expect(wakeupGuard(rule({ maxFires: 3, fires: 3, chain: looped }), MAX_WAKES_PER_HOUR)).toBe("max_fires");
+    expect(wakeupGuard(rule({ chain: looped }), MAX_WAKES_PER_HOUR)).toBe("loop");
+  });
+
+  it("leaves a repeating wakeup with the default fires practically unlimited, within the hourly rate", () => {
+    expect(DEFAULT_MAX_FIRES).toBe(MAX_FIRES_LIMIT);
+    expect(MAX_FIRES_LIMIT).toBeGreaterThanOrEqual(100_000);
+    expect(MAX_WAKES_PER_HOUR).toBe(60);
+    expect(wakeupGuard(rule({ maxFires: DEFAULT_MAX_FIRES, fires: 10_000 }), MAX_WAKES_PER_HOUR - 1)).toBeNull();
   });
 });
 
@@ -173,13 +187,13 @@ describe("a timer through its life", () => {
     // Each wake run sets the same timer again: it carries the chain behind that run.
     let timer = rule({ nextCheckAt: minutes(-1) });
     const actions: string[] = [];
-    for (let run = 0; run < 3; run++) {
+    for (let run = 0; run <= MAX_CHAIN_PASSES; run++) {
       const decision = decide(timer);
       actions.push(decision.action);
       if (decision.action !== "fire") break;
       timer = { ...timer, chain: runChain([timer]), fires: 0, fingerprint: null, nextCheckAt: minutes(-1) };
     }
-    expect(actions).toEqual(["fire", "fire", "pause"]);
+    expect(actions).toEqual([...Array(MAX_CHAIN_PASSES).fill("fire"), "pause"]);
     expect(decide(timer)).toEqual({ action: "pause", reason: "loop" });
   });
 

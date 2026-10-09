@@ -120,6 +120,20 @@
       "when": 1791496967455,
       "tag": "0016_entity_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791497027455,
+      "tag": "0017_open_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791543008520,
+      "tag": "0018_raise_agent_limits",
+      "breakpoints": true
     }
   ]
 }

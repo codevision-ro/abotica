@@ -1,5 +1,13 @@
-import { AGENT_TOOLS, ASK_TOOLS, MANAGER_TOOLS, ORCHESTRATOR_ONLY_TOOLS } from "@abotica/db/seed-permissions";
+import {
+  AGENT_PERMISSIONS,
+  AGENT_TOOLS,
+  MANAGER_PERMISSIONS,
+  MANAGER_TOOLS,
+  ORCHESTRATOR_ONLY_TOOLS,
+  ORCHESTRATOR_PERMISSIONS,
+} from "@abotica/db/seed-permissions";
 import { describe, expect, it } from "vitest";
+import { defaultPermissions } from "./permissions";
 import { TOOL_CATALOG } from "./tools/tool-catalog";
 
 /** The seeded agents' permissions (packages/db) list tool names by hand; they must match the catalog. */
@@ -11,13 +19,17 @@ describe("seed permissions", () => {
     expect([...AGENT_TOOLS].sort()).toEqual(agentTools.sort());
   });
 
-  it("mark the tools that ask and the ones managers get", () => {
-    const asking = TOOL_CATALOG.filter((t) => t.alwaysAsk || t.defaultPermission === "ask").map((t) => t.name);
-    expect([...ASK_TOOLS].sort()).toEqual(asking.sort());
+  it("mark the tools managers get", () => {
     expect([...MANAGER_TOOLS].sort()).toEqual(
       TOOL_CATALOG.filter((t) => t.managers)
         .map((t) => t.name)
         .sort(),
     );
+  });
+
+  it("match what a new agent of each kind starts with", () => {
+    expect(AGENT_PERMISSIONS).toEqual(defaultPermissions({ kind: "specialist" }));
+    expect(MANAGER_PERMISSIONS).toEqual(defaultPermissions({ kind: "manager" }));
+    expect(ORCHESTRATOR_PERMISSIONS).toEqual(defaultPermissions({ kind: "orchestrator" }));
   });
 });

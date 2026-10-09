@@ -1,7 +1,8 @@
 /**
  * Docker backend: one long-lived container per workspace, its files in a named volume, commands
- * through exec. Containers start on first use, are paused when idle and stopped after a longer idle
- * (reap), and are recreated when their spec changes while nothing runs in them. The egress proxy
+ * through exec. Containers start on first use, are paused when idle (no command and no background
+ * process) and stopped after a longer idle (reap), and are recreated when their spec changes while
+ * nothing runs in them. The egress proxy
  * runs in this process, on the worker's address in the sandbox network.
  *
  * Users: agent commands run as the sandbox user, stdio MCP servers as the MCP user. A workspace is
@@ -70,6 +71,24 @@ fi
 `;
 
 const ownerUser = (spec: WorkspaceSpec) => (spec.owner === "mcp" ? MCP_USER : SANDBOX_USER);
+
+/**
+ * Prints the processes of a container besides its init (tini, PID 1), the `sleep infinity` that
+ * keeps it up (the image's CMD, a child of init), zombies and itself: what an agent left running in
+ * the background (a nohup build, a crawl, a dev server, a database from `services`). Shell builtins
+ * only, so it starts no process of its own while it looks; /proc reads the same under runc and gVisor.
+ */
+const BACKGROUND_PROCESSES_SCRIPT = `for dir in /proc/[0-9]*; do
+  pid=\${dir#/proc/}
+  case "$pid" in 1|$$) continue ;; esac
+  read -r stat 2>/dev/null < "$dir/stat" || continue
+  comm=\${stat#*(}; comm=\${comm%)*}
+  rest=\${stat##*) }; state=\${rest%% *}; rest=\${rest#* }; ppid=\${rest%% *}
+  [ "$state" = Z ] && continue
+  [ "$ppid" = 1 ] && [ "$comm" = sleep ] && continue
+  echo "$pid $comm"
+done
+`;
 
 const ignoreStatus =
   (...codes: number[]) =>
@@ -299,6 +318,23 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     }
   }
 
+  /**
+   * Whether anything besides the container's own init runs in it (BACKGROUND_PROCESSES_SCRIPT). A
+   * check that fails counts as yes: not pausing costs memory for a while, a wrong pause freezes work.
+   */
+  async function runsInBackground(container: Docker.Container): Promise<boolean> {
+    try {
+      const result = await runHelper(container, {
+        cmd: ["/bin/sh", "-c", BACKGROUND_PROCESSES_SCRIPT],
+        user: SANDBOX_USER,
+        timeoutMs: 15_000,
+      });
+      return result.exitCode !== 0 || result.stdout.trim() !== "";
+    } catch {
+      return true;
+    }
+  }
+
   async function killAll(children: Iterable<SandboxProcess>) {
     await Promise.allSettled([...children].map((child) => withTimeout(child.kill(), 20_000, "kill")));
   }
@@ -398,6 +434,8 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
           if (due(key, paused) !== action) return; // used while waiting for the lock
           const target = docker.getContainer(container.Id);
           if (action === "pause") {
+            // Pausing would freeze what the agent left running; the stop after the longer idle still applies.
+            if (await runsInBackground(target)) return;
             await withTimeout(target.pause(), API_TIMEOUT_MS, "Container pause").catch(ignoreStatus(404, 409));
             return;
           }

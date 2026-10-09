@@ -17,7 +17,13 @@ import {
   updateTask,
 } from "../../tasks/tasks";
 import { listTaskPullRequests } from "../../tasks/pull-requests";
-import { DEFAULT_MAX_FIRES, MAX_FIRES_LIMIT, WAKEUP_KINDS } from "../../tasks/wakeup-rules";
+import {
+  DEFAULT_MAX_FIRES,
+  MAX_CHAIN_PASSES,
+  MAX_FIRES_LIMIT,
+  MAX_WAKES_PER_HOUR,
+  WAKEUP_KINDS,
+} from "../../tasks/wakeup-rules";
 import { armWakeup, listTaskWakeups, type WakeupRequest } from "../../tasks/wakeups";
 import { SETTLED_TASK_STATUSES } from "../../tasks/delegation-report";
 import { nothingNewRefusal } from "../../tasks/automation-rules";
@@ -349,7 +355,7 @@ export const taskTools: Record<string, ToolFactory> = {
       description: [
         "End your run and be woken later on a task: at a time (timer), when the CI checks of its pull request finish (pr_checks_finished) or it is merged (pr_merged), when all its subtasks are done (subtasks_done), or when another task reaches a status (task_status).",
         "The task stays in progress meanwhile. When it happens you get a new run, with a comment saying what woke you and your notes; read the current state with your tools then.",
-        "Asking again for the same condition replaces it, and a task has one timer. To check periodically, set one repeating wait (everyMinutes, or repeat) instead of a new one each run: a wait set again run after run without the user in between is paused as a loop, and the user is told.",
+        `Asking again for the same condition replaces it, and a task has one timer. To check periodically, set one repeating wait (everyMinutes, or repeat) instead of a new one each run: it repeats until the task is done or the wait expires, with no limit on how often it fires unless you pass maxFires. A wait set again more than ${MAX_CHAIN_PASSES} runs in a row without the user in between is paused as a loop, and so are the waits of a task woken ${MAX_WAKES_PER_HOUR} times in an hour; the user is told.`,
         "Checks already finished when you call it do not count. Call it last, then end your run.",
         "Never wait on tasks you delegated (delegate_task): their result comes back to you automatically as a notice in the conversation you delegated them from, which then continues. Just end your turn.",
       ].join(" "),
@@ -374,7 +380,7 @@ export const taskTools: Record<string, ToolFactory> = {
           .min(2)
           .max(MAX_FIRES_LIMIT)
           .optional()
-          .describe(`Repeating waits: how many times at most (default ${DEFAULT_MAX_FIRES})`),
+          .describe("Repeating waits: how many times at most (default: no limit)"),
         expiresInMinutes: z
           .number()
           .int()

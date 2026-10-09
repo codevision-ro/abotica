@@ -116,10 +116,20 @@ export function claimRun(id: string): Promise<Run | null> {
   return transition(id, ["queued"], { status: "running", startedAt: new Date() });
 }
 
-/** Ends a running run that answered (or waits for approvals); `actor` moves its task to review. */
+/**
+ * Ends a running run that answered (or waits for approvals); `actor` moves its task to review.
+ * `unfinished`: a limit of the run stopped it (`error` says which), so its task gets a comment saying
+ * the work is not finished, which its delegator and the user read before marking it done.
+ */
 export async function finishRun(
   run: Run,
-  end: { status: "succeeded" | "waiting_approval"; output: string; error?: string | null; actor: string },
+  end: {
+    status: "succeeded" | "waiting_approval";
+    output: string;
+    error?: string | null;
+    unfinished?: boolean;
+    actor: string;
+  },
 ): Promise<Run | null> {
   const finished = await transition(run.id, ["running"], {
     status: end.status,
@@ -130,6 +140,13 @@ export async function finishRun(
   if (!finished) return null;
   if (finished.status === "waiting_approval") return settleIfDecided(finished);
   if (finished.status === "succeeded") {
+    const { taskId } = finished;
+    if (end.unfinished && taskId) {
+      const reason = end.error ?? "";
+      await attempt(run.id, "noting the limit on its task", async () =>
+        addTaskComment(taskId, (await translator())("runs.lifecycle.stoppedAtLimit", { reason }), "system"),
+      );
+    }
     await attempt(run.id, "moving its task to review", async () => {
       if (!finished.taskId) return;
       const [task] = await db.select().from(tasks).where(eq(tasks.id, finished.taskId));

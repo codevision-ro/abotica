@@ -12,11 +12,11 @@ export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
 
 /**
  * Keys:
- * - a built-in tool name, e.g. "task_create" (missing means deny);
+ * - a built-in tool name, e.g. "task_create" (missing means the tool's default, allow);
  * - "mcp:<server-slug>/<tool>" for one MCP tool;
  * - "mcp:<server-slug>" for every tool of a server without its own entry;
- * - "mcp:*" for every MCP server without its own entry (missing: each tool starts from its hints, see
- *   `annotationPermission` in core).
+ * - "mcp:*" for every MCP server without its own entry (missing: each tool starts at its server's default, allow,
+ *   see `mcpToolDefault` in core).
  */
 export type ToolPermissions = Record<string, ToolPermission>;
 
@@ -34,7 +34,8 @@ export type AgentLimits = {
   budgetUsd: number | null;
 };
 
-export const DEFAULT_AGENT_LIMITS: AgentLimits = { maxSteps: 20, timeoutMs: 10 * 60_000, budgetUsd: 1 };
+/** Generous: a stop at a limit leaves the work unfinished, and the monthly budget is what guards cost. */
+export const DEFAULT_AGENT_LIMITS: AgentLimits = { maxSteps: 150, timeoutMs: 120 * 60_000, budgetUsd: null };
 
 export const agents = pgTable(
   "agents",

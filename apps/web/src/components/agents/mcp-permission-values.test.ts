@@ -15,13 +15,13 @@ const github = { slug: "github", builtin: null, tools: [list, remove, plain] };
 const docs = { slug: "docs", builtin: null, tools: [tool("search", { readOnlyHint: true })] };
 
 describe("mcpServerValue", () => {
-  it("shows the default from the hints, mixed when the tools' hints differ", () => {
+  it("shows the default whatever the tools' hints", () => {
     expect(mcpServerValue({}, docs)).toBe("allow");
-    expect(mcpServerValue({}, { slug: "github", builtin: null, tools: [remove, plain] })).toBe("ask");
-    expect(mcpServerValue({}, github)).toBe("mixed");
+    expect(mcpServerValue({}, { slug: "github", builtin: null, tools: [remove, plain] })).toBe("allow");
+    expect(mcpServerValue({}, github)).toBe("allow");
   });
 
-  it("shows what a bundled server sets instead of its tools' hints", () => {
+  it("shows what a bundled server sets", () => {
     const playwright = {
       slug: "playwright",
       builtin: "playwright",
@@ -50,10 +50,10 @@ describe("mcpDefaultValue", () => {
     expect(mcpDefaultValue({ [MCP_ALL_KEY]: "allow" }, [github])).toBe("allow");
   });
 
-  it("unset, shows what the hints give the servers without their own setting", () => {
+  it("unset, shows the default the servers without their own setting start at", () => {
     expect(mcpDefaultValue({}, [docs])).toBe("allow");
-    expect(mcpDefaultValue({}, [docs, github])).toBe("mixed");
-    expect(mcpDefaultValue({ [mcpServerKey("github")]: "deny" }, [docs, github])).toBe("allow");
+    expect(mcpDefaultValue({}, [docs, github])).toBe("allow");
+    expect(mcpDefaultValue({ [mcpServerKey("docs")]: "deny" }, [docs, github])).toBe("allow");
     expect(mcpDefaultValue({}, [])).toBe("mixed");
   });
 });
@@ -62,8 +62,9 @@ describe("withMcpTool", () => {
   it("stores a tool's choice only when it differs from what the tool would inherit", () => {
     expect(withMcpTool({}, github, list, "allow")).toEqual({});
     expect(withMcpTool({}, github, list, "ask")).toEqual({ [mcpToolKey("github", "list_issues")]: "ask" });
-    expect(withMcpTool({}, github, remove, "allow")).toEqual({ [mcpToolKey("github", "delete_repo")]: "allow" });
-    expect(withMcpTool({ [mcpToolKey("github", "run")]: "allow" }, github, plain, "ask")).toEqual({});
+    expect(withMcpTool({}, github, remove, "allow")).toEqual({});
+    expect(withMcpTool({}, github, remove, "ask")).toEqual({ [mcpToolKey("github", "delete_repo")]: "ask" });
+    expect(withMcpTool({ [mcpToolKey("github", "run")]: "ask" }, github, plain, "allow")).toEqual({});
     // Under a server setting, the setting is what it would inherit.
     const server = { [mcpServerKey("github")]: "deny" } as const;
     expect(withMcpTool(server, github, list, "deny")).toEqual(server);

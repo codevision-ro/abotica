@@ -9,7 +9,13 @@ import type {
 import type { ModelRef } from "@abotica/db";
 import { UserError } from "@abotica/i18n";
 import { type CatalogModel, getCatalog } from "./catalog";
-import { acceptedFilesOnly, fileModality } from "./input-modalities";
+import {
+  acceptedFilesOnly,
+  fileModality,
+  isImageRejection,
+  toolImageKeys,
+  withoutRejectedImages,
+} from "./input-modalities";
 import {
   classifyProviderError,
   ContextOverflowError,
@@ -72,6 +78,11 @@ export class FallbackModel implements LanguageModelV4 {
   private readonly onRetry?: (event: RetryEvent) => void;
   /** Catalog entries of the chain's models, keyed "provider/model"; loaded once, on first use. */
   private catalog?: Promise<Map<string, CatalogModel>>;
+  /**
+   * Tool images a provider refused to decode (`toolImageKey`). The AI SDK sends every tool result
+   * again on each step, so they stay out of every later call of this run, on every model.
+   */
+  private readonly rejectedImages = new Set<string>();
 
   /**
    * The effort is set here rather than through the call's `reasoning` option, which cannot carry
@@ -151,6 +162,34 @@ export class FallbackModel implements LanguageModelV4 {
     return { options: next, effort };
   }
 
+  /**
+   * Runs the call without the tool images refused so far. A corrupt or cut-short image an agent read
+   * (a broken screenshot, a half-written file) would otherwise fail every step from then on: when
+   * the provider refuses an image, the call is made again once without the newest tool image, which
+   * is most likely the one, then once without all of them. Other errors pass through untouched.
+   */
+  private async leavingOutRejectedImages<T>(
+    options: LanguageModelV4CallOptions,
+    run: (options: LanguageModelV4CallOptions) => PromiseLike<T>,
+  ): Promise<T> {
+    const without = () => ({ ...options, prompt: withoutRejectedImages(options.prompt, this.rejectedImages) });
+    try {
+      return await run(without());
+    } catch (error) {
+      if (!isImageRejection(rejectionText(error))) throw error;
+      const keys = toolImageKeys(options.prompt).filter((key) => !this.rejectedImages.has(key));
+      if (!keys.length) throw error;
+      this.rejectedImages.add(keys.at(-1)!);
+      try {
+        return await run(without());
+      } catch (again) {
+        if (keys.length === 1 || !isImageRejection(rejectionText(again))) throw again;
+        for (const key of keys) this.rejectedImages.add(key);
+        return await run(without());
+      }
+    }
+  }
+
   private async attempt<T>(
     options: LanguageModelV4CallOptions,
     call: (model: LanguageModelV4, options: LanguageModelV4CallOptions, ref: ModelRef) => PromiseLike<T>,
@@ -165,7 +204,7 @@ export class FallbackModel implements LanguageModelV4 {
         const model = await languageModel(ref.provider, ref.model);
         const { options: opts, effort } = await this.optionsFor(ref, options);
         const result = await withBackoff(
-          () => call(model, opts, ref),
+          () => this.leavingOutRejectedImages(opts, (next) => call(model, next, ref)),
           signal,
           ({ kind, error, delayMs }) => {
             retries += 1;
@@ -228,6 +267,12 @@ function errorMessage(error: unknown): string {
   // Stream errors are often plain objects ({ message, type, code }).
   const message = (error as { message?: unknown } | null)?.message;
   return typeof message === "string" ? message : String(error);
+}
+
+/** An error's message with the provider's response body, where some put the reason a request was refused. */
+function rejectionText(error: unknown): string {
+  const body = (error as { responseBody?: unknown } | null)?.responseBody;
+  return typeof body === "string" ? `${errorMessage(error)}\n${body}` : errorMessage(error);
 }
 
 /**

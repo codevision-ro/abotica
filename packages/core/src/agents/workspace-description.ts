@@ -73,7 +73,7 @@ function networkText(network: NetworkPolicy): string {
     case "custom":
       return `Network: the package registries (${REGISTRIES}) and ${network.domains.join(", ") || "no other hosts"}. ${blocked}`;
     case "full":
-      return "Network: any public internet host. Private and internal addresses are blocked.";
+      return "Network: any public internet host, over HTTP(S), ssh, scp and rsync (they go through the proxy). Private and internal addresses are blocked.";
   }
 }
 
@@ -86,6 +86,23 @@ function packagesText(packages: SandboxPackages): string {
     lines.push(`Node packages installed (resolvable through NODE_PATH, binaries on PATH): ${packages.node.join(", ")}.`);
   }
   return lines.length ? lines.join("\n- ") : "No extra packages are preinstalled.";
+}
+
+/**
+ * How the agent sees what it builds: images through file_read, its pages through the browser tools
+ * (which reach the workspace's own servers on localhost, and save their files where the agent reads
+ * them), and Chromium for its own scripts. The browser cannot read the workspace, so a file to upload
+ * goes through a script of the agent's own.
+ */
+function seeingText(paths: WorkspacePaths): string[] {
+  const saved = paths.mcpOutput
+    ? ` Their screenshots and downloads are saved in ${paths.mcpOutput}/playwright, read-only for you (file_read shows a screenshot, file_share gives it to the user).`
+    : "";
+  return [
+    "- file_read also shows you images (PNG, JPEG, GIF, WebP): look at a screenshot or a chart you made to check it.",
+    `- The browser tools (browser_*), when you have them, open web pages and the servers you run in the workspace on localhost. To check a page you build, serve it, e.g. \`nohup python3 -m http.server 8000 --directory site > http.log 2>&1 &\`, then open http://localhost:8000 (file:// is not available).${saved} They cannot read your workspace files, so to upload one to a site, use a browser script of your own.`,
+    '- Chromium for your own scripts is at $CHROMIUM_PATH: Node `chromium.launch({ executablePath: process.env.CHROMIUM_PATH })` with playwright or playwright-core, Python `p.chromium.launch(executable_path=os.environ["CHROMIUM_PATH"])`. Run the script with `abotica-proxy-run` in front (e.g. `abotica-proxy-run node shot.js`) so the browser reaches the internet; localhost works either way. Do not run `playwright install`: the browsers folder is read-only.',
+  ];
 }
 
 export function workspaceDescription(input: WorkspaceDescriptionInput): string {
@@ -111,6 +128,7 @@ export function workspaceDescription(input: WorkspaceDescriptionInput): string {
     "- Database servers: `services start mysql` (or postgres, redis) starts one on 127.0.0.1 and prints how to connect; its data stays in .services. `services status` shows which run.",
     `- After ${count(idle.pauseIdleMinutes, "minute")} without use, the workspace's processes freeze and resume with the next command; after ${count(idle.stopIdleHours, "hour")} they stop (database servers and background processes included, files stay). Start the server you need at the beginning of a run.`,
     "- A command finishes only when its output ends. Start long-running processes (a dev server, a queue worker) in the background with their output in a file, e.g. `nohup php artisan serve > serve.log 2>&1 &`.",
+    ...seeingText(paths),
     input.root
       ? "- shell_run_root runs a command as root, for system packages: `apt-get update && apt-get install -y <package>`. It reaches the package registries whatever the network setting. What it installs outside the workspace lasts until the workspace is recreated (for example after a sandbox update), so install again when a tool is missing. Use shell_run for everything else."
       : null,

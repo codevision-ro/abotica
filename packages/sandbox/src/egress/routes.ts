@@ -1,11 +1,11 @@
 /**
  * Credential routes (types.ts `CredentialRoute`): how a request to a route maps onto its upstream.
  * A route is addressed as `http://routes.abotica.invalid/<id>/<path>`: a reserved name that never
- * resolves, so only a client going through the egress proxy reaches it (NO_PROXY is empty in the
- * sandbox) and one that bypasses the proxy fails instead of sending anything elsewhere. The upstream
- * comes from the route alone, never from the request's Host, and a path that would leave the
- * upstream's base path is refused. Pure and free of the Docker backend, so core checks routes with
- * the same rules when they are saved.
+ * resolves, so only a client going through the egress proxy reaches it (NO_PROXY in the sandbox
+ * names only loopback, see exec.ts `NO_PROXY_HOSTS`) and one that bypasses the proxy fails instead
+ * of sending anything elsewhere. The upstream comes from the route alone, never from the request's
+ * Host, and a path that would leave the upstream's base path is refused. Pure and free of the
+ * Docker backend, so core checks routes with the same rules when they are saved.
  */
 import type { OutgoingHttpHeaders } from "node:http";
 import type { CredentialRoute } from "../types";

@@ -151,7 +151,7 @@ services:
   # Builds the image of the sandbox containers on top of the published base and exits; the worker
   # starts after it. Same steps as the Dockerfile's `sandbox` target: extra Debian packages
   # (SANDBOX_APT_PACKAGES="pkg1 pkg2" in .env), then Chrome for Testing, downloaded here from
-  # Google rather than shipped in the published image.
+  # Google rather than shipped in the published image, linked as the base's CHROMIUM_PATH.
   sandbox-image:
     build:
       dockerfile_inline: |
@@ -163,6 +163,8 @@ services:
             && rm -rf /var/lib/apt/lists/*; \
           fi \
           && HOME=/root /opt/scrapling/bin/python -m playwright install --no-shell chromium \
+          && ln -sf "$$(find /opt/ms-playwright -path '*/chromium-*/chrome-linux*/chrome' -type f | head -n 1)" /usr/local/bin/chromium \
+          && /usr/local/bin/chromium --version \
           && rm -rf /tmp/* /root/.cache
         USER sandbox
       args:

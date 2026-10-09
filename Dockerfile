@@ -99,7 +99,7 @@ RUN mkdir -p /etc/postgresql-common/createcluster.d \
   && echo "create_main_cluster = false" > /etc/postgresql-common/createcluster.d/abotica.conf \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
-    ca-certificates curl wget git jq ripgrep fd-find tree file patch procps lsof rsync xz-utils zip unzip tini \
+    ca-certificates curl wget git jq ripgrep fd-find tree file patch procps lsof rsync openssh-client xz-utils zip unzip tini \
     build-essential pkg-config \
     python3 python3-pip python3-venv \
     php-cli php-mbstring php-xml php-curl php-zip php-intl php-mysql php-pgsql php-sqlite3 php-gd php-bcmath \
@@ -132,6 +132,11 @@ RUN export UV_NO_CACHE=1 npm_config_cache=/tmp/npm-cache \
   && rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache /root/.npm
 COPY --chmod=0755 packages/sandbox/image/services /usr/local/bin/services
 COPY --chmod=0755 packages/sandbox/image/abotica-proxy-run /usr/local/bin/abotica-proxy-run
+# ssh, scp, rsync and git over ssh go through the HTTP egress proxy like everything else: the
+# container has no other way out. A ProxyCommand in the user's own ~/.ssh/config still wins.
+COPY --chmod=0755 packages/sandbox/image/abotica-ssh-proxy /usr/local/bin/abotica-ssh-proxy
+RUN printf '%s\n' '# Abotica: reach ssh hosts through the sandbox egress proxy (HTTPS_PROXY).' \
+    'Host *' '    ProxyCommand /usr/local/bin/abotica-ssh-proxy %h %p' > /etc/ssh/ssh_config.d/abotica-proxy.conf
 # The base image's `node` user has uid 1000; the sandbox user takes its place. MCP servers run as
 # their own user (uid 1001), so agent commands cannot read their environment or memory.
 RUN userdel --remove node \
@@ -142,7 +147,11 @@ RUN userdel --remove node \
   && mkdir -p /workspace/.home /opt/abotica/bundles \
   && chown -R sandbox:sandbox /workspace
 # HOME is inside the workspace volume, so caches and `npm install -g` / `uv tool install` survive restarts.
+# CHROMIUM_PATH is the browser for the agents' own scripts (Playwright's executablePath): the
+# `sandbox` stage links it to the Chromium the MCP servers use, whatever Playwright version a script
+# brings, since the browsers folder is read-only to them.
 ENV HOME=/workspace/.home \
+  CHROMIUM_PATH=/usr/local/bin/chromium \
   LANG=C.UTF-8 \
   NPM_CONFIG_PREFIX=/workspace/.home/.npm-global \
   PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -155,8 +164,9 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sleep", "infinity"]
 
 # The image the workspace containers run: sandbox-base plus Chrome for Testing (the revision the
-# base's Scrapling expects) and the extra Debian packages from SANDBOX_APT_PACKAGES in .env
-# (space separated). docker-compose.prod.yml builds the same two steps on top of the published base.
+# base's Scrapling expects, linked as CHROMIUM_PATH) and the extra Debian packages from
+# SANDBOX_APT_PACKAGES in .env (space separated). docker-compose.prod.yml builds the same two steps
+# on top of the published base.
 FROM sandbox-base AS sandbox
 ARG SANDBOX_APT_PACKAGES=""
 USER root
@@ -165,5 +175,7 @@ RUN if [ -n "$SANDBOX_APT_PACKAGES" ]; then \
     && rm -rf /var/lib/apt/lists/*; \
   fi \
   && HOME=/root /opt/scrapling/bin/python -m playwright install --no-shell chromium \
+  && ln -sf "$(find /opt/ms-playwright -path '*/chromium-*/chrome-linux*/chrome' -type f | head -n 1)" /usr/local/bin/chromium \
+  && /usr/local/bin/chromium --version \
   && rm -rf /tmp/* /root/.cache
 USER sandbox

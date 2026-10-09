@@ -90,7 +90,7 @@ type ToolApproval = NonNullable<Parameters<typeof streamText<ToolSet>>[0]["toolA
 /** Effective permission of a tool in the run's tool set; skill_read and tool_search are always allowed. */
 function toolPermission(ctx: RunContext, mcpSources: Record<string, McpToolSource>, name: string) {
   const source = mcpSources[name];
-  if (source) return mcpRunPermission(ctx.agent.permissions, source, ctx.readOnlyMcpServers);
+  if (source) return mcpRunPermission(ctx.agent.permissions, source);
   if (name === "skill_read" || name === TOOL_SEARCH) return "allow";
   return builtinPermission(ctx.agent.permissions, name, ctx.agent);
 }
@@ -126,8 +126,13 @@ function deferredGroups(
 /** Why the run stopped before its answer, when a limit inside the loop stopped it. */
 type Stop = { reason: string; kind: RunFailureKind };
 
-/** Stops that leave the work unfinished: the run fails and its task is blocked. The others end it as answered. */
-const FAILING_STOPS = new Set<RunFailureKind>(["loop", "step_limit", "timeout"]);
+/**
+ * Limits of the run itself, which leave the work unfinished. They are not failures: the run ends with
+ * its answer so far and the reason as its note, like a budget stop, and its task gets a comment saying
+ * the work is not finished (finishRun) instead of being blocked. The task's circuit breaker does not
+ * count them. Every stop ends the run as answered; only an error fails it.
+ */
+const LIMIT_STOPS = new Set<RunFailureKind>(["loop", "step_limit", "timeout"]);
 
 /** The total timeout aborts the stream with this reason (AbortSignal.timeout). */
 const isTimeout = (reason: unknown) => reason instanceof DOMException && reason.name === "TimeoutError";
@@ -183,7 +188,17 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
   const cancel = async (reason: string, kind: RunFailureKind) =>
     outcome(await cancelClaimedRun(run, reason, kind), "cancelled");
   const finish = async (status: "succeeded" | "waiting_approval", output: string, error?: string | null) =>
-    outcome(await finishRun(run, { status, output, error, actor: `agent:${ctx.agent.slug}` }), status, output);
+    outcome(
+      await finishRun(run, {
+        status,
+        output,
+        error,
+        unfinished: stop !== null && LIMIT_STOPS.has(stop.kind),
+        actor: `agent:${ctx.agent.slug}`,
+      }),
+      status,
+      output,
+    );
 
   const startedAt = run.startedAt ?? new Date();
   const limits = ctx.agent.limits;
@@ -216,10 +231,11 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
     return false;
   };
   /**
-   * Why the run fails, if it does: a stop that leaves the work unfinished, or the error that ended the
-   * stream (the model's, after the run made steps or before).
+   * Why the run fails, if it does: the error that ended the stream (the model's, after the run made
+   * steps or before). A stop is not a failure; after the total timeout, the error is its abort.
    */
-  const runFailure = () => (stop && FAILING_STOPS.has(stop.kind) ? stop : null) ?? streamError;
+  const timedOut = () => stop?.kind === "timeout";
+  const runFailure = () => (timedOut() ? null : streamError);
   /** The prompt did not fit the model before the run made a step: compacted, it can start again. */
   const overflowedBeforeFirstStep = () => steps === 0 && streamError?.kind === "context_overflow" && !signal.aborted;
   const stopReason = () => stop?.reason ?? null;
@@ -406,7 +422,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
         prepareStep: prepareSteps([steering.preparer, loop.nudge, compactor.midRun(prompt)]),
         abortSignal: signal,
         timeout: { totalMs: limits.timeoutMs },
-        // The worker's abort is a cancel; the total timeout fails the run.
+        // The worker's abort is a cancel; the total timeout stops the run with its answer so far.
         onAbort: ({ reason }) => {
           if (!signal.aborted && isTimeout(reason)) {
             stopWith(t("errors.run.timedOut", { minutes: Math.round(limits.timeoutMs / 60_000) }), "timeout");
@@ -514,6 +530,15 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
     if (signal.aborted) return await cancel(abortReason(), abortKind(signal.reason));
     const failed = runFailure();
     if (failed) return await fail(failed.reason, failed.kind);
+    // The total timeout cuts a step, the first one too: there may be no final step to read, and no
+    // approval waits. The answer so far is in the conversation already (onEnd saved it).
+    if (timedOut()) {
+      const output = await result.finalStep.then(
+        (step) => step.text.trim(),
+        () => "",
+      );
+      return await finish("succeeded", output, stopReason());
+    }
 
     const content = await result.content;
     const pending = content.filter((p) => p.type === "tool-approval-request" && !p.isAutomatic);
@@ -549,7 +574,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       return result;
     }
 
-    // A run a budget or the kill switch stopped keeps what it answered so far, with the reason.
+    // A run a limit, a budget or the kill switch stopped keeps what it answered so far, with the reason.
     return await finish("succeeded", output, stopReason());
   } catch (error) {
     if (signal.aborted) return await cancel(abortReason(), abortKind(signal.reason));

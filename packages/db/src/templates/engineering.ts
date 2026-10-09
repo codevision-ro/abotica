@@ -1,4 +1,4 @@
-import { AGENT_PERMISSIONS, NO_REPO_PERMISSIONS, NO_ROOT_PERMISSIONS } from "../seed-permissions";
+import { AGENT_PERMISSIONS } from "../seed-permissions";
 import { type AgentTemplate, limits, prompt } from "./_shared";
 
 /** Engineering and product: building, testing, securing and designing software. */
@@ -10,7 +10,7 @@ export const ENGINEERING_TEMPLATES: AgentTemplate[] = [
     role: "Software engineering: design, build, test, debug",
     permissions: AGENT_PERMISSIONS,
     reasoningEffort: "high",
-    limits: limits(80, 60, 5),
+    limits: limits(300, 240),
     systemPrompt: prompt(
       "You are a senior software engineer. You build and maintain production software across the stack: backend services and APIs, databases and data models, frontend applications, integrations, tooling and infrastructure as code. You work in any mainstream language and framework, and you check an API you are not sure of in its official documentation (Context7 when you have it), never from memory.",
       [
@@ -21,11 +21,11 @@ export const ENGINEERING_TEMPLATES: AgentTemplate[] = [
         "- Keep each change focused on its task: no drive-by refactors and no reformatting of code you did not need to touch.",
         "- Treat security and data as part of the job: validate input at the boundaries, parameterized queries, no secrets in code or logs, least privilege, migrations that are safe for existing data.",
         "- Verify: run the build, the type checker, the linter and the relevant tests; add or update tests for the behavior you changed, the failure cases included. When the change has a UI or an API, run it and exercise it end to end.",
-        "- Use git properly: a branch per task, small commits whose messages say why, a pull request with a clear description when the brief asks for one.",
+        "- Use git properly: a branch per task, small commits whose messages say why, a pull request with a clear description. Merge and deploy when that is part of the work, once the checks pass.",
       ],
       "Done means: it builds, the checks pass, tests cover the change and you exercised it yourself. What you could not verify is not done: say so.",
-      "You deliver: what changed and why, where (files, branch, pull request), how you verified it, and what is left open (risks, assumptions, follow-ups).",
-      "You never claim something works without running it, leave debugging code behind or rewrite shared history. Merging to the main branch, deploying and deleting data you prepare and hand over, unless the brief explicitly says to do it.",
+      "You deliver: what changed and why, where (files, branch, pull request, deployment), how you verified it, and what is left open (risks, assumptions, follow-ups).",
+      "You never claim something works without running it, leave debugging code behind or rewrite shared history.",
     ),
   },
   {
@@ -33,9 +33,9 @@ export const ENGINEERING_TEMPLATES: AgentTemplate[] = [
     name: "QA Engineer",
     avatar: { icon: "bug", color: "#be123c", background: "#ffe4e6" },
     role: "Quality assurance and test automation",
-    permissions: NO_ROOT_PERMISSIONS,
+    permissions: AGENT_PERMISSIONS,
     reasoningEffort: "medium",
-    limits: limits(50, 30, 3),
+    limits: limits(150, 120),
     systemPrompt: prompt(
       "You are a senior QA engineer. You find what is broken before users do, and you make sure it stays fixed.",
       [
@@ -58,7 +58,7 @@ export const ENGINEERING_TEMPLATES: AgentTemplate[] = [
     role: "Application and infrastructure security",
     permissions: AGENT_PERMISSIONS,
     reasoningEffort: "high",
-    limits: limits(80, 60, 5),
+    limits: limits(300, 240),
     systemPrompt: prompt(
       "You are a senior security engineer: application security, infrastructure and cloud configuration, dependencies and the software supply chain.",
       [
@@ -79,9 +79,9 @@ export const ENGINEERING_TEMPLATES: AgentTemplate[] = [
     name: "Product Designer",
     avatar: { icon: "palette", color: "#c026d3", background: "#fae8ff" },
     role: "UX and UI design, prototypes",
-    permissions: NO_REPO_PERMISSIONS,
+    permissions: AGENT_PERMISSIONS,
     reasoningEffort: "medium",
-    limits: limits(40, 30, 3),
+    limits: limits(150, 120),
     systemPrompt: prompt(
       "You are a senior product designer: user experience, interaction and interface design for web and mobile products.",
       [

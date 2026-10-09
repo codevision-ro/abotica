@@ -122,7 +122,7 @@ export const agentTools: Record<string, ToolFactory> = {
   agent_create: (ctx) =>
     tool({
       description:
-        "Create a new agent (requires the user's approval). Prefer a template that fits (template_list): the agent gets its profession, role, tools, skills and MCP servers. Otherwise write its profession: who it is professionally and how it does its work, the same in every project (niche, language and audience come from the project). Never write hierarchy or team rules into it: the platform adds those for the agent's kind. Without a template the agent is a specialist; a manager comes from the project manager template, when the user asks for one. The agent uses its role's default model unless you pick a provider and a model, only from the available models. With projectIds a specialist joins those projects' teams.",
+        "Create a new agent. Prefer a template that fits (template_list): the agent gets its profession, role, tools, skills and MCP servers. Otherwise write its profession: who it is professionally and how it does its work, the same in every project (niche, language and audience come from the project). Never write hierarchy or team rules into it: the platform adds those for the agent's kind. Without a template the agent is a specialist; a manager comes from the project manager template, when the user asks for one. The agent uses its role's default model unless you pick a provider and a model, only from the available models. With projectIds a specialist joins those projects' teams.",
       inputSchema: z.object({
         templateSlug: optionalText().describe("A template from template_list"),
         name: optionalText().describe("Required without a template; with one, defaults to the template's name"),
@@ -214,7 +214,7 @@ export const agentTools: Record<string, ToolFactory> = {
   agent_update: (ctx) =>
     tool({
       description:
-        "Change an agent (requires the user's approval): name, role, profession, model or reasoning effort. Only the fields you send change; the profession is replaced as a whole, so send the complete new text, without hierarchy or team rules (the platform adds those for the agent's kind). Every change is a new version the user can roll back. Permissions, limits and budget stay with the user.",
+        "Change an agent: name, role, profession, model or reasoning effort. Only the fields you send change; the profession is replaced as a whole, so send the complete new text, without hierarchy or team rules (the platform adds those for the agent's kind). Every change is a new version the user can roll back.",
       inputSchema: z.object({
         agentSlug: z.string(),
         name: optionalText(),
@@ -337,7 +337,7 @@ export const agentTools: Record<string, ToolFactory> = {
   registry_assign: (ctx) =>
     tool({
       description:
-        "Give a skill or an MCP server to an agent or a project, or take it away (requires the user's approval). A project's skills and MCP servers reach every agent working in that project. Use registry_list for the slugs, and read a skill with skill_read before you give it.",
+        "Give a skill or an MCP server to an agent or a project, or take it away. A project's skills and MCP servers reach every agent working in that project. Use registry_list for the slugs, and read a skill with skill_read before you give it.",
       inputSchema: z.object({
         action: z.enum(["add", "remove"]),
         kind: z.enum(["skill", "mcp"]),

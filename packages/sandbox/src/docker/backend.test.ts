@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SandboxBackend, SandboxProcess } from "../types";
-import { startProcess } from "./exec";
+import { runHelper, startProcess } from "./exec";
 
 /**
  * Idle workspaces in the Docker backend: pause, stop and wake. Docker is a fake that keeps each
@@ -75,7 +75,7 @@ vi.mock("./network", () => ({ findWorkerAddress: async () => "10.0.0.1" }));
 vi.mock("../egress/proxy", () => ({ startEgressProxy: async () => ({ close: async () => {} }) }));
 vi.mock("./exec", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./exec")>()),
-  runHelper: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
+  runHelper: vi.fn(),
   startProcess: vi.fn(),
 }));
 
@@ -118,6 +118,8 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(T0);
   vi.mocked(startProcess).mockReset();
+  // Helpers succeed, and the check for background processes finds none.
+  vi.mocked(runHelper).mockReset().mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
   docker.containers.clear();
   docker.calls.length = 0;
   backend = await createDockerBackend({
@@ -156,6 +158,24 @@ describe("reap", () => {
     await workspace.exec({ command: "npm run dev", egress: [] });
     await reapAt(7 * HOUR);
     expect(docker.calls).toEqual([]);
+    expect(status()).toBe("running");
+  });
+
+  it("does not pause a workspace with a process left running in the background, but still stops it", async () => {
+    await openWorkspace();
+    vi.mocked(runHelper).mockResolvedValue({ exitCode: 0, stdout: "42 node\n", stderr: "" });
+    await reapAt(15 * MINUTE);
+    expect(docker.calls).toEqual([]);
+    expect(status()).toBe("running");
+
+    await reapAt(6 * HOUR);
+    expect(docker.calls).toEqual([`stop ${NAME}`]);
+  });
+
+  it("does not pause a workspace whose processes cannot be checked", async () => {
+    await openWorkspace();
+    vi.mocked(runHelper).mockRejectedValue(new Error("exec failed"));
+    await reapAt(15 * MINUTE);
     expect(status()).toBe("running");
   });
 

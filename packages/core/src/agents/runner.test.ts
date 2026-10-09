@@ -18,6 +18,7 @@ import { loadMcpTools } from "./mcp-runtime";
 import { fullModelChain, modelChain } from "./model-chain";
 import { builtinPermission } from "./permissions";
 import { executeRun } from "./runner";
+import { LOOP_THRESHOLDS } from "./stuck";
 import { wrapUntrusted } from "./untrusted";
 
 /**
@@ -168,6 +169,7 @@ const saved: { content: string; pending: boolean; untrusted: boolean }[] = [];
 const MODEL = { provider: "anthropic", model: "test" };
 const RUN = { id: "r1", startedAt: new Date("2026-10-08T10:00:00Z") };
 const NUDGE = "(Automatic notice)";
+const REPEAT = LOOP_THRESHOLDS.repeat;
 
 type Limits = { maxSteps: number; timeoutMs: number; budgetUsd: number | null };
 
@@ -199,7 +201,6 @@ function useContext(
     project: null,
     projectId: null,
     mcpServers: [],
-    readOnlyMcpServers: new Set(),
     repos: [],
     conversation: null,
     sandbox: null,
@@ -285,31 +286,38 @@ describe("loop detection in a run", () => {
   it("nudges a model that repeats the same call once, then stops the run as a loop before its step limit", async () => {
     const prompts = useModel(() => callFile("a.txt"));
 
-    expect(await run()).toEqual({ status: "failed", output: undefined });
+    // Not a failure: the run ends with its answer so far, noted as unfinished.
+    expect(await run()).toEqual({ status: "succeeded", output: "" });
 
-    // 4 identical steps make the loop; the 5th step gets the nudge and repeats anyway.
-    expect(prompts).toHaveLength(5);
-    expect(prompts.slice(0, 4).map((p) => nudges(p).length)).toEqual([0, 0, 0, 0]);
-    expect(nudges(prompts[4]!)).toHaveLength(1);
+    // REPEAT identical steps make the loop; the next step gets the nudge and repeats anyway.
+    expect(prompts).toHaveLength(REPEAT + 1);
+    expect(prompts.slice(0, REPEAT).every((p) => nudges(p).length === 0)).toBe(true);
+    expect(nudges(prompts[REPEAT]!)).toHaveLength(1);
     expect(logRunEvent).toHaveBeenCalledWith(
       RUN.id,
       "loop-nudge",
-      expect.objectContaining({ pattern: "repeat", tools: ["file_read"], steps: 4 }),
+      expect.objectContaining({ pattern: "repeat", tools: ["file_read"], steps: REPEAT }),
     );
-    expect(failRun).toHaveBeenCalledExactlyOnceWith(
+    expect(finishRun).toHaveBeenCalledExactlyOnceWith(
       RUN,
-      "Stopped: the agent kept repeating the same calls (file_read) after it was told to change approach",
-      "loop",
+      expect.objectContaining({
+        status: "succeeded",
+        error: "Stopped: the agent kept repeating the same calls (file_read) after it was told to change approach",
+        unfinished: true,
+      }),
     );
-    expect(finishRun).not.toHaveBeenCalled();
+    expect(failRun).not.toHaveBeenCalled();
   });
 
   it("lets a model that changes approach after the nudge finish", async () => {
-    const prompts = useModel((call) => (call <= 4 ? callFile("a.txt") : call === 5 ? callFile("b.txt") : answer("Done")));
+    const prompts = useModel((call) =>
+      call <= REPEAT ? callFile("a.txt") : call === REPEAT + 1 ? callFile("b.txt") : answer("Done"),
+    );
 
     expect(await run()).toEqual({ status: "succeeded", output: "Done" });
     // The nudge was added once and stayed in the prompt of the later steps.
-    expect(prompts.map((p) => nudges(p).length)).toEqual([0, 0, 0, 0, 1, 1]);
+    expect(prompts.map((p) => nudges(p).length)).toEqual([...Array(REPEAT).fill(0), 1, 1]);
+    expect(finishRun).toHaveBeenCalledWith(RUN, expect.objectContaining({ error: null, unfinished: false }));
     expect(failRun).not.toHaveBeenCalled();
   });
 
@@ -323,13 +331,21 @@ describe("loop detection in a run", () => {
 });
 
 describe("the step limit", () => {
-  it("fails a run that used up its steps while still calling tools", async () => {
+  it("ends a run that used up its steps while still calling tools as unfinished, not failed", async () => {
     useContext({ limits: { maxSteps: 3 } });
     const prompts = useModel((call) => callFile(`${call}.txt`));
 
-    expect(await run()).toEqual({ status: "failed", output: undefined });
+    expect(await run()).toEqual({ status: "succeeded", output: "" });
     expect(prompts).toHaveLength(3);
-    expect(failRun).toHaveBeenCalledExactlyOnceWith(RUN, "The run used up its 3 steps while still working", "step_limit");
+    expect(finishRun).toHaveBeenCalledExactlyOnceWith(
+      RUN,
+      expect.objectContaining({
+        status: "succeeded",
+        error: "The run used up its 3 steps while still working",
+        unfinished: true,
+      }),
+    );
+    expect(failRun).not.toHaveBeenCalled();
   });
 
   it("does not stop a run that answers in its last step", async () => {
@@ -397,14 +413,37 @@ describe("every way a run ends records why", () => {
     expect(failRun).toHaveBeenCalledExactlyOnceWith(RUN, "Agent not found", "other");
   });
 
-  it("fails with timeout when the run goes past its time limit", async () => {
+  it("ends a run that goes past its time limit as unfinished, not failed", async () => {
     useContext({ limits: { timeoutMs: 50 } });
     useModel(
       (_call, { abortSignal }) =>
         new Promise((_resolve, reject) => abortSignal?.addEventListener("abort", () => reject(abortSignal.reason))),
     );
-    expect(await run()).toEqual({ status: "failed", output: undefined });
-    expect(failRun).toHaveBeenCalledExactlyOnceWith(RUN, expect.stringContaining("past its time limit"), "timeout");
+    expect(await run()).toEqual({ status: "succeeded", output: "" });
+    expect(finishRun).toHaveBeenCalledExactlyOnceWith(
+      RUN,
+      expect.objectContaining({
+        status: "succeeded",
+        error: expect.stringContaining("past its time limit"),
+        unfinished: true,
+      }),
+    );
+    expect(failRun).not.toHaveBeenCalled();
+  });
+
+  it("ends a run unfinished when its time limit cuts a later step", async () => {
+    useContext({ limits: { timeoutMs: 200 } });
+    const prompts = useModel((call, { abortSignal }) =>
+      call === 1
+        ? callFile("a.txt")
+        : new Promise((_resolve, reject) => abortSignal?.addEventListener("abort", () => reject(abortSignal.reason))),
+    );
+    expect(await run()).toMatchObject({ status: "succeeded" });
+    expect(prompts).toHaveLength(2);
+    expect(finishRun).toHaveBeenCalledExactlyOnceWith(
+      RUN,
+      expect.objectContaining({ error: expect.stringContaining("past its time limit"), unfinished: true }),
+    );
   });
 
   it("cancels with the kind the abort carries", async () => {
