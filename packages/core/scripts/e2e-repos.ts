@@ -48,7 +48,7 @@ if (!status?.isolation) {
 let projectId: string | null = null;
 let agentId: string | null = null;
 try {
-  const specialist = await createAgentFromTemplate("template-web-developer", { name: "E2E Repo developer" });
+  const specialist = await createAgentFromTemplate("template-software-engineer", { name: "E2E Repo developer" });
   agentId = specialist.id;
   await db
     .update(agents)

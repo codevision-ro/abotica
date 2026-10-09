@@ -65,7 +65,7 @@ async function settled(): Promise<boolean> {
 }
 
 try {
-  const specialist = await createAgentFromTemplate("template-web-developer", { name: "E2E Web developer" });
+  const specialist = await createAgentFromTemplate("template-software-engineer", { name: "E2E Software engineer" });
   createdAgents.push(specialist.id);
   const project = await createProject({
     name: `E2E Team ${Date.now().toString(36)}`,
@@ -112,7 +112,7 @@ try {
     agentId: orchestrator.id,
     trigger: "chat",
     conversationId,
-    input: `In the project "${project.name}" (id ${project.id}): we need the HTML <head> of the homepage, with a <title> and a meta description for an artisan bakery called Crumb. This is web developer work: the project's manager should have the team's web developer write it and review it. Get it done through the project and tell me the result.`,
+    input: `In the project "${project.name}" (id ${project.id}): we need the HTML <head> of the homepage, with a <title> and a meta description for an artisan bakery called Crumb. This is engineering work: the project's manager should have the team's software engineer write it and review it. Get it done through the project and tell me the result.`,
   });
   console.log(`super agent run ${run.id}, conversation ${conversationId}`);
 

@@ -73,7 +73,7 @@ const idle = async () =>
   ).length;
 
 try {
-  const specialist = await createAgentFromTemplate("template-web-developer", { name: "E2E Web developer" });
+  const specialist = await createAgentFromTemplate("template-software-engineer", { name: "E2E Software engineer" });
   createdAgents.push(specialist.id);
   const project = await createProject({
     name: `E2E Automation ${Date.now().toString(36)}`,

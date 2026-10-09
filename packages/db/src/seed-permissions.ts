@@ -67,10 +67,15 @@ export const ASK_TOOLS = new Set([
 const allow = (names: string[]): ToolPermissions =>
   Object.fromEntries(names.map((name) => [name, ASK_TOOLS.has(name) ? "ask" : "allow"]));
 
-const SHELL_TOOLS = new Set(["shell_run", "shell_run_root"]);
+const without = (...names: string[]) => AGENT_TOOLS.filter((name) => !names.includes(name));
 
+/** Every agent tool: engineering work, root for system packages and pull requests included. */
 export const AGENT_PERMISSIONS = allow(AGENT_TOOLS);
 export const MANAGER_PERMISSIONS = allow([...AGENT_TOOLS, ...MANAGER_TOOLS]);
-/** Research and writing work: no shell, files only to read, write and hand over. */
-export const NO_SHELL_PERMISSIONS = allow(AGENT_TOOLS.filter((name) => !SHELL_TOOLS.has(name)));
+/** Testing work: commands and pull requests for the tests it writes, no root. */
+export const NO_ROOT_PERMISSIONS = allow(without("shell_run_root"));
+/** Analysis, research and design work: commands in the workspace, no root and no pull requests. */
+export const NO_REPO_PERMISSIONS = allow(without("shell_run_root", "repo_open_pr"));
+/** Writing work: no shell, files only to read, write and hand over. */
+export const NO_SHELL_PERMISSIONS = allow(without("shell_run", "shell_run_root", "repo_open_pr"));
 export const ORCHESTRATOR_PERMISSIONS = allow([...AGENT_TOOLS, ...ORCHESTRATOR_ONLY_TOOLS]);
