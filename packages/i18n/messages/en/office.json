@@ -39,7 +39,8 @@
     "paused": "Pause",
     "resumed": "Back to it",
     "cancelled": "Stopped",
-    "redirected": "Change of plan"
+    "redirected": "Change of plan",
+    "call": "On the phone with you"
   },
   "list": {
     "empty": "No agents or projects yet.",
@@ -98,5 +99,25 @@
   "scene": {
     "label": "The office in 3D: every project is a room, every agent sits at a desk showing what it does now.",
     "paused": "paused"
+  },
+  "intercom": {
+    "placeholder": "Write to {name}...",
+    "needsYou": "{count, plural, one {# needs you} other {# need you}}",
+    "title": "Talk to {name}",
+    "openInChat": "Open in Chat",
+    "close": "Close",
+    "empty": "Tell {name} what you want to happen.",
+    "pickHint": "Click an agent, a room or an activity in the office to add it to your message.",
+    "removeRef": "Remove {name}",
+    "about": "From the office, about: {items}",
+    "ref": {
+      "agent": "the agent {name} (id: {id})",
+      "task": "the task \"{name}\" (id: {id})",
+      "project": "the project {name} (id: {id})"
+    }
+  },
+  "party": {
+    "on": "Party",
+    "off": "End the party"
   }
 }

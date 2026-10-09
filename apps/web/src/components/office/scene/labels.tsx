@@ -19,8 +19,6 @@ type Placement = { x: number; y: number; z: number; alpha: number };
 type Anchor = {
   el: HTMLElement;
   at: () => Placement | null;
-  /** People's labels move up out of each other's way; place names stay put. */
-  stack: boolean;
   /** The current upward nudge in pixels, eased so labels do not jump. */
   lift: number;
 };
@@ -59,28 +57,23 @@ export function LabelTracker({ anchors }: { anchors: LabelAnchors }) {
       a.el.style.opacity = String(p.alpha);
       a.el.style.zIndex = String(Math.round((1 - point.z) * 5000));
     }
-    // Place names stay where they are and people's labels keep clear of them; among people, the nearest
-    // keeps its place and the ones behind it make room.
-    shown.sort((l, r) => Number(l.a.stack) - Number(r.a.stack) || l.depth - r.depth);
+    // The nearest keeps its place; the ones behind it make room.
+    shown.sort((l, r) => l.depth - r.depth);
     const placed: { left: number; right: number; top: number; bottom: number }[] = [];
     const k = 1 - Math.exp(-Math.min(delta, 0.1) * 14);
     for (const s of shown) {
       let bottom = s.y;
-      if (s.a.stack) {
-        const left = s.x - s.w / 2;
-        const right = s.x + s.w / 2;
-        for (let tries = 0; tries < 6; tries++) {
-          const hit = placed.find(
-            (r) => left < r.right + GAP && right > r.left - GAP && bottom - s.h < r.bottom + GAP && bottom > r.top - GAP,
-          );
-          if (!hit) break;
-          bottom = hit.top - GAP;
-        }
-        placed.push({ left, right, top: bottom - s.h, bottom });
-        s.a.lift += (s.y - bottom - s.a.lift) * k;
-      } else {
-        placed.push({ left: s.x, right: s.x + s.w, top: s.y - s.h, bottom: s.y });
+      const left = s.x - s.w / 2;
+      const right = s.x + s.w / 2;
+      for (let tries = 0; tries < 6; tries++) {
+        const hit = placed.find(
+          (r) => left < r.right + GAP && right > r.left - GAP && bottom - s.h < r.bottom + GAP && bottom > r.top - GAP,
+        );
+        if (!hit) break;
+        bottom = hit.top - GAP;
       }
+      placed.push({ left, right, top: bottom - s.h, bottom });
+      s.a.lift += (s.y - bottom - s.a.lift) * k;
       s.a.el.style.transform = `translate3d(${s.x.toFixed(1)}px, ${(s.y - s.a.lift).toFixed(1)}px, 0)`;
     }
   });
@@ -88,14 +81,14 @@ export function LabelTracker({ anchors }: { anchors: LabelAnchors }) {
 }
 
 /** A ref callback that registers an element under `id` while it is mounted. */
-function useAnchor(anchors: LabelAnchors, id: string, at: () => Placement | null, stack: boolean) {
+function useAnchor(anchors: LabelAnchors, id: string, at: () => Placement | null) {
   return useCallback(
     (el: HTMLElement | null) => {
       if (!el) return;
-      anchors.items.set(id, { el, at, stack, lift: anchors.items.get(id)?.lift ?? 0 });
+      anchors.items.set(id, { el, at, lift: anchors.items.get(id)?.lift ?? 0 });
       return () => void anchors.items.delete(id);
     },
-    [anchors, id, at, stack],
+    [anchors, id, at],
   );
 }
 
@@ -145,7 +138,7 @@ export function AgentTag({
   compact: boolean;
   onSelect: () => void;
 }) {
-  const ref = useAnchor(anchors, id, at, true);
+  const ref = useAnchor(anchors, id, at);
   return (
     <div ref={ref} className={anchorClass}>
       <div className="flex w-max max-w-60 -translate-x-1/2 -translate-y-full flex-col items-center gap-1 select-none">
@@ -189,48 +182,6 @@ export function AgentTag({
             </>
           )}
         </button>
-      </div>
-    </div>
-  );
-}
-
-/** A place's name over its back-left wall corner; rooms open their project. */
-export function PlaceTag({
-  anchors,
-  id,
-  at,
-  name,
-  note,
-  onSelect,
-}: {
-  anchors: LabelAnchors;
-  id: string;
-  at: () => Placement | null;
-  name: string;
-  note?: string | null;
-  onSelect?: () => void;
-}) {
-  const ref = useAnchor(anchors, id, at, false);
-  const className =
-    "flex items-center gap-1.5 rounded-md border border-border/80 bg-card/95 px-2 py-1 text-xs font-semibold whitespace-nowrap shadow-sm backdrop-blur-sm";
-  return (
-    <div ref={ref} className={anchorClass}>
-      <div className="-translate-y-full pb-1 select-none">
-        {onSelect ? (
-          <button
-            type="button"
-            onClick={onSelect}
-            className={cn(
-              className,
-              "pointer-events-auto outline-none hover:border-primary/40 focus-visible:ring-3 focus-visible:ring-ring/50",
-            )}
-          >
-            {name}
-            {note && <span className="font-normal text-muted-foreground">{note}</span>}
-          </button>
-        ) : (
-          <div className={className}>{name}</div>
-        )}
       </div>
     </div>
   );

@@ -1,31 +1,42 @@
 "use client";
 
 import type { OfficeActivity, OfficeSeat, OfficeState, OfficeStatus, OfficeTaskRef } from "@abotica/core/office";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DirectionalLight } from "three";
 import type { OfficeSceneProps } from "../office-scene-props";
 import { type OfficeLabels, useOfficeLabels } from "../office-status";
 import { CameraRig, VIEW_DIR } from "./camera";
 import { Character } from "./character";
 import { Director, type Home } from "./director";
 import { FolderEffects } from "./effects";
+import { Lights } from "./lights";
 import { Desk } from "./furniture";
-import { AgentTag, LabelAnchors, LabelTracker, PlaceTag } from "./labels";
-import { buildLayout, type Cell, LOUNGE, type OfficeLayout, type Point, SUPER } from "./layout";
+import { AgentTag, LabelAnchors, LabelTracker } from "./labels";
+import { buildLayout, type Cell, LOUNGE, loungeRoster, type OfficeLayout, type Point, SUPER } from "./layout";
 import { type Palette, paletteFor } from "./palette";
-import { BaseFloor, CellShell, LoungeDecor, RoomDecor, SuperDecor } from "./rooms";
+import { BaseFloor, CellShell, LoungeDecor, RoomDecor, SuperDecor, WALL_H, WALL_T } from "./rooms";
+import { PlaceSign } from "./signs";
 import { createScreens, SCROLLING, type ScreenKind } from "./screens";
+
+/**
+ * Canvas settings live outside the component: react-three-fiber builds a new camera whenever the `camera`
+ * prop is a different object, and a camera rebuilt mid-drag (on any re-render, such as a live refetch)
+ * left the view stuck.
+ */
+const CAMERA = { position: VIEW_DIR.clone().multiplyScalar(60).toArray(), zoom: 30, near: 0.1, far: 400 };
+const DPR: [number, number] = [1, 2];
 
 type SeatInfo = { status: OfficeStatus; activity: OfficeActivity | null; task: OfficeTaskRef | null };
 
 /** What decides the floor plan: rooms, their members and how many wait in the lounge. */
 const planKey = (s: OfficeState) =>
-  [s.superAgent?.agentId ?? "", s.loungeIds.length, ...s.rooms.map((r) => `${r.projectId}:${r.memberIds.join(",")}`)].join(
-    "|",
-  );
+  [
+    s.superAgent?.agentId ?? "",
+    loungeRoster(s).join(","),
+    ...s.rooms.map((r) => `${r.projectId}:${r.memberIds.join(",")}`),
+  ].join("|");
 
 /** Every seat by `${agentId}@${cell}`, the lounge ones idle. */
 function seatInfo(state: OfficeState): Map<string, SeatInfo> {
@@ -57,9 +68,9 @@ function homesOf(state: OfficeState, layout: OfficeLayout): Home[] {
       const desk = cell.desks[0];
       if (desk) homes.push(deskHome(desk.agentId, cell, desk));
     } else {
-      state.loungeIds.forEach((agentId, i) => {
-        const spot = cell.lounge[i];
-        if (!spot) return;
+      for (const agentId of state.loungeIds) {
+        const spot = cell.lounge[layout.roster.indexOf(agentId)];
+        if (!spot) continue;
         homes.push({
           key: `${agentId}@${LOUNGE}`,
           agentId,
@@ -69,7 +80,7 @@ function homesOf(state: OfficeState, layout: OfficeLayout): Home[] {
           pose: spot.kind,
           desk: null,
         });
-      });
+      }
     }
   }
   return homes;
@@ -95,7 +106,15 @@ function detailOf(seat: SeatInfo, labels: OfficeLabels): string | null {
   return seat.task ? `${head} · ${seat.task.title}` : head;
 }
 
-export function OfficeScene({ state, live, focusInteractionId, onSelectAgent, onSelectRoom }: OfficeSceneProps) {
+export function OfficeScene({
+  state,
+  live,
+  focusInteractionId,
+  onSelectAgent,
+  onSelectRoom,
+  call,
+  party,
+}: OfficeSceneProps) {
   const t = useTranslations("office");
   const labels = useOfficeLabels();
   const { resolvedTheme } = useTheme();
@@ -127,6 +146,11 @@ export function OfficeScene({ state, live, focusInteractionId, onSelectAgent, on
     }
   }, [live, director]);
 
+  useEffect(() => {
+    if (call) director.callSuper(call.talking, call.text, performance.now());
+  }, [call, director]);
+  useEffect(() => director.setParty(party), [party, director]);
+
   const screens = useMemo(() => createScreens(palette), [palette]);
   useEffect(() => () => Object.values(screens).forEach((s) => s.dispose()), [screens]);
 
@@ -147,17 +171,21 @@ export function OfficeScene({ state, live, focusInteractionId, onSelectAgent, on
 
   return (
     // Isolated: the labels' z-indexes order them among themselves, never above the app's dialogs and sheets.
-    <div className="absolute inset-0 isolate">
+    <div
+      className="absolute inset-0 isolate"
+      // The middle button drags the view, so the browser's autoscroll must not start.
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+    >
       <Canvas
         orthographic
         flat
         shadows="percentage"
-        dpr={[1, 2]}
-        camera={{ position: VIEW_DIR.clone().multiplyScalar(60).toArray(), zoom: 30, near: 0.1, far: 400 }}
+        dpr={DPR}
+        camera={CAMERA}
         aria-label={t("scene.label")}
         className="touch-none"
       >
-        <Lights palette={palette} layout={layout} />
+        <Lights palette={palette} layout={layout} director={director} party={party} />
         <CameraRig layout={layout} focus={focus} onZoom={setZoom} />
         <Ticker director={director} screens={screens} onVersion={setVersion} />
         <LabelTracker anchors={anchors} />
@@ -170,6 +198,15 @@ export function OfficeScene({ state, live, focusInteractionId, onSelectAgent, on
             seats={seats}
             screens={screens}
             paused={state.rooms.find((r) => r.projectId === cell.key)?.status === "paused"}
+            name={
+              cell.kind === "super"
+                ? labels.place("superAgent")
+                : cell.kind === "lounge"
+                  ? labels.place("lounge")
+                  : (state.rooms.find((r) => r.projectId === cell.key)?.name ?? "")
+            }
+            pausedLabel={t("scene.paused")}
+            onSelect={cell.kind === "room" ? () => onSelectRoom(cell.key) : undefined}
           />
         ))}
         {runtimes.map((r, i) => {
@@ -187,6 +224,7 @@ export function OfficeScene({ state, live, focusInteractionId, onSelectAgent, on
               status={seat?.status ?? "idle"}
               activity={seat?.activity ?? null}
               seed={i}
+              party={party}
               onSelect={select(r)}
             />
           );
@@ -194,27 +232,6 @@ export function OfficeScene({ state, live, focusInteractionId, onSelectAgent, on
         <FolderEffects director={director} palette={palette} />
       </Canvas>
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {layout.cells.map((cell) => {
-          const room = state.rooms.find((r) => r.projectId === cell.key);
-          const at = { x: cell.x + 0.15, y: 1.02, z: cell.z + 0.1, alpha: 1 };
-          return (
-            <PlaceTag
-              key={cell.key}
-              anchors={anchors}
-              id={`place:${cell.key}`}
-              at={() => at}
-              name={
-                cell.kind === "super"
-                  ? labels.place("superAgent")
-                  : cell.kind === "lounge"
-                    ? labels.place("lounge")
-                    : (room?.name ?? "")
-              }
-              note={room?.status === "paused" ? t("scene.paused") : null}
-              onSelect={room ? () => onSelectRoom(room.projectId) : undefined}
-            />
-          );
-        })}
         {runtimes.map((r) => {
           const agent = agents.get(r.agentId);
           if (!agent) return null;
@@ -301,61 +318,38 @@ function Ticker({
   return null;
 }
 
-/** Soft daylight from the front left (moonlight and glowing screens in dark mode), with shadows. */
-function Lights({ palette: p, layout }: { palette: Palette; layout: OfficeLayout }) {
-  const light = useRef<DirectionalLight>(null);
-  const scene = useThree((s) => s.scene);
-  const { minX, maxX, minZ, maxZ } = layout.bounds;
-  const cx = (minX + maxX) / 2;
-  const cz = (minZ + maxZ) / 2;
-  const half = Math.max(maxX - minX, maxZ - minZ) / 2 + 3;
-  useEffect(() => {
-    const l = light.current;
-    if (!l) return;
-    l.target.position.set(cx, 0, cz);
-    scene.add(l.target);
-    const cam = l.shadow.camera;
-    cam.left = -half;
-    cam.right = half;
-    cam.top = half;
-    cam.bottom = -half;
-    cam.updateProjectionMatrix();
-    return () => void scene.remove(l.target);
-  }, [scene, cx, cz, half]);
-  return (
-    <>
-      <hemisphereLight args={[p.sky, p.ground, p.ambient]} />
-      <directionalLight
-        ref={light}
-        position={[cx - 9, 16, cz + 11]}
-        intensity={p.sun}
-        color={p.sunColor}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.03}
-        shadow-radius={4}
-      />
-    </>
-  );
-}
-
 function CellView({
   cell,
   palette,
   seats,
   screens,
   paused,
+  name,
+  pausedLabel,
+  onSelect,
 }: {
   cell: Cell;
   palette: Palette;
   seats: Map<string, SeatInfo>;
   screens: ReturnType<typeof createScreens>;
   paused: boolean;
+  name: string;
+  pausedLabel: string;
+  /** Rooms open their project from the name board. */
+  onSelect?: () => void;
 }) {
   return (
     <group>
       <CellShell cell={cell} palette={palette} paused={paused} />
+      <PlaceSign
+        cell={cell}
+        wallHeight={WALL_H}
+        wallThickness={WALL_T}
+        text={name}
+        note={paused ? pausedLabel : null}
+        palette={palette}
+        onSelect={onSelect}
+      />
       {cell.kind === "room" && <RoomDecor cell={cell} palette={palette} />}
       {cell.kind === "super" && <SuperDecor cell={cell} palette={palette} />}
       {cell.kind === "lounge" && <LoungeDecor cell={cell} palette={palette} />}

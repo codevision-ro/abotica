@@ -1,4 +1,5 @@
 import type { OfficeInteraction, OfficeState } from "@abotica/core/office";
+import type { IntercomCall } from "./office-intercom";
 
 /** Where an agent was clicked: in a room, or at the super agent's desk / in the lounge (null). */
 export type OfficeAgentTarget = { agentId: string; projectId: string | null };
@@ -15,4 +16,8 @@ export type OfficeSceneProps = {
   focusInteractionId: string | null;
   onSelectAgent: (target: OfficeAgentTarget) => void;
   onSelectRoom: (projectId: string) => void;
+  /** The user on the intercom with the super agent: it takes the call at its desk. */
+  call: IntercomCall | null;
+  /** Party mode: disco lights, and everyone moves to the beat. */
+  party: boolean;
 };

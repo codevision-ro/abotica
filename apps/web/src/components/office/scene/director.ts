@@ -22,12 +22,23 @@ export type Home = {
   desk: Desk | null;
 };
 
-type Act = "home" | "walk" | "talk";
+/** `dance`: on the lounge floor during a party, between two moves. */
+type Act = "home" | "walk" | "talk" | "dance";
 
 type Trip =
-  | { type: "visit"; interaction: OfficeInteraction; target: Runtime; stage: "out" | "talk" | "back"; until: number }
+  | {
+      type: "visit";
+      interaction: OfficeInteraction;
+      target: Runtime;
+      stage: "out" | "talk" | "back";
+      until: number;
+      /** When it was queued: a visit waits for its colleague to be at their desk, but not forever. */
+      queuedAt: number;
+    }
   | { type: "say"; interaction: OfficeInteraction; until: number }
-  | { type: "move" };
+  | { type: "move" }
+  /** Party: to a spot on the lounge floor and dancing there until `until`, then on to another one. */
+  | { type: "dance"; until: number };
 
 type Runtime = {
   key: string;
@@ -53,9 +64,14 @@ type Runtime = {
   /** 0 to 1: grows on arrival, shrinks before leaving. */
   scale: number;
   leaving: boolean;
+  /** Colleagues on their way to talk to them or talking to them now: they stay put until it is over. */
+  visitors: number;
+  /** A move (to a new home, or out) held back while they are being visited. */
+  pendingMove: boolean;
 };
 
-type Bubble = { kind: OfficeInteractionKind; text: string | null; phone: boolean };
+/** A line in the air; "call" is the super agent on the phone with the user. */
+type Bubble = { kind: OfficeInteractionKind | "call"; text: string | null; phone: boolean };
 
 /** A folder falling on a desk (work from the user) or sliding into its drawer (put aside) and out. */
 type Effect = { id: number; kind: "drop" | "drawer" | "undrawer"; at: Point; start: number; duration: number };
@@ -63,6 +79,8 @@ type Effect = { id: number; kind: "drop" | "drawer" | "undrawer"; at: Point; sta
 const SPEED = 2.7;
 const MAX_TRIPS = 4;
 const MAX_QUEUE = 5;
+/** How long a visit waits for a colleague who is away from their desk before it is said from afar. */
+const VISIT_WAIT_MS = 60_000;
 const CARRIES: ReadonlySet<OfficeInteractionKind> = new Set(["delegated", "report", "handoff", "help"]);
 
 /** How long a line stays in the air: long enough to read the excerpt. */
@@ -75,11 +93,21 @@ export class Director {
   /** Bumped whenever the bubbles or the set of people change, so React renders again. */
   version = 0;
   private nextEffect = 1;
+  /** Until the first sync everyone is simply at home; after it, newcomers walk in. */
+  private started = false;
+  /** Party mode: the lounge dances on its floor. */
+  private party = false;
+
+  setParty(on: boolean) {
+    this.party = on;
+  }
 
   constructor(private layout: OfficeLayout) {}
 
   /**
-   * Brings everyone to the homes of the new state: newcomers appear, people who changed place walk there.
+   * Brings everyone to the homes of the new state. People who changed place walk there; someone new to the
+   * office (or a second desk of someone busy elsewhere) comes in by the lounge door, and someone with no
+   * place left walks out by it.
    * When the floor plan changed (a room came or went), every place moved: everyone is put straight at
    * their home, since walking from where the old plan had them would cross the new walls.
    */
@@ -90,6 +118,10 @@ export class Director {
     const gone = [...this.runtimes.values()].filter((r) => !wanted.has(r.key));
     if (replanned) {
       for (const runtime of gone) this.runtimes.delete(runtime.key);
+      for (const runtime of this.runtimes.values()) {
+        runtime.visitors = 0;
+        runtime.pendingMove = false;
+      }
       this.bubbles.clear();
       this.effects = [];
     }
@@ -99,32 +131,36 @@ export class Director {
         current.leaving = false;
         current.home = home;
         if (replanned) this.settle(current);
-        else if (!sameSpot(current.at, home.anchor) && current.act === "home" && !current.trip) this.walkHome(current);
+        else if (!sameSpot(current.at, home.anchor)) this.relocate(current);
         continue;
       }
       // Someone who left another place comes over on foot (from the lounge to a desk and back).
-      const from = replanned ? undefined : gone.find((r) => r.agentId === home.agentId && !r.leaving);
+      const from = replanned ? undefined : gone.find((r) => r.agentId === home.agentId);
       if (from) {
         gone.splice(gone.indexOf(from), 1);
         this.runtimes.delete(from.key);
         this.hush(from);
-        const runtime: Runtime = { ...from, key: home.key, home };
-        this.runtimes.set(home.key, runtime);
-        if (runtime.trip?.type === "say") runtime.trip = null;
-        // Mid-walk, they finish the way they are on and go on from there (see arrive).
-        if (runtime.act !== "walk") this.walkHome(runtime);
+        // The same object moves to its new key: colleagues on their way to it still find it.
+        from.key = home.key;
+        from.home = home;
+        from.leaving = false;
+        this.runtimes.set(home.key, from);
+        if (from.trip?.type === "say") from.trip = null;
+        this.relocate(from);
         continue;
       }
-      this.runtimes.set(home.key, {
+      const walksIn = this.started && !replanned;
+      const start = walksIn ? this.layout.door : home.anchor;
+      const runtime: Runtime = {
         key: home.key,
         agentId: home.agentId,
         home,
-        x: home.anchor.spot.x,
-        z: home.anchor.spot.z,
-        yaw: home.anchor.spot.yaw,
+        x: start.spot.x,
+        z: start.spot.z,
+        yaw: start.spot.yaw,
         act: "home",
         path: [],
-        at: home.anchor,
+        at: start,
         carry: false,
         lookAt: null,
         lookUntil: 0,
@@ -133,10 +169,94 @@ export class Director {
         queue: [],
         scale: 0,
         leaving: false,
-      });
+        visitors: 0,
+        pendingMove: false,
+      };
+      this.runtimes.set(home.key, runtime);
+      if (walksIn) this.walkHome(runtime);
     }
-    if (!replanned) for (const runtime of gone) runtime.leaving = true;
+    if (!replanned) {
+      for (const runtime of gone) {
+        if (runtime.leaving) continue;
+        runtime.leaving = true;
+        this.hush(runtime);
+        if (runtime.trip?.type === "say") runtime.trip = null;
+        this.relocate(runtime);
+      }
+    }
+    this.started = true;
     this.version++;
+  }
+
+  /**
+   * Sends someone to their (new) destination: at once when free; after the visit when a colleague is on
+   * the way or talking to them; mid-walk, they finish the way they are on and go on from there (arrive).
+   */
+  private relocate(runtime: Runtime) {
+    if (runtime.visitors > 0) runtime.pendingMove = true;
+    else if (runtime.act === "home" && !runtime.trip) this.walkHome(runtime);
+  }
+
+  /** The open floor of the lounge, between the sofas and the poufs, where the party dances. */
+  private danceFloor() {
+    const lounge = this.layout.cells.find((c) => c.key === LOUNGE);
+    if (!lounge) return null;
+    return { x: lounge.x + 3.5, z: lounge.z + 2.65, halfX: 1.9, halfZ: 0.95 };
+  }
+
+  /**
+   * Party: someone resting in the lounge, with nothing else on, goes to a random spot on the floor and
+   * dances there a few seconds, then moves to another. Work, a colleague coming over, a new place or the
+   * end of the party sends them back to their spot (or wherever their home is now).
+   */
+  private dance(runtime: Runtime, now: number, awaited: boolean) {
+    const floor = this.danceFloor();
+    const trip = runtime.trip;
+    const stop =
+      !this.party ||
+      !floor ||
+      runtime.home.cell !== LOUNGE ||
+      runtime.leaving ||
+      runtime.pendingMove ||
+      runtime.queue.length > 0 ||
+      runtime.visitors > 0 ||
+      awaited;
+    if (trip?.type === "dance") {
+      if (runtime.act !== "dance") return;
+      if (stop) {
+        runtime.trip = { type: "move" };
+        this.walkTo(runtime, this.destination(runtime));
+      } else if (now > trip.until) this.danceTo(runtime, floor);
+      return;
+    }
+    if (stop || trip || runtime.act !== "home" || runtime.scale < 1) return;
+    runtime.trip = { type: "dance", until: 0 };
+    this.danceTo(runtime, floor);
+  }
+
+  private danceTo(runtime: Runtime, floor: NonNullable<ReturnType<Director["danceFloor"]>>) {
+    const at = {
+      x: floor.x + (Math.random() * 2 - 1) * floor.halfX,
+      z: floor.z + (Math.random() * 2 - 1) * floor.halfZ,
+    };
+    this.walkTo(runtime, { cell: LOUNGE, spot: { ...at, yaw: runtime.yaw }, aisle: at });
+  }
+
+  /** Whether a colleague can come over now: at their desk, doing nothing else, with nobody else there. */
+  private receives(target: Runtime) {
+    return (
+      this.runtimes.get(target.key) === target &&
+      !target.leaving &&
+      !target.pendingMove &&
+      target.act === "home" &&
+      !target.trip &&
+      target.visitors === 0
+    );
+  }
+
+  /** Where someone goes when nothing else is on: home, or the door once they have no place left. */
+  private destination(runtime: Runtime): Anchor {
+    return runtime.leaving ? this.layout.door : runtime.home.anchor;
   }
 
   /** At home at once, with whatever they were doing dropped (their queue stays). */
@@ -166,6 +286,23 @@ export class Director {
     return [...this.runtimes.values()].find((r) => r.home.cell === SUPER && !r.leaving) ?? null;
   }
 
+  /**
+   * The user on the intercom: the super agent holds the phone while it answers, saying the start of its
+   * answer, and hangs up a few seconds after it is done.
+   */
+  callSuper(talking: boolean, text: string | null, now: number) {
+    const boss = this.superAgent();
+    if (!boss) return;
+    if (talking) {
+      boss.phoneUntil = now + 3_600_000;
+      this.bubbles.set(boss.key, { kind: "call", text, phone: true });
+    } else if (boss.phoneUntil > now) {
+      boss.phoneUntil = now + (text ? 5000 : 0);
+      if (text) this.bubbles.set(boss.key, { kind: "call", text, phone: true });
+    } else return;
+    this.version++;
+  }
+
   /** Queues an interaction: a visit, a line said in place, or a folder arriving from the user. */
   play(interaction: OfficeInteraction, now: number) {
     const cell = interaction.projectId;
@@ -185,7 +322,7 @@ export class Director {
       this.enqueue(from, { type: "say", interaction, until: 0 });
       return;
     }
-    this.enqueue(from, { type: "visit", interaction, target: to, stage: "out", until: 0 });
+    this.enqueue(from, { type: "visit", interaction, target: to, stage: "out", until: 0, queuedAt: now });
   }
 
   private enqueue(runtime: Runtime, trip: Trip) {
@@ -205,7 +342,7 @@ export class Director {
   }
 
   private walkHome(runtime: Runtime) {
-    this.walkTo(runtime, runtime.home.anchor);
+    this.walkTo(runtime, this.destination(runtime));
     runtime.trip = runtime.trip ?? { type: "move" };
   }
 
@@ -220,23 +357,47 @@ export class Director {
 
   /** Advances everyone by `dt` seconds. */
   update(dt: number, now: number) {
-    let busy = [...this.runtimes.values()].filter((r) => r.trip && r.trip.type !== "move").length;
+    let busy = [...this.runtimes.values()].filter(
+      (r) => r.trip && r.trip.type !== "move" && r.trip.type !== "dance",
+    ).length;
+    // People a colleague is waiting to visit: a dancer among them goes back to their spot first.
+    const awaited = new Set<Runtime>();
+    for (const r of this.runtimes.values()) if (r.queue[0]?.type === "visit") awaited.add(r.queue[0].target);
     for (const runtime of this.runtimes.values()) {
-      runtime.scale = Math.min(1, Math.max(0, runtime.scale + (runtime.leaving && !runtime.trip ? -dt : dt) * 3));
-      if (runtime.leaving && !runtime.trip && runtime.scale === 0) {
+      const gone = runtime.leaving && !runtime.trip && !runtime.pendingMove && runtime.visitors === 0;
+      runtime.scale = Math.min(1, Math.max(0, runtime.scale + (gone ? -dt : dt) * 3));
+      if (gone && runtime.scale === 0) {
         this.runtimes.delete(runtime.key);
         this.hush(runtime);
         this.version++;
         continue;
       }
-      if (!runtime.trip && runtime.queue.length && busy < MAX_TRIPS && runtime.scale === 1) {
-        this.start(runtime, runtime.queue.shift()!, now);
-        busy++;
+      if (runtime.pendingMove && runtime.visitors === 0 && runtime.act === "home" && !runtime.trip) {
+        runtime.pendingMove = false;
+        this.walkHome(runtime);
+      }
+      this.dance(runtime, now, awaited.has(runtime));
+      const next = runtime.queue[0];
+      const free = !runtime.trip && !runtime.pendingMove && runtime.visitors === 0 && runtime.scale === 1;
+      if (next && free && busy < MAX_TRIPS) {
+        // A visit waits until the colleague is at their desk to receive it; past a while it is said from here.
+        const waits = next.type === "visit" && !this.receives(next.target);
+        const overdue = next.type === "visit" && now - next.queuedAt > VISIT_WAIT_MS;
+        if (waits && overdue) runtime.queue[0] = { type: "say", interaction: next.interaction, until: 0 };
+        if (!waits || overdue) {
+          this.start(runtime, runtime.queue.shift()!, now);
+          busy++;
+        }
       }
       if (runtime.act === "walk") this.walk(runtime, dt, now);
       else this.tick(runtime, now);
       if (runtime.act === "home") {
         runtime.yaw = turn(runtime.yaw, runtime.home.anchor.spot.yaw, dt);
+      } else if (runtime.act === "dance") {
+        // Facing the middle of the floor, swaying.
+        const middle = this.danceFloor();
+        const face = middle ? Math.atan2(middle.x - runtime.x, middle.z - runtime.z) : runtime.yaw;
+        runtime.yaw = turn(runtime.yaw, face + Math.sin(now / 600 + runtime.x) * 0.6, dt * 0.4);
       }
     }
     this.effects = this.effects.filter((e) => now - e.start < e.duration + 400);
@@ -250,11 +411,7 @@ export class Director {
       if (phone) runtime.phoneUntil = trip.until;
       this.say(runtime, trip.interaction, phone);
     } else if (trip.type === "visit") {
-      if (trip.target.leaving) {
-        runtime.trip = { type: "say", interaction: trip.interaction, until: now + talkMs(trip.interaction) };
-        this.say(runtime, trip.interaction, false);
-        return;
-      }
+      trip.target.visitors++;
       this.walkTo(runtime, trip.target.home.visitor);
       runtime.carry = CARRIES.has(trip.interaction.kind);
     }
@@ -285,6 +442,11 @@ export class Director {
 
   private arrive(runtime: Runtime, now: number) {
     const trip = runtime.trip;
+    if (trip?.type === "dance") {
+      runtime.act = "dance";
+      trip.until = now + 2500 + Math.random() * 4500;
+      return;
+    }
     if (trip?.type === "visit" && trip.stage === "out") {
       const target = trip.target;
       const i = trip.interaction;
@@ -305,9 +467,11 @@ export class Director {
       if (desk && i.kind === "resumed") this.addEffect("undrawer", desk, now, 1200);
       return;
     }
-    // Their home changed on the way (they got work elsewhere): on from here, along the corridors.
-    if (!sameSpot(runtime.at, runtime.home.anchor)) {
-      this.walkTo(runtime, runtime.home.anchor);
+    // Their home changed on the way (they got work elsewhere, or none is left): on from here, along the
+    // corridors.
+    const destination = this.destination(runtime);
+    if (!sameSpot(runtime.at, destination)) {
+      this.walkTo(runtime, destination);
       return;
     }
     runtime.act = "home";
@@ -328,8 +492,9 @@ export class Director {
       this.hush(runtime);
     } else if (trip.type === "visit" && trip.stage === "talk") {
       trip.stage = "back";
+      trip.target.visitors = Math.max(0, trip.target.visitors - 1);
       this.hush(runtime);
-      this.walkTo(runtime, runtime.home.anchor);
+      this.walkTo(runtime, this.destination(runtime));
     }
   }
 }

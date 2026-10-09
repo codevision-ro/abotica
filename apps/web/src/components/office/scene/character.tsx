@@ -53,6 +53,7 @@ export function Character({
   status,
   activity,
   seed,
+  party,
   onSelect,
 }: {
   runtimeKey: string;
@@ -65,6 +66,8 @@ export function Character({
   activity: OfficeActivity | null;
   /** Varies idle timing between people. */
   seed: number;
+  /** Party mode: the lounge dances, the desks nod along. */
+  party: boolean;
   onSelect: () => void;
 }) {
   const j = useRef<Joints>({
@@ -91,7 +94,11 @@ export function Character({
     j.root.rotation.y = r.yaw;
     j.root.scale.setScalar(Math.max(0.001, r.scale));
 
-    const seated = r.act === "home" && r.home.pose !== "stand";
+    // At a party the lounge gets up and dances; someone on the way out stands at the door.
+    const dancing = r.act === "dance" || (party && r.act === "home" && !r.leaving && r.home.pose !== "desk");
+    const seated = r.act === "home" && !r.leaving && r.home.pose !== "stand" && !dancing;
+    // Everyone on the same beat (120 a minute), whatever their own idle timing.
+    const beat = clock.elapsedTime * Math.PI * 4;
     const phone = r.phoneUntil > now;
     const target: Target = {
       hip: seated ? HIP_SEAT[r.home.pose]! : HIP_STAND,
@@ -160,6 +167,14 @@ export function Character({
         target.armL = [-0.5, 0.1];
         target.armR = [-0.5, -0.1];
       }
+    } else if (dancing) {
+      target.hip = HIP_STAND + Math.abs(Math.sin(beat / 2)) * 0.07;
+      target.armL = [-2.7 + Math.sin(beat) * 0.35, -0.35];
+      target.armR = [-2.7 + Math.cos(beat) * 0.35, 0.35];
+      target.legL = Math.max(0, Math.sin(beat)) * -0.35;
+      target.legR = Math.max(0, -Math.sin(beat)) * -0.35;
+      target.headX = Math.sin(beat) * 0.15;
+      target.lean = Math.sin(beat / 2) * 0.08;
     } else {
       // Lounge: relaxed, with a coffee now and then.
       showCup = true;
@@ -171,6 +186,8 @@ export function Character({
       target.lean = seated ? -0.08 : 0;
     }
 
+    // At their desks, people nod along.
+    if (party && r.act === "home" && r.home.pose === "desk") target.headX += Math.sin(beat) * 0.12;
     if (phone) {
       target.armR = [-2.6, 0.15];
       target.headX = 0.08;
@@ -204,6 +221,8 @@ export function Character({
           ref={(g) => void (j.torso = g)}
           onClick={(e) => {
             e.stopPropagation();
+            // A drag that ends over it is not a click.
+            if (e.delta > 4) return;
             onSelect();
           }}
           onPointerOver={(e) => {

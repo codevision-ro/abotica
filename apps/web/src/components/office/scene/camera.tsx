@@ -2,8 +2,8 @@
 
 import { MapControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type ComponentRef, useEffect, useRef } from "react";
-import { type OrthographicCamera, Vector3 } from "three";
+import { type ComponentRef, useCallback, useEffect, useRef } from "react";
+import { MOUSE, type OrthographicCamera, TOUCH, Vector3 } from "three";
 import type { OfficeLayout, Point } from "./layout";
 
 /** The view: from the front right, about 38 degrees above the floor, never rotated. */
@@ -13,6 +13,16 @@ export const VIEW_DIR = new Vector3(
   Math.cos(Math.PI / 4),
 ).normalize();
 const DISTANCE = 60;
+
+/** The camera's right and up directions in the world. */
+const VIEW_RIGHT = new Vector3(VIEW_DIR.z, 0, -VIEW_DIR.x).normalize();
+const VIEW_UP = new Vector3().crossVectors(VIEW_RIGHT, VIEW_DIR.clone().negate()).normalize();
+
+/** Screen up-down as a direction on the floor (left-right is VIEW_RIGHT). */
+const SCREEN_Y = new Vector3(-VIEW_DIR.x, 0, -VIEW_DIR.z).normalize();
+/** Every button drags the view; the wheel zooms. */
+const MOUSE_BUTTONS = { LEFT: MOUSE.PAN, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.PAN };
+const TOUCHES = { ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN };
 
 /** Room for the feed panel on the right of wide screens, in pixels. */
 const PANEL = 340;
@@ -41,23 +51,54 @@ export function CameraRig({
   const lastRatio = useRef(0);
 
   const { minX, maxX, minZ, maxZ } = layout.bounds;
+  const bounds = useRef(layout.bounds);
+  useEffect(() => {
+    bounds.current = layout.bounds;
+  }, [layout.bounds]);
+
+  // Stable on purpose: drei reconnects the controls whenever these change, and a reconnect in the middle
+  // of a drag (any re-render, such as a live refetch) left a pointer pressed for good: dragging and
+  // zooming stopped answering.
+  const onStart = useCallback(() => {
+    touched.current = true;
+    glide.current = null;
+  }, []);
+  const onChange = useCallback(() => {
+    const c = controls.current;
+    if (!c) return;
+    const camera = get().camera;
+    const { minX, maxX, minZ, maxZ } = bounds.current;
+    // Keep the office in view, along the screen's two directions separately: limits on the floor's own
+    // axes are diagonal on screen, and reaching one stopped dragging sideways altogether.
+    const center = new Vector3((minX + maxX) / 2, c.target.y, (minZ + maxZ) / 2);
+    const offset = c.target.clone().sub(center);
+    const corners = [minX, maxX].flatMap((x) => [minZ, maxZ].map((z) => new Vector3(x, 0, z).sub(center)));
+    const reach = (axis: Vector3) => Math.max(...corners.map((v) => Math.abs(v.dot(axis))));
+    const along = (axis: Vector3) => Math.min(reach(axis), Math.max(-reach(axis), offset.dot(axis)));
+    const clamped = center
+      .clone()
+      .addScaledVector(VIEW_RIGHT, along(VIEW_RIGHT))
+      .addScaledVector(SCREEN_Y, along(SCREEN_Y));
+    if (clamped.distanceToSquared(c.target) > 1e-8) {
+      camera.position.add(clamped.clone().sub(c.target));
+      c.target.copy(clamped);
+    }
+  }, [get]);
 
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
     const camera = get().camera as OrthographicCamera;
-    // Projected size of the office's box seen from the view direction.
-    camera.position.copy(VIEW_DIR).multiplyScalar(DISTANCE);
-    camera.lookAt(0, 0, 0);
-    camera.updateMatrixWorld();
+    // Projected size of the office's box seen from the view direction, worked out on the side: moving the
+    // camera to measure would throw off a view the user has already moved.
     const xs: number[] = [];
     const ys: number[] = [];
     for (const x of [minX, maxX]) {
       for (const z of [minZ, maxZ]) {
         for (const y of [0, 1.4]) {
-          const v = new Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse);
-          xs.push(v.x);
-          ys.push(v.y);
+          const v = new Vector3(x, y, z);
+          xs.push(v.dot(VIEW_RIGHT));
+          ys.push(v.dot(VIEW_UP));
         }
       }
     }
@@ -70,8 +111,7 @@ export function CameraRig({
     c.maxZoom = Math.max(zoom * 3.5, 130);
     if (touched.current) return;
     // Center the office in the area left of the panel.
-    const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-    const center = new Vector3((minX + maxX) / 2, 0.3, (minZ + maxZ) / 2).addScaledVector(right, panel / 2 / zoom);
+    const center = new Vector3((minX + maxX) / 2, 0.3, (minZ + maxZ) / 2).addScaledVector(VIEW_RIGHT, panel / 2 / zoom);
     c.target.copy(center);
     camera.position.copy(center).addScaledVector(VIEW_DIR, DISTANCE);
     camera.zoom = zoom;
@@ -114,27 +154,14 @@ export function CameraRig({
       ref={controls}
       makeDefault
       enableRotate={false}
+      mouseButtons={MOUSE_BUTTONS}
+      touches={TOUCHES}
       enableDamping
       dampingFactor={0.12}
       zoomSpeed={1.1}
       screenSpacePanning={false}
-      onStart={() => {
-        touched.current = true;
-        glide.current = null;
-      }}
-      onChange={() => {
-        const c = controls.current;
-        if (!c) return;
-        const camera = get().camera;
-        // Keep the office in view: the target stays over the floor.
-        const clamped = c.target.clone();
-        clamped.x = Math.min(maxX + 1, Math.max(minX - 1, clamped.x));
-        clamped.z = Math.min(maxZ + 1, Math.max(minZ - 1, clamped.z));
-        if (!clamped.equals(c.target)) {
-          camera.position.add(clamped.clone().sub(c.target));
-          c.target.copy(clamped);
-        }
-      }}
+      onStart={onStart}
+      onChange={onChange}
     />
   );
 }

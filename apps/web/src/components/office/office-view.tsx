@@ -1,16 +1,17 @@
 "use client";
 
 import type { OfficeInteraction, OfficeState } from "@abotica/core/office";
-import { ActivityIcon, ChevronDownIcon } from "lucide-react";
+import { ActivityIcon, ChevronDownIcon, PartyPopperIcon } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLiveEvent } from "@/components/app/live-updates";
 import { useTaskParams } from "@/components/tasks/task-meta";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { OfficeFeed } from "./office-feed";
+import { addRef, type IntercomCall, type IntercomRef, OfficeIntercom } from "./office-intercom";
 import { OfficeList } from "./office-list";
 import type { OfficeAgentTarget, OfficeSceneProps } from "./office-scene-props";
 
@@ -47,7 +48,7 @@ function merge(prev: Data, next: OfficeState, firstIds: Set<string>): Data {
   return { state: next, live };
 }
 
-export function OfficeView({ initial }: { initial: OfficeState }) {
+export function OfficeView({ initial, conversationId }: { initial: OfficeState; conversationId: string | null }) {
   const router = useRouter();
   const { openOverlay } = useTaskParams();
   const mode = useSyncExternalStore(subscribeMode, modeSnapshot, serverMode);
@@ -93,6 +94,17 @@ export function OfficeView({ initial }: { initial: OfficeState }) {
 
   const { state, live } = data;
 
+  // The intercom with the super agent: while it is open, clicking in the office attaches what was clicked
+  // to the message instead of opening it.
+  const [intercomOpen, setIntercomOpen] = useState(false);
+  const [refs, setRefs] = useState<IntercomRef[]>([]);
+  const [call, setCall] = useState<IntercomCall | null>(null);
+  const agentsById = useMemo(() => new Map(state.agents.map((a) => [a.id, a])), [state.agents]);
+  const superAgent = state.superAgent ? (agentsById.get(state.superAgent.agentId) ?? null) : null;
+  const needsYou =
+    state.rooms.reduce((n, r) => n + r.seats.filter((s) => s.status === "needs_you").length, 0) +
+    (state.superAgent?.seat?.status === "needs_you" ? 1 : 0);
+
   const onSelectAgent = useCallback(
     ({ agentId, projectId }: OfficeAgentTarget) => {
       const seat = projectId
@@ -100,26 +112,72 @@ export function OfficeView({ initial }: { initial: OfficeState }) {
         : state.superAgent?.agentId === agentId
           ? state.superAgent.seat
           : null;
+      if (intercomOpen) {
+        const agent = agentsById.get(agentId);
+        setRefs((current) => {
+          let next = agent
+            ? addRef(current, { kind: "agent", id: agent.id, name: agent.name, avatar: agent.avatar })
+            : current;
+          if (seat?.task) next = addRef(next, { kind: "task", id: seat.task.id, name: seat.task.title });
+          return next;
+        });
+        return;
+      }
       if (seat?.task) openOverlay({ task: seat.task.id });
       else router.push(`/agents/${agentId}`);
     },
-    [state, openOverlay, router],
+    [state, openOverlay, router, intercomOpen, agentsById],
   );
-  const onSelectRoom = useCallback((projectId: string) => router.push(`/projects/${projectId}`), [router]);
+  const onSelectRoom = useCallback(
+    (projectId: string) => {
+      if (intercomOpen) {
+        const room = state.rooms.find((r) => r.projectId === projectId);
+        if (room) setRefs((current) => addRef(current, { kind: "project", id: room.projectId, name: room.name }));
+        return;
+      }
+      router.push(`/projects/${projectId}`);
+    },
+    [router, intercomOpen, state.rooms],
+  );
 
   const [focusInteractionId, setFocusInteractionId] = useState<string | null>(null);
+  const [party, setParty] = useState(false);
+  const tParty = useTranslations("office.party");
+  const onSelectInteraction = (i: OfficeInteraction) => {
+    if (intercomOpen) setRefs((current) => addRef(current, { kind: "task", id: i.task.id, name: i.task.title }));
+    if (mode === "3d") setFocusInteractionId(i.id);
+    else if (!intercomOpen) openOverlay({ task: i.task.id });
+  };
+
+  const intercom = (
+    <OfficeIntercom
+      superAgent={superAgent}
+      conversationId={conversationId}
+      open={intercomOpen}
+      onOpenChange={setIntercomOpen}
+      refs={refs}
+      onRefsChange={setRefs}
+      needsYou={needsYou}
+      onCall={setCall}
+    />
+  );
 
   if (mode === null) return <Skeleton className="min-h-0 flex-1 rounded-2xl" />;
 
   if (mode === "2d") {
     return (
-      <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 md:-mx-6 md:px-6">
-        <OfficeList
-          state={state}
-          onSelectAgent={onSelectAgent}
-          onSelectRoom={onSelectRoom}
-          onSelectInteraction={(i) => openOverlay({ task: i.task.id })}
-        />
+      <div className="relative -mx-4 flex min-h-0 flex-1 flex-col md:-mx-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-20 md:px-6">
+          <OfficeList
+            state={state}
+            onSelectAgent={onSelectAgent}
+            onSelectRoom={onSelectRoom}
+            onSelectInteraction={onSelectInteraction}
+          />
+        </div>
+        <div className={cn("pointer-events-none absolute inset-x-3 bottom-3 flex justify-center", intercomOpen && "top-3")}>
+          {intercom}
+        </div>
       </div>
     );
   }
@@ -132,8 +190,30 @@ export function OfficeView({ initial }: { initial: OfficeState }) {
         focusInteractionId={focusInteractionId}
         onSelectAgent={onSelectAgent}
         onSelectRoom={onSelectRoom}
+        call={call}
+        party={party}
       />
-      <FeedPanel state={state} selectedId={focusInteractionId} onSelect={(i) => setFocusInteractionId(i.id)} />
+      <button
+        type="button"
+        aria-pressed={party}
+        onClick={() => setParty((p) => !p)}
+        className={cn(
+          "absolute top-3 left-3 flex items-center gap-1.5 rounded-full border border-border/70 bg-card/85 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-md outline-none hover:border-primary/40 focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-card/75",
+          party && "border-primary/40 text-primary",
+        )}
+      >
+        <PartyPopperIcon className={cn("size-3.5", party ? "animate-bounce" : "text-primary")} aria-hidden />
+        {party ? tParty("off") : tParty("on")}
+      </button>
+      <FeedPanel state={state} selectedId={focusInteractionId} onSelect={onSelectInteraction} />
+      <div
+        className={cn(
+          "pointer-events-none absolute bottom-3 left-3 flex w-[min(28rem,calc(100%-1.5rem))]",
+          intercomOpen && "h-[min(38rem,calc(100%-1.5rem))] w-[min(36rem,calc(100%-1.5rem))]",
+        )}
+      >
+        {intercom}
+      </div>
     </div>
   );
 }

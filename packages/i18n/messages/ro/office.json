@@ -39,7 +39,8 @@
     "paused": "Pauză",
     "resumed": "Revin la lucru",
     "cancelled": "Oprit",
-    "redirected": "Schimbare de plan"
+    "redirected": "Schimbare de plan",
+    "call": "La telefon cu tine"
   },
   "list": {
     "empty": "Încă nu există agenți sau proiecte.",
@@ -98,5 +99,25 @@
   "scene": {
     "label": "Biroul în 3D: fiecare proiect e o cameră, fiecare agent stă la biroul lui și arată ce face acum.",
     "paused": "pe pauză"
+  },
+  "intercom": {
+    "placeholder": "Scrie-i lui {name}...",
+    "needsYou": "{count, plural, one {# are nevoie de tine} other {# au nevoie de tine}}",
+    "title": "Vorbește cu {name}",
+    "openInChat": "Deschide în Chat",
+    "close": "Închide",
+    "empty": "Spune-i lui {name} ce vrei să se întâmple.",
+    "pickHint": "Apasă pe un agent, o cameră sau o activitate din birou ca s-o adaugi la mesaj.",
+    "removeRef": "Scoate {name}",
+    "about": "Din Birou, despre: {items}",
+    "ref": {
+      "agent": "agentul {name} (id: {id})",
+      "task": "sarcina \"{name}\" (id: {id})",
+      "project": "proiectul {name} (id: {id})"
+    }
+  },
+  "party": {
+    "on": "Petrecere",
+    "off": "Oprește petrecerea"
   }
 }

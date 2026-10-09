@@ -60,6 +60,14 @@ describe("buildLayout", () => {
     for (const s of lounge.lounge) expect(inside(lounge, s.seat.spot)).toBe(true);
   });
 
+  it("keeps the same plan and lounge spots whoever is resting, as long as the people are the same", () => {
+    const rooms = [{ id: "shop", members: ["m1", "a", "b"], manager: "m1" }];
+    const all = buildLayout({ ...state(rooms, 0), loungeIds: ["a", "b", "m1"] });
+    const some = buildLayout({ ...state(rooms, 0), loungeIds: ["b"] });
+    expect(some.roster).toEqual(all.roster);
+    expect(some.cells).toEqual(all.cells);
+  });
+
   it("keeps the corridors outside every cell", () => {
     for (const cell of layout.cells) {
       for (const other of layout.cells) {

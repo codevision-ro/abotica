@@ -32,6 +32,8 @@ export type Palette = {
   sunColor: string;
   sky: string;
   ground: string;
+  /** A soft lamp over every room (dark mode only): its color and strength. */
+  roomLight: { color: string; intensity: number } | null;
   status: Record<Exclude<OfficeStatus, "idle">, string>;
 };
 
@@ -63,6 +65,7 @@ const LIGHT: Palette = {
   sunColor: "#ffffff",
   sky: "#ffffff",
   ground: "#d8d6e6",
+  roomLight: null,
   status: { working: "#6a49eb", needs_you: "#e49e22", blocked: "#e62b34", waiting: "#8a8a96" },
 };
 
@@ -89,11 +92,12 @@ const DARK: Palette = {
   paper: "#e9e8f2",
   rug: "#232232",
   shadow: 0.35,
-  ambient: 1.15,
-  sun: 0.95,
+  ambient: 0.9,
+  sun: 0.7,
   sunColor: "#c9c3ff",
   sky: "#6f6aa0",
   ground: "#101016",
+  roomLight: { color: "#ffe2b8", intensity: 14 },
   status: { working: "#8f81ff", needs_you: "#f2af48", blocked: "#f75c61", waiting: "#9797a1" },
 };
 

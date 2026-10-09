@@ -5,8 +5,8 @@ import { Block, Board, Chair, Clay, CoffeeCounter, Plant, Pouf, Shelf, Sofa } fr
 import { type Cell, LOUNGE_SOFAS, type OfficeLayout } from "./layout";
 import type { Palette } from "./palette";
 
-const WALL_H = 0.95;
-const WALL_T = 0.12;
+export const WALL_H = 0.95;
+export const WALL_T = 0.12;
 const FLOOR_T = 0.07;
 
 /** The building's floor under every cell; corridors are the space between them. */
@@ -92,7 +92,8 @@ export function SuperDecor({ cell, palette: p }: { cell: Cell; palette: Palette 
         </>
       )}
       <Shelf x={cell.x + cell.width - 1.0} z={cell.z + 0.3} palette={p} />
-      <Plant position={[cell.x + 0.45, FLOOR_T, cell.z + 0.45]} palette={p} />
+      {/* In the front corner: the back wall carries the office's name. */}
+      <Plant position={[cell.x + 0.45, FLOOR_T, cell.z + cell.depth - 0.45]} palette={p} />
     </group>
   );
 }

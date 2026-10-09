@@ -18,7 +18,7 @@ export function useOfficeLabels() {
     status: (status: OfficeStatus) => t(`status.${status}`),
     activity: (activity: OfficeActivity) => t(`activity.${activity}`),
     place: (place: "superAgent" | "lounge" | "you") => t(`places.${place}`),
-    bubble: (kind: OfficeInteractionKind) => t(`bubble.${kind}`),
+    bubble: (kind: OfficeInteractionKind | "call") => t(`bubble.${kind}`),
   };
 }
 

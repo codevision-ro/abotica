@@ -48,7 +48,21 @@ export type Cell = {
 export type OfficeLayout = {
   cells: Cell[];
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** The lounge's door: where people come in from and leave by. */
+  door: Anchor;
+  /** Everyone who may rest in the lounge, each with a spot of their own (the same index in the lounge). */
+  roster: string[];
 };
+
+/**
+ * Everyone but the super agent, in a fixed order: each keeps one lounge spot, so the floor plan and the
+ * lounge stay put as people come and go to work.
+ */
+export function loungeRoster(state: OfficeState): string[] {
+  const ids = new Set([...state.rooms.flatMap((r) => r.memberIds), ...state.loungeIds]);
+  if (state.superAgent) ids.delete(state.superAgent.agentId);
+  return [...ids].sort();
+}
 
 export const SUPER = "super";
 export const LOUNGE = "lounge";
@@ -137,9 +151,10 @@ function loungeCell(count: number): Omit<Cell, "x" | "z" | "laneX" | "frontZ"> {
 }
 
 export function buildLayout(state: OfficeState): OfficeLayout {
+  const roster = loungeRoster(state);
   const cells = [
     superCell(state.superAgent?.agentId ?? null),
-    loungeCell(state.loungeIds.length),
+    loungeCell(roster.length),
     ...state.rooms.map((r) => roomCell(r.projectId, r.memberIds, r.managerAgentId)),
   ];
   const n = cells.length;
@@ -184,7 +199,14 @@ export function buildLayout(state: OfficeState): OfficeLayout {
       lounge: cell.lounge.map((s) => ({ ...s, seat: move(s.seat), visitor: move(s.visitor) })),
     };
   });
-  return { cells: placed, bounds: { minX: ox, maxX: ox + totalW, minZ: oz, maxZ: oz + totalD } };
+  const lounge = placed.find((c) => c.key === LOUNGE)!;
+  const doorAt = { x: lounge.innerX, z: lounge.z + lounge.depth - 0.45 };
+  return {
+    cells: placed,
+    bounds: { minX: ox, maxX: ox + totalW, minZ: oz, maxZ: oz + totalD },
+    door: { cell: LOUNGE, spot: { ...doorAt, yaw: Math.PI / 2 }, aisle: doorAt },
+    roster,
+  };
 }
 
 /**
@@ -197,7 +219,8 @@ export function route(layout: OfficeLayout, from: Anchor, to: Anchor): Point[] {
   const points: Point[] = [from.spot, from.aisle];
   if (!a || !b) points.push(to.aisle);
   else if (a === b) {
-    if (Math.abs(from.aisle.z - to.aisle.z) > 0.01) {
+    // The lounge is open floor: across it directly. Rooms go round their desks by the side walkway.
+    if (a.kind !== "lounge" && Math.abs(from.aisle.z - to.aisle.z) > 0.01) {
       points.push({ x: a.innerX, z: from.aisle.z }, { x: a.innerX, z: to.aisle.z });
     }
     points.push(to.aisle);
