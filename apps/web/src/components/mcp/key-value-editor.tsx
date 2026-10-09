@@ -17,6 +17,9 @@ export function toRows(record: Record<string, StoredValue>): KeyValueRow[] {
   return Object.entries(record).map(([key, value]) => (value === null ? { key, value: "", keep: key } : { key, value }));
 }
 
+/** Rows with a key: the ones that are saved. */
+export const keyCount = (rows: KeyValueRow[]) => rows.filter((r) => r.key.trim()).length;
+
 export function toRecord(rows: KeyValueRow[]): Record<string, string | KeepStored> {
   const out: Record<string, string | KeepStored> = {};
   for (const r of rows) {

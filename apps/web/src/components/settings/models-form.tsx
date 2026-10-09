@@ -134,13 +134,7 @@ export function ModelsSettingsForm({
           </FieldGroup>
         </FormSubsection>
       </SettingsAdvanced>
-      <SettingsSaveBar
-        dirty={form.dirty}
-        invalid={form.invalid}
-        pending={form.pending}
-        onSave={form.save}
-        onReset={form.reset}
-      />
+      <SettingsSaveBar form={form} />
     </>
   );
 }

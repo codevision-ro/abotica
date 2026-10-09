@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ListPager, pageHref } from "@/components/app/list-pager";
-import { SectionEmpty, sectionCardClass } from "@/components/app/section-card";
+import { SectionDivider, SectionEmpty, sectionCardClass } from "@/components/app/section-card";
 import { AuditFilters } from "@/components/settings/audit-filters";
 import { AuditSettingsChanges } from "@/components/settings/audit-settings-changes";
 import { SectionHeader } from "@/components/settings/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { firstParam } from "@/lib/search-params";
 import { cn } from "@/lib/utils";
 import { getFormat } from "@/server/format";
 import { AUDIT_PAGE_SIZE, getAuditLogPage } from "@/server/queries/settings";
@@ -18,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("audit") };
 }
 
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
+const one = (v: string | string[] | undefined) => firstParam(v) || undefined;
 
 export default async function AuditPage(props: PageProps<"/settings/audit">) {
   const sp = await props.searchParams;
@@ -51,7 +52,7 @@ export default async function AuditPage(props: PageProps<"/settings/audit">) {
           <AuditFilters actors={actorOptions} entityTypes={entityOptions} actor={actor} entityType={entityType} />
           <span className="tabular ml-auto text-sm text-muted-foreground">{t("count", { count: total })}</span>
         </div>
-        <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+        <SectionDivider />
         {rows.length === 0 ? (
           <SectionEmpty>{actor || entityType ? t("emptyFiltered") : t("emptyNone")}</SectionEmpty>
         ) : (

@@ -27,12 +27,10 @@ import { prepareRepos, repoGitAccess } from "./repo-workspace";
 import { expiredToolOutputs } from "./tool-output";
 import { workspaceToolsOf } from "./tools/workspace";
 import { workspaceDescription } from "./workspace-description";
-import { INPUTS_DIR, inputPath, KNOWLEDGE_DIR, knowledgePath, TOOL_OUTPUT_DIR } from "./workspace-paths";
+import { INPUTS_DIR, inputPath, isIdFolder, KNOWLEDGE_DIR, knowledgePath, TOOL_OUTPUT_DIR } from "./workspace-paths";
 
 /** One marker file per copied input file, named by its id. */
 const COPIED_DIR = ".abotica/inputs-copied";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -193,7 +191,7 @@ async function syncKnowledge(projectId: string, workspace: Workspace, signal: Ab
  */
 async function pruneToolOutputs(workspace: Workspace, signal: AbortSignal) {
   const folders = await listing(workspace, `if [ -d ${TOOL_OUTPUT_DIR} ]; then ls -1A ${TOOL_OUTPUT_DIR}; fi`, signal);
-  const runIds = folders.filter((name) => UUID_RE.test(name));
+  const runIds = folders.filter(isIdFolder);
   if (!runIds.length) return;
   const rows = await db.select({ id: runs.id, finishedAt: runs.finishedAt }).from(runs).where(inArray(runs.id, runIds));
   const expired = expiredToolOutputs(runIds, rows, new Date());
@@ -217,14 +215,15 @@ const gitAuthor = (agent: RunContext["agent"]) => ({ name: agent.name, email: `$
  */
 export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Promise<ManagedSandboxSession | null> {
   const backend = currentSandboxBackend();
-  if (!backend || !workspaceToolsOf(ctx.agent).length) return null;
+  const tools = workspaceToolsOf(ctx.agent);
+  if (!backend || !tools.length) return null;
   const conversationId = ctx.run.conversationId;
   if (!ctx.project && !conversationId) return null;
   const key = ctx.project ? projectWorkspaceKey(ctx.project.id) : conversationWorkspaceKey(conversationId!);
   const policy = ctx.project?.sandbox ?? ctx.settings.sandbox.defaults;
   const bundles = await skillBundles(ctx.skills);
   const { commandTimeoutSec, pauseIdleMinutes, stopIdleHours, workspaceRetentionDays } = ctx.settings.sandbox;
-  const repos = ctx.repos;
+  const { repos } = ctx;
   const git = repoGitAccess(repos, gitAuthor(ctx.agent));
   return createSandboxSession({
     backend,
@@ -245,7 +244,7 @@ export async function openRunSandbox(ctx: RunContext, signal: AbortSignal): Prom
       idle: { pauseIdleMinutes, stopIdleHours, workspaceRetentionDays },
       repos,
       taskId: ctx.run.taskId,
-      root: workspaceToolsOf(ctx.agent).includes("shell_run_root"),
+      root: tools.includes("shell_run_root"),
     }),
     commandTimeoutMs: commandTimeoutSec * 1000,
     signal,

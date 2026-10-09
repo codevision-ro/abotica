@@ -3,7 +3,6 @@
 import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type Tone, ToneBadge } from "@/components/app/status-badge";
-import { cn } from "@/lib/utils";
 import type { TaskPullRequestBadge } from "@/server/queries/tasks";
 
 type Status = "merged" | "closed" | "checksFailing" | "changesRequested" | "checksPending" | "approved" | "open";
@@ -34,7 +33,7 @@ const label = (pr: TaskPullRequestBadge) => `${pr.provider === "gitlab" ? "!" : 
  * A pull request of the task with where it stands, linking to it on GitHub or GitLab. Above the card's
  * own link, so a click opens the pull request.
  */
-export function PullRequestBadge({ pr, className }: { pr: TaskPullRequestBadge; className?: string }) {
+export function PullRequestBadge({ pr }: { pr: TaskPullRequestBadge }) {
   const t = useTranslations("tasks.pr");
   const status = statusOf(pr);
   const text = t(`badge.${status}`);
@@ -46,10 +45,7 @@ export function PullRequestBadge({ pr, className }: { pr: TaskPullRequestBadge; 
       rel="noreferrer"
       draggable={false}
       title={t("title", { label: label(pr), status: text })}
-      className={cn(
-        "relative z-10 inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        className,
-      )}
+      className="relative z-10 inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ToneBadge tone={TONE[status]} pulse={status === "checksPending"}>
         <Icon className="size-3" aria-hidden />

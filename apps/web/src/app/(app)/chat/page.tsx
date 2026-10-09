@@ -2,11 +2,10 @@ import { FolderKanbanIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ALL, filterQuery, NO_PROJECT } from "@/lib/conversation-filter";
 import { ConversationListTrigger } from "@/components/chat/conversation-list";
 import { FirstConversationStarter } from "@/components/chat/first-conversation-starter";
 import { StartConversationButton } from "@/components/chat/start-conversation";
-import { parseConversationFilter } from "@/lib/conversation-filter";
+import { ALL, filterQuery, NO_PROJECT, parseConversationFilter } from "@/lib/conversation-filter";
 import { getLatestListedConversationId, getLatestOrchestratorConversationId } from "@/server/queries/chat";
 import { getProject } from "@/server/queries/projects";
 

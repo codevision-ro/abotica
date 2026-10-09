@@ -16,15 +16,7 @@ const SIZES = {
   lg: "size-10 rounded-xl [&_svg]:size-5!",
 } as const;
 
-export function ProviderIcon({
-  provider,
-  size,
-  className,
-}: {
-  provider: ProviderId;
-  size: keyof typeof SIZES;
-  className?: string;
-}) {
+export function ProviderIcon({ provider, size }: { provider: ProviderId; size: keyof typeof SIZES }) {
   const { icon: Icon, tint } = PROVIDER_ICONS[provider];
   return (
     <span
@@ -33,7 +25,6 @@ export function ProviderIcon({
         "flex shrink-0 items-center justify-center shadow-[inset_0_0_0_1px_rgb(0_0_0/0.06)] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]",
         tint,
         SIZES[size],
-        className,
       )}
     >
       <Icon />

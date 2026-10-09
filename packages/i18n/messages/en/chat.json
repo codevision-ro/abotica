@@ -31,9 +31,7 @@
     "stop": "Stop",
     "uploadFiles": "Upload files",
     "errors": {
-      "accept": "None of these file types are supported.",
-      "maxFileSize": "Files can be at most {max} MB.",
-      "maxFiles": "Too many files. Some were not added."
+      "maxFileSize": "Files can be at most {max} MB."
     }
   },
   "tool": {

@@ -1,4 +1,4 @@
-import { sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider } from "@/components/app/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -15,13 +15,10 @@ export function SettingsHeaderSkeleton({ action }: { action?: boolean }) {
   );
 }
 
-/**
- * A FormSection while it loads: icon, title and description, then `rows` setting rows (label and hint
- * left, control right), or a block of `height` for content that is not rows.
- */
-export function SettingsSectionSkeleton({ rows = 2, height }: { rows?: number; height?: string }) {
+/** A FormSection's icon, title and description while it loads, with the line under them. */
+export function SectionHeadSkeleton() {
   return (
-    <div className={sectionCardClass}>
+    <>
       <div className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
         <Skeleton className="size-8 rounded-lg" />
         <div className="flex-1 space-y-1.5">
@@ -29,7 +26,19 @@ export function SettingsSectionSkeleton({ rows = 2, height }: { rows?: number; h
           <Skeleton className="h-3.5 w-72 max-w-full" />
         </div>
       </div>
-      <div className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
+    </>
+  );
+}
+
+/**
+ * A FormSection while it loads: icon, title and description, then `rows` setting rows (label and hint
+ * left, control right), or a block of `height` for content that is not rows.
+ */
+export function SettingsSectionSkeleton({ rows = 2, height }: { rows?: number; height?: string }) {
+  return (
+    <div className={sectionCardClass}>
+      <SectionHeadSkeleton />
       <div className="flex flex-col gap-4 p-4 sm:p-5">
         {height ? (
           <Skeleton className={cn(height, "rounded-xl")} />

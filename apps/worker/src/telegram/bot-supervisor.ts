@@ -1,5 +1,5 @@
 /** What the supervisor needs from a bot; grammY's Bot has it. */
-export type PollingBot = { isRunning(): boolean; stop(): Promise<void> };
+type PollingBot = { isRunning(): boolean; stop(): Promise<void> };
 
 /**
  * Keeps one bot polling for the token in the vault. `reload` runs at startup and whenever the token may

@@ -73,7 +73,7 @@ export async function collectText(
   return { text: new TextDecoder().decode(kept), truncated };
 }
 
-export function concatBytes(chunks: Uint8Array[], size = chunks.reduce((n, c) => n + c.byteLength, 0)): Uint8Array {
+function concatBytes(chunks: Uint8Array[], size: number): Uint8Array {
   if (chunks.length === 1 && chunks[0]!.byteLength === size) return chunks[0]!;
   const out = new Uint8Array(size);
   let offset = 0;

@@ -2,7 +2,7 @@ import type { DockerBackendOptions, SandboxStatus } from "../types";
 import { dockerClient, errorMessage, statusOf, withTimeout } from "./client";
 import { findWorkerAddress, networkProblem } from "./network";
 
-export type DockerDetection = SandboxStatus["docker"] & { runtimes: string[] };
+type DockerDetection = SandboxStatus["docker"] & { runtimes: string[] };
 
 const TIMEOUT_MS = 5_000;
 

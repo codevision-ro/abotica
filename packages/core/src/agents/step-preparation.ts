@@ -13,7 +13,7 @@ import type { ModelMessage, PrepareStepFunction, StepResult, ToolSet } from "ai"
  */
 
 /** The step about to run. */
-export type StepInput = {
+type StepInput = {
   /** 0 for the first step of the run. */
   stepNumber: number;
   /** The steps this run finished so far. */
@@ -23,7 +23,7 @@ export type StepInput = {
 };
 
 /** A preparer's change to the step: the messages that replace the prompt's, or nothing. */
-export type StepChange = { messages: ModelMessage[] } | null | undefined;
+type StepChange = { messages: ModelMessage[] } | null | undefined;
 
 export type StepPreparer = (step: StepInput) => StepChange | Promise<StepChange>;
 

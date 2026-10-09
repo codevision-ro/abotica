@@ -24,6 +24,7 @@ import {
   startTaskRun,
   sweepPreviews,
 } from "../src/index";
+import { wait } from "./e2e-shared";
 
 /**
  * End-to-end check of previews: a specialist publishes a mockup folder (with a link to a file
@@ -41,7 +42,6 @@ const LOOKUP_TTL_MS = 5_500;
 // The worker keeps stored files (and preview copies) in the web app's uploads folder.
 setDefaultUploadsRoot(path.resolve(import.meta.dirname, "../../../apps/web/.data/uploads"));
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const failures: string[] = [];
 const check = (ok: boolean, label: string, detail?: unknown) => {
   console.log(`${ok ? "PASS" : "FAIL"} ${label}${ok || detail === undefined ? "" : `: ${JSON.stringify(detail)}`}`);

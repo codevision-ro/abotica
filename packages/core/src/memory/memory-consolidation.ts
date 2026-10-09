@@ -8,13 +8,13 @@ import { z } from "zod";
 import type { memories } from "@abotica/db";
 
 type Memory = typeof memories.$inferSelect;
-export type MemoryRetention = Memory["retention"];
+type MemoryRetention = Memory["retention"];
 
 export const MEMORY_RETENTIONS = ["permanent", "durable", "ephemeral"] as const satisfies readonly MemoryRetention[];
 
 /** A durable entry becomes permanent once memory_search returned it this often, for this many distinct queries (OpenClaw's defaults). */
-export const PROMOTION_MIN_RECALLS = 3;
-export const PROMOTION_MIN_QUERIES = 3;
+const PROMOTION_MIN_RECALLS = 3;
+const PROMOTION_MIN_QUERIES = 3;
 
 /** Words the journal prompt asks for per day; the prompt that reads journals cuts a day at about as many (JOURNAL_DAY_MAX_CHARS). */
 export const JOURNAL_MAX_WORDS = 150;
@@ -91,7 +91,7 @@ export function journalPrompt(input: {
 }
 
 /** An existing entry as consolidation shows it to the model. */
-export type ConsolidationEntry = { content: string; validFrom: string | null; createdAt: Date };
+type ConsolidationEntry = { content: string; validFrom: string | null; createdAt: Date };
 
 /** The existing entries a consolidation prompt shows, with small integer ids instead of their UUIDs. */
 const existingLines = (existing: readonly ConsolidationEntry[]) =>
@@ -287,7 +287,7 @@ export type RelatedEntry = { id: string; origin: Memory["origin"]; source: strin
  * - otherwise it is a new entry that replaces the entries it contradicts. An entry the user wrote is never
  *   replaced without the user: the new entry then waits for approval (`conflictsWithOwner`).
  */
-export type FactPlan =
+type FactPlan =
   | { kind: "restated"; entryId: string; refresh: boolean }
   | { kind: "new"; replaces: string[]; conflictsWithOwner: boolean };
 
@@ -314,7 +314,7 @@ export function planFact(
 }
 
 /** How memory_search used an entry, for promotion. */
-export type RecallStats = {
+type RecallStats = {
   retention: MemoryRetention;
   origin: Memory["origin"];
   searchRecalls: number;

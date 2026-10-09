@@ -7,7 +7,16 @@ import { cn } from "@/lib/utils";
 import type { McpTestResult } from "@/server/actions/mcp";
 
 /** Same prefixing as core loadMcpTools, so the user sees the exact names agents get. */
-export const mcpToolName = (slug: string, tool: string) => `${slug.replace(/[^a-zA-Z0-9]/g, "_")}__${tool}`;
+const mcpToolName = (slug: string, tool: string) => `${slug.replace(/[^a-zA-Z0-9]/g, "_")}__${tool}`;
+
+/** One tool, titled with the name agents get; `short` shows the server's own tool name. */
+export function McpToolBadge({ slug, tool, short }: { slug: string; tool: string; short?: boolean }) {
+  return (
+    <Badge variant="outline" className="max-w-full bg-background font-mono font-normal" title={mcpToolName(slug, tool)}>
+      <span className="truncate">{short ? tool : mcpToolName(slug, tool)}</span>
+    </Badge>
+  );
+}
 
 const SUCCESS_TEXT = "text-[color-mix(in_oklch,var(--success),black_15%)] dark:text-success";
 
@@ -54,14 +63,7 @@ export function McpTestResultView({ result, slug, compact }: { result: McpTestRe
       {shown.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {shown.map((tool) => (
-            <Badge
-              key={tool}
-              variant="outline"
-              className="max-w-full bg-background font-mono font-normal"
-              title={mcpToolName(slug, tool)}
-            >
-              <span className="truncate">{compact ? tool : mcpToolName(slug, tool)}</span>
-            </Badge>
+            <McpToolBadge key={tool} slug={slug} tool={tool} short={compact} />
           ))}
           {ok && result.tools.length > shown.length && (
             <Badge variant="secondary">+{result.tools.length - shown.length}</Badge>

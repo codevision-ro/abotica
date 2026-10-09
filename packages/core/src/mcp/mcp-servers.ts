@@ -2,9 +2,9 @@
  * The MCP server registry: saving servers with their assignments, the bundled servers' rules,
  * keeping their rows in line with the catalog, and the registry's connection test. Server only.
  *
- * Env and header values, credential route values and the OAuth client secret are stored sealed (vault.ts `sealValue`);
- * `interpolateSecrets` opens them where a connection uses them, and values saved before that are
- * read as plain text until `encryptLegacyMcpCredentials` rewrites them.
+ * Env and header values, credential route values and the OAuth client secret are stored sealed (vault.ts
+ * `sealValue`); `interpolateSecrets` opens them where a connection uses them, and values saved before that
+ * are read as plain text until `encryptLegacyMcpCredentials` rewrites them.
  */
 import {
   agentMcpServers,
@@ -30,6 +30,7 @@ import {
 } from "../agents/mcp";
 import { MCP_OAUTH_REQUIRED } from "../agents/mcp-oauth";
 import { mcpRouteId } from "../agents/mcp-routes";
+import { isUniqueViolation } from "../infra/db-errors";
 import { audit } from "../platform/audit";
 import { BUILTIN_MCP_SERVERS, type BuiltinMcp, builtinMcp } from "./mcp-builtins";
 import { type KeepStored, MCP_TIMEOUTS, resolveStoredRecord, resolveStoredSecret } from "./mcp-stored-values";
@@ -219,11 +220,6 @@ export const mcpOAuthBindingChanged = (
   );
 
 const openSecret = (value: string | null) => (value === null ? null : unsealValue(value));
-
-function isUniqueViolation(error: unknown): boolean {
-  const e = error as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-}
 
 /** The row values a bundled server must have; everything the user cannot change. */
 function builtinValues(b: BuiltinMcp): McpServerValues {
@@ -430,9 +426,9 @@ export async function encryptLegacyMcpCredentials(): Promise<number> {
 }
 
 /** A failure whose own message says nothing to the user, for the caller to explain in their language. */
-export type McpTestFailure = "timeout" | "fetchFailed" | "processClosed" | "oauthRequired";
+type McpTestFailure = "timeout" | "fetchFailed" | "processClosed" | "oauthRequired";
 
-export type McpConnectionTest = McpTestResult & { failure?: McpTestFailure };
+type McpConnectionTest = McpTestResult & { failure?: McpTestFailure };
 
 /** Messages of fetch and the MCP SDK that stand for a known failure. */
 export function mcpTestFailure(message: string | undefined): McpTestFailure | undefined {

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   armedFingerprint,
   decideWakeup,
-  DEFAULT_MAX_FIRES,
   firedState,
   MAX_CHAIN_PASSES,
   MAX_FIRES_LIMIT,
@@ -162,10 +161,9 @@ describe("wakeupGuard", () => {
   });
 
   it("leaves a repeating wakeup with the default fires practically unlimited, within the hourly rate", () => {
-    expect(DEFAULT_MAX_FIRES).toBe(MAX_FIRES_LIMIT);
     expect(MAX_FIRES_LIMIT).toBeGreaterThanOrEqual(100_000);
     expect(MAX_WAKES_PER_HOUR).toBe(60);
-    expect(wakeupGuard(rule({ maxFires: DEFAULT_MAX_FIRES, fires: 10_000 }), MAX_WAKES_PER_HOUR - 1)).toBeNull();
+    expect(wakeupGuard(rule({ maxFires: MAX_FIRES_LIMIT, fires: 10_000 }), MAX_WAKES_PER_HOUR - 1)).toBeNull();
   });
 });
 

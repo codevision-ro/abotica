@@ -58,23 +58,16 @@ export function ProjectDangerZone({ projectId, name, archived }: { projectId: st
       </div>
       <div aria-hidden className="h-px bg-linear-to-r from-destructive/25 via-destructive/10 to-transparent" />
       <div className="divide-y divide-border/70">
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="min-w-0 space-y-0.5">
-            <p className="text-sm font-medium">{archived ? t("restoreTitle") : t("archiveTitle")}</p>
-            <p className="text-sm text-pretty text-muted-foreground">
-              {archived ? t("restoreDescription") : t("archiveDescription")}
-            </p>
-          </div>
+        <DangerRow
+          title={archived ? t("restoreTitle") : t("archiveTitle")}
+          description={archived ? t("restoreDescription") : t("archiveDescription")}
+        >
           <Button variant="outline" onClick={toggleArchive} disabled={pending} className="shrink-0 self-start sm:self-auto">
             {archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
             {archived ? t("restore") : t("archive")}
           </Button>
-        </div>
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="min-w-0 space-y-0.5">
-            <p className="text-sm font-medium">{ts("resetTitle")}</p>
-            <p className="text-sm text-pretty text-muted-foreground">{ts("resetDescription")}</p>
-          </div>
+        </DangerRow>
+        <DangerRow title={ts("resetTitle")} description={ts("resetDescription")}>
           <ConfirmDialog
             trigger={
               <Button variant="outline" disabled={pending} className="shrink-0 self-start sm:self-auto">
@@ -89,12 +82,8 @@ export function ProjectDangerZone({ projectId, name, archived }: { projectId: st
             destructive
             onConfirm={resetWorkspace}
           />
-        </div>
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="min-w-0 space-y-0.5">
-            <p className="text-sm font-medium">{t("deleteTitle")}</p>
-            <p className="text-sm text-pretty text-muted-foreground">{t("deleteDescription")}</p>
-          </div>
+        </DangerRow>
+        <DangerRow title={t("deleteTitle")} description={t("deleteDescription")}>
           <ConfirmDialog
             trigger={
               <Button variant="destructive" disabled={pending} className="shrink-0 self-start sm:self-auto">
@@ -109,8 +98,21 @@ export function ProjectDangerZone({ projectId, name, archived }: { projectId: st
             destructive
             onConfirm={remove}
           />
-        </div>
+        </DangerRow>
       </div>
     </section>
+  );
+}
+
+/** One action of the danger zone: what it does on the left, its button on the right. */
+function DangerRow({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="min-w-0 space-y-0.5">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-sm text-pretty text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </div>
   );
 }

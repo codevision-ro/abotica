@@ -46,10 +46,10 @@ export function useSettingsForm<D extends SettingsDomain>(
   const parsed = SETTINGS_SCHEMAS[domain].safeParse(values);
   const errors = new Map<string, string>();
   if (!parsed.success) {
+    const loose = t as unknown as { has(k: string): boolean; (k: string, v?: Record<string, unknown>): string };
     for (const issue of parsed.error.issues) {
       const path = issue.path.join(".");
       if (errors.has(path)) continue;
-      const loose = t as unknown as { has(k: string): boolean; (k: string, v?: Record<string, unknown>): string };
       errors.set(path, loose.has(issue.message) ? loose(issue.message, settingsIssueValues(issue)) : issue.message);
     }
   }
@@ -94,5 +94,3 @@ export function useSettingsForm<D extends SettingsDomain>(
     reset,
   };
 }
-
-export type SettingsForm<D extends SettingsDomain> = ReturnType<typeof useSettingsForm<D>>;

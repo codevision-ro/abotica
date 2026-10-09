@@ -1,7 +1,7 @@
 import { agents, db, tasks } from "@abotica/db";
 import { and, eq, inArray } from "@abotica/db/orm";
-import { getTranslator, UserError } from "@abotica/i18n";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { UserError } from "@abotica/i18n";
+import { settingsTranslator } from "../settings/settings";
 import { type Run, startRun, startTaskRun } from "../runs/runs";
 import { reportTargetAgent } from "../tasks/automation-target";
 import { addTaskComment, createTask, deleteTask } from "../tasks/tasks";
@@ -9,7 +9,7 @@ import { addTaskComment, createTask, deleteTask } from "../tasks/tasks";
 /** Statuses of a fired task still being worked on: a schedule does not fire again on top of it. */
 const WORKING = ["backlog", "in_progress"] as const;
 
-export type AutomationWork = {
+type AutomationWork = {
   agentId: string;
   projectId: string | null;
   title: string;
@@ -71,7 +71,7 @@ export async function startAutomationWork(work: AutomationWork): Promise<Run | n
     "system",
   );
   try {
-    const t = getTranslator(settingsLocale(await getSettings()));
+    const t = await settingsTranslator();
     const above = await reportTargetAgent(task);
     await addTaskComment(
       task.id,

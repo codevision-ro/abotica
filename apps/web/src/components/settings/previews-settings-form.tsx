@@ -45,13 +45,7 @@ export function PreviewsSettingsForm({ initial }: { initial: AppSettings["previe
         </FieldGroup>
       </FormSection>
 
-      <SettingsSaveBar
-        dirty={form.dirty}
-        invalid={form.invalid}
-        pending={form.pending}
-        onSave={form.save}
-        onReset={form.reset}
-      />
+      <SettingsSaveBar form={form} />
     </>
   );
 }

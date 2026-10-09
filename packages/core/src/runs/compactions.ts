@@ -5,7 +5,7 @@ import type { CompactionMetadata, CompactionRecord } from "./compaction-record";
 
 /** The database side of compaction (agents/compaction.ts): what a run knows about its prompt before it starts. */
 
-export type ConversationUsage = {
+type ConversationUsage = {
   /**
    * The newest step of the conversation's runs: the size of its prompt plus its answer as the provider
    * reported them, when its run started (messages after that were not in it) and when it ran.

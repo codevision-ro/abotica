@@ -9,6 +9,7 @@ import {
   providerAllowed,
   readRunStream,
   saveFile,
+  settingsTranslator,
   startRun,
   TRANSCRIPTION_PROVIDER,
   transcriptionModel,
@@ -17,12 +18,12 @@ import { translateKey, type Translator } from "@abotica/i18n";
 import { generateId, transcribe, type UIMessage } from "ai";
 import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
-import { botTranslator } from "./bot";
+
 import { currentConversation } from "./chat";
 import { answerFromTelegram, questionAskedBy } from "./commands";
 import type { TelegramOrigin } from "./delivery";
 import { incomingFileName, mediaGroupCollector, TELEGRAM_DOWNLOAD_MAX_BYTES } from "./incoming-files";
-import { replyError, TELEGRAM_TEXT_LIMIT } from "./send";
+import { inThread, replyError, TELEGRAM_TEXT_LIMIT } from "./send";
 
 async function download(bot: Bot, fileId: string): Promise<{ data: Buffer; path: string }> {
   const file = await bot.api.getFile(fileId);
@@ -34,7 +35,7 @@ async function download(bot: Bot, fileId: string): Promise<{ data: Buffer; path:
 /** Replies and returns true when Telegram will not let the bot download the file. */
 async function refuseTooLarge(ctx: Context, name: string, size: number | undefined): Promise<boolean> {
   if ((size ?? 0) <= TELEGRAM_DOWNLOAD_MAX_BYTES) return false;
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   await ctx.reply(t("telegram.fileTooLarge", { name, max: TELEGRAM_DOWNLOAD_MAX_BYTES / (1024 * 1024) }));
   return true;
 }
@@ -57,11 +58,10 @@ const toolStatus = (t: Translator, name: string) => {
  */
 async function showProgress(bot: Bot, ctx: Context, runId: string) {
   const chatId = ctx.chat!.id;
-  const thread = ctx.msg?.message_thread_id;
-  const typingIn = thread ? { message_thread_id: thread } : {};
+  const typingIn = inThread(ctx.msg?.message_thread_id);
   const isPrivate = ctx.chat!.type === "private";
   const draftId = Math.floor(Math.random() * 1_000_000) + 1;
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   let stepText = "";
   let status = "";
   let lastShown = "";
@@ -127,7 +127,7 @@ async function answeredQuestion(ctx: Context): Promise<boolean> {
   const questionId = await questionAskedBy(ctx.chat!.id, replied.message_id);
   if (!questionId) return false;
   const result = await answerFromTelegram(questionId, text);
-  await ctx.reply(result.ok ? (await botTranslator())("inbox.telegram.question.replySent") : result.text, {
+  await ctx.reply(result.ok ? (await settingsTranslator())("inbox.telegram.question.replySent") : result.text, {
     reply_parameters: { message_id: ctx.message!.message_id },
   });
   return true;
@@ -148,12 +148,12 @@ export function registerMessageHandlers(bot: Bot) {
 
   bot.on(["message:voice", "message:audio"], async (ctx) => {
     const media = ctx.message.voice ?? ctx.message.audio!;
-    const name = ctx.message.audio?.file_name ?? (await botTranslator())("telegram.fileDefaultName");
+    const name = ctx.message.audio?.file_name ?? (await settingsTranslator())("telegram.fileDefaultName");
     if (await refuseTooLarge(ctx, name, media.file_size)) return;
     const conversation = await currentConversation(ctx);
     // The recording is the project's data: it goes to the transcription provider only if the project allows it.
     if (!providerAllowed(await projectProviderPolicy(conversation.projectId), TRANSCRIPTION_PROVIDER)) {
-      return ctx.reply((await botTranslator())("telegram.voiceNotAllowed"));
+      return ctx.reply((await settingsTranslator())("telegram.voiceNotAllowed"));
     }
     const { data } = await download(bot, media.file_id);
     const { locale } = (await getSettings()).general;
@@ -163,7 +163,7 @@ export function registerMessageHandlers(bot: Bot) {
       // Hint the language set in Settings; without one the model detects it.
       ...(locale ? { providerOptions: { openai: { language: locale } } } : {}),
     });
-    if (!text.trim()) return ctx.reply((await botTranslator())("telegram.voiceNotUnderstood"));
+    if (!text.trim()) return ctx.reply((await settingsTranslator())("telegram.voiceNotUnderstood"));
     await ctx.reply(`🎙️ _${text}_`, { parse_mode: "Markdown" }).catch(() => ctx.reply(`🎙️ ${text}`));
     await handleUserMessage(bot, ctx, { id: generateId(), role: "user", parts: [{ type: "text", text }] }, conversation);
   });
@@ -214,7 +214,7 @@ function attachmentOf(message: Message, t: Translator, position: number | null):
  */
 async function handleFiles(bot: Bot, items: Context[]) {
   const ctx = items[0]!;
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   const attachments = items.flatMap((item, i) => {
     const attachment = item.message && attachmentOf(item.message, t, items.length > 1 ? i + 1 : null);
     return attachment ? [attachment] : [];

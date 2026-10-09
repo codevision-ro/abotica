@@ -6,14 +6,14 @@ import { appOrigins } from "@abotica/core/app-origins";
  * plain HTTP (local development) browsers refuse that prefix, and the names stay plain.
  * Functions, not constants: env is read at request time, never while `next build` imports this.
  */
-const secure = () => appOrigins()[0]?.startsWith("https:") ?? false;
+export const isHttpsApp = () => appOrigins()[0]?.startsWith("https:") ?? false;
 
-export const authCookiePrefix = () => (secure() ? "__Host-abotica" : "abotica");
+export const authCookiePrefix = () => (isHttpsApp() ? "__Host-abotica" : "abotica");
 
 /** For betterAuth's `advanced`: the prefix above, never better-auth's own `__Secure-`. */
 export const authCookieOptions = () =>
   ({
     cookiePrefix: authCookiePrefix(),
     useSecureCookies: false,
-    defaultCookieAttributes: { secure: secure() },
+    defaultCookieAttributes: { secure: isHttpsApp() },
   }) as const;

@@ -24,7 +24,7 @@ function permissionName(key: string, t: VersionsT): string {
   return key.startsWith("mcp:") ? key.slice(4) : key;
 }
 
-/** "Allow: a, b · Ask: c"; built-in denials are stored as absence, so they do not show up. */
+/** "Allow: a, b · Ask: c · Deny: d". */
 function permissionsText(permissions: ToolPermissions, t: VersionsT): string {
   // Built-in tools first, then MCP keys.
   const keys = Object.keys(permissions).sort(

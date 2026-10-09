@@ -8,8 +8,8 @@ import type { ReasoningEffort } from "@abotica/db";
 export type { ReasoningEffort };
 
 /** Effort levels from least to most thinking; the order drives the nearest-level match. */
-export const EFFORT_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
-export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+const EFFORT_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+type EffortLevel = (typeof EFFORT_LEVELS)[number];
 
 /** "default" leaves the choice to the model; "none" turns reasoning off. Display order. */
 export const REASONING_EFFORTS = ["default", "none", ...EFFORT_LEVELS] as const satisfies readonly ReasoningEffort[];
@@ -24,8 +24,10 @@ export type ReasoningSupport = {
 
 const isEffortLevel = (value: unknown): value is EffortLevel => EFFORT_LEVELS.includes(value as EffortLevel);
 
-const sortLevels = (levels: Iterable<EffortLevel>): EffortLevel[] =>
-  EFFORT_LEVELS.filter((level) => new Set(levels).has(level));
+const sortLevels = (levels: Iterable<EffortLevel>): EffortLevel[] => {
+  const given = new Set(levels);
+  return EFFORT_LEVELS.filter((level) => given.has(level));
+};
 
 /** Budget-only models (thinking set in tokens) get the levels the AI SDK turns into a budget. */
 const BUDGET_EFFORTS: EffortLevel[] = ["low", "medium", "high"];

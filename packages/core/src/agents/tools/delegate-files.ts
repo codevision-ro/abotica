@@ -3,7 +3,7 @@
 type Incoming = { path: string; name: string; data: Uint8Array };
 type Previous = { id: string; name: string; data: Uint8Array | null };
 
-export type HandoverPlan<T extends Incoming> =
+type HandoverPlan<T extends Incoming> =
   | { error: string }
   | {
       /** Files to store for the task. */

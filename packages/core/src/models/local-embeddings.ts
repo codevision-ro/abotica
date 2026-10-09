@@ -9,7 +9,7 @@ import { redis } from "../infra/redis";
  * app, a script) sends the texts to the worker on the embeddings queue and waits a few seconds; past that the
  * caller goes on as with any provider that does not answer: keyword search, a write without a vector.
  */
-export type LocalEmbedder = (texts: string[]) => Promise<number[][]>;
+type LocalEmbedder = (texts: string[]) => Promise<number[][]>;
 
 let inProcess: LocalEmbedder | null = null;
 
@@ -46,7 +46,7 @@ async function embedInWorker(texts: string[]): Promise<number[][]> {
  * Whether the worker has the model loaded; shared through Redis, since only the worker knows. `model` tells a
  * status from before an update, of the model it had then.
  */
-export type LocalEmbeddingStatus = { state: "loading" | "ready" | "failed"; model: string; error?: string };
+type LocalEmbeddingStatus = { state: "loading" | "ready" | "failed"; model: string; error?: string };
 
 const STATUS_KEY = "abotica:embeddings:local";
 

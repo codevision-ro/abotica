@@ -75,7 +75,7 @@ async function repoRow(id: string, projectId: string): Promise<RepoRow> {
   return row;
 }
 
-export type AddRepoInput = {
+type AddRepoInput = {
   projectId: string;
   /** What the user pasted: a clone, browser or SSH address. */
   url: string;

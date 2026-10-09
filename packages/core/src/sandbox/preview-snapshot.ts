@@ -15,7 +15,7 @@ export type Snapshot = {
 /** Most a static preview holds. */
 export const PREVIEW_MAX_MB = 50;
 export const PREVIEW_MAX_BYTES = PREVIEW_MAX_MB * 1024 * 1024;
-export const PREVIEW_MAX_FILES = 2000;
+const PREVIEW_MAX_FILES = 2000;
 
 export class SnapshotTooLargeError extends Error {
   override name = "SnapshotTooLargeError";

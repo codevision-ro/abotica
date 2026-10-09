@@ -1,15 +1,12 @@
 import { subscribe } from "@abotica/core";
-import { requireApiUser } from "@/server/session";
+import { unauthorized } from "@/server/session";
 
 export const dynamic = "force-dynamic";
 
 /** Server-sent events relaying worker events (runs, tasks, approvals, kill switch) to the UI. */
 export async function GET(request: Request) {
-  try {
-    await requireApiUser();
-  } catch (response) {
-    return response as Response;
-  }
+  const denied = await unauthorized();
+  if (denied) return denied;
   const encoder = new TextEncoder();
   let cleanup = () => {};
   const stream = new ReadableStream({

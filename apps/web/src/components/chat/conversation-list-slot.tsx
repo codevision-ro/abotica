@@ -1,7 +1,6 @@
-import { ALL, NO_PROJECT } from "@/lib/conversation-filter";
-import { ConversationPanel } from "./conversation-list";
+import { ALL, NO_PROJECT, parseConversationFilter } from "@/lib/conversation-filter";
 import { getConversationList, listChatAgents, listChatProjects, listConversationProjects } from "@/server/queries/chat";
-import { parseConversationFilter } from "@/lib/conversation-filter";
+import { ConversationPanel } from "./conversation-list";
 
 /**
  * The chat's conversation list, rendered by the chat's `@list` slot so it reads `?project=` (a layout gets
@@ -15,15 +14,16 @@ export async function ConversationListSlot({ project }: { project: string | stri
     listChatProjects(),
     listConversationProjects(),
   ]);
+  const value = !filter ? ALL : (filter.projectId ?? NO_PROJECT);
   return (
     <ConversationPanel
       // A new filter starts again from the first page.
-      key={!filter ? ALL : (filter.projectId ?? NO_PROJECT)}
+      key={value}
       list={list}
       agents={agents}
       projects={projects}
       filterProjects={filterProjects}
-      filter={!filter ? ALL : (filter.projectId ?? NO_PROJECT)}
+      filter={value}
     />
   );
 }

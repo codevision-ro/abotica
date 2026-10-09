@@ -31,9 +31,7 @@
     "stop": "Oprește",
     "uploadFiles": "Încarcă fișiere",
     "errors": {
-      "accept": "Niciunul dintre fișiere nu are un tip acceptat.",
-      "maxFileSize": "Fișierele pot avea cel mult {max} MB.",
-      "maxFiles": "Prea multe fișiere. Unele nu au fost adăugate."
+      "maxFileSize": "Fișierele pot avea cel mult {max} MB."
     }
   },
   "tool": {

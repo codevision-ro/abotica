@@ -5,26 +5,20 @@
  */
 import { appState, db } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
-import { getTranslator } from "@abotica/i18n";
 import { parseHttpUrl } from "../infra/reachable-url";
 import { audit } from "../platform/audit";
 import { setSecret } from "../platform/vault";
 import { getTelegramToken, TELEGRAM_TOKEN_SECRET } from "../telegram/telegram-config";
 import { isTelegramChatId, parseTelegramUserIds } from "../telegram/telegram-ids";
 import {
-  type AppSettings,
-  getSettings,
   SETTINGS_LIMITS,
   type SettingsDomain,
-  settingsLocale,
+  settingsTranslator,
   type SettingsPatch,
   type StoredSettings,
   storedSettings,
   updateSettings,
 } from "./settings";
-
-/** The changes to make, by domain. */
-export type EnvPatch = { [D in SettingsDomain]?: SettingsPatch<AppSettings[D]> };
 
 /** app_state row that records the import, so it runs once per installation. */
 const IMPORTED_KEY = "env_imported";
@@ -52,8 +46,8 @@ const has = (stored: StoredSettings, domain: SettingsDomain, ...path: string[]):
 export function settingsFromEnv(
   stored: StoredSettings,
   source: Readonly<Record<string, string | undefined>>,
-): { patch: EnvPatch; imported: string[] } {
-  const patch: EnvPatch = {};
+): { patch: StoredSettings; imported: string[] } {
+  const patch: StoredSettings = {};
   const imported: string[] = [];
   const value = (name: string, domain: SettingsDomain, ...path: string[]) =>
     has(stored, domain, ...path) ? undefined : source[name]?.trim() || undefined;
@@ -112,7 +106,7 @@ export async function importLegacyEnv(source: NodeJS.ProcessEnv = process.env): 
 
   const token = source.TELEGRAM_BOT_TOKEN?.trim();
   if (token && !(await getTelegramToken())) {
-    const t = getTranslator(settingsLocale(await getSettings()));
+    const t = await settingsTranslator();
     await setSecret(TELEGRAM_TOKEN_SECRET, token, t("settings.telegram.secretDescription"));
     await audit({
       actor: "system",

@@ -27,16 +27,14 @@ const BUILTIN_DEFAULT_PERMISSION: ToolPermission = "allow";
 export type PermissionSubject = { kind: AgentKind };
 
 /**
+ * Whether an agent of this kind can have the built-in tool at all (the permissions editor lists only those).
  * Orchestrator-only tools are out of reach of everyone else, except the ones managers get too; a tool for
  * some kinds only is out of reach of the others.
  */
-function unavailable(tool: ToolInfo, opts: PermissionSubject): boolean {
-  if (tool.kinds && !tool.kinds.includes(opts.kind)) return true;
-  return Boolean(tool.orchestratorOnly) && opts.kind !== "orchestrator" && !(tool.managers && opts.kind === "manager");
+export function toolAvailableTo(tool: ToolInfo, subject: PermissionSubject): boolean {
+  if (tool.kinds && !tool.kinds.includes(subject.kind)) return false;
+  return !tool.orchestratorOnly || subject.kind === "orchestrator" || Boolean(tool.managers && subject.kind === "manager");
 }
-
-/** Whether an agent of this kind can have the built-in tool at all (the permissions editor lists only those). */
-export const toolAvailableTo = (tool: ToolInfo, subject: PermissionSubject): boolean => !unavailable(tool, subject);
 
 /**
  * Effective permission of a built-in tool: the agent's entry, else allow. Unknown tools and tools the
@@ -44,7 +42,7 @@ export const toolAvailableTo = (tool: ToolInfo, subject: PermissionSubject): boo
  */
 export function builtinPermission(permissions: ToolPermissions, name: string, opts: PermissionSubject): ToolPermission {
   const tool = TOOL_BY_NAME.get(name);
-  if (!tool || unavailable(tool, opts)) return "deny";
+  if (!tool || !toolAvailableTo(tool, opts)) return "deny";
   return permissions[name] ?? BUILTIN_DEFAULT_PERMISSION;
 }
 
@@ -62,8 +60,7 @@ export function mcpToolPermission(permissions: ToolPermissions, serverSlug: stri
 export function defaultPermissions(opts: PermissionSubject): ToolPermissions {
   const out: ToolPermissions = {};
   for (const tool of TOOL_CATALOG) {
-    if (unavailable(tool, opts)) continue;
-    out[tool.name] = BUILTIN_DEFAULT_PERMISSION;
+    if (toolAvailableTo(tool, opts)) out[tool.name] = BUILTIN_DEFAULT_PERMISSION;
   }
   return out;
 }
@@ -86,7 +83,7 @@ export function sanitizePermissions(input: Record<string, unknown>, opts: Permis
       continue;
     }
     const tool = TOOL_BY_NAME.get(key);
-    if (tool && !unavailable(tool, opts)) out[key] = value;
+    if (tool && toolAvailableTo(tool, opts)) out[key] = value;
   }
   return out;
 }

@@ -16,8 +16,9 @@ import { and, asc, desc, eq, gt, inArray, sql } from "@abotica/db/orm";
 import { createConversation } from "./conversations";
 import { inputPath } from "../agents/workspace-paths";
 import { neutralizeMarkers } from "../agents/untrusted";
+import { isUniqueViolation } from "../infra/db-errors";
 import { publish } from "../infra/events";
-import { listFiles } from "../files/files";
+import { listFiles, type StoredFile } from "../files/files";
 import { enqueueRun } from "../infra/queues";
 import type { RunFailureKind } from "./run-failures";
 import {
@@ -26,7 +27,6 @@ import {
   countHeldReply,
   failRun,
   publishRunUpdate,
-  requestResume,
   takeResumeRequest,
 } from "./run-lifecycle";
 import { loadUnsteeredMessages, markUndelivered } from "./run-messages";
@@ -74,17 +74,6 @@ export class ConversationBusyError extends UserError {
   constructor(readonly conversationId: string) {
     super("errors.conversationBusy");
   }
-}
-
-function isActiveRunConflict(error: unknown): boolean {
-  for (
-    let e = error as { code?: string; constraint_name?: string; cause?: unknown } | undefined;
-    e;
-    e = e.cause as typeof e
-  ) {
-    if (e.code === "23505" && e.constraint_name === "runs_one_active_per_conversation") return true;
-  }
-  return false;
 }
 
 export async function startRun(input: {
@@ -153,7 +142,7 @@ export async function startRun(input: {
         .where(eq(conversations.id, conversationId))
         .catch((cleanup: unknown) => console.error(`[runs] removing conversation ${conversationId} failed:`, cleanup));
     }
-    if (isActiveRunConflict(error)) throw new ConversationBusyError(conversationId);
+    if (isUniqueViolation(error, "runs_one_active_per_conversation")) throw new ConversationBusyError(conversationId);
     if (input.taskId && isActiveTaskRunConflict(error)) throw new TaskBusyError(input.taskId);
     throw error;
   }
@@ -279,6 +268,11 @@ export function noticeMessage(
   return { id: generateId(), role: "user", parts: [{ type: "text", text }], metadata };
 }
 
+const dependencyLines = (deps: { title: string; output: string | null }[]) =>
+  deps.flatMap((d) => [`### ${d.title}`, d.output ?? "(no output)"]);
+
+const fileLines = (taskFiles: StoredFile[]) => taskFiles.map((f) => `- ${f.name} (${f.mimeType}): ${inputPath(f)}`);
+
 /** The task's comments, oldest first, as briefs list them. */
 const briefComments = (taskId: string) =>
   db
@@ -314,13 +308,13 @@ async function taskBrief(taskId: string, skipCommentId: string | null = null): P
   const lines = [`# Task: ${task.title}`, taskHeader(task), "", task.description || "(no description)"];
   if (deps.length) {
     lines.push("", "## Results of the tasks this one depends on");
-    for (const d of deps) lines.push(`### ${d.title}`, d.output ?? "(no output)");
+    lines.push(...dependencyLines(deps));
   }
   const taskFiles = await listFiles({ taskId });
   if (taskFiles.length) {
     // Each handed-over file is a copy with its own id, so the delegator's path does not apply here.
     lines.push("", "## Files of the task (copied into your workspace)");
-    for (const f of taskFiles) lines.push(`- ${f.name} (${f.mimeType}): ${inputPath(f)}`);
+    lines.push(...fileLines(taskFiles));
   }
   if (comments.length) {
     lines.push("", "## Comments");
@@ -444,13 +438,13 @@ async function roundBrief(
     lines.push("", "## Description (changed since your previous run)", task.description || "(no description)");
   if (deps.length) {
     lines.push("", "## Results of the tasks this one depends on, done since your previous run");
-    for (const d of deps) lines.push(`### ${d.title}`, d.output ?? "(no output)");
+    lines.push(...dependencyLines(deps));
   }
   // Handed over since then (a replaced file has a new id, so a new path); the agent's own files it knows.
   const handed = newFiles.filter((f) => f.createdAt > since && f.agentId !== agentId);
   if (handed.length) {
     lines.push("", "## New files of the task (copied into your workspace)");
-    for (const f of handed) lines.push(`- ${f.name} (${f.mimeType}): ${inputPath(f)}`);
+    lines.push(...fileLines(handed));
   }
   if (fresh.length) {
     lines.push("", "## New comments");
@@ -597,8 +591,6 @@ export async function getOrchestrator() {
   return agent;
 }
 
-export { requestResume };
-
 /** Task statuses after which nothing goes on in the task's conversation: its follow-ups wait or are moot. */
 const NO_FOLLOW_UP: readonly TaskRow["status"][] = ["paused", "cancelled", "done"];
 
@@ -639,7 +631,7 @@ export async function startFollowUpIfQueued(finished: Run): Promise<Run | null> 
 }
 
 /** Telegram replies held back in a row, at most: the one after is sent whatever arrived meanwhile. */
-export const MAX_HELD_REPLIES = 2;
+const MAX_HELD_REPLIES = 2;
 
 /**
  * The send gate before a Telegram reply (AgentTeams): when the user wrote again while the run worked

@@ -1,4 +1,4 @@
-import { agents, db, projects, runs, taskComments, taskDependencies, tasks } from "@abotica/db";
+import { agents, db, runs, taskComments, taskDependencies, tasks } from "@abotica/db";
 import { tool } from "ai";
 import { and, asc, desc, eq, ilike, inArray, isNull, ne, notInArray, or } from "@abotica/db/orm";
 import { z } from "zod";
@@ -17,19 +17,15 @@ import {
   updateTask,
 } from "../../tasks/tasks";
 import { listTaskPullRequests } from "../../tasks/pull-requests";
-import {
-  DEFAULT_MAX_FIRES,
-  MAX_CHAIN_PASSES,
-  MAX_FIRES_LIMIT,
-  MAX_WAKES_PER_HOUR,
-  WAKEUP_KINDS,
-} from "../../tasks/wakeup-rules";
+import { MAX_CHAIN_PASSES, MAX_FIRES_LIMIT, MAX_WAKES_PER_HOUR, WAKEUP_KINDS } from "../../tasks/wakeup-rules";
 import { armWakeup, listTaskWakeups, type WakeupRequest } from "../../tasks/wakeups";
 import { SETTLED_TASK_STATUSES } from "../../tasks/delegation-report";
 import { nothingNewRefusal } from "../../tasks/automation-rules";
 import { reportTargetAgent } from "../../tasks/automation-target";
+import { delegatorAgentId, taskAuthority } from "../../tasks/task-authority";
 import { postInstruction } from "../../tasks/task-messages";
 import { mayEditTask } from "../../tasks/team-rules";
+import type { RunContext } from "../context";
 import { clipUntrusted, hasUntrusted } from "../untrusted";
 import { inputPath } from "../workspace-paths";
 import {
@@ -279,11 +275,7 @@ export const taskTools: Record<string, ToolFactory> = {
         // for work a schedule or trigger started, the agent above its assignee.
         if (status === "done" && ctx.agent.kind !== "orchestrator") {
           if (found.delegatedByRunId) {
-            const [delegator] = await db
-              .select({ agentId: runs.agentId })
-              .from(runs)
-              .where(eq(runs.id, found.delegatedByRunId));
-            if (delegator?.agentId !== ctx.agent.id) {
+            if ((await delegatorAgentId(found)) !== ctx.agent.id) {
               return {
                 error:
                   "This task was delegated to you: set status 'review'. The agent that delegated it decides whether it is done.",
@@ -451,7 +443,7 @@ export const taskTools: Record<string, ToolFactory> = {
           kind: input.kind,
           notes: input.notes.trim(),
           expiresAt: input.expiresInMinutes ? new Date(now + input.expiresInMinutes * 60_000) : null,
-          maxFires: repeating ? (input.maxFires ?? DEFAULT_MAX_FIRES) : 1,
+          maxFires: repeating ? (input.maxFires ?? MAX_FIRES_LIMIT) : 1,
         });
         return {
           ok: true,
@@ -466,30 +458,20 @@ export const taskTools: Record<string, ToolFactory> = {
     }),
 };
 
-type ToolContext = Parameters<ToolFactory>[0];
-
 /**
  * Why an agent may not change the task, or null when it may. A task put aside or cancelled changes only
  * through task_control; a peer on the team only comments (team-rules.ts mayEditTask); and an agent does
  * not settle its own task while work it delegated from this conversation is still open, since that work
  * comes back here.
  */
-async function updateRefusal(ctx: ToolContext, task: Task, change: { status?: string }): Promise<string | null> {
+async function updateRefusal(ctx: RunContext, task: Task, change: { status?: string }): Promise<string | null> {
   if (task.status === "paused" || task.status === "cancelled") {
     const word = task.status === "paused" ? "put aside" : "cancelled";
     return task.assigneeAgentId === ctx.agent.id
       ? `This task was ${word}${task.pauseReason ? ` (${task.pauseReason})` : ""}: nothing changes on it now. End your turn; ${task.status === "paused" ? "you go on here when it is resumed" : "the work is over"}.`
       : `This task is ${task.status}: change it with task_control (resume, redirect), not task_update.`;
   }
-  const [[delegator], [project]] = await Promise.all([
-    task.delegatedByRunId
-      ? db.select({ agentId: runs.agentId }).from(runs).where(eq(runs.id, task.delegatedByRunId))
-      : Promise.resolve([]),
-    task.projectId
-      ? db.select({ managerAgentId: projects.managerAgentId }).from(projects).where(eq(projects.id, task.projectId))
-      : Promise.resolve([]),
-  ]);
-  const authority = { delegatorAgentId: delegator?.agentId ?? null, projectManagerId: project?.managerAgentId ?? null };
+  const authority = await taskAuthority(task);
   if (!mayEditTask(ctx.agent, task, authority)) {
     return "This task is not yours to change: you can comment on it (task_comment); its delegator or the project's manager decides.";
   }
@@ -526,7 +508,7 @@ const COMES_BACK_AS_REPORT = {
 
 /** What task_wait waits for, checked against the task: its condition and, for a timer, the first time. */
 async function waitTarget(
-  ctx: Parameters<ToolFactory>[0],
+  ctx: RunContext,
   taskId: string,
   input: WaitInput,
 ): Promise<Pick<WakeupRequest, "condition" | "at"> | { error: string }> {

@@ -33,7 +33,6 @@ export function ParamSelect({
   allLabel,
   options,
   icon,
-  className,
 }: {
   param: string;
   params: QueryParams;
@@ -43,7 +42,6 @@ export function ParamSelect({
   options: { id: string; name: string; avatar?: AgentAvatarValue | null; icon?: keyof typeof ICONS }[];
   /** Icon before the "all" choice and on options without an avatar (a name: server pages render this). */
   icon?: keyof typeof ICONS;
-  className?: string;
 }) {
   const { update } = useQueryUpdate(params);
   const Icon = icon ? ICONS[icon] : null;
@@ -55,7 +53,6 @@ export function ParamSelect({
         className={cn(
           "w-full bg-background sm:w-52 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
           active && "border-primary/40 bg-primary/5 dark:bg-primary/10",
-          className,
         )}
       >
         <SelectValue />

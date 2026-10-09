@@ -3,6 +3,7 @@
  * `.abotica/node`. A marker with the hash of the lists skips work that is already done.
  */
 import { createHash } from "node:crypto";
+import { keyedQueue } from "./keyed-queue";
 import { runCommand } from "./process";
 import { shellQuote } from "./shell";
 import type { Egress, Workspace } from "./types";
@@ -11,7 +12,7 @@ export type PackageLists = { python: string[]; node: string[] };
 
 const MARKER = ".abotica/packages.json";
 const UP_TO_DATE = "__abotica_packages_up_to_date__";
-const DEFAULT_TIMEOUT_MS = 10 * 60_000;
+const TIMEOUT_MS = 10 * 60_000;
 const LOG_TAIL_CHARS = 4000;
 
 /** Stable across order and duplicates; bump the version when the install layout changes. */
@@ -59,43 +60,32 @@ export async function ensurePackages(
   workspace: Workspace,
   packages: PackageLists,
   egress: Egress,
-  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  options: { signal?: AbortSignal } = {},
 ): Promise<{ installed: boolean; log: string }> {
   if (!packages.python.length && !packages.node.length) return { installed: false, log: "" };
-  return serialized(workspace.key, () => install(workspace, packages, egress, options));
+  return serialized(workspace.key, () => install(workspace, packages, egress, options.signal));
 }
 
 /**
  * Installs into one workspace run one at a time: two runs opening it with a new list would
  * otherwise run venv, pip and npm over each other. The worker is the only process installing.
  */
-const pending = new Map<string, Promise<unknown>>();
-
-function serialized<T>(key: string, task: () => Promise<T>): Promise<T> {
-  const next = (pending.get(key) ?? Promise.resolve()).catch(() => {}).then(task);
-  pending.set(key, next);
-  void next
-    .catch(() => {})
-    .finally(() => {
-      if (pending.get(key) === next) pending.delete(key);
-    });
-  return next;
-}
+const serialized = keyedQueue();
 
 async function install(
   workspace: Workspace,
   packages: PackageLists,
   egress: Egress,
-  options: { signal?: AbortSignal; timeoutMs?: number },
+  signal: AbortSignal | undefined,
 ): Promise<{ installed: boolean; log: string }> {
-  options.signal?.throwIfAborted();
+  signal?.throwIfAborted();
   const result = await runCommand(workspace, {
     command: installScript(packages),
     egress,
-    signal: options.signal,
-    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    signal,
+    timeoutMs: TIMEOUT_MS,
   });
-  options.signal?.throwIfAborted();
+  signal?.throwIfAborted();
   const log = result.stdout;
   if (result.exitCode === 0 && log.trim() === UP_TO_DATE) return { installed: false, log: "" };
   if (result.exitCode !== 0) {

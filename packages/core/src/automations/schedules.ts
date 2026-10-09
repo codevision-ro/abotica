@@ -22,7 +22,10 @@ const schedulerId = (id: string) => `schedule:${id}`;
 export const onceJobId = (s: Pick<Schedule, "id" | "kind" | "runAt">) =>
   s.kind === "once" && s.runAt ? `${schedulerId(s.id)}:${s.runAt.getTime()}` : null;
 
-/** The timing columns for the schedule's kind, with the cron normalized; throws when its value is missing or invalid. */
+/**
+ * The timing columns for the schedule's kind, with the cron normalized; throws when its value is missing
+ * or invalid.
+ */
 export function scheduleTiming(values: Pick<ScheduleValues, "kind" | "cron" | "runAt">): Timing {
   if (values.kind === "cron") {
     if (!values.cron || !isValidCron(values.cron)) throw new UserError("automations.validation.invalidCron");

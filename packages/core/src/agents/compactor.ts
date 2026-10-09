@@ -1,6 +1,6 @@
 import type { ModelRef } from "@abotica/db";
 import { convertToModelMessages, generateText, isStepCount, type ModelMessage, type Tool } from "ai";
-import { type CacheTtl, estimateCost } from "../models/catalog";
+import { type CacheTtl, estimateCost, tokenUsage } from "../models/catalog";
 import { FallbackModel } from "../models/fallback-model";
 import { ContextOverflowError } from "../models/provider-errors";
 import { OWNER_SECRETS, secretValues } from "../platform/vault";
@@ -47,7 +47,7 @@ const SUMMARY_STEPS = 4;
 const SUMMARY_TIMEOUT_MS = 3 * 60_000;
 
 /** What a compaction call cost, added to the run's. */
-export type CompactionUsage = { costUsd: number; inputTokens: number; outputTokens: number };
+type CompactionUsage = { costUsd: number; inputTokens: number; outputTokens: number };
 
 /** `readUntrusted`: what it summarizes held untrusted data (see CompactionMetadata). */
 type Summary = {
@@ -58,7 +58,7 @@ type Summary = {
   readUntrusted: boolean;
 };
 
-export type CompactorOptions = {
+type CompactorOptions = {
   ctx: RunContext;
   conversationId: string;
   chain: ModelRef[];
@@ -70,6 +70,8 @@ export type CompactorOptions = {
   fixedTokens: number;
   onUsage: (usage: CompactionUsage) => Promise<void>;
   errorText: (error: unknown) => string;
+  /** Logs a run event nobody awaits. */
+  logInBackground: (type: string, data: Record<string, unknown>) => void;
 };
 
 /** Tools a history keeps loaded: the ones its messages used, and the ones its summary stands for. */
@@ -100,12 +102,8 @@ const messagesTokens = (messages: StoredMessage[]) => approxTokens(messages.map(
 const promptTokens = (messages: ModelMessage[]) => approxTokens(messages.map((m) => m.content));
 
 export function createCompactor(opts: CompactorOptions) {
-  const { ctx, conversationId, window, signal } = opts;
+  const { ctx, conversationId, window, signal, logInBackground } = opts;
   const runId = ctx.run.id;
-  const logInBackground = (type: string, data: Record<string, unknown>) =>
-    logRunEvent(runId, type, data).catch((error: unknown) =>
-      console.error(`[runs] logging a ${type} event of ${runId} failed:`, error),
-    );
   const model = new FallbackModel(opts.chain, {
     onFallback: (e) => logInBackground("fallback", e),
     onRetry: (e) => logInBackground("retry", e),
@@ -141,12 +139,7 @@ export function createCompactor(opts: CompactorOptions) {
       maxRetries: 0,
       onStepEnd: async (step) => {
         const served = model.lastServed;
-        const tokens = {
-          inputTokens: step.usage.inputTokens ?? 0,
-          outputTokens: step.usage.outputTokens ?? 0,
-          cachedInputTokens: step.usage.inputTokenDetails?.cacheReadTokens ?? 0,
-          cacheWriteTokens: step.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
-        };
+        const tokens = tokenUsage(step.usage);
         usage.costUsd += await estimateCost(served.provider, served.model, tokens);
         usage.inputTokens += tokens.inputTokens;
         usage.outputTokens += tokens.outputTokens;

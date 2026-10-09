@@ -1,27 +1,29 @@
 "use client";
 
 import type { AgentAvatar } from "@abotica/db/avatar";
-import { CalendarClockIcon, CalendarDaysIcon, PauseIcon, PencilIcon, PlayIcon, PlusIcon, RepeatIcon } from "lucide-react";
+import { CalendarClockIcon, CalendarDaysIcon, PauseIcon, PencilIcon, PlayIcon, RepeatIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { RelativeTime } from "@/components/app/relative-time";
 import { ConfirmDelete } from "@/components/app/confirm-dialog";
-import { sectionCardClass } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { deleteSchedule, setScheduleEnabled, startScheduleRun } from "@/server/actions/automations";
-import { AutomationCard, AutomationDetail, AutomationPrompt, automationGridClass } from "./automation-card";
+import {
+  AutomationCard,
+  AutomationDetail,
+  AutomationList,
+  AutomationPrompt,
+  AutomationSwitch,
+  IconAction,
+} from "./automation-card";
 import { type CronTranslator, describeCron } from "./cron";
 import { nextRun } from "./next-run";
+import type { Option } from "./option-selects";
 import { ScheduleDialog, type ScheduleDraft } from "./schedule-dialog";
 import { formatInZone } from "@/lib/time-zone";
-
-type Option = { id: string; name: string; avatar?: AgentAvatar | null };
 
 type ScheduleItem = ScheduleDraft & {
   id: string;
@@ -50,28 +52,18 @@ export function SchedulesSection({
     open: false,
     draft: blank(agents, timezone),
   });
-  const openNew = () => setDialog({ open: true, draft: blank(agents, timezone) });
-  const newButton = (
-    <Button onClick={openNew} disabled={!agents.length}>
-      <PlusIcon /> {t("new")}
-    </Button>
-  );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {toolbar}
-        <div className="ml-auto">{newButton}</div>
-      </div>
-      {schedules.length ? (
-        <div className={automationGridClass}>
-          {schedules.map((s) => (
-            <ScheduleCard key={s.id} s={s} onEdit={() => setDialog({ open: true, draft: s })} />
-          ))}
-        </div>
-      ) : (
-        <p className={cn(sectionCardClass, "px-4 py-4 text-sm text-muted-foreground sm:px-5")}>{t("empty")}</p>
-      )}
+    <AutomationList
+      toolbar={toolbar}
+      newLabel={t("new")}
+      onNew={() => setDialog({ open: true, draft: blank(agents, timezone) })}
+      canCreate={agents.length > 0}
+      empty={t("empty")}
+      cards={schedules.map((s) => (
+        <ScheduleCard key={s.id} s={s} onEdit={() => setDialog({ open: true, draft: s })} />
+      ))}
+    >
       <ScheduleDialog
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
@@ -80,7 +72,7 @@ export function SchedulesSection({
         projects={projects}
         defaultTimezone={timezone}
       />
-    </div>
+    </AutomationList>
   );
 }
 
@@ -109,34 +101,6 @@ function useScheduleWhen() {
       : s.runAt
         ? t("once", { date: formatInZone(s.runAt, s.timezone, locale) })
         : t("noDate");
-}
-
-function ScheduleSwitch({ s }: { s: ScheduleItem }) {
-  const t = useTranslations("automations.schedules");
-  const [pending, startTransition] = useTransition();
-  return (
-    <Switch
-      checked={s.enabled}
-      disabled={pending}
-      aria-label={s.enabled ? t("disable") : t("enable")}
-      onCheckedChange={(enabled) =>
-        startTransition(async () => {
-          const res = await setScheduleEnabled({ id: s.id, enabled });
-          if (!res.ok) toast.error(res.error);
-        })
-      }
-    />
-  );
-}
-
-/** Icon button with its label in a tooltip. */
-function IconAction({ label, children }: { label: string; children: React.ReactElement }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
 }
 
 function ScheduleActions({ s, onEdit }: { s: ScheduleItem; onEdit: () => void }) {
@@ -223,7 +187,13 @@ function ScheduleCard({ s, onEdit }: { s: ScheduleItem; onEdit: () => void }) {
       enabled={s.enabled}
       editLabel={t("edit")}
       onEdit={onEdit}
-      toggle={<ScheduleSwitch s={s} />}
+      toggle={
+        <AutomationSwitch
+          checked={s.enabled}
+          label={s.enabled ? t("disable") : t("enable")}
+          save={(enabled) => setScheduleEnabled({ id: s.id, enabled })}
+        />
+      }
       footer={
         <>
           <div className="flex min-w-0 flex-col gap-0.5 text-xs">

@@ -3,6 +3,7 @@ import { db } from "./client";
 import { agents, appState } from "./schema";
 import { ORCHESTRATOR_PERMISSIONS } from "./seed-permissions";
 import { AGENT_TEMPLATES, RETIRED_TEMPLATES } from "./templates";
+import { limits } from "./templates/_shared";
 
 /**
  * The super agent and the agent templates (templates/, one file per domain). Who each agent is in the
@@ -17,8 +18,7 @@ const seeds: (typeof agents.$inferInsert)[] = [
     role: "Super agent (orchestrator)",
     kind: "orchestrator",
     permissions: ORCHESTRATOR_PERMISSIONS,
-    // No budget per run: the monthly budget is what guards the cost.
-    limits: { maxSteps: 150, timeoutMs: 120 * 60_000, budgetUsd: null },
+    limits: limits(150, 120),
   },
   ...AGENT_TEMPLATES.map((template) => ({ ...template, isTemplate: true })),
 ];

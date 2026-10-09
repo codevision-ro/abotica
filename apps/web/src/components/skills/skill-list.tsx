@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { SectionEmptyLink, sectionCardClass } from "@/components/app/section-card";
+import { listCardClass, SectionEmptyLink, sectionCardClass } from "@/components/app/section-card";
 import { Badge } from "@/components/ui/badge";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Switch } from "@/components/ui/switch";
@@ -72,13 +72,7 @@ export function SkillList({ skills }: { skills: SkillListItem[] }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((s) => (
-            <div
-              key={s.id}
-              className={cn(
-                "group relative flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40",
-                !s.enabled && "bg-card/60 dark:bg-card/40",
-              )}
-            >
+            <div key={s.id} className={cn(listCardClass, !s.enabled && "bg-card/60 dark:bg-card/40")}>
               <div className="flex items-center gap-3">
                 <SkillIcon size="xl" className={cn(!s.enabled && "opacity-60")} />
                 <div className="min-w-0 flex-1">

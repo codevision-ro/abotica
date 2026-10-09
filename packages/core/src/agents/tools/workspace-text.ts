@@ -42,6 +42,9 @@ export class HeadTailText {
   }
 }
 
+/** A HeadTailText of `max` characters, half from the start and half from the end. */
+export const headTailText = (max: number) => new HeadTailText(Math.floor(max / 2), Math.ceil(max / 2));
+
 /** A stream's text: the head and tail view, and the full text up to a byte limit. */
 export type CollectedText = {
   view: HeadTailText;
@@ -60,7 +63,7 @@ export async function collectText(
   max: number,
   fullMaxBytes: number,
 ): Promise<CollectedText> {
-  const view = new HeadTailText(Math.floor(max / 2), Math.ceil(max / 2));
+  const view = headTailText(max);
   const decoder = new TextDecoder();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -120,7 +123,7 @@ export function sliceLines(text: string, startLine?: number, endLine?: number): 
   return { content: start > end ? "" : lines.slice(start - 1, end).join("\n"), totalLines };
 }
 
-export type EditResult = { content: string; replacements: number } | { error: string };
+type EditResult = { content: string; replacements: number } | { error: string };
 
 /**
  * Replaces `oldText` with `newText`. Without `replaceAll` the text must occur exactly once, so an

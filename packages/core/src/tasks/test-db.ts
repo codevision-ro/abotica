@@ -7,7 +7,7 @@
  * tables `tables()` makes and "@abotica/db/orm" mocked to no-ops.
  */
 
-export type Write = { op: "insert" | "update" | "delete"; table: string; values?: Record<string, unknown> };
+type Write = { op: "insert" | "update" | "delete"; table: string; values?: Record<string, unknown> };
 
 export function fakeDb() {
   const answers: Record<string, unknown[][]> = {};

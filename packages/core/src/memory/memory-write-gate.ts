@@ -121,7 +121,7 @@ export async function similarMemories(
 }
 
 /** What names a project in a memory entry: its name, its slug, and the domains of its texts and repositories. */
-export type ProjectIdentity = { id: string; name: string; slug: string; texts: string[]; repoHosts: string[] };
+type ProjectIdentity = { id: string; name: string; slug: string; texts: string[]; repoHosts: string[] };
 
 /** Case and diacritics do not count: "Bețpavin" and "betpavin" are the same name. */
 const fold = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

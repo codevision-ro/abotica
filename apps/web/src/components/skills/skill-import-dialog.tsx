@@ -141,6 +141,11 @@ function SourceStep({ begin, onStep }: StepProps) {
     }
   }
 
+  function onPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files?.length) void readFiles(readPickedSkill(e.target.files));
+    e.target.value = "";
+  }
+
   async function resolve(e: React.FormEvent) {
     e.preventDefault();
     const value = url.trim();
@@ -200,10 +205,7 @@ function SourceStep({ begin, onStep }: StepProps) {
             type="file"
             accept=".zip,.md,.markdown,application/zip,text/markdown"
             className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.length) void readFiles(readPickedSkill(e.target.files));
-              e.target.value = "";
-            }}
+            onChange={onPicked}
           />
           <input
             ref={folderRef}
@@ -211,10 +213,7 @@ function SourceStep({ begin, onStep }: StepProps) {
             // @ts-expect-error webkitdirectory is not in React's input attributes, every browser supports it.
             webkitdirectory=""
             className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.length) void readFiles(readPickedSkill(e.target.files));
-              e.target.value = "";
-            }}
+            onChange={onPicked}
           />
         </div>
         {fileError && (

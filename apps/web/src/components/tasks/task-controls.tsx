@@ -5,8 +5,6 @@ import { EllipsisIcon, PauseIcon, PlayIcon, SignpostIcon, XCircleIcon } from "lu
 import { useTranslations } from "next-intl";
 import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { AgentAvatar } from "@/components/app/agent-avatar";
-import { PRIORITIES, useStatusLabels } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -24,11 +22,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { cancelTask, pauseTask, redirectTask, resumeTask } from "@/server/actions/tasks";
-import { SELECT_WITH_MEDIA, TaskPriorityIcon } from "./task-icons";
-import { fromLocalInput, toLocalInput } from "./task-meta";
+import { AgentSelectItem, PrioritySelectItems, SELECT_WITH_MEDIA } from "./task-icons";
+import { fromLocalInput, type TaskPriorityValue, toLocalInput } from "./task-meta";
 
 /** What the controls need to know about a task. */
-export type ControlledTask = {
+type ControlledTask = {
   id: string;
   status: string;
   priority: string;
@@ -39,10 +37,10 @@ export type ControlledTask = {
 type AgentOption = { id: string; name: string; avatar: AgentAvatarValue | null; assignable: boolean };
 
 /** A task can be put aside while it is waiting to start or in progress; settled work has nothing to pause. */
-export const canPause = (status: string) => status === "backlog" || status === "in_progress";
+const canPause = (status: string) => status === "backlog" || status === "in_progress";
 export const canResume = (status: string) => status === "paused";
 /** Done and cancelled tasks are over: nothing to redirect or cancel. */
-export const isOpen = (status: string) => status !== "done" && status !== "cancelled";
+const isOpen = (status: string) => status !== "done" && status !== "cancelled";
 
 /** Pause and resume, with their toasts; one pending state for both. */
 function usePauseResume(taskId: string) {
@@ -226,7 +224,6 @@ function RedirectDialog({
 }) {
   const t = useTranslations("tasks.control");
   const tc = useTranslations("common.actions");
-  const labels = useStatusLabels();
   const [instructions, setInstructions] = useState("");
   const [assignee, setAssignee] = useState(KEEP);
   const [priority, setPriority] = useState(task.priority);
@@ -240,7 +237,7 @@ function RedirectDialog({
     const patch = {
       instructions: instructions.trim() || undefined,
       reassignTo: assignee === KEEP ? undefined : assignee,
-      priority: priority === task.priority ? undefined : (priority as (typeof PRIORITIES)[number]),
+      priority: priority === task.priority ? undefined : (priority as TaskPriorityValue),
       deadline: deadline === toLocalInput(task.deadline) ? undefined : fromLocalInput(deadline),
     };
     if (Object.values(patch).every((v) => v === undefined)) return void toast.error(t("nothingChanged"));
@@ -281,10 +278,7 @@ function RedirectDialog({
                 <SelectContent className="max-w-[min(28rem,calc(100vw-2rem))]">
                   <SelectItem value={KEEP}>{t("keepAssignee")}</SelectItem>
                   {candidates.map((a) => (
-                    <SelectItem key={a.id} value={a.id} title={a.name} className="*:[span]:last:min-w-0">
-                      <AgentAvatar avatar={a.avatar} size="xs" />
-                      <span className="truncate">{a.name}</span>
-                    </SelectItem>
+                    <AgentSelectItem key={a.id} agent={a} />
                   ))}
                 </SelectContent>
               </Select>
@@ -297,12 +291,7 @@ function RedirectDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        <TaskPriorityIcon priority={p} />
-                        {labels.priority(p)}
-                      </SelectItem>
-                    ))}
+                    <PrioritySelectItems />
                   </SelectContent>
                 </Select>
               </Field>

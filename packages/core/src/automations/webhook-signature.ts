@@ -18,7 +18,7 @@ export const newSigningSecret = () => `${SECRET_PREFIX}${randomBytes(32).toStrin
 
 export type SignatureFailure = "missing-signature" | "bad-signature" | "expired-timestamp";
 
-export type SignatureCheck =
+type SignatureCheck =
   /** `messageId` is the Standard Webhooks `webhook-id`, to refuse replays; null for GitHub. */
   { ok: true; scheme: "standard-webhooks" | "github"; messageId: string | null } | { ok: false; reason: SignatureFailure };
 

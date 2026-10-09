@@ -1,10 +1,9 @@
 import { db, runs } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
-import { getTranslator } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { redis } from "../infra/redis";
 import { cancelQueuedRuns } from "../runs/run-lifecycle";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 
 const KILL_KEY = "abotica:kill-switch";
 
@@ -26,7 +25,7 @@ export async function setKillSwitch(active: boolean, reason?: string): Promise<n
     return 0;
   }
   await redis().set(KILL_KEY, "1");
-  const why = reason ?? getTranslator(settingsLocale(await getSettings()))("errors.run.stoppedByKillSwitch");
+  const why = reason ?? (await settingsTranslator())("errors.run.stoppedByKillSwitch");
   const running = await db.select({ id: runs.id }).from(runs).where(eq(runs.status, "running"));
   await publish({ type: "kill-switch", active, reason: why });
   // After the abort went out: settling and reporting the cancelled runs' tasks takes a moment.

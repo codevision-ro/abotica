@@ -21,7 +21,7 @@ export type { RepoAccess } from "./repo-http";
 /** GitLab's Developer role, the lowest that can push. */
 const GITLAB_DEVELOPER = 30;
 
-export type RepoCheck = {
+type RepoCheck = {
   defaultBranch: string;
   /** Whether the provider protects the default branch; null when the token may not read that. */
   defaultBranchProtected: boolean | null;
@@ -156,7 +156,7 @@ async function openGitlabMerge(repo: RepoAccess, input: PullRequestInput): Promi
   throw new Error(`GitLab refused the merge request: ${apiMessage(created)}`);
 }
 
-export type PullRequestInput = { branch: string; base: string; title: string; body: string; draft: boolean };
+type PullRequestInput = { branch: string; base: string; title: string; body: string; draft: boolean };
 
 /**
  * Opens a pull request (GitHub) or merge request (GitLab) from `branch` into `base`. When one is

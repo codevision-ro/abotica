@@ -19,7 +19,7 @@ export type CredentialRouteValue = Omit<McpCredentialRoute, "value"> & { value: 
  * One route. `keep` marks a saved value the server did not send: the row keeps it, under the variable
  * it was saved with, until a new value is typed.
  */
-export type CredentialRouteRow = {
+type CredentialRouteRow = {
   baseUrlEnv: string;
   upstream: string;
   header: string;

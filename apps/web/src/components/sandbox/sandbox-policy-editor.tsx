@@ -115,7 +115,7 @@ function PackageListEditor({
   );
 }
 
-/** Network access and packages of a workspace: the sandbox defaults (Settings > System) and project overrides. */
+/** Network access and packages of a workspace: the sandbox defaults in Settings > System. */
 export function SandboxPolicyEditor({
   name,
   value,

@@ -16,7 +16,7 @@ const dateInput =
  * One compact control for the date range. The inputs keep their own value while the user types and push
  * it to the URL after a short pause, so typing a date with the keyboard is not reset by each intermediate value.
  */
-export function JournalDateRange({ params, className }: { params: QueryParams; className?: string }) {
+export function JournalDateRange({ params }: { params: QueryParams }) {
   const t = useTranslations("journals.dateRange");
   const { update } = useQueryUpdate(params);
   const [from, setFrom] = useState(params.from ?? "");
@@ -48,7 +48,6 @@ export function JournalDateRange({ params, className }: { params: QueryParams; c
       className={cn(
         "flex h-8 min-w-0 items-center gap-0.5 rounded-lg border border-input bg-background pr-1 pl-2.5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30",
         active && "border-primary/40 bg-primary/5 dark:bg-primary/10",
-        className,
       )}
     >
       <CalendarRange className="size-4 shrink-0 text-muted-foreground" aria-hidden />

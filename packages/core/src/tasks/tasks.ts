@@ -11,19 +11,19 @@ import {
   type Tx,
 } from "@abotica/db";
 import { and, count, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from "@abotica/db/orm";
-import { getTranslator, UserError } from "@abotica/i18n";
+import { UserError } from "@abotica/i18n";
+import { isUniqueViolation } from "../infra/db-errors";
 import { publish } from "../infra/events";
 import { changeRunPriority, enqueueTaskEvent } from "../infra/queues";
 import { claimFiles, fileIdsOwnedBy, removeFileBytes, type StoredFile } from "../files/files";
 import type { RunFailureKind } from "../runs/run-failures";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 import { queuePriority } from "./priority";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskStatus = Task["status"];
 export type TaskPriority = Task["priority"];
 export type TaskComment = typeof taskComments.$inferSelect;
-export type TaskMessageKind = TaskComment["kind"];
 
 /**
  * The statuses a task is set to directly (task_update, the board). `paused` and `cancelled` are not
@@ -127,14 +127,9 @@ export async function assertTaskDependenciesDone(taskId: string, tx?: Tx): Promi
 }
 
 /** Whether `taskId` depending on `dependsOnTaskId` closes a loop: `taskId` is among its dependencies, at any depth. */
-export async function wouldCreateDependencyCycle(
-  taskId: string,
-  dependsOnTaskId: string,
-  q: Queryable = db,
-): Promise<boolean> {
-  if (taskId === dependsOnTaskId) return true;
+async function wouldCreateDependencyCycle(taskId: string, dependsOnTaskId: string, tx: Tx): Promise<boolean> {
   // UNION (not UNION ALL) drops rows already reached, so a loop already in the table still ends the walk.
-  const rows = await q.execute(sql`
+  const rows = await tx.execute(sql`
     with recursive reached(id) as (
       select depends_on_task_id from task_dependencies where task_id = ${dependsOnTaskId}
       union
@@ -345,15 +340,10 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 /** Whether starting a run failed because the task already has one queued or running (runs_one_active_per_task). */
 export function isActiveTaskRunConflict(error: unknown): boolean {
-  for (
-    let e = error as { code?: string; constraint_name?: string; cause?: unknown } | undefined;
-    e;
-    e = e.cause as typeof e
-  ) {
+  for (let e = error as { cause?: unknown } | undefined; e; e = e.cause as typeof e) {
     if (e instanceof TaskBusyError) return true;
-    if (e.code === "23505" && e.constraint_name === "runs_one_active_per_task") return true;
   }
-  return false;
+  return isUniqueViolation(error, "runs_one_active_per_task");
 }
 
 /**
@@ -442,7 +432,7 @@ export async function updateTask(
 export type Actor = "user" | "system" | { agentId: string };
 
 /** What a comment is besides its text: its kind in the task's message stream, and a question's routing. */
-export type TaskCommentFields = Partial<
+type TaskCommentFields = Partial<
   Pick<
     typeof taskComments.$inferInsert,
     | "kind"
@@ -466,7 +456,7 @@ export async function finishWithNothingNew(taskId: string, output: string | null
   // Reported first: a report of the task settling done must find nothing to send.
   await db.update(tasks).set({ reportedAt: new Date() }).where(eq(tasks.id, taskId));
   const task = await updateTask(taskId, { status: "done", ...(output !== null ? { output } : {}) }, actor);
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   await addTaskComment(taskId, t("tasks.automation.nothingNew"), "system");
   return task;
 }

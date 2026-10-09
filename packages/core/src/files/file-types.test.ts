@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extensionFor, fileIdFromUrl, fileUrl, isTextFile, mimeTypeFor, parseDataUrl, safeFileName } from "./file-types";
+import { extensionFor, fileIdFromUrl, fileUrl, isTextFile, mimeTypeFor, safeFileName } from "./file-types";
 
 describe("mimeTypeFor", () => {
   it("maps known extensions, case-insensitively", () => {
@@ -33,21 +33,6 @@ describe("safeFileName", () => {
     expect(safeFileName("my report (final).pdf")).toBe("my_report_final_.pdf");
     expect(safeFileName(".hidden")).toBe("hidden");
     expect(safeFileName("///")).toBe("file");
-  });
-});
-
-describe("parseDataUrl", () => {
-  it("decodes base64 and percent-encoded data URLs", () => {
-    const b64 = parseDataUrl("data:text/plain;base64,aGVsbG8=");
-    expect(b64?.mimeType).toBe("text/plain");
-    expect(new TextDecoder().decode(b64!.data)).toBe("hello");
-    const plain = parseDataUrl("data:,a%20b");
-    expect(plain?.mimeType).toBe("text/plain");
-    expect(new TextDecoder().decode(plain!.data)).toBe("a b");
-  });
-
-  it("rejects other URLs", () => {
-    expect(parseDataUrl("https://example.com/a.png")).toBeNull();
   });
 });
 

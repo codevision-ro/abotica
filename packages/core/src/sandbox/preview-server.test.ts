@@ -22,6 +22,7 @@ vi.mock("../settings/settings", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../settings/settings")>()),
   getSettings: async () => ({}),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 
 const HOST = "abcdefghijklmnopqrstuvwxyz";

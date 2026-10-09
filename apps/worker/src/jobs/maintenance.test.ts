@@ -52,6 +52,7 @@ vi.mock("@abotica/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@abotica/core")>()),
   getSettings: async () => ({ general: { timezone: "UTC" } }),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
   embedDocument: async () => null,
   projectProviderPolicy: async () => null,
   consolidationCandidates: vi.fn(),

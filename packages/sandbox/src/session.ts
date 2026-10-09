@@ -19,7 +19,7 @@ import type {
   WorkspaceSpec,
 } from "./types";
 
-export type SandboxSessionOptions = {
+type SandboxSessionOptions = {
   backend: SandboxBackend;
   /** Opened lazily on first use. */
   spec: WorkspaceSpec;
@@ -46,12 +46,12 @@ export type SandboxSessionOptions = {
  * AI SDK process options plus a per-call timeout, capped at the session's `commandTimeoutMs`, and
  * the user to run as.
  */
-export type SessionProcessOptions = Parameters<SandboxSession["run"]>[0] & {
+type SessionProcessOptions = Parameters<SandboxSession["run"]>[0] & {
   timeoutMs?: number;
   user?: ExecOptions["user"];
 };
 
-export type SessionRunResult = {
+type SessionRunResult = {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -248,7 +248,7 @@ export function createSandboxSession(options: SandboxSessionOptions): ManagedSan
     if (pipeError) throw pipeError;
   };
 
-  const session: ManagedSandboxSession = {
+  return {
     description: options.description,
 
     get opened() {
@@ -318,7 +318,6 @@ export function createSandboxSession(options: SandboxSessionOptions): ManagedSan
       await killAll();
     },
   };
-  return session;
 }
 
 function bytesStream(bytes: Uint8Array): ReadableStream<Uint8Array> {

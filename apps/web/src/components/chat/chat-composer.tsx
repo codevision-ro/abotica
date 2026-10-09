@@ -9,8 +9,6 @@ import { toast } from "sonner";
 import {
   PromptInput,
   PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
   PromptInputActionMenuTrigger,
   PromptInputBody,
   PromptInputFooter,
@@ -20,16 +18,10 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
+import { DropdownMenu, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { type UploadedFile, uploadFiles } from "@/lib/upload-files";
 import { cn } from "@/lib/utils";
 import { CHAT_COLUMN } from "./chat-parts";
-
-/** PromptInput error codes to messages (its own messages are English only). */
-const INPUT_ERRORS = {
-  accept: "input.errors.accept",
-  max_file_size: "input.errors.maxFileSize",
-  max_files: "input.errors.maxFiles",
-} as const;
 
 const FILE_MAX_MB = FILE_MAX_BYTES / (1024 * 1024);
 
@@ -188,10 +180,8 @@ export function ChatComposer({ agentName, busy, status, onStop, onSubmit }: Prop
       <div className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-linear-to-t from-background to-transparent" />
       <div className={cn(CHAT_COLUMN, "pb-3 md:pb-6")}>
         <PromptInput
-          multiple
-          globalDrop
           maxFileSize={FILE_MAX_BYTES}
-          onError={(e) => toast.error(t(INPUT_ERRORS[e.code], { max: FILE_MAX_MB }))}
+          onFilesTooLarge={() => toast.error(t("input.errors.maxFileSize", { max: FILE_MAX_MB }))}
           className={cn(
             "[&_[data-slot=input-group]]:rounded-[1.25rem] [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-16px_rgb(0_0_0/0.16)]",
             "[&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:border-primary/35 [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:ring-4 [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:ring-primary/8",
@@ -213,15 +203,15 @@ export function ChatComposer({ agentName, busy, status, onStop, onSubmit }: Prop
           </PromptInputBody>
           <PromptInputFooter className="px-2 pb-2">
             <PromptInputTools>
-              <PromptInputActionMenu>
+              <DropdownMenu>
                 <PromptInputActionMenuTrigger
                   className="size-9 rounded-full text-muted-foreground hover:text-foreground"
                   aria-label={t("attachments.attach")}
                 />
-                <PromptInputActionMenuContent>
+                <DropdownMenuContent align="start">
                   <PromptInputActionAddAttachments label={t("attachments.attachFiles")} />
-                </PromptInputActionMenuContent>
-              </PromptInputActionMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {upload !== null ? (
                 <span className="tabular min-w-0 truncate text-xs text-muted-foreground" role="status">
                   {t("attachments.uploading", { percent: Math.round(upload * 100) })}

@@ -31,10 +31,8 @@ import {
   toAgentAvatar,
 } from "@abotica/db";
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "@abotica/db/orm";
-import { getMemberActivity } from "./projects";
+import { getMemberActivity, getProjectNames } from "./projects";
 import { query } from "@/server/query";
-
-export type Agent = typeof agents.$inferSelect;
 
 type ProviderOption = { id: string; label: string; configured: boolean };
 
@@ -161,17 +159,9 @@ export const listTemplates = query(async () => {
   return db.select().from(agents).where(eq(agents.isTemplate, true)).orderBy(asc(agents.name));
 });
 
-async function safeCatalog(): Promise<CatalogModel[]> {
-  try {
-    return await getCatalog();
-  } catch {
-    return [];
-  }
-}
-
 export const getAgentFormOptions = query(async (): Promise<AgentFormOptions> => {
   const [catalog, configured, skillRows, mcpRows, projectRows] = await Promise.all([
-    safeCatalog(),
+    getCatalog().catch(() => [] as CatalogModel[]),
     Promise.all(PROVIDER_IDS.map((p) => isProviderConfigured(p).catch(() => false))),
     db
       .select({ id: skills.id, name: skills.name, description: skills.description })
@@ -333,7 +323,7 @@ export const listAgentJournals = query(
             .orderBy(desc(journals.day))
             .limit(60)
         ).map((j) => ({ key: j.id, ...j }));
-    const names = await projectNames(rows.flatMap((j) => (j.projectId ? [j.projectId] : [])));
+    const names = await getProjectNames(rows.map((j) => j.projectId));
     return rows.map((j) => ({
       key: j.key,
       day: j.day,
@@ -342,15 +332,6 @@ export const listAgentJournals = query(
     }));
   },
 );
-
-async function projectNames(ids: string[]): Promise<Map<string, string>> {
-  if (!ids.length) return new Map();
-  const rows = await db
-    .select({ id: projects.id, name: projects.name })
-    .from(projects)
-    .where(inArray(projects.id, [...new Set(ids)]));
-  return new Map(rows.map((p) => [p.id, p.name]));
-}
 
 /** Projects the agent kept a journal in, by name: the choices of the Journal tab's project filter. */
 export const listAgentJournalProjects = query(async (agentId: string) => {

@@ -9,9 +9,9 @@
  *
  * Each exec gets a random token (sent as the proxy username) that maps to its egress list, only
  * works from the address of the container it was issued to (a token read from another workspace's
- * environment is useless) and dies with the exec. A request is allowed when the host matches the list, then the name is resolved once,
- * blocked addresses are dropped and the proxy connects to a vetted address, so a second lookup cannot
- * swap in a private one. Refusals carry a short plain-text reason, in the status line and the body,
+ * environment is useless) and dies with the exec. A request is allowed when the host matches the list,
+ * then the name is resolved once, blocked addresses are dropped and the proxy connects to a vetted
+ * address, so a second lookup cannot swap in a private one. Refusals carry a short plain-text reason, in the status line and the body,
  * because the agent reads it from the client's error message.
  */
 import { randomBytes } from "node:crypto";
@@ -33,17 +33,13 @@ import {
   upstreamUrl,
 } from "./routes";
 
-export const EGRESS_PROXY_PORT = 3128;
+const EGRESS_PROXY_PORT = 3128;
 
-export type EgressProxyOptions = {
+type EgressProxyOptions = {
   /** Address to listen on: the worker's address in the sandbox network. */
   host: string;
   /** Default 3128; 0 picks a free port. */
   port?: number;
-  /** Resolving and connecting upstream, default DEFAULT_CONNECT_TIMEOUT_MS. */
-  connectTimeoutMs?: number;
-  /** A connection with no traffic either way is closed after this long, default DEFAULT_IDLE_TIMEOUT_MS. */
-  idleTimeoutMs?: number;
   /** Concurrent upstream connections per token, default DEFAULT_MAX_CONNECTIONS_PER_TOKEN. */
   maxConnectionsPerToken?: number;
   /** Tests only: allow loopback upstreams so local test servers are reachable. */
@@ -54,7 +50,7 @@ export type EgressProxyOptions = {
   lookup?: (hostname: string) => Promise<{ address: string; family: number }[]>;
 };
 
-export type EgressGrant = {
+type EgressGrant = {
   readonly token: string;
   /**
    * `http://<token>:x@<host>:<port>`, for HTTP_PROXY and HTTPS_PROXY. The password is a placeholder:
@@ -144,17 +140,25 @@ function tokenFrom(header: string | undefined): string | null {
 // Status line reasons must stay on one line of printable ASCII.
 const reasonPhrase = (reason: string) => reason.replace(/[^\x20-\x7e]/g, "?").slice(0, 200);
 
-function writeRefusal(socket: Duplex, refusal: Refusal) {
+const asRefusal = (error: unknown) => (error instanceof Refusal ? error : new Refusal(502, "Proxy error"));
+
+function refusalResponse(refusal: Refusal) {
   const body = `${refusal.reason}\n`;
-  const headers = Object.entries({
+  const headers: Record<string, string> = {
     ...refusal.headers,
     "content-type": "text/plain; charset=utf-8",
     "content-length": String(Buffer.byteLength(body)),
     connection: "close",
-  })
+  };
+  return { body, headers };
+}
+
+function writeRefusal(socket: Duplex, refusal: Refusal) {
+  const { body, headers } = refusalResponse(refusal);
+  const lines = Object.entries(headers)
     .map(([name, value]) => `${name}: ${value}\r\n`)
     .join("");
-  socket.end(`HTTP/1.1 ${refusal.status} ${reasonPhrase(refusal.reason)}\r\n${headers}\r\n${body}`);
+  socket.end(`HTTP/1.1 ${refusal.status} ${reasonPhrase(refusal.reason)}\r\n${lines}\r\n${body}`);
   // Server sockets allow half-open connections; do not wait for the client to hang up.
   socket.once("finish", () => setTimeout(() => socket.destroy(), 1000).unref());
 }
@@ -164,13 +168,8 @@ function respondRefusal(res: http.ServerResponse, refusal: Refusal) {
     res.destroy();
     return;
   }
-  const body = `${refusal.reason}\n`;
-  res.writeHead(refusal.status, reasonPhrase(refusal.reason), {
-    ...refusal.headers,
-    "content-type": "text/plain; charset=utf-8",
-    "content-length": Buffer.byteLength(body),
-    connection: "close",
-  });
+  const { body, headers } = refusalResponse(refusal);
+  res.writeHead(refusal.status, reasonPhrase(refusal.reason), headers);
   res.end(body);
 }
 
@@ -214,14 +213,19 @@ function connectTo(address: string, port: number, timeoutMs: number): Promise<ne
  * crawler or a parallel download opens many connections at once, a slow server takes a while to accept,
  * and a long poll or a quiet build log stream keeps a connection open without traffic for many minutes.
  */
-export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
-export const DEFAULT_IDLE_TIMEOUT_MS = 60 * 60_000;
-export const DEFAULT_MAX_CONNECTIONS_PER_TOKEN = 256;
+const CONNECT_TIMEOUT_MS = 30_000;
+/** A connection with no traffic either way is closed after this long. */
+const IDLE_TIMEOUT_MS = 60 * 60_000;
+const DEFAULT_MAX_CONNECTIONS_PER_TOKEN = 256;
+
+const closeWhenIdle = (socket: Duplex, close: () => void) => {
+  if ("setTimeout" in socket && typeof socket.setTimeout === "function") {
+    (socket as net.Socket).setTimeout(IDLE_TIMEOUT_MS, close);
+  }
+};
 
 /** Starts the proxy; resolves once it listens. */
 export async function startEgressProxy(options: EgressProxyOptions): Promise<EgressProxy> {
-  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-  const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const maxPerToken = options.maxConnectionsPerToken ?? DEFAULT_MAX_CONNECTIONS_PER_TOKEN;
   const grants = new Map<string, GrantState>();
   const tunnels = new Set<Duplex>();
@@ -275,7 +279,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       }
     };
     try {
-      const deadline = Date.now() + connectTimeoutMs;
+      const deadline = Date.now() + CONNECT_TIMEOUT_MS;
       const name = normalizeHost(host);
       let addresses: string[];
       if (net.isIP(name)) {
@@ -283,7 +287,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       } else {
         const found = await withTimeout(
           resolve(name),
-          connectTimeoutMs,
+          CONNECT_TIMEOUT_MS,
           () => new Refusal(504, `Timed out resolving ${host}`),
         ).catch((error: unknown) => {
           if (error instanceof Refusal) throw error;
@@ -354,7 +358,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
     adjust: (headers: http.OutgoingHttpHeaders) => http.OutgoingHttpHeaders = (headers) => headers,
   ) {
     const upstream = http.request({ ...request, method: req.method, createConnection: () => socket });
-    socket.setTimeout(idleTimeoutMs, () => socket.destroy());
+    closeWhenIdle(socket, () => socket.destroy());
     upstream.on("response", (response) => {
       res.writeHead(response.statusCode ?? 502, response.statusMessage, adjust(endToEndHeaders(response.headers)));
       response.pipe(res);
@@ -388,7 +392,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
         const code = error?.code ?? "ETIMEDOUT";
         reject(new Refusal(502, `TLS connection to ${upstream.host} failed (${code})`));
       };
-      const timer = setTimeout(fail, connectTimeoutMs);
+      const timer = setTimeout(fail, CONNECT_TIMEOUT_MS);
       secure.once("error", fail);
       secure.once("secureConnect", () => {
         clearTimeout(timer);
@@ -440,7 +444,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       const headers = { ...endToEndHeaders(req.headers), host: url.host, connection: "close" };
       relay(req, res, socket, { path: `${url.pathname}${url.search}`, headers }, url.host);
     } catch (error) {
-      respondRefusal(res, error instanceof Refusal ? error : new Refusal(502, "Proxy error"));
+      respondRefusal(res, asRefusal(error));
     }
   }
 
@@ -459,7 +463,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       if (url.host !== ROUTE_HOST) throw ROUTE_ADDRESS;
       await forwardRoute(grant, req, res, url);
     } catch (error) {
-      respondRefusal(res, error instanceof Refusal ? error : new Refusal(502, "Proxy error"));
+      respondRefusal(res, asRefusal(error));
     }
   }
 
@@ -467,9 +471,7 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
   function tunnelToRoutes(grant: GrantState, client: Duplex, head: Buffer) {
     if (!track(grant, client)) return;
     tunnelGrants.set(client, grant);
-    if ("setTimeout" in client && typeof client.setTimeout === "function") {
-      (client as net.Socket).setTimeout(idleTimeoutMs, () => client.destroy());
-    }
+    closeWhenIdle(client, () => client.destroy());
     client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
     if (head.length > 0) client.unshift(head);
     routeServer.emit("connection", client);
@@ -504,30 +506,26 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
       client.on("error", closeBoth);
       upstream.on("close", closeBoth);
       client.on("close", closeBoth);
-      upstream.setTimeout(idleTimeoutMs, closeBoth);
-      if ("setTimeout" in client && typeof client.setTimeout === "function") {
-        (client as net.Socket).setTimeout(idleTimeoutMs, closeBoth);
-      }
+      closeWhenIdle(upstream, closeBoth);
+      closeWhenIdle(client, closeBoth);
       client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
       if (head.length > 0) upstream.write(head);
       upstream.pipe(client);
       client.pipe(upstream);
     } catch (error) {
-      if (!client.destroyed) writeRefusal(client, error instanceof Refusal ? error : new Refusal(502, "Proxy error"));
+      if (!client.destroyed) writeRefusal(client, asRefusal(error));
     }
   }
 
   const server = http.createServer();
-  server.headersTimeout = 20_000;
-  server.requestTimeout = 0; // uploads may take long; idle sockets are closed by their own timeouts
   server.maxConnections = 4096;
   server.on("request", (req, res) => void handleRequest(req, res));
   server.on("connect", (req, socket, head) => void handleConnect(req, socket, head));
   // Never listens: it parses the requests inside CONNECT tunnels to the route host.
   const routeServer = http.createServer((req, res) => void handleTunneledRoute(req, res));
-  routeServer.headersTimeout = 20_000;
-  routeServer.requestTimeout = 0;
   for (const target of [server, routeServer]) {
+    target.headersTimeout = 20_000;
+    target.requestTimeout = 0; // uploads may take long; idle sockets are closed by their own timeouts
     target.on("upgrade", (_req, socket: Duplex) => {
       socket.on("error", () => socket.destroy());
       writeRefusal(socket, new Refusal(501, "Upgrade through the proxy is not supported, use CONNECT"));

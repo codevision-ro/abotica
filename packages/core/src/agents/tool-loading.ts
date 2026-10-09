@@ -10,7 +10,7 @@ import { TOOL_CATALOG } from "./tools/tool-catalog";
 export const TOOL_SEARCH = "tool_search";
 
 /** Matches returned per search; enough to load a browser workflow (navigate, click, fill, read) at once. */
-export const TOOL_SEARCH_MAX_RESULTS = 8;
+const TOOL_SEARCH_MAX_RESULTS = 8;
 
 type ToolEntry = { name: string; description?: string };
 
@@ -51,7 +51,7 @@ export function rankTools(query: string, tools: ToolEntry[]): string[] {
 }
 
 /** The search tool the agent loads deferred tools with; the AI SDK binds it to the run's tools. */
-export function toolSearchTool(): Tool {
+function toolSearchTool(): Tool {
   return {
     ...toolSearch({ search: ({ query, tools }) => rankTools(query, tools), maxResults: TOOL_SEARCH_MAX_RESULTS }),
     description: `Load tools listed under "More tools" in your instructions. Pass their exact names separated by spaces (e.g. "scrapling__get scrapling__fetch"), or keywords for what you need. Returns up to ${TOOL_SEARCH_MAX_RESULTS} tools; they become callable on your next step. Load everything a task needs in one search.`,

@@ -9,6 +9,7 @@ import {
   projectProviderPolicy,
   reachedBudget,
   resolveModelChain,
+  tokenUsage,
 } from "@abotica/core";
 import { db, runs, type agents } from "@abotica/db";
 import { generateText } from "ai";
@@ -44,11 +45,7 @@ export async function systemCompletion(input: {
   const model = new FallbackModel(chain);
   const startedAt = new Date();
   const result = await generateText({ model, instructions, prompt, maxRetries: 0 });
-  const usage = {
-    inputTokens: result.usage.inputTokens ?? 0,
-    outputTokens: result.usage.outputTokens ?? 0,
-    cachedInputTokens: result.usage.inputTokenDetails?.cacheReadTokens ?? 0,
-  };
+  const usage = tokenUsage(result.usage);
   const served = model.lastServed;
   await db.insert(runs).values({
     agentId: agent.id,

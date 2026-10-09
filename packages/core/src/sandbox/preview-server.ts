@@ -18,7 +18,6 @@ import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { db } from "@abotica/db";
 import { sql } from "@abotica/db/orm";
-import { getTranslator } from "@abotica/i18n";
 import { env } from "../infra/env";
 import { mimeTypeFor } from "../files/file-types";
 import { redis } from "../infra/redis";
@@ -37,7 +36,7 @@ import {
 } from "./previews";
 import { touchWorkspace } from "./sandbox";
 import { currentSandboxBackend } from "./sandbox-runtime";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 
 const AUTH_PATH = "/__abotica/auth";
 const TLS_PATH = "/__abotica/tls";
@@ -82,25 +81,34 @@ async function lookup(host: string): Promise<Preview | null> {
 const escapeHtml = (text: string) =>
   text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-async function translator() {
-  return getTranslator(settingsLocale(await getSettings()));
-}
-
-/** A small page of the server itself (not found, not running), in the app's language. */
-async function sendPage(res: http.ServerResponse, status: number, key: "notFound" | "notRunning" | "denied") {
-  const t = await translator();
-  const title = escapeHtml(t(`previews.page.${key}.title`));
-  const body = escapeHtml(t(`previews.page.${key}.body`));
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#334155}h1{font-size:1.25rem;color:#0f172a}</style></head><body><h1>${title}</h1><p>${body}</p></body></html>`;
-  res.writeHead(status, {
+/** An HTML page of the server itself: `title` and `body` escaped already, no script, nothing loaded. */
+function sendHtml(
+  res: http.ServerResponse,
+  page: { status: number; cacheControl: string; title: string; style: string; body: string },
+) {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${page.title}</title><style>${page.style}</style></head><body><h1>${page.title}</h1>${page.body}</body></html>`;
+  res.writeHead(page.status, {
     ...BASE_HEADERS,
     "content-type": "text/html; charset=utf-8",
     "content-length": Buffer.byteLength(html),
-    "cache-control": "no-store",
+    "cache-control": page.cacheControl,
     "x-content-type-options": "nosniff",
     "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
   });
   res.end(html);
+}
+
+/** A small page of the server itself (not found, not running), in the app's language. */
+async function sendPage(res: http.ServerResponse, status: number, key: "notFound" | "notRunning" | "denied") {
+  const t = await settingsTranslator();
+  sendHtml(res, {
+    status,
+    cacheControl: "no-store",
+    title: escapeHtml(t(`previews.page.${key}.title`)),
+    style:
+      "body{font:16px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#334155}h1{font-size:1.25rem;color:#0f172a}",
+    body: `<p>${escapeHtml(t(`previews.page.${key}.body`))}</p>`,
+  });
 }
 
 function cookieOf(header: string | undefined, name: string): string | undefined {
@@ -154,16 +162,13 @@ function listing(res: http.ServerResponse, title: string, urlPath: string, names
     .sort((a, b) => a.localeCompare(b))
     .map((name) => `<li><a href="${escapeHtml(base + encodeURIComponent(name))}">${escapeHtml(name)}</a></li>`)
     .join("");
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem}</style></head><body><h1>${escapeHtml(title)}</h1><ul>${items}</ul></body></html>`;
-  res.writeHead(200, {
-    ...BASE_HEADERS,
-    "content-type": "text/html; charset=utf-8",
-    "content-length": Buffer.byteLength(html),
-    "cache-control": "no-cache",
-    "x-content-type-options": "nosniff",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+  sendHtml(res, {
+    status: 200,
+    cacheControl: "no-cache",
+    title: escapeHtml(title),
+    style: "body{font:16px/1.6 system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem}",
+    body: `<ul>${items}</ul>`,
   });
-  res.end(html);
 }
 
 async function serveStatic(req: http.IncomingMessage, res: http.ServerResponse, preview: Preview, url: URL) {

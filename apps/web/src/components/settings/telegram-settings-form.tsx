@@ -157,13 +157,7 @@ export function TelegramSettingsForm({ tokenUpdatedAt, allowedUserIds, notifyCha
         </FieldGroup>
       </FormSection>
 
-      <SettingsSaveBar
-        dirty={dirty}
-        invalid={usersInvalid || notifyInvalid}
-        pending={saving}
-        onSave={save}
-        onReset={reset}
-      />
+      <SettingsSaveBar form={{ dirty, invalid: usersInvalid || notifyInvalid, pending: saving, save, reset }} />
     </div>
   );
 }

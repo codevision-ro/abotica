@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { RelativeTime } from "@/components/app/relative-time";
+import { SectionDivider } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -82,7 +83,7 @@ export function ChatFrame({ list, children }: { list: React.ReactNode; children:
 }
 
 /** Mobile button in the chat header that opens the conversation list. */
-export function ConversationListTrigger({ className }: { className?: string }) {
+export function ConversationListTrigger() {
   const openList = use(OpenListContext);
   const t = useTranslations("chat.list");
   if (!openList) return null;
@@ -90,7 +91,7 @@ export function ConversationListTrigger({ className }: { className?: string }) {
     <Button
       variant="ghost"
       size="icon-lg"
-      className={cn("-ml-2 shrink-0 text-muted-foreground md:hidden", className)}
+      className="-ml-2 shrink-0 text-muted-foreground md:hidden"
       onClick={openList}
       aria-label={t("title")}
       title={t("title")}
@@ -198,7 +199,7 @@ export function ConversationPanel({ list, agents, projects, filterProjects, filt
           </Select>
         </div>
       )}
-      <div aria-hidden className="mx-4 h-px shrink-0 bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider className="mx-4 shrink-0" />
       <div ref={listRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <ul className="flex flex-col gap-1 p-2">
           {conversations.length === 0 && (

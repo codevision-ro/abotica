@@ -8,7 +8,7 @@ import type { Harness } from "../e2e-company";
  * database, and holding a delegator's conversation so its agent is not woken while a scenario watches.
  */
 
-export const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export { wait } from "../e2e-shared";
 
 /**
  * Keeps an agent out of a conversation: a run there waits for an approval that never comes, so notices and
@@ -33,7 +33,7 @@ export async function hold(h: Harness, conversationId: string, agentId: string):
 type Metadata = { kind?: string; notice?: string; taskId?: string; tasks?: { id: string }[] };
 
 /** The messages of a conversation with their metadata, oldest first. */
-export async function conversationMessages(conversationId: string) {
+async function conversationMessages(conversationId: string) {
   const rows = await db
     .select({ id: messages.id, metadata: messages.metadata, createdAt: messages.createdAt, parts: messages.parts })
     .from(messages)

@@ -55,7 +55,6 @@ async function ProjectCard({
   managerBadge: boolean;
 }) {
   const t = await getTranslations("agents.projects");
-  const teamHref = `/projects/${project.id}?tab=team`;
   return (
     <li className={cn(sectionCardClass, "flex min-w-0 flex-col gap-4 p-4 sm:p-5")}>
       <div className="flex min-w-0 items-center gap-3">
@@ -107,7 +106,7 @@ async function ProjectCard({
           </Link>
         </Button>
         <Button variant="ghost" size="sm" asChild>
-          <Link href={teamHref}>
+          <Link href={`/projects/${project.id}?tab=team`}>
             {t("openTeam")} <ArrowRightIcon />
           </Link>
         </Button>

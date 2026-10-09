@@ -5,15 +5,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { answerQuestion, askQuestion, reportProgress } from "../../tasks/task-messages";
+import type { RunContext } from "../context";
 import { blankToUndefined, errorResult, optionalId, optionalText, type ToolFactory, visibleTask } from "./shared";
-
-type ToolContext = Parameters<ToolFactory>[0];
 
 /**
  * The task the agent asks or reports about: its own (this run's by default), assigned to it. The super
  * agent may ask the user about any task it sees.
  */
-async function ownTask(ctx: ToolContext, taskId: string | undefined, opts: { anyVisible?: boolean } = {}) {
+async function ownTask(ctx: RunContext, taskId: string | undefined, opts: { anyVisible?: boolean } = {}) {
   const id = taskId ?? ctx.run.taskId;
   if (!id) return { error: "This run has no task: pass taskId." };
   const task = await visibleTask(ctx, id);

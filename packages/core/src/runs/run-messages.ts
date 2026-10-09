@@ -55,6 +55,8 @@ const withRunId = (message: UIMessage, runId: string): UIMessage => ({
 
 export type StoredMessage = { message: UIMessage; createdAt: Date };
 
+const toStored = (row: MessageRow): StoredMessage => ({ message: toUIMessage(row), createdAt: row.createdAt });
+
 /**
  * The history the model gets: the newest compaction, whose summary stands for the messages it covers,
  * and the messages after it. Reports withheld from the agent went to the user only.
@@ -76,12 +78,12 @@ export async function loadConversation(conversationId: string): Promise<Conversa
       .filter((m) => !isCompaction(m.metadata) && !isWithheldReport(m.metadata))
       // Compared here rather than in SQL: a row's time has microseconds, coversUntil (a JS date) does not.
       .filter((m) => !compaction || !coveredBy(compaction.metadata, m.createdAt))
-      .map((m) => ({ message: toUIMessage(m), createdAt: m.createdAt })),
+      .map(toStored),
   };
 }
 
 /** Where a message sent while a run worked went in: the run, after its step `afterStep` (see steering.ts). */
-export type SteeredInto = { runId: string; afterStep: number };
+type SteeredInto = { runId: string; afterStep: number };
 
 /** The user messages saved after `since` that no run took in between its steps, oldest first. */
 export async function loadUnsteeredMessages(conversationId: string, since: Date): Promise<StoredMessage[]> {
@@ -97,9 +99,7 @@ export async function loadUnsteeredMessages(conversationId: string, since: Date)
       ),
     )
     .orderBy(asc(messages.createdAt));
-  return rows
-    .filter((m) => !isWithheldReport(m.metadata))
-    .map((m) => ({ message: toUIMessage(m), createdAt: m.createdAt }));
+  return rows.filter((m) => !isWithheldReport(m.metadata)).map(toStored);
 }
 
 /** Records that a run took these messages in, so no follow-up answers them again. */

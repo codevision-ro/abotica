@@ -81,9 +81,8 @@ export function apiMessage({ status, body }: ApiResponse): string {
   return `HTTP ${status}${typeof body === "string" && body ? `: ${body.slice(0, 300)}` : ""}`;
 }
 
-export const encodePath = (path: string) => encodeURIComponent(path);
 export const githubRepo = (repo: RepoAccess) => `/repos/${repo.path}`;
-export const gitlabProject = (repo: RepoAccess) => `/projects/${encodePath(repo.path)}`;
+export const gitlabProject = (repo: RepoAccess) => `/projects/${encodeURIComponent(repo.path)}`;
 
 /** The body of a successful read, or null: callers degrade instead of failing. */
 export const okBody = (r: ApiResponse) => (r.status === 200 ? r.body : null);

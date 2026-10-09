@@ -67,7 +67,7 @@ export const GLOBAL_SECRETS: SecretScope = { projectId: null };
 export const OWNER_SECRETS: SecretScope = { owner: true };
 
 /** Whether a secret bound to `secretProjectId` (null for a global one) can be read in `scope`. */
-export function secretVisibleIn(secretProjectId: string | null, scope: SecretScope): boolean {
+function secretVisibleIn(secretProjectId: string | null, scope: SecretScope): boolean {
   if ("owner" in scope) return true;
   return secretProjectId === null || secretProjectId === scope.projectId;
 }
@@ -116,17 +116,6 @@ export async function secretValues(scope: SecretScope): Promise<string[]> {
   });
 }
 
-/** A secret name already bound to another project; the name is unique across the vault. */
-class SecretOwnedByProjectError extends UserError {
-  constructor(
-    readonly secretName: string,
-    /** Null when the name belongs to a global secret. */
-    readonly ownerProjectId: string | null,
-  ) {
-    super("projects.errors.secretNameTaken", { name: secretName });
-  }
-}
-
 type SecretInput = {
   name: string;
   /** Empty keeps the stored value (only the description changes); required for a new secret. */
@@ -148,8 +137,9 @@ async function writeSecret(input: SecretInput, allowMove = false): Promise<{ cre
     .select({ id: secrets.id, projectId: secrets.projectId })
     .from(secrets)
     .where(eq(secrets.name, input.name));
+  // The name is unique across the vault: it may already be bound to another project, or be global.
   if (existing && !allowMove && existing.projectId !== projectId) {
-    throw new SecretOwnedByProjectError(input.name, existing.projectId);
+    throw new UserError("projects.errors.secretNameTaken", { name: input.name });
   }
   if (existing) {
     await db

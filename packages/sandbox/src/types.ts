@@ -115,7 +115,7 @@ export interface Workspace {
   exec(options: ExecOptions): Promise<SandboxProcess>;
 }
 
-export type ReapOptions = {
+type ReapOptions = {
   /** Pause containers unused for this long: their processes (dev servers, databases) stay, frozen. */
   pauseAfterMs: number;
   /** Stop containers unused for this long, paused or not, counted from the last use. */

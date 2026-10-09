@@ -96,7 +96,7 @@ const memoryPolicy = (memory: { scope: MemoryScope; projectId?: string | null })
  * owner, and `projectId` the project of the agent's notes (null: its craft, read in every project).
  * `origin` is whose content it is (see memoryOrigin), `source` how it was written.
  */
-export type MemoryInput = {
+type MemoryInput = {
   scope: MemoryScope;
   content: string;
   projectId?: string | null;
@@ -161,7 +161,9 @@ async function insertMemory(input: MemoryInput, checked: StoredWrite, embedding:
 }
 
 /** What storing a consolidated fact did. */
-export type FactOutcome = "added" | "held" | "restated" | "dropped";
+type FactOutcome = "added" | "held" | "restated" | "dropped";
+
+const noOutcomes = (): Record<FactOutcome, number> => ({ added: 0, held: 0, restated: 0, dropped: 0 });
 
 /**
  * The memory consolidation writes to: always the agent's own, its notes on the journals' project or,
@@ -236,7 +238,7 @@ export async function applyConsolidation(
   related: readonly RelatedEntry[],
   origin: "system" | "untrusted",
 ): Promise<Record<FactOutcome, number>> {
-  const counts: Record<FactOutcome, number> = { added: 0, held: 0, restated: 0, dropped: 0 };
+  const counts = noOutcomes();
   for (const fact of facts) {
     const plan = planFact(fact, related, origin);
     if (plan.kind === "restated") {
@@ -273,7 +275,7 @@ export async function applyConsolidationOutsideProjects(
 ): Promise<Record<FactOutcome, number>> {
   const every = await projectsOfAgent(agent.id, null, true);
   const members = agent.kind === "orchestrator" ? null : new Set((await projectsOfAgent(agent.id, null)).map((p) => p.id));
-  const counts: Record<FactOutcome, number> = { added: 0, held: 0, restated: 0, dropped: 0 };
+  const counts = noOutcomes();
   const craft: ConsolidatedFact[] = [];
   for (const fact of facts) {
     const named = projectNamed(fact.content, every);
@@ -336,14 +338,20 @@ export async function applyCraftLessons(
 
 /**
  * The current entries of the memory consolidation writes to that are closest to its journals, for the
- * model to compare its facts with: a hybrid search per journal (with the embedding the journal already
- * has), taken in turns so each journal's nearest entries are in.
+ * model to compare its facts with.
  */
-export async function consolidationCandidates(
-  target: ConsolidationTarget,
-  journalRows: readonly { summary: string; embedding: number[] | null }[],
-) {
-  const where = and(sameMemory(target), current());
+export function consolidationCandidates(target: ConsolidationTarget, journalRows: readonly JournalRow[]) {
+  return closestToJournals(and(sameMemory(target), current()), journalRows);
+}
+
+type JournalRow = { summary: string; embedding: number[] | null };
+
+/**
+ * The entries `where` selects closest to the journals, at most CONSOLIDATION_CANDIDATES: a hybrid search
+ * per journal (with the embedding the journal already has), taken in turns so each journal's nearest
+ * entries are in.
+ */
+async function closestToJournals(where: SQL | undefined, journalRows: readonly JournalRow[]) {
   const found = await Promise.all(
     journalRows.map((j) =>
       hybridSearchMemories(j.summary, { vector: j.embedding, where, limit: CONSOLIDATION_CANDIDATES }),
@@ -367,7 +375,7 @@ export async function consolidationCandidates(
  */
 export async function knownElsewhere(
   target: ConsolidationTarget,
-  journalRows: readonly { summary: string; embedding: number[] | null }[],
+  journalRows: readonly JournalRow[],
   opts: { everyProject?: boolean } = {},
 ): Promise<string[]> {
   const layers = target.projectId
@@ -383,19 +391,7 @@ export async function knownElsewhere(
           and(eq(memories.scope, "agent"), eq(memories.agentId, target.agentId), isNotNull(memories.projectId)),
         )
       : sameMemory({ scope: "global" });
-  const where = and(layers, current());
-  const found = await Promise.all(
-    journalRows.map((j) =>
-      hybridSearchMemories(j.summary, { vector: j.embedding, where, limit: CONSOLIDATION_CANDIDATES }),
-    ),
-  );
-  const picked = new Map<string, string>();
-  for (let rank = 0; found.some((rows) => rank < rows.length); rank++) {
-    for (const row of found.flatMap((rows) => rows[rank] ?? [])) {
-      if (picked.size < CONSOLIDATION_CANDIDATES && !picked.has(row.id)) picked.set(row.id, row.content);
-    }
-  }
-  return [...picked.values()];
+  return (await closestToJournals(and(layers, current()), journalRows)).map((row) => row.content);
 }
 
 /**
@@ -425,7 +421,11 @@ async function ownedMemories(ids: string[], owner: MemoryOwner | undefined): Pro
   return rows;
 }
 
-const auditData = (memory: Pick<Memory, "scope" | "agentId" | "projectId">, extra?: Record<string, unknown>) => ({
+/** The audit data of a change to an entry: whose memory it is, and `extra`. */
+export const memoryAuditData = (
+  memory: Pick<Memory, "scope" | "agentId" | "projectId">,
+  extra?: Record<string, unknown>,
+) => ({
   scope: memory.scope,
   ...(memory.agentId && { agentId: memory.agentId }),
   ...(memory.projectId && { projectId: memory.projectId }),
@@ -438,7 +438,7 @@ async function auditCreated(row: Memory, opts: Pick<MemoryWriteOptions, "actor" 
     action: "memory.created",
     entityType: "memory",
     entityId: row.id,
-    data: auditData(row, { origin: row.origin, ...(row.flagReason && { flagReason: row.flagReason }), ...opts.data }),
+    data: memoryAuditData(row, { origin: row.origin, ...(row.flagReason && { flagReason: row.flagReason }), ...opts.data }),
   });
   return row;
 }
@@ -518,7 +518,7 @@ export async function updateMemory(
       action: "memory.updated",
       entityType: "memory",
       entityId: row.id,
-      data: auditData(row, { origin: opts.origin, replaces: id, ...opts.data }),
+      data: memoryAuditData(row, { origin: opts.origin, replaces: id, ...opts.data }),
     });
     await replaceEntries(row, [id], actor);
     return { id: row.id, heldBecause: heldBecause(checked) };
@@ -543,7 +543,7 @@ export async function updateMemory(
     action: "memory.updated",
     entityType: "memory",
     entityId: id,
-    data: auditData(memory!, { ...(opts.origin && { origin: opts.origin }), ...opts.data }),
+    data: memoryAuditData(memory!, { ...(opts.origin && { origin: opts.origin }), ...opts.data }),
   });
   return { id, heldBecause: heldBecause(checked) };
 }
@@ -583,7 +583,7 @@ async function invalidate(replacement: Pick<Memory, "id" | "validFrom">, which: 
       action: "memory.invalidated",
       entityType: "memory",
       entityId: row.id,
-      data: auditData(row, { supersededBy: replacement.id }),
+      data: memoryAuditData(row, { supersededBy: replacement.id }),
     });
   }
 }
@@ -601,7 +601,7 @@ export async function restoreMemory(id: string, opts: MemoryWriteOptions = {}): 
     action: "memory.restored",
     entityType: "memory",
     entityId: id,
-    data: auditData(memory!, { ...(memory!.supersededBy && { supersededBy: memory!.supersededBy }), ...opts.data }),
+    data: memoryAuditData(memory!, { ...(memory!.supersededBy && { supersededBy: memory!.supersededBy }), ...opts.data }),
   });
 }
 
@@ -613,7 +613,7 @@ export async function deleteMemory(id: string, opts: MemoryWriteOptions = {}): P
     action: "memory.deleted",
     entityType: "memory",
     entityId: id,
-    data: auditData(memory!, opts.data),
+    data: memoryAuditData(memory!, opts.data),
   });
 }
 
@@ -633,7 +633,7 @@ export async function setMemoryPinned(id: string, pinned: boolean, opts: MemoryW
     action: pinned ? "memory.pinned" : "memory.unpinned",
     entityType: "memory",
     entityId: id,
-    data: auditData(memory!, opts.data),
+    data: memoryAuditData(memory!, opts.data),
   });
 }
 
@@ -681,21 +681,6 @@ async function reviewed(
   return ids;
 }
 
-/**
- * The memory of each layer a run may read (see memoryVisibleTo): global, the agent's craft, its notes on
- * the run's project (or the super agent's notes project), and that project's team memory.
- */
-function visibleScopes(reader: MemoryReader) {
-  const notes = notesProject(reader);
-  const own = and(eq(memories.scope, "agent"), eq(memories.agentId, reader.agentId));
-  return {
-    global: eq(memories.scope, "global"),
-    craft: and(own, isNull(memories.projectId)),
-    notes: notes ? and(own, eq(memories.projectId, notes)) : undefined,
-    team: reader.projectId ? and(eq(memories.scope, "project"), eq(memories.projectId, reader.projectId)) : undefined,
-  };
-}
-
 /** Entries agents read: approved, not replaced by a newer fact, and not expired. */
 const current = () =>
   and(
@@ -704,10 +689,22 @@ const current = () =>
     or(isNull(memories.expiresAt), gt(memories.expiresAt, sql`now()`)),
   );
 
-/** Memories a run may read (see memoryVisibleTo). */
+/**
+ * Memories a run may read (see memoryVisibleTo): global, the agent's craft, its notes on the run's project
+ * (or the super agent's notes project), and that project's team memory.
+ */
 function visibleTo(reader: MemoryReader) {
-  const scopes = visibleScopes(reader);
-  return and(current(), or(scopes.global, scopes.craft, scopes.notes, scopes.team));
+  const notes = notesProject(reader);
+  const own = and(eq(memories.scope, "agent"), eq(memories.agentId, reader.agentId));
+  return and(
+    current(),
+    or(
+      eq(memories.scope, "global"),
+      and(own, isNull(memories.projectId)),
+      notes ? and(own, eq(memories.projectId, notes)) : undefined,
+      reader.projectId ? and(eq(memories.scope, "project"), eq(memories.projectId, reader.projectId)) : undefined,
+    ),
+  );
 }
 
 /** For the memory a run gets in its prompt (memory-recall.ts). */

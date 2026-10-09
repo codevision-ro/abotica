@@ -2,7 +2,8 @@ import { PROVIDER_IDS, PROVIDER_KEY_SECRET, PROVIDERS, TELEGRAM_TOKEN_SECRET } f
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { type KeysFilter, type KeyUse, KeysManager } from "@/components/settings/keys-manager";
-import { listProjectOptions, listVaultSecrets, type VaultSecretRow } from "@/server/queries/settings";
+import { listProjectOptions } from "@/server/queries/projects";
+import { listVaultSecrets, type VaultSecretRow } from "@/server/queries/settings";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("settings.meta");

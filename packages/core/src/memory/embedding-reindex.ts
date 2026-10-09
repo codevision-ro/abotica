@@ -23,14 +23,13 @@ import {
 } from "./embedding-reindex-plan";
 import { embedWith } from "./memory";
 
-export type { ReindexState } from "./embedding-reindex-plan";
-
 /**
  * Vectors of two embedding models cannot be compared, so changing the provider, or an update changing its
- * model (see embedding-profiles.ts), clears every embedding and embeds the rows again in the background, a batch at a time. Meanwhile, rows without an embedding
- * are found by keyword (see memory-search.ts). The state lives in an app_state row: the worker picks it up
- * after a restart, and a batch commits only if the state is still where it read it, so a batch handled
- * twice, or one embedded for a provider that was switched away since, writes nothing.
+ * model (see embedding-profiles.ts), clears every embedding and embeds the rows again in the background, a
+ * batch at a time. Meanwhile, rows without an embedding are found by keyword (see memory-search.ts). The
+ * state lives in an app_state row: the worker picks it up after a restart, and a batch commits only if the
+ * state is still where it read it, so a batch handled twice, or one embedded for a provider that was
+ * switched away since, writes nothing.
  */
 
 /** The app_state row of the re-embedding in progress; there is none when nothing is left to do. */
@@ -197,7 +196,7 @@ async function writeEmbedding(tx: Tx, table: ReindexTable, id: string, embedding
  * Embeds the next batch; returns whether some is left. Throws when the provider cannot embed (no key,
  * server down), leaving the state where it was.
  */
-export async function reindexBatch(): Promise<boolean> {
+async function reindexBatch(): Promise<boolean> {
   const state = await getReindexState();
   if (!state) return false;
   const rows = await batchRows(state);

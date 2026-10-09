@@ -2,22 +2,24 @@
 
 import type { AgentAvatar } from "@abotica/db/avatar";
 import { eventKey, usesWebhook } from "@abotica/core/trigger-events";
-import { Link2Icon, PencilIcon, PlusIcon, ZapIcon } from "lucide-react";
+import { Link2Icon, PencilIcon, ZapIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDelete } from "@/components/app/confirm-dialog";
-import { sectionCardClass } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { deleteTrigger, setTriggerEnabled } from "@/server/actions/automations";
-import { AutomationCard, AutomationDetail, AutomationPrompt, automationGridClass } from "./automation-card";
+import {
+  AutomationCard,
+  AutomationDetail,
+  AutomationList,
+  AutomationPrompt,
+  AutomationSwitch,
+  IconAction,
+} from "./automation-card";
+import type { Option } from "./option-selects";
 import { EVENT_ICONS, TriggerDialog, type TriggerDraft } from "./trigger-dialog";
 import { WebhookDialog, type WebhookTarget } from "./webhook-dialog";
-
-type Option = { id: string; name: string; avatar?: AgentAvatar | null };
 
 type TriggerItem = TriggerDraft & {
   id: string;
@@ -53,33 +55,23 @@ export function TriggersSection({
   };
   const [dialog, setDialog] = useState<{ open: boolean; draft: TriggerDraft }>({ open: false, draft: blank });
   const [webhook, setWebhook] = useState<{ open: boolean; target: WebhookTarget | null }>({ open: false, target: null });
-  const openNew = () => setDialog({ open: true, draft: blank });
-  const newButton = (
-    <Button onClick={openNew} disabled={!agents.length}>
-      <PlusIcon /> {t("new")}
-    </Button>
-  );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {toolbar}
-        <div className="ml-auto">{newButton}</div>
-      </div>
-      {triggers.length ? (
-        <div className={automationGridClass}>
-          {triggers.map((tr) => (
-            <TriggerCard
-              key={tr.id}
-              t={tr}
-              onEdit={() => setDialog({ open: true, draft: tr })}
-              onWebhook={() => setWebhook({ open: true, target: tr })}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className={cn(sectionCardClass, "px-4 py-4 text-sm text-muted-foreground sm:px-5")}>{t("empty")}</p>
-      )}
+    <AutomationList
+      toolbar={toolbar}
+      newLabel={t("new")}
+      onNew={() => setDialog({ open: true, draft: blank })}
+      canCreate={agents.length > 0}
+      empty={t("empty")}
+      cards={triggers.map((tr) => (
+        <TriggerCard
+          key={tr.id}
+          t={tr}
+          onEdit={() => setDialog({ open: true, draft: tr })}
+          onWebhook={() => setWebhook({ open: true, target: tr })}
+        />
+      ))}
+    >
       <TriggerDialog
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
@@ -96,25 +88,7 @@ export function TriggersSection({
         trigger={webhook.target}
         appUrl={appUrl}
       />
-    </div>
-  );
-}
-
-function TriggerSwitch({ t: trigger }: { t: TriggerItem }) {
-  const t = useTranslations("automations.triggers");
-  const [pending, startTransition] = useTransition();
-  return (
-    <Switch
-      checked={trigger.enabled}
-      disabled={pending}
-      aria-label={trigger.enabled ? t("disable") : t("enable")}
-      onCheckedChange={(enabled) =>
-        startTransition(async () => {
-          const res = await setTriggerEnabled({ id: trigger.id, enabled });
-          if (!res.ok) toast.error(res.error);
-        })
-      }
-    />
+    </AutomationList>
   );
 }
 
@@ -122,14 +96,11 @@ function TriggerActions({ t: trigger, onEdit }: { t: TriggerItem; onEdit: () => 
   const t = useTranslations("automations.triggers");
   return (
     <div className="relative z-10 ml-auto flex gap-0.5">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={t("edit")} onClick={onEdit}>
-            <PencilIcon />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{t("edit")}</TooltipContent>
-      </Tooltip>
+      <IconAction label={t("edit")}>
+        <Button variant="ghost" size="icon-sm" aria-label={t("edit")} onClick={onEdit}>
+          <PencilIcon />
+        </Button>
+      </IconAction>
       <ConfirmDelete
         label={t("delete")}
         title={t("deleteTitle")}
@@ -148,9 +119,7 @@ function TriggerActions({ t: trigger, onEdit }: { t: TriggerItem; onEdit: () => 
   );
 }
 
-type CardProps = { t: TriggerItem; onEdit: () => void; onWebhook: () => void };
-
-function TriggerCard({ t: trigger, onEdit, onWebhook }: CardProps) {
+function TriggerCard({ t: trigger, onEdit, onWebhook }: { t: TriggerItem; onEdit: () => void; onWebhook: () => void }) {
   const t = useTranslations("automations.triggers");
   const te = useTranslations("automations.events");
   const th = useTranslations("automations.eventHints");
@@ -165,7 +134,13 @@ function TriggerCard({ t: trigger, onEdit, onWebhook }: CardProps) {
       enabled={trigger.enabled}
       editLabel={t("edit")}
       onEdit={onEdit}
-      toggle={<TriggerSwitch t={trigger} />}
+      toggle={
+        <AutomationSwitch
+          checked={trigger.enabled}
+          label={trigger.enabled ? t("disable") : t("enable")}
+          save={(enabled) => setTriggerEnabled({ id: trigger.id, enabled })}
+        />
+      }
       footer={
         <>
           {webhook && (

@@ -178,6 +178,16 @@ async function readEnd(res: Response | UndiciResponse): Promise<string | null> {
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
+/** The last lines of a log download; null unless it answered 200 with a log short enough to read. */
+async function logTailOf(res: Response | UndiciResponse): Promise<string | null> {
+  if (res.status !== 200) {
+    await res.body?.cancel();
+    return null;
+  }
+  const text = await readEnd(res);
+  return text === null ? null : logTail(text);
+}
+
 /**
  * The last lines of a failed check's log, or null when it cannot be read (no job, no permission, too
  * long). GitHub answers with a redirect to a short-lived download URL: it is followed without the
@@ -186,28 +196,15 @@ async function readEnd(res: Response | UndiciResponse): Promise<string | null> {
 export async function readCheckLogTail(repo: RepoAccess, check: FailedCheck): Promise<string | null> {
   if (check.job === null) return null;
   try {
-    if (repo.provider === "gitlab") {
-      const res = await request(repo, "GET", `${gitlabProject(repo)}/jobs/${check.job}/trace`);
-      if (res.status !== 200) {
-        await res.body?.cancel();
-        return null;
-      }
-      const text = await readEnd(res);
-      return text === null ? null : logTail(text);
-    }
+    if (repo.provider === "gitlab")
+      return await logTailOf(await request(repo, "GET", `${gitlabProject(repo)}/jobs/${check.job}/trace`));
     const res = await request(repo, "GET", `${githubRepo(repo)}/actions/jobs/${check.job}/logs`, {
       redirect: "manual",
     });
     const location = res.headers.get("location");
     await res.body?.cancel();
     if (res.status !== 302 || !location) return null;
-    const download = await safeFetch(location, { timeoutMs: TIMEOUT_MS });
-    if (download.status !== 200) {
-      await download.body?.cancel();
-      return null;
-    }
-    const text = await readEnd(download);
-    return text === null ? null : logTail(text);
+    return await logTailOf(await safeFetch(location, { timeoutMs: TIMEOUT_MS }));
   } catch (error) {
     console.warn(`[repos] reading the log of ${check.name} in ${repo.host}/${repo.path} failed:`, error);
     return null;

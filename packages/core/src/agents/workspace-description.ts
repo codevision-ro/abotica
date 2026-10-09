@@ -6,7 +6,7 @@ import type { SandboxSettings } from "../settings/settings-schema";
 import { TOOL_OUTPUT_RETENTION_MS } from "./tool-output";
 import { INPUTS_DIR, KNOWLEDGE_DIR, repoPath, taskBranch, taskWorktreePath, TOOL_OUTPUT_DIR } from "./workspace-paths";
 
-export type DescribedRepo = {
+type DescribedRepo = {
   name: string;
   provider: RepoProvider;
   webUrl: string;
@@ -106,8 +106,7 @@ function seeingText(paths: WorkspacePaths): string[] {
 }
 
 export function workspaceDescription(input: WorkspaceDescriptionInput): string {
-  const { paths } = input;
-  const { idle } = input;
+  const { paths, idle } = input;
   const shared =
     input.scope === "project"
       ? "They persist between commands and between runs, and every conversation of this project uses the same workspace."

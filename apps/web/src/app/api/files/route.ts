@@ -3,7 +3,7 @@ import { getTranslator, isUserError, translateKey } from "@abotica/i18n";
 import { getLocale } from "next-intl/server";
 import type { UploadedFile } from "@/lib/upload-files";
 import { isCrossOriginWrite } from "@/server/same-origin";
-import { requireApiUser } from "@/server/session";
+import { unauthorized } from "@/server/session";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +19,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   // Outside the proxy matcher, so the cross-origin check happens here.
   if (isCrossOriginWrite(request)) return new Response("Cross-origin request refused", { status: 403 });
-  try {
-    await requireApiUser();
-  } catch (error) {
-    if (error instanceof Response) return error;
-    throw error;
-  }
+  const denied = await unauthorized();
+  if (denied) return denied;
   const t = getTranslator(await getLocale());
   const fail = (key: string, values?: Record<string, string | number>, status = 400) =>
     Response.json({ error: translateKey(t, key, values) }, { status });

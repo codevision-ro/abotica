@@ -4,6 +4,7 @@ import { eq } from "@abotica/db/orm";
 import { z } from "zod";
 import { allowsModelChain, projectsClosedTo, runProviderPolicy } from "../../models/provider-policy";
 import type { Task } from "../../tasks/tasks";
+import type { Delegator } from "../../tasks/team-rules";
 import type { RunContext } from "../context";
 import { modelChain } from "../model-chain";
 
@@ -29,6 +30,15 @@ export const optionalDateTime = () =>
 
 export const actorOf = (ctx: RunContext) => `agent:${ctx.agent.slug}`;
 
+/** The calling agent, held to the delegation rules for whom it may hand work or make runs of. */
+export const delegatorOf = (ctx: RunContext): Delegator => ({
+  id: ctx.agent.id,
+  kind: ctx.agent.kind,
+  managedProjectIds: ctx.managedProjectIds,
+});
+
+export const NO_SANDBOX = { error: "The workspace is not available in this run." };
+
 /** Expected failures go back to the model as data, so it can correct itself. */
 export const errorResult = (error: unknown) => ({ error: error instanceof Error ? error.message : String(error) });
 
@@ -46,6 +56,12 @@ const scopedProjectIds = (ctx: RunContext): string[] => (ctx.projectId ? [ctx.pr
 
 /** Orchestrators see every project (undefined: no filter); other agents their scoped projects. */
 export const visibleProjects = (ctx: RunContext) => (ctx.agent.kind === "orchestrator" ? undefined : scopedProjectIds(ctx));
+
+/** Whether work in `projectId` is visible to the run: any for orchestrators, else in its scoped projects. */
+export function inVisibleProject(ctx: RunContext, projectId: string | null): boolean {
+  const visible = visibleProjects(ctx);
+  return !visible || (projectId !== null && visible.includes(projectId));
+}
 
 async function allProjectIds(): Promise<string[]> {
   return (await db.select({ id: projects.id }).from(projects)).map((p) => p.id);

@@ -3,9 +3,9 @@
  * saved keeps following its default (settings-schema.ts). Every write goes through updateSettings, which
  * validates, records the change in the audit log and tells the other processes.
  */
-import { db, settings as settingsTable } from "@abotica/db";
+import { db, settings as settingsTable, type Tx } from "@abotica/db";
 import { eq, inArray } from "@abotica/db/orm";
-import { defaultLocale, type Locale, UserError } from "@abotica/i18n";
+import { defaultLocale, getTranslator, type Locale, type Translator, UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
 import { audit } from "../platform/audit";
 import {
@@ -21,14 +21,17 @@ import {
 
 export * from "./settings-schema";
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 /** What is stored per domain: the fields saved so far, nested objects possibly partial. */
 export type StoredSettings = { [D in SettingsDomain]?: SettingsPatch<AppSettings[D]> };
 
 /** Language for places without a browser to ask (Telegram, digests, notifications). */
 export function settingsLocale(settings: AppSettings): Locale {
   return settings.general.locale ?? defaultLocale;
+}
+
+/** A translator in the settings' language. */
+export async function settingsTranslator(): Promise<Translator> {
+  return getTranslator(settingsLocale(await getSettings()));
 }
 
 /**
@@ -83,7 +86,7 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 /** The validated domain, or the first problem as a UserError with its message key. */
-export function validateSettings<D extends SettingsDomain>(domain: D, value: unknown): AppSettings[D] {
+function validateSettings<D extends SettingsDomain>(domain: D, value: unknown): AppSettings[D] {
   const parsed = SETTINGS_SCHEMAS[domain].safeParse(value);
   if (parsed.success) return parsed.data as AppSettings[D];
   const issue = parsed.error.issues[0]!;

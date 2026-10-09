@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { useStatusLabels } from "@/components/app/status-badge";
+import { TASK_STATUSES, useStatusLabels } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ import { createTask, moveTask } from "@/server/actions/tasks";
 import type { BoardTask, TaskOptions } from "@/server/queries/tasks";
 import { SortableTaskCard, TaskCard } from "./task-card";
 import { TaskStatusIcon } from "./task-icons";
-import { TASK_STATUS_ORDER, type TaskStatusValue, useTaskParams } from "./task-meta";
+import { type TaskStatusValue, useTaskParams } from "./task-meta";
 
 const COLUMN_PREFIX = "column:";
 
@@ -65,12 +65,12 @@ export function TaskBoard({
   }, [tasks]);
 
   const columns = useMemo(() => {
-    const map = Object.fromEntries(TASK_STATUS_ORDER.map((s) => [s, [] as BoardTask[]])) as Record<
+    const map = Object.fromEntries(TASK_STATUSES.map((s) => [s, [] as BoardTask[]])) as Record<
       TaskStatusValue,
       BoardTask[]
     >;
     for (const t of items) map[t.status as TaskStatusValue]?.push(t);
-    for (const s of TASK_STATUS_ORDER) map[s] = sortByPosition(map[s]);
+    for (const s of TASK_STATUSES) map[s] = sortByPosition(map[s]);
     return map;
   }, [items]);
 
@@ -162,7 +162,8 @@ export function TaskBoard({
   }
 
   const active = activeId ? items.find((t) => t.id === activeId) : undefined;
-  const columnStatuses = TASK_STATUS_ORDER.filter((s) => s !== "cancelled" || showCancelled);
+  // Cancelled is shown only on request (?cancelled=1).
+  const columnStatuses = TASK_STATUSES.filter((s) => s !== "cancelled" || showCancelled);
 
   return (
     <DndContext

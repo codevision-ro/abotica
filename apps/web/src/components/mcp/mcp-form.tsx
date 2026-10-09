@@ -14,7 +14,6 @@ import {
   SaveIcon,
   SlidersHorizontalIcon,
   TriangleAlertIcon,
-  UsersRoundIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,6 +23,7 @@ import { toast } from "sonner";
 import { DangerZoneCard } from "@/components/app/danger-zone-card";
 import { FormPage } from "@/components/app/form-page";
 import { FormSection, FormSectionCollapsible, FormSubsection } from "@/components/app/form-section";
+import { heroFieldVariants } from "@/components/app/hero-fields";
 import { OptionCards } from "@/components/app/option-cards";
 import { SummaryItem, SummaryList, type SummaryStatus } from "@/components/app/summary-rail";
 import { NetworkPolicyEditor, usePolicySummary } from "@/components/sandbox/sandbox-policy-editor";
@@ -37,15 +37,13 @@ import {
   connectMcpOAuth,
   createMcpServer,
   deleteMcpServer,
-  type McpTestResult,
   testMcpById,
   testMcpDraft,
   updateMcpServer,
 } from "@/server/actions/mcp";
 import type { McpOAuthStatus } from "@/server/queries/mcp";
-import { AssignmentChips } from "./assignment-chips";
-import { McpActiveSwitch, McpGlobalSwitch, McpSwitchRow } from "./mcp-switch-row";
-import { type KeyValueRow, toRecord, toRows } from "./key-value-editor";
+import { type KeyValueRow, keyCount, toRecord, toRows } from "./key-value-editor";
+import { type McpAssignment, McpAssignmentSection, McpAssignmentSummary } from "./mcp-assignment";
 import { McpFormAuth } from "./mcp-form-auth";
 import {
   type CredentialRouteValue,
@@ -54,14 +52,15 @@ import {
   toRouteDrafts,
   toRouteRows,
 } from "./mcp-form-credential-routes";
-import { McpFormTest } from "./mcp-form-test";
+import { McpFormTest, McpTestSummaryItem, useMcpTest } from "./mcp-form-test";
 import { McpFormTransport } from "./mcp-form-transport";
 import type { OAuthClientValue } from "./mcp-oauth-panel";
 import { McpServerIcon } from "./mcp-server-icon";
+import { McpSwitchRow } from "./mcp-switch-row";
 import { useMcpAuthDetection } from "./use-mcp-auth-detection";
 import { useMcpOAuthReturn } from "./use-mcp-oauth-return";
 
-type McpFormValue = {
+type McpFormValue = McpAssignment & {
   id?: string;
   name: string;
   slug: string;
@@ -90,11 +89,6 @@ type McpFormValue = {
   /** A saved client secret the server did not send. */
   oauthClientSecretHidden: boolean;
   oauthScope: string;
-  enabled: boolean;
-  /** Offered to every agent; the assignments are kept for when it is turned off. */
-  global: boolean;
-  agentIds: string[];
-  projectIds: string[];
 };
 
 const SLUG_RE = /^[a-z0-9-]+$/;
@@ -117,8 +111,6 @@ const SECTIONS = {
 const validTimeout = (value: number | null, bounds: { min: number; max: number }) =>
   value === null || (Number.isInteger(value) && value >= bounds.min && value <= bounds.max);
 
-const keyCount = (rows: KeyValueRow[]) => rows.filter((r) => r.key.trim()).length;
-
 export function McpForm({
   initial,
   agents,
@@ -139,9 +131,7 @@ export function McpForm({
   toolCount?: number | null;
 }) {
   const t = useTranslations("mcp.form");
-  const tl = useTranslations("mcp.list");
   const tc = useTranslations("common.actions");
-  const tr = useTranslations("mcp.testResult");
   const tOAuth = useTranslations("mcp.oauth");
   const tn = useTranslations("sandbox.network");
   const te = useTranslations("errors");
@@ -172,13 +162,14 @@ export function McpForm({
     keepSecret: initial.oauthClientSecretHidden,
     scope: initial.oauthScope,
   });
-  const [enabled, setEnabled] = useState(initial.enabled);
-  const [global, setGlobal] = useState(initial.global);
-  const [agentIds, setAgentIds] = useState(initial.agentIds);
-  const [projectIds, setProjectIds] = useState(initial.projectIds);
-  const [testResult, setTestResult] = useState<McpTestResult | null>(null);
+  const [assignment, setAssignment] = useState<McpAssignment>({
+    enabled: initial.enabled,
+    global: initial.global,
+    agentIds: initial.agentIds,
+    projectIds: initial.projectIds,
+  });
+  const connectionTest = useMcpTest();
   const [pending, startTransition] = useTransition();
-  const [testing, startTest] = useTransition();
   const [deleting, startDelete] = useTransition();
   const [connecting, setConnecting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -209,10 +200,7 @@ export function McpForm({
     callTimeout,
     auth,
     client,
-    enabled,
-    global,
-    agentIds,
-    projectIds,
+    assignment,
   ]);
   const oauthMode = transport === "http" && auth === "oauth";
   // Saving any of these drops the OAuth tokens on the server, so Connect waits for a save.
@@ -250,14 +238,14 @@ export function McpForm({
     connectTimeoutSec: connectTimeout,
     callTimeoutSec: callTimeout,
     auth,
-    oauthClientId: client.clientId.trim() || null,
+    oauthClientId: clientId || null,
     oauthClientSecret: clientSecret,
     oauthScope: client.scope.trim() || null,
   });
 
   /** Saves the form; returns the server id, or null after showing the error. */
   async function save(): Promise<string | null> {
-    const input = { server: server(), enabled, global, agentIds, projectIds };
+    const input = { server: server(), ...assignment };
     const res = initial.id ? await updateMcpServer({ ...input, id: initial.id }) : await createMcpServer(input);
     if (!res.ok) {
       toast.error(res.error);
@@ -306,23 +294,13 @@ export function McpForm({
     }
   }
 
-  function runTest(call: () => ReturnType<typeof testMcpById>) {
-    startTest(async () => {
-      setTestResult(null);
-      const res = await call();
-      if (!res.ok) return void toast.error(res.error);
-      setTestResult(res.data);
-      // The result sits further down the form; a toast confirms the outcome where the user is.
-      if (res.data.ok) toast.success(tr("connected", { count: res.data.tools.length }));
-      else toast.error(tr("failed"), { description: res.data.error ?? tr("unknownError") });
-    });
-  }
-
   const test = () =>
-    runTest(() => testMcpDraft({ id: initial.id, server: { ...server(), name: name || "test", slug: slug || "test" } }));
+    connectionTest.run(() =>
+      testMcpDraft({ id: initial.id, server: { ...server(), name: name || "test", slug: slug || "test" } }),
+    );
 
   // Back from the authorization page: show the tools the new tokens give access to.
-  useMcpOAuthReturn({ onConnected: () => initial.id && runTest(() => testMcpById({ id: initial.id! })) });
+  useMcpOAuthReturn({ onConnected: () => initial.id && connectionTest.run(() => testMcpById({ id: initial.id! })) });
 
   function remove() {
     if (!initial.id) return;
@@ -334,24 +312,15 @@ export function McpForm({
     });
   }
 
-  const vaultLink = (chunks: React.ReactNode) => (
-    <Link href="/settings/keys" className="underline underline-offset-2">
-      {chunks}
-    </Link>
-  );
   const secretsHint = t.rich("secretsHint", {
     ref: `{{secret:${t("refName")}}}`,
     code: (chunks) => <code className="font-mono">{chunks}</code>,
-    link: vaultLink,
+    link: (chunks) => (
+      <Link href="/settings/keys" className="underline underline-offset-2">
+        {chunks}
+      </Link>
+    ),
   });
-  const createLink = (href: string) =>
-    function RichLink(chunks: React.ReactNode) {
-      return (
-        <Link href={href} className="underline underline-offset-2">
-          {chunks}
-        </Link>
-      );
-    };
 
   // Nothing to save: the primary button only goes to the authorization page.
   const oauthState = isNew ? "disconnected" : (oauth?.state ?? "disconnected");
@@ -394,15 +363,6 @@ export function McpForm({
   const authSummary = oauthMode
     ? `${t("authOAuth")} · ${tOAuth(`status.${oauthState}`)}`
     : t("headerCount", { count: keyCount(headerRows) });
-  const testSummary = testing
-    ? t("connecting")
-    : testResult
-      ? testResult.ok
-        ? tr("connected", { count: testResult.tools.length })
-        : tr("failed")
-      : toolCount != null
-        ? t("lastSeen", { count: toolCount })
-        : t("notTested");
   const routes = routeCount(routeRows);
   // The sandbox details live under Advanced, so its summary names them while it is closed.
   const sandboxDetails = transport === "stdio" && sandboxed;
@@ -419,9 +379,6 @@ export function McpForm({
       call: callTimeout ?? MCP_TIMEOUTS.callSec.default,
     }),
   ].join(" · ");
-  const assignmentSummary = global
-    ? t("globalSummary")
-    : `${tl("agents", { count: agentIds.length })} · ${tl("projects", { count: projectIds.length })}`;
 
   return (
     <FormPage
@@ -468,20 +425,13 @@ export function McpForm({
               {authSummary}
             </SummaryItem>
           )}
-          <SummaryItem
+          <McpTestSummaryItem
             target={SECTIONS.test}
-            status={testResult && !testing ? status(testResult.ok) : "info"}
-            statusLabel={testResult && !testing ? statusLabel(testResult.ok) : undefined}
-            label={t("testTitle")}
-          >
-            {testSummary}
-          </SummaryItem>
-          <SummaryItem target={SECTIONS.assignment} status="info" label={t("assignmentTitle")}>
-            {assignmentSummary}
-          </SummaryItem>
-          <SummaryItem target={SECTIONS.assignment} status="info" label={t("statusTitle")}>
-            {enabled ? t("active") : t("inactive")}
-          </SummaryItem>
+            result={connectionTest.result}
+            testing={connectionTest.testing}
+            toolCount={toolCount}
+          />
+          <McpAssignmentSummary target={SECTIONS.assignment} value={assignment} />
         </SummaryList>
       }
       submit={submitButton}
@@ -493,7 +443,7 @@ export function McpForm({
         aria-label={t("identityTitle")}
         className="mb-2 flex scroll-mt-20 items-center gap-4 sm:gap-5"
       >
-        <McpServerIcon transport={transport} size="2xl" className="sm:size-20 sm:rounded-[1.25rem] sm:[&_svg]:size-10" />
+        <McpServerIcon transport={transport} size="2xl" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <label htmlFor="mcp-name" className="sr-only">
             {t("name")}
@@ -508,7 +458,7 @@ export function McpForm({
             required
             autoComplete="off"
             placeholder={t("namePlaceholder")}
-            className="-mx-2 w-[calc(100%+1rem)] min-w-0 rounded-lg bg-transparent px-2 py-0.5 text-2xl font-semibold tracking-tight transition-colors outline-none placeholder:text-muted-foreground/50 hover:bg-muted/50 focus-visible:bg-muted/60 sm:text-3xl"
+            className={cn(heroFieldVariants({ kind: "title" }), "text-2xl sm:text-3xl")}
           />
           <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
             <label htmlFor="mcp-slug" className="sr-only">
@@ -626,8 +576,8 @@ export function McpForm({
 
       <McpFormTest
         id={SECTIONS.test}
-        result={testResult}
-        testing={testing}
+        result={connectionTest.result}
+        testing={connectionTest.testing}
         slug={slug}
         oauthMode={oauthMode}
         toolCount={toolCount}
@@ -705,35 +655,13 @@ export function McpForm({
         />
       </FormSectionCollapsible>
 
-      <FormSection
+      <McpAssignmentSection
         id={SECTIONS.assignment}
-        icon={UsersRoundIcon}
-        title={t("assignmentTitle")}
-        description={t("assignmentDescription")}
-      >
-        <McpGlobalSwitch checked={global} onCheckedChange={setGlobal} />
-        {global ? (
-          <p className="text-sm text-pretty text-muted-foreground">{t("globalOn")}</p>
-        ) : (
-          <>
-            <AssignmentChips
-              title={t("agents")}
-              items={agents}
-              selected={agentIds}
-              onChange={setAgentIds}
-              empty={t.rich("noAgents", { link: createLink("/agents/new") })}
-            />
-            <AssignmentChips
-              title={t("projects")}
-              items={projects}
-              selected={projectIds}
-              onChange={setProjectIds}
-              empty={t.rich("noProjects", { link: createLink("/projects/new") })}
-            />
-          </>
-        )}
-        <McpActiveSwitch checked={enabled} onCheckedChange={setEnabled} />
-      </FormSection>
+        value={assignment}
+        onChange={setAssignment}
+        agents={agents}
+        projects={projects}
+      />
 
       {!isNew && (
         <DangerZoneCard

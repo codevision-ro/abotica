@@ -117,10 +117,6 @@ export const getInheritingAgentCount = query(async (): Promise<Record<ModelRole,
   return counts;
 });
 
-export const listProjectOptions = query(async () => {
-  return db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name));
-});
-
 export const AUDIT_PAGE_SIZE = 50;
 
 export const getAuditLogPage = query(async (filter: { actor?: string; entityType?: string; page: number }) => {

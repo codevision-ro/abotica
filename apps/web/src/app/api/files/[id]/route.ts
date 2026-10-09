@@ -5,16 +5,12 @@ import { filePath } from "@abotica/core";
 import { getTranslations } from "next-intl/server";
 import { isUuid } from "@/lib/uuid";
 import { getStoredFile } from "@/server/queries/files";
-import { requireApiUser } from "@/server/session";
+import { unauthorized } from "@/server/session";
 
 /** A stored file: an upload, a task attachment, a knowledge file or a file an agent shared. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/files/[id]">) {
-  try {
-    await requireApiUser();
-  } catch (error) {
-    if (error instanceof Response) return error;
-    throw error;
-  }
+  const denied = await unauthorized();
+  if (denied) return denied;
   const { id } = await ctx.params;
   const row = isUuid(id) ? await getStoredFile(id) : null;
   if (!row) return new Response("Not found", { status: 404 });

@@ -205,13 +205,7 @@ export function SandboxSettingsForm({ initial, status }: { initial: AppSettings[
         </FormSubsection>
       </FormSectionCollapsible>
 
-      <SettingsSaveBar
-        dirty={form.dirty}
-        invalid={form.invalid}
-        pending={form.pending}
-        onSave={form.save}
-        onReset={form.reset}
-      />
+      <SettingsSaveBar form={form} />
     </>
   );
 }

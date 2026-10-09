@@ -2,7 +2,8 @@ import { approvals, db, messages, runs } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
 import { audit } from "../platform/audit";
 import { publish } from "../infra/events";
-import { ConversationBusyError, requestResume, startContinuation } from "./runs";
+import { requestResume } from "./run-lifecycle";
+import { ConversationBusyError, startContinuation } from "./runs";
 
 export type Approval = typeof approvals.$inferSelect;
 

@@ -16,11 +16,11 @@ import {
   toAgentAvatar,
 } from "@abotica/db";
 import { and, eq, inArray, like, sql } from "@abotica/db/orm";
-import { getTranslator, UserError } from "@abotica/i18n";
+import { UserError } from "@abotica/i18n";
 import { sanitizePermissions } from "./permissions";
 import { audit } from "../platform/audit";
 import { cancelRun } from "../runs/runs";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 import { slugify } from "../platform/slug";
 import { kindChangeError } from "../tasks/team-rules";
 
@@ -45,7 +45,8 @@ type AgentConfig = Pick<
   | "limits"
 >;
 
-export function snapshotOf(agent: AgentConfig, skillIds: string[], mcpServerIds: string[]): AgentSnapshot {
+/** Only the versioned fields of an agent (or anything carrying them). */
+function configOf(agent: AgentConfig): AgentConfig {
   return {
     name: agent.name,
     role: agent.role,
@@ -57,9 +58,11 @@ export function snapshotOf(agent: AgentConfig, skillIds: string[], mcpServerIds:
     reasoningEffort: agent.reasoningEffort,
     permissions: agent.permissions,
     limits: agent.limits,
-    skillIds,
-    mcpServerIds,
   };
+}
+
+export function snapshotOf(agent: AgentConfig, skillIds: string[], mcpServerIds: string[]): AgentSnapshot {
+  return { ...configOf(agent), skillIds, mcpServerIds };
 }
 
 const sortedKeys = (p: ToolPermissions): ToolPermissions =>
@@ -198,7 +201,7 @@ export async function lockAgent(tx: Tx, id: string): Promise<Agent> {
  */
 export async function deleteAgent(id: string, opts: { actor?: string } = {}): Promise<void> {
   // Stored in each cancelled run's error, so written in the configured language.
-  const reason = getTranslator(settingsLocale(await getSettings()))("runs.errors.agentDeleted");
+  const reason = (await settingsTranslator())("runs.errors.agentDeleted");
   const agent = await db.transaction(async (tx) => {
     const agent = await lockAgent(tx, id);
     if (agent.kind === "orchestrator") throw new UserError("agents.errors.orchestratorDelete");
@@ -235,7 +238,7 @@ export async function currentSnapshot(tx: Tx, agent: Agent): Promise<AgentSnapsh
 
 /** Version notes are stored text, written in the configured language. */
 export async function versionNotes() {
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   return {
     initial: t("agents.versionNotes.initial"),
     fromTemplate: (slug: string) => t("agents.versionNotes.fromTemplate", { slug }),
@@ -249,7 +252,7 @@ function normalizeModel<T extends { provider: string | null; model: string | nul
 }
 
 /** The kinds an agent can be created as: the one super agent comes with the install (seed). */
-export type CreatableKind = Exclude<AgentKind, "orchestrator">;
+type CreatableKind = Exclude<AgentKind, "orchestrator">;
 
 /** Inserts an agent with its first version; the permissions its kind allows are enforced. */
 async function insertAgent(
@@ -318,32 +321,13 @@ export async function insertAgentFromTemplate(
     const [project] = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, opts.projectId));
     if (!project) throw new UserError("projects.errors.notFound");
   }
-  const [skillIds, mcpServerIds] = await templateJoins(tx, template.id);
+  const { skillIds, mcpServerIds } = await currentSnapshot(tx, template);
   return insertAgent(
     tx,
-    {
-      name: opts.name?.trim() || template.name,
-      role: template.role,
-      avatar: template.avatar,
-      systemPrompt: template.systemPrompt,
-      provider: template.provider,
-      model: template.model,
-      fallbacks: template.fallbacks,
-      reasoningEffort: template.reasoningEffort,
-      permissions: template.permissions,
-      limits: template.limits,
-    },
+    { ...configOf(template), name: opts.name?.trim() || template.name },
     { skillIds, mcpServerIds, projectIds: opts.projectId ? [opts.projectId] : [] },
     { note: (await versionNotes()).fromTemplate(templateSlug), kind: template.kind },
   );
-}
-
-async function templateJoins(tx: Tx, templateId: string): Promise<[string[], string[]]> {
-  const [s, m] = await Promise.all([
-    tx.select({ id: agentSkills.skillId }).from(agentSkills).where(eq(agentSkills.agentId, templateId)),
-    tx.select({ id: agentMcpServers.mcpServerId }).from(agentMcpServers).where(eq(agentMcpServers.agentId, templateId)),
-  ]);
-  return [s.map((r) => r.id), m.map((r) => r.id)];
 }
 
 /**
@@ -408,18 +392,7 @@ export async function updateAgentConfig(
     const projectIds = kind === "specialist" ? patch.projectIds : undefined;
     const before = await currentSnapshot(tx, agent);
     const merged = normalizeModel({ ...agent, ...fields });
-    const values: AgentConfig = {
-      name: merged.name,
-      role: merged.role,
-      avatar: merged.avatar,
-      systemPrompt: merged.systemPrompt,
-      provider: merged.provider,
-      model: merged.model,
-      fallbacks: merged.fallbacks,
-      reasoningEffort: merged.reasoningEffort,
-      permissions: sanitizePermissions(merged.permissions, { kind }),
-      limits: merged.limits,
-    };
+    const values: AgentConfig = { ...configOf(merged), permissions: sanitizePermissions(merged.permissions, { kind }) };
     const ids = await existingIds(tx, {
       skillIds: skillIds ?? before.skillIds,
       mcpServerIds: mcpServerIds ?? before.mcpServerIds,

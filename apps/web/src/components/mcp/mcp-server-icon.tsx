@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 const SIZES = {
   md: "size-7 rounded-lg [&_svg]:size-4",
   xl: "size-12 rounded-xl [&_svg]:size-6",
-  "2xl": "size-16 rounded-2xl [&_svg]:size-8",
+  /** The title block of a server page. */
+  "2xl": "size-16 rounded-2xl [&_svg]:size-8 sm:size-20 sm:rounded-[1.25rem] sm:[&_svg]:size-10",
 } as const;
 
 /** What each bundled server does, at a glance. */

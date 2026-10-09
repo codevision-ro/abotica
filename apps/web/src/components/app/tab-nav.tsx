@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 
 /** On narrow screens a tab strip scrolls sideways: keeps the active tab in view whenever `active` changes. */
 export function useActiveTabInView(ref: React.RefObject<HTMLElement | null>, active: unknown) {
@@ -23,17 +22,15 @@ export function useActiveTabInView(ref: React.RefObject<HTMLElement | null>, act
  */
 export function TabNav({
   items,
-  className,
 }: {
   items: { href: string; label: string; active: boolean; icon?: React.ReactNode; count?: number }[];
-  className?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const activeHref = items.find((i) => i.active)?.href;
   useActiveTabInView(listRef, activeHref);
 
   return (
-    <Tabs value={activeHref ?? ""} className={cn("border-b border-border/70", className)}>
+    <Tabs value={activeHref ?? ""} className="border-b border-border/70">
       <TabsList
         ref={listRef}
         variant="line"

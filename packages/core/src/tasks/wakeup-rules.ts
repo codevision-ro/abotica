@@ -7,7 +7,7 @@ import type { TaskWakeupCondition, taskPullRequests, tasks, taskWakeups } from "
 
 export type Wakeup = typeof taskWakeups.$inferSelect;
 export type WakeupKind = Wakeup["kind"];
-export type WakeupPausedReason = NonNullable<Wakeup["pausedReason"]>;
+type WakeupPausedReason = NonNullable<Wakeup["pausedReason"]>;
 type TaskStatus = (typeof tasks.$inferSelect)["status"];
 
 export const WAKEUP_KINDS: readonly WakeupKind[] = [
@@ -24,8 +24,6 @@ export const WAKEUP_KINDS: readonly WakeupKind[] = [
  * (a crawl, a monitor, a long CI); the agent may ask for fewer, and the hourly rate below still holds.
  */
 export const MAX_FIRES_LIMIT = 100_000;
-/** Fires a repeating wakeup makes unless the agent asks for fewer: effectively unlimited. */
-export const DEFAULT_MAX_FIRES = MAX_FIRES_LIMIT;
 /** Wake runs of one task in an hour; past them its wakeups pause. One a minute, which no real wait needs. */
 export const MAX_WAKES_PER_HOUR = 60;
 /** The window MAX_WAKES_PER_HOUR counts in. */
@@ -77,7 +75,7 @@ export const repeats = (rule: Pick<Wakeup, "maxFires">) => rule.maxFires > 1;
  * The facts the wakeup's condition holds on, or null while it does not hold. A repeating wakeup fires
  * again only once they change: a new head commit's checks, another set of subtasks, the timer's next time.
  */
-export function conditionFingerprint(
+function conditionFingerprint(
   rule: Pick<WakeupRule, "kind" | "condition" | "nextCheckAt">,
   facts: WakeupFacts,
   now: Date,
@@ -231,7 +229,7 @@ export type WakeupView = Pick<
 };
 
 /** Keys under `tasks.wakeups.condition` (en and ro). */
-export type WakeupConditionKey = "timer" | "timerEvery" | "prChecksFinished" | "prMerged" | "subtasksDone" | "taskStatus";
+type WakeupConditionKey = "timer" | "timerEvery" | "prChecksFinished" | "prMerged" | "subtasksDone" | "taskStatus";
 
 /**
  * What a wakeup waits for, as a message key under `tasks.wakeups.condition` with its values. The

@@ -14,7 +14,7 @@ export type KeepStored = { keep: string };
 const SECRET_REFERENCE = /\{\{secret:[A-Z0-9_]+\}\}/;
 
 /** Whether a value may be shown: it uses the vault, so whatever else it holds is not the secret. */
-export const showsStoredValue = (value: string) => SECRET_REFERENCE.test(value);
+const showsStoredValue = (value: string) => SECRET_REFERENCE.test(value);
 
 export const redactStoredValue = (value: string): StoredValue => (showsStoredValue(value) ? value : null);
 

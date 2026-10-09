@@ -1,7 +1,7 @@
 import type { tasks } from "@abotica/db";
 
 /** A file a reported task produced; the report message also carries it as a file part. */
-export type DelegationReportFile = { id: string; name: string; mimeType: string; size: number };
+type DelegationReportFile = { id: string; name: string; mimeType: string; size: number };
 
 /** The notice a delegation report adds to a conversation. Pure and client-safe: the web chat renders it. */
 export type DelegationReportMetadata = {

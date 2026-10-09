@@ -1,7 +1,8 @@
 import path from "node:path";
-import { agents, db, mcpServers, runEvents, runs } from "@abotica/db";
+import { agents, db, mcpServers, runEvents } from "@abotica/db";
 import { asc, eq, isNotNull } from "@abotica/db/orm";
 import { deleteConversation, getSandboxStatus, listFiles, setDefaultUploadsRoot, startRun } from "../src/index";
+import { waitRun } from "./e2e-shared";
 
 /**
  * End-to-end check of the bundled MCP servers: a real agent with no MCP assignment finds each one
@@ -17,22 +18,12 @@ import { deleteConversation, getSandboxStatus, listFiles, setDefaultUploadsRoot,
 // Same default as the worker, which stores shared files where the web app serves them.
 setDefaultUploadsRoot(path.resolve(import.meta.dirname, "../../../apps/web/.data/uploads"));
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-async function waitRun(id: string) {
-  for (let i = 0; i < 400; i++) {
-    const [r] = await db.select().from(runs).where(eq(runs.id, id));
-    if (r && !["queued", "running"].includes(r.status)) return r;
-    await wait(1000);
-  }
-  throw new Error("timeout");
-}
-
 /**
  * Prints the run's tool calls and errors; returns the names of the tools it called, their inputs and
  * results as JSON, and the results by tool name.
  */
 async function printRun(label: string, runId: string) {
-  const result = await waitRun(runId);
+  const result = await waitRun(runId, 400);
   console.log(`${label}:`, result.status, result.error ?? "", "steps", result.steps, result.provider, result.model);
   const events = await db.select().from(runEvents).where(eq(runEvents.runId, runId)).orderBy(asc(runEvents.id));
   const called: string[] = [];
@@ -138,7 +129,12 @@ try {
         "vision: the browser opened the workspace's server",
       );
       check(!r.called.some((n) => n.endsWith("browser_run_code_unsafe")), "vision: no browser_run_code_unsafe workaround");
-      check(r.called.includes("file_read"), "vision: looked at the screenshot with file_read");
+      // The screenshot reaches the model inline (an image in the tool result) or as a file it reads.
+      check(
+        r.called.includes("file_read") ||
+          r.results.some((x) => x.name.endsWith("browser_take_screenshot") && x.output.includes('"type":"image"')),
+        "vision: looked at the screenshot (inline or with file_read)",
+      );
       const answer = (r.result.output ?? "").toLowerCase();
       check(answer.includes("red") && answer.includes("qx-4271"), "vision: saw the color and the code");
     },

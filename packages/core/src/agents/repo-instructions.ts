@@ -19,19 +19,19 @@ import { neutralizeMarkers } from "./untrusted";
 import { repoCheckoutOf, taskWorktreePath } from "./workspace-paths";
 
 /** Per folder, the first of these that exists is the folder's instruction file. */
-export const INSTRUCTION_FILES = ["AGENTS.override.md", "AGENTS.md", "CLAUDE.md"] as const;
+const INSTRUCTION_FILES = ["AGENTS.override.md", "AGENTS.md", "CLAUDE.md"] as const;
 
 /** UTF-8 bytes of root files in a run's system prompt, all repositories together (Codex's default). */
 export const ROOT_BUDGET_BYTES = 32 * 1024;
 /** UTF-8 bytes of files in subfolders that one file_read adds. */
-export const NESTED_BUDGET_BYTES = 16 * 1024;
+const NESTED_BUDGET_BYTES = 16 * 1024;
 
 const READ_TIMEOUT_MS = 30_000;
 
 const TRUNCATED = "[truncated: read the whole file with file_read]";
 
 /** An instruction file as the model gets it; `path` is relative to the working directory. */
-export type InstructionFile = { path: string; content: string; truncated: boolean };
+type InstructionFile = { path: string; content: string; truncated: boolean };
 
 type LoadOptions = {
   signal?: AbortSignal;

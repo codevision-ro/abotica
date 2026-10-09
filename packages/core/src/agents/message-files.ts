@@ -27,13 +27,13 @@ export const IMAGE_INLINE_MAX_BYTES = 5 * MB;
  * (https://platform.claude.com/docs/en/build-with-claude/pdf-support), OpenAI 50 MB for all files
  * of a request (https://developers.openai.com/api/docs/guides/file-inputs#usage-considerations).
  */
-export const PDF_INLINE_MAX_BYTES = 10 * MB;
+const PDF_INLINE_MAX_BYTES = 10 * MB;
 
 /**
  * Bytes of all files sent in one request. Base64 turns 16 MB into about 21 MB, which leaves room for
  * the rest of the history under Anthropic's 32 MB request limit.
  */
-export const INLINE_TOTAL_MAX_BYTES = 16 * MB;
+const INLINE_TOTAL_MAX_BYTES = 16 * MB;
 
 /**
  * Files sent as bytes in one request. Above 20 images Anthropic rejects every image larger than
@@ -59,7 +59,7 @@ export type FileStore = {
   read(id: string, maxBytes?: number): Promise<Uint8Array | null>;
 };
 
-export type ModelFilesOptions = {
+type ModelFilesOptions = {
   store: FileStore;
   /** Whether the run has a workspace; it holds every stored file of the messages at `inputPath`. */
   workspace: boolean;

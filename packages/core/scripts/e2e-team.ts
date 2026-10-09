@@ -15,6 +15,7 @@ import {
   searchMemories,
   startRun,
 } from "../src/index";
+import { wait } from "./e2e-shared";
 
 /**
  * End-to-end check of a project team: the super agent delegates to the project's manager, the manager
@@ -26,7 +27,6 @@ import {
 const TIMEOUT_MS = 12 * 60_000;
 const MODEL = { provider: process.env.E2E_PROVIDER ?? "deepseek", model: process.env.E2E_MODEL ?? "deepseek-v4-flash" };
 const MARKER = `leak-check-${Date.now().toString(36)}`;
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const startedAt = new Date();
 const failures: string[] = [];
 const check = (ok: boolean, label: string) => {
@@ -227,10 +227,25 @@ try {
   failures.push(String(error));
   console.error(error);
 } finally {
+  // Other conversations the super agent opened for the test projects (a task of its own there) are the
+  // test's too: only ones made since it started, never one that was there before.
+  const touched = createdProjects.length
+    ? await db
+        .selectDistinct({ id: conversations.id })
+        .from(runs)
+        .innerJoin(conversations, eq(conversations.id, runs.conversationId))
+        .where(
+          and(
+            inArray(runs.projectId, createdProjects),
+            eq(runs.agentId, orchestrator.id),
+            gte(conversations.createdAt, startedAt),
+          ),
+        )
+    : [];
   // The super agent's runs outlive its conversation (set null), so they go first.
-  if (conversationId) {
-    await db.delete(runs).where(and(eq(runs.conversationId, conversationId), eq(runs.agentId, orchestrator.id)));
-    await deleteConversation(conversationId);
+  for (const id of new Set([...(conversationId ? [conversationId] : []), ...touched.map((c) => c.id)])) {
+    await db.delete(runs).where(and(eq(runs.conversationId, id), eq(runs.agentId, orchestrator.id)));
+    await deleteConversation(id);
   }
   for (const id of createdProjects) await deleteProject(id, { actor: "e2e" }).catch(() => undefined);
   if (createdAgents.length) {

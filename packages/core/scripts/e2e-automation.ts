@@ -15,6 +15,7 @@ import {
   telegramConversationKey,
 } from "../src/index";
 import { isUserError } from "@abotica/i18n";
+import { wait } from "./e2e-shared";
 
 /**
  * End-to-end check of work a schedule fires for a specialist in a project with a manager: it runs as a
@@ -28,7 +29,6 @@ import { isUserError } from "@abotica/i18n";
 const TIMEOUT_MS = 12 * 60_000;
 const MODEL = { provider: process.env.E2E_PROVIDER ?? "deepseek", model: process.env.E2E_MODEL ?? "deepseek-v4-flash" };
 const NEVER = new Date("2099-01-01T00:00:00Z");
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const startedAt = new Date();
 const failures: string[] = [];
 const check = (ok: boolean, label: string) => {

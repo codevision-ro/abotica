@@ -48,13 +48,7 @@ export function SystemUpdatesForm({
 
       {children}
 
-      <SettingsSaveBar
-        dirty={form.dirty}
-        invalid={form.invalid}
-        pending={form.pending}
-        onSave={form.save}
-        onReset={form.reset}
-      />
+      <SettingsSaveBar form={form} />
     </>
   );
 }
@@ -109,14 +103,7 @@ export function WorkAtOnceForm({ system, agents }: { system: SystemSettings; age
       </FormSection>
 
       {[runs, delegation].map((form, i) => (
-        <SettingsSaveBar
-          key={i}
-          dirty={form.dirty}
-          invalid={form.invalid}
-          pending={form.pending}
-          onSave={form.save}
-          onReset={form.reset}
-        />
+        <SettingsSaveBar key={i} form={form} />
       ))}
     </>
   );

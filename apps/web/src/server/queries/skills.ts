@@ -92,15 +92,13 @@ export const getSkill = query(async (id: string) => {
   };
 });
 
-export type SkillDetail = NonNullable<Awaited<ReturnType<typeof getSkill>>>;
+/** The skill's versions, newest first. */
+const versionRows = (skillId: string) =>
+  db.select().from(skillVersions).where(eq(skillVersions.skillId, skillId)).orderBy(desc(skillVersions.version));
 
 /** Newest first, each with what changed compared to the version before it. */
 export const listSkillVersions = query(async (skillId: string) => {
-  const rows = await db
-    .select()
-    .from(skillVersions)
-    .where(eq(skillVersions.skillId, skillId))
-    .orderBy(desc(skillVersions.version));
+  const rows = await versionRows(skillId);
   return rows.map((row, i) => {
     const previous = rows[i + 1]?.snapshot;
     const files = previous ? diffSkillFiles(previous.files, row.snapshot.files) : [];
@@ -115,15 +113,9 @@ export const listSkillVersions = query(async (skillId: string) => {
   });
 });
 
-export type SkillVersionItem = Awaited<ReturnType<typeof listSkillVersions>>[number];
-
 /** One version compared to the one before it (or to nothing, for the first). */
 export const getSkillVersionDiff = query(async (skillId: string, version: number) => {
-  const rows = await db
-    .select()
-    .from(skillVersions)
-    .where(eq(skillVersions.skillId, skillId))
-    .orderBy(desc(skillVersions.version));
+  const rows = await versionRows(skillId);
   const index = rows.findIndex((r) => r.version === version);
   if (index === -1) return null;
   const current = rows[index]!.snapshot;

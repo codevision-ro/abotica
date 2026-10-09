@@ -35,7 +35,11 @@ function subscribe(listener: () => void) {
  * One form's part in the page's save bar: it registers what the form has changed and how to save or
  * discard it; the bar itself (SettingsSaveBarHost, in the settings layout) shows once any form changes.
  */
-export function SettingsSaveBar({ dirty, invalid, pending, onSave, onReset }: FormState) {
+export function SettingsSaveBar({
+  form: { dirty, invalid, pending, save: onSave, reset: onReset },
+}: {
+  form: { dirty: boolean; invalid: boolean; pending: boolean; save: () => void; reset: () => void };
+}) {
   const id = useId();
   // The latest callbacks, so the bar never calls the ones of an older render.
   const actions = useRef({ onSave, onReset });

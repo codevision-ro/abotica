@@ -1,16 +1,7 @@
 import { agents, approvals, db, memories, messages, runEvents, runs, tasks } from "@abotica/db";
 import { and, asc, eq, gte } from "@abotica/db/orm";
 import { ANY_PROVIDER, decideApproval, embedDocument, startRun } from "../src/index";
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-async function waitRun(id: string) {
-  for (let i = 0; i < 120; i++) {
-    const [r] = await db.select().from(runs).where(eq(runs.id, id));
-    if (r && !["queued", "running"].includes(r.status)) return r;
-    await wait(1000);
-  }
-  throw new Error("timeout");
-}
+import { waitRun } from "./e2e-shared";
 
 /** End-to-end check of the agent loop: tools, approval pause, resume. Needs the worker running.
  * Usage: E2E_PROVIDER=deepseek E2E_MODEL=deepseek-v4-flash pnpm --filter @abotica/core e2e */
@@ -37,7 +28,7 @@ try {
     input:
       "Use memory_save with scope global to save: 'User prefers short reports'. Then call task_create with title 'E2E test task'.",
   });
-  const r1 = await waitRun(run.id);
+  const r1 = await waitRun(run.id, 120);
   console.log("run1:", r1.status, r1.error ?? "", "steps", r1.steps, "model", r1.provider, r1.model);
   const events = await db.select().from(runEvents).where(eq(runEvents.runId, run.id)).orderBy(asc(runEvents.id));
   for (const e of events)
@@ -63,7 +54,7 @@ try {
     const res = await decideApproval(pending[0].id, true);
     console.log("decided, continued:", res?.continued);
     const [cont] = await db.select().from(runs).where(eq(runs.parentRunId, run.id));
-    const r2 = await waitRun(cont!.id);
+    const r2 = await waitRun(cont!.id, 120);
     console.log("run2:", r2.status, r2.error ?? "", "output:", r2.output?.slice(0, 200));
     const created = await db.select().from(tasks).where(eq(tasks.createdBy, "agent:e2e-ollama"));
     console.log(

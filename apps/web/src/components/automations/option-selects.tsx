@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Option = { id: string; name: string; avatar?: AgentAvatarValue | null };
+export type Option = { id: string; name: string; avatar?: AgentAvatarValue | null };
 
 const NONE = "__none";
 

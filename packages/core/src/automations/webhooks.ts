@@ -51,7 +51,7 @@ export function takeRefusedWebhookRequest(triggerId: string): Promise<WebhookRat
   return take(`${REFUSED_KEY}${triggerId}`, WEBHOOK_REFUSED_LIMIT);
 }
 
-export type WebhookVerification =
+type WebhookVerification =
   /** `release` forgets the message id again, so the sender can retry when no run was started. */
   { ok: true; release: () => Promise<void> } | { ok: false; reason: SignatureFailure | "replayed" };
 

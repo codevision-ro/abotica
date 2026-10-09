@@ -122,7 +122,7 @@ export function clipUntrusted(text: string, max: number): string {
   return text.slice(0, max);
 }
 
-export type UntrustedSegment = { type: "text"; text: string } | { type: "untrusted"; source: string; text: string };
+type UntrustedSegment = { type: "text"; text: string } | { type: "untrusted"; source: string; text: string };
 
 /** `text` cut into its plain parts and its wrapped blocks, in order, for display. */
 export function splitUntrusted(text: string): UntrustedSegment[] {

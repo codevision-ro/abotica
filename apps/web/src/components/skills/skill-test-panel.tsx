@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { AgentAvatar } from "@/components/app/agent-avatar";
+import { SectionDivider } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
@@ -135,7 +136,7 @@ export function SkillTestPanel({
         )}
       </div>
 
-      <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
 
       <SkillPreview slug={slug} name={name} description={description} skillMd={skillMd} filePaths={filePaths} />
     </div>

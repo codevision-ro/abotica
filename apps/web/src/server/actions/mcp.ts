@@ -114,11 +114,15 @@ const mcpServerInput = z.object({
   projectIds: z.array(z.uuid()).default([]),
 });
 
-function revalidateServer(id: string) {
+/** The servers list, and the agent form, which lists the global servers. */
+function revalidateServerLists() {
   revalidatePath("/mcp");
-  revalidatePath(`/mcp/${id}`);
-  // The agent form lists the global servers.
   revalidatePath("/agents", "layout");
+}
+
+function revalidateServer(id: string) {
+  revalidateServerLists();
+  revalidatePath(`/mcp/${id}`);
 }
 
 /** Inserts (no id) or updates the server and replaces its assignments. */
@@ -213,8 +217,7 @@ export const syncMcpTools = action(z.uuid(), async (serverId): Promise<{ tools: 
   const result = await connect(await loadServer(serverId), { saveCache: false });
   if (!result.ok) throw new UserError("mcp.errors.syncFailed", { error: result.error ?? "" });
   const syncedAt = await saveMcpToolCache(serverId, result.tools);
-  revalidatePath("/mcp");
-  revalidatePath("/agents", "layout");
+  revalidateServerLists();
   return { tools: result.tools, syncedAt };
 });
 
@@ -291,7 +294,6 @@ export const setBuiltinMcpKey = action(
 /** Bundled servers cannot be deleted, only disabled. */
 export const deleteMcpServer = action(z.object({ id: z.uuid() }), async ({ id }) => {
   await deleteServer(id);
-  revalidatePath("/mcp");
-  revalidatePath("/agents", "layout");
+  revalidateServerLists();
   return null;
 });

@@ -5,7 +5,7 @@
 import type { AgentKind, runs, tasks } from "@abotica/db";
 
 /** The task a run worked on, as the notice rules need it. */
-export type NoticeTask = Pick<typeof tasks.$inferSelect, "status" | "createdBy" | "delegatedByRunId" | "reportsUp">;
+type NoticeTask = Pick<typeof tasks.$inferSelect, "status" | "createdBy" | "delegatedByRunId" | "reportsUp">;
 
 /**
  * The Telegram notice a finished run sends, if any. The super agent's own runs (its schedules, webhooks,

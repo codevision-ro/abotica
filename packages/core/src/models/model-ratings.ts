@@ -6,15 +6,15 @@
 import type { ModelRole } from "./model-role";
 
 /** USD per 1M tokens. */
-export type ModelPrice = { input: number; output: number };
+type ModelPrice = { input: number; output: number };
 
 /** 1 consumes the least, 5 the most. */
-export type ConsumptionLevel = 1 | 2 | 3 | 4 | 5;
+type ConsumptionLevel = 1 | 2 | 3 | 4 | 5;
 
-export type ModelClass = "fast" | "balanced" | "powerful";
+type ModelClass = "fast" | "balanced" | "powerful";
 
 /** Where a model fits: the default chain of a role, or work that needs the strongest models. */
-export type ModelUse = ModelRole | "demanding";
+type ModelUse = ModelRole | "demanding";
 
 export type ModelConsumption = { level: ConsumptionLevel; class: ModelClass };
 
@@ -25,7 +25,7 @@ const INPUT_WEIGHT = 3;
  * Upper bounds (exclusive) of the blended price per 1M tokens for levels 1 to 4; anything higher is 5.
  * Small models land on 1 and 2; a $3 / $15 model blends to $6, level 3; frontier prices go to 4 and 5.
  */
-export const CONSUMPTION_BOUNDS = [0.5, 1.5, 7, 15] as const;
+const CONSUMPTION_BOUNDS = [0.5, 1.5, 7, 15] as const;
 
 /** Runs a model needs in the window before its success rate means something. */
 export const MIN_RATED_RUNS = 10;

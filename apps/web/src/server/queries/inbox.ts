@@ -1,16 +1,12 @@
 import "server-only";
 import { listWaitingForUser, type WaitingItem } from "@abotica/core";
-import { agents, approvals, db, projects, taskComments, tasks } from "@abotica/db";
+import { agents, approvals, db, taskComments, tasks } from "@abotica/db";
 import { eq, inArray } from "@abotica/db/orm";
+import { getProjectNames } from "./projects";
 import { query } from "@/server/query";
 
 /** Project names by id, for the items' subtitles. */
-async function projectNames(items: WaitingItem[]): Promise<Map<string, string>> {
-  const ids = [...new Set(items.flatMap((i) => (i.projectId ? [i.projectId] : [])))];
-  if (!ids.length) return new Map();
-  const rows = await db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, ids));
-  return new Map(rows.map((p) => [p.id, p.name]));
-}
+const projectNames = (items: WaitingItem[]) => getProjectNames(items.map((i) => i.projectId));
 
 const idsOf = (items: WaitingItem[], ...kinds: WaitingItem["kind"][]) =>
   items.filter((i) => kinds.includes(i.kind)).map((i) => i.id);
@@ -99,7 +95,5 @@ export const getInbox = query(async () => {
 });
 
 export type Inbox = Awaited<ReturnType<typeof getInbox>>;
-export type InboxQuestion = Inbox["questions"][number];
 export type InboxTask = Inbox["tasks"][number];
-export type InboxApproval = Inbox["approvals"][number];
 export type InboxPreview = Awaited<ReturnType<typeof getInboxPreview>>;

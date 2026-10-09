@@ -1,6 +1,6 @@
-import { telegramAccess } from "@abotica/core";
+import { settingsTranslator, telegramAccess } from "@abotica/core";
 import type { Bot } from "grammy";
-import { botTranslator } from "./bot";
+
 import { registerCommands } from "./commands";
 import { registerMessageHandlers } from "./messages";
 import { replyError } from "./send";
@@ -11,7 +11,7 @@ export function registerHandlers(bot: Bot) {
     const { allowedUserIds } = await telegramAccess();
     if (!ctx.from || !allowedUserIds.includes(ctx.from.id)) {
       if (ctx.chat?.type === "private") {
-        await ctx.reply((await botTranslator())("telegram.accessDenied", { id: String(ctx.from?.id) }));
+        await ctx.reply((await settingsTranslator())("telegram.accessDenied", { id: String(ctx.from?.id) }));
       }
       return;
     }

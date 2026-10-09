@@ -12,16 +12,7 @@ import {
   type ToolPermissions,
 } from "@abotica/core/agents/permissions";
 import { TOOL_CATALOG, type ToolInfo } from "@abotica/core/agents/tools/tool-catalog";
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  RotateCcwIcon,
-  WrenchIcon,
-  XIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, WrenchIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -69,8 +60,7 @@ const offeredServers = (servers: McpServer[], mcpServerIds: string[]) =>
   servers.filter((s) => s.global || mcpServerIds.includes(s.id)).sort((a, b) => Number(b.global) - Number(a.global));
 
 /** Choices that hold something back (ask first or off); every tool runs on its own without one. */
-export const restrictionCount = (permissions: ToolPermissions) =>
-  Object.values(permissions).filter((p) => p !== "allow").length;
+const restrictionCount = (permissions: ToolPermissions) => Object.values(permissions).filter((p) => p !== "allow").length;
 
 /**
  * The "Tools" form section: everything is on, so the main view is the integrations the agent uses; the
@@ -269,11 +259,12 @@ function ToolControls({
         const list = tools.filter((tool) => tool.group === g);
         if (!list.length) return null;
         const name = tt(`groups.${g}`);
+        const GroupIcon = TOOL_GROUP_ICONS[g];
         const values = list.map((tool) => builtinPermission(permissions, tool.name, subject));
         return (
           <ToolGroup
             key={g}
-            media={<GroupIcon icon={TOOL_GROUP_ICONS[g]} />}
+            media={<GroupIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
             title={name}
             control={
               <PermissionControl
@@ -377,10 +368,6 @@ function IntegrationTools({
 }
 
 /** A group (built-in or integration): one header line with its control; the tool rows show when opened. */
-function GroupIcon({ icon: Icon }: { icon: LucideIcon }) {
-  return <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
-}
-
 function ToolGroup({
   media,
   title,

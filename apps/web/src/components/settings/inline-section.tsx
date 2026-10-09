@@ -13,7 +13,6 @@ export function InlineSection({
   title,
   description,
   children,
-  className,
 }: {
   /** Id of the title, so the control can point at it with `aria-labelledby`. */
   titleId?: string;
@@ -21,14 +20,13 @@ export function InlineSection({
   title: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
 }) {
   const fallbackId = useId();
   const id = titleId ?? fallbackId;
   return (
     <section
       aria-labelledby={id}
-      className={cn(sectionCardClass, "flex flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3.5 sm:px-5", className)}
+      className={cn(sectionCardClass, "flex flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3.5 sm:px-5")}
     >
       <SectionIcon icon={icon} />
       <div className="min-w-0 flex-1 basis-56 space-y-0.5">

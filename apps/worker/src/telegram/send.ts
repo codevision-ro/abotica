@@ -1,7 +1,7 @@
+import { settingsTranslator } from "@abotica/core";
 import { isUserError, translateKey } from "@abotica/i18n";
 import type { Bot, Context } from "grammy";
 import type { InlineKeyboardMarkup } from "grammy/types";
-import { botTranslator } from "./bot";
 
 /** Characters of one message: Telegram takes 4096, the rest is room for what entities add. */
 export const TELEGRAM_TEXT_LIMIT = 4000;
@@ -21,6 +21,12 @@ function splitText(text: string, limit = TELEGRAM_TEXT_LIMIT): string[] {
 
 export type Target = { chatId: number; threadId?: number | null };
 
+/** Send options that put a message in a forum topic; none outside topics. */
+export const inThread = (threadId: number | null | undefined) => (threadId ? { message_thread_id: threadId } : {});
+
+/** `text` cut to `max` characters, with an ellipsis when it was longer. */
+export const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
+
 /**
  * Sends Markdown as a Telegram rich message; falls back to plain text chunks if the
  * rich message is rejected (e.g. too long or unsupported markup).
@@ -31,8 +37,8 @@ export async function sendMarkdown(
   markdown: string,
   opts: { keyboard?: InlineKeyboardMarkup } = {},
 ): Promise<number | undefined> {
-  const text = markdown.trim() || (await botTranslator())("telegram.reply.empty");
-  const thread = target.threadId ? { message_thread_id: target.threadId } : {};
+  const text = markdown.trim() || (await settingsTranslator())("telegram.reply.empty");
+  const thread = inThread(target.threadId);
   try {
     const msg = await bot.api.sendRichMessage(
       target.chatId,
@@ -57,7 +63,7 @@ export async function sendMarkdown(
 
 /** Tells the user a handler failed: a UserError in the bot's language, anything else with its message. */
 export async function replyError(ctx: Context, error: unknown): Promise<void> {
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   const message = isUserError(error)
     ? translateKey(t, error.key, error.values)
     : error instanceof Error

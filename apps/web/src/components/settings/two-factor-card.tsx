@@ -4,7 +4,7 @@ import { Copy, Download, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { QRCodeSVG } from "qrcode.react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Spinner } from "@/components/ui/spinner";
 import { authClient } from "@/lib/auth-client";
 import { InlineSection } from "./inline-section";
+import { useReturnFocus } from "./use-return-focus";
 
 type PasswordIntent = "enable" | "disable" | "codes";
 type Setup = { totpURI: string; secret: string; backupCodes: string[] };
@@ -39,15 +40,10 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
 
   // The dialogs have no Radix trigger, so return focus to the button that opened them by hand.
-  const opener = useRef<HTMLElement | null>(null);
+  const { remember, restoreFocus } = useReturnFocus();
   function openIntent(next: PasswordIntent) {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    remember();
     setIntent(next);
-  }
-  function restoreFocus(e: Event) {
-    if (!opener.current?.isConnected) return;
-    e.preventDefault();
-    opener.current.focus();
   }
 
   function closePassword() {

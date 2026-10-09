@@ -112,7 +112,7 @@ function listedConversations(filter: ConversationFilter) {
 }
 
 /** The newest `limit` conversations of the chat list (see listedConversations). */
-export const listConversations = query(async (filter: ConversationFilter = null, limit: number = CHAT_LIST_PAGE_SIZE) => {
+function listConversations(filter: ConversationFilter, limit: number) {
   return db
     .select({
       id: conversations.id,
@@ -129,7 +129,7 @@ export const listConversations = query(async (filter: ConversationFilter = null,
     .where(listedConversations(filter))
     .orderBy(desc(conversations.updatedAt), desc(conversations.id))
     .limit(limit);
-});
+}
 
 /** The newest `limit` conversations of the chat list, with how many it has in all. */
 export const getConversationList = query(async (filter: ConversationFilter, limit: number = CHAT_LIST_PAGE_SIZE) => {

@@ -10,7 +10,7 @@ import type { Agent, RunContext } from "../context";
 import { builtinPermission } from "../permissions";
 import { nestedRepoInstructions } from "../repo-instructions";
 import { capStreamText, fullOutputTarget, SAVED_TOOL_TEXT_MAX_CHARS } from "../tool-output";
-import { blankToUndefined, clip, errorResult, type ToolFactory } from "./shared";
+import { blankToUndefined, clip, errorResult, NO_SANDBOX, type ToolFactory } from "./shared";
 import { TOOL_CATALOG } from "./tool-catalog";
 import { applyEdit, collectText, decodeText, readAtMost, sliceLines } from "./workspace-text";
 
@@ -22,14 +22,12 @@ const READ_CHARS = 30_000;
 const TEXT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Tools that work in the sandbox, so an agent with any of them gets one. Repo tools only add to them. */
-export const WORKSPACE_TOOL_NAMES = TOOL_CATALOG.filter((t) => t.group === "workspace" && !t.needsRepos).map((t) => t.name);
+const WORKSPACE_TOOL_NAMES = TOOL_CATALOG.filter((t) => t.group === "workspace" && !t.needsRepos).map((t) => t.name);
 
 /** Workspace tools the agent's permissions do not deny. */
 export function workspaceToolsOf(agent: Pick<Agent, "permissions" | "kind">): string[] {
   return WORKSPACE_TOOL_NAMES.filter((name) => builtinPermission(agent.permissions, name, agent) !== "deny");
 }
-
-const NO_SANDBOX = { error: "The workspace is not available in this run." };
 
 const pathInput = z
   .string()

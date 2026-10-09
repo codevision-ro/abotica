@@ -41,7 +41,7 @@ export function parseBundleState(text: string): BundleState {
   }
 }
 
-export type BundlePlan = {
+type BundlePlan = {
   /** Bundles to (re)write. */
   write: Bundle[];
   /** Folders to delete before extracting: the old copy of rewritten bundles. */

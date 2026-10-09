@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SkillFileTree, skillFileIcon } from "./skill-file-tree";
 
-export type FileStatus = "added" | "removed" | "changed";
+type FileStatus = "added" | "removed" | "changed";
 
 /** One row of a unified diff; `gap` stands for unchanged lines left out. */
 export type DiffRow =

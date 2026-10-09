@@ -103,6 +103,7 @@ vi.mock("../settings/settings", () => ({
     agents: { defaultLimits: { maxSteps: 20, timeoutMs: 10 * 60_000, budgetUsd: 1 }, transientRetries: 6 },
   }),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("../tasks/tasks", () => ({
   addTaskComment: vi.fn(),

@@ -12,6 +12,8 @@ import { SettingsNumberField } from "./settings-number-field";
 import { SettingsSaveBar } from "./settings-save-bar";
 import { useSettingsForm } from "./use-settings-form";
 
+type Period = "daily" | "weekly";
+
 /** Weekdays as stored (0 = Sunday), listed from Monday. */
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];
 
@@ -36,59 +38,57 @@ export function ReportsSettingsForm({ initial }: { initial: AppSettings["reports
   const names = useCalendarNames();
   const hours = Array.from({ length: 24 }, (_, h) => h);
 
-  const hourSelect = (id: string, value: number, disabled: boolean, onChange: (hour: number) => void) => (
-    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))} disabled={disabled}>
-      <SelectTrigger id={id} className="sm:w-36">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {hours.map((h) => (
-          <SelectItem key={h} value={String(h)}>
-            {names.hour(h)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+  const enabledField = (period: Period) => (
+    <Field orientation="horizontal">
+      <FieldContent>
+        <FieldLabel htmlFor={`reports-${period}-enabled`}>{t(`${period}.enabled`)}</FieldLabel>
+        <FieldDescription>{t(`${period}.enabledHint`)}</FieldDescription>
+      </FieldContent>
+      <Switch
+        id={`reports-${period}-enabled`}
+        checked={values[period].enabled}
+        onCheckedChange={(enabled) => set({ [period]: { enabled } })}
+      />
+    </Field>
+  );
+
+  const hourField = (period: Period) => (
+    <Field orientation="responsive" data-disabled={!values[period].enabled}>
+      <FieldContent>
+        <FieldLabel htmlFor={`reports-${period}-hour`}>{t("hour")}</FieldLabel>
+      </FieldContent>
+      <Select
+        value={String(values[period].hour)}
+        onValueChange={(v) => set({ [period]: { hour: Number(v) } })}
+        disabled={!values[period].enabled}
+      >
+        <SelectTrigger id={`reports-${period}-hour`} className="sm:w-36">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {hours.map((h) => (
+            <SelectItem key={h} value={String(h)}>
+              {names.hour(h)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 
   return (
     <div className="flex flex-col gap-6">
       <FormSection id="reports-daily" icon={CalendarDays} title={t("daily.title")} description={t("daily.description")}>
         <FieldGroup>
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldLabel htmlFor="reports-daily-enabled">{t("daily.enabled")}</FieldLabel>
-              <FieldDescription>{t("daily.enabledHint")}</FieldDescription>
-            </FieldContent>
-            <Switch
-              id="reports-daily-enabled"
-              checked={values.daily.enabled}
-              onCheckedChange={(enabled) => set({ daily: { enabled } })}
-            />
-          </Field>
+          {enabledField("daily")}
           <FieldSeparator />
-          <Field orientation="responsive" data-disabled={!values.daily.enabled}>
-            <FieldContent>
-              <FieldLabel htmlFor="reports-daily-hour">{t("hour")}</FieldLabel>
-            </FieldContent>
-            {hourSelect("reports-daily-hour", values.daily.hour, !values.daily.enabled, (hour) => set({ daily: { hour } }))}
-          </Field>
+          {hourField("daily")}
         </FieldGroup>
       </FormSection>
 
       <FormSection id="reports-weekly" icon={CalendarRange} title={t("weekly.title")} description={t("weekly.description")}>
         <FieldGroup>
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldLabel htmlFor="reports-weekly-enabled">{t("weekly.enabled")}</FieldLabel>
-              <FieldDescription>{t("weekly.enabledHint")}</FieldDescription>
-            </FieldContent>
-            <Switch
-              id="reports-weekly-enabled"
-              checked={values.weekly.enabled}
-              onCheckedChange={(enabled) => set({ weekly: { enabled } })}
-            />
-          </Field>
+          {enabledField("weekly")}
           <FieldSeparator />
           <Field orientation="responsive" data-disabled={!values.weekly.enabled}>
             <FieldContent>
@@ -112,14 +112,7 @@ export function ReportsSettingsForm({ initial }: { initial: AppSettings["reports
             </Select>
           </Field>
           <FieldSeparator />
-          <Field orientation="responsive" data-disabled={!values.weekly.enabled}>
-            <FieldContent>
-              <FieldLabel htmlFor="reports-weekly-hour">{t("hour")}</FieldLabel>
-            </FieldContent>
-            {hourSelect("reports-weekly-hour", values.weekly.hour, !values.weekly.enabled, (hour) =>
-              set({ weekly: { hour } }),
-            )}
-          </Field>
+          {hourField("weekly")}
         </FieldGroup>
       </FormSection>
 
@@ -137,13 +130,7 @@ export function ReportsSettingsForm({ initial }: { initial: AppSettings["reports
         />
       </FormSection>
 
-      <SettingsSaveBar
-        dirty={form.dirty}
-        invalid={form.invalid}
-        pending={form.pending}
-        onSave={form.save}
-        onReset={form.reset}
-      />
+      <SettingsSaveBar form={form} />
     </div>
   );
 }

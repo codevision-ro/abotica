@@ -44,3 +44,9 @@ export function translateKey(t: Translator, key: string, values?: Record<string,
   const loose = t as unknown as { has(k: string): boolean; (k: string, v?: Record<string, string | number>): string };
   return loose.has(key) ? loose(key, values) : key;
 }
+
+/** What to show for an error: a UserError in the translator's language, any other error as its message. */
+export function errorMessage(t: Translator, error: unknown): string {
+  if (isUserError(error)) return translateKey(t, error.key, error.values);
+  return error instanceof Error ? error.message : String(error);
+}

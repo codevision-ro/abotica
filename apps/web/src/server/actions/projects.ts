@@ -146,17 +146,21 @@ export const deleteProject = action(z.object({ id: uuid }), async ({ id }) => {
 
 /* Knowledge base */
 
-async function insertKnowledge(item: Parameters<typeof addKnowledgeItem>[0]) {
-  const result = await addKnowledgeItem(item);
+/** Audits a new knowledge item and shows it on its project. */
+async function knowledgeCreated<T extends { id: string }>(projectId: string, kind: string, result: T): Promise<T> {
   await audit({
     actor: "user",
     action: "knowledge.created",
     entityType: "knowledge_item",
     entityId: result.id,
-    data: { projectId: item.projectId, kind: item.kind },
+    data: { projectId, kind },
   });
-  revalidateProject(item.projectId);
+  revalidateProject(projectId);
   return result;
+}
+
+async function insertKnowledge(item: Parameters<typeof addKnowledgeItem>[0]) {
+  return knowledgeCreated(item.projectId, item.kind, await addKnowledgeItem(item));
 }
 
 export const createKnowledgeDocument = action(
@@ -177,18 +181,9 @@ export const createKnowledgeLink = action(
 );
 
 /** A file uploaded through POST /api/files: text files are indexed, other types stored for download. */
-export const createKnowledgeFile = action(z.object({ projectId: uuid, fileId: uuid }), async ({ projectId, fileId }) => {
-  const result = await addKnowledgeFile({ projectId, fileId });
-  await audit({
-    actor: "user",
-    action: "knowledge.created",
-    entityType: "knowledge_item",
-    entityId: result.id,
-    data: { projectId, kind: "file" },
-  });
-  revalidateProject(projectId);
-  return result;
-});
+export const createKnowledgeFile = action(z.object({ projectId: uuid, fileId: uuid }), async ({ projectId, fileId }) =>
+  knowledgeCreated(projectId, "file", await addKnowledgeFile({ projectId, fileId })),
+);
 
 /** Core removes the item with its chunks and its stored file. */
 export const deleteKnowledgeItem = action(z.object({ id: uuid, projectId: uuid }), async ({ id, projectId }) => {

@@ -18,6 +18,7 @@ import { PendingList } from "@/components/memory/pending-list";
 import { UrlTabs } from "@/components/memory/url-tabs";
 import { Button } from "@/components/ui/button";
 import { isDay } from "@/lib/day";
+import { firstParam } from "@/lib/search-params";
 import { isUuid } from "@/lib/uuid";
 import { getFormat } from "@/server/format";
 import {
@@ -44,8 +45,6 @@ type Options = Awaited<ReturnType<typeof getMemoryOptions>>;
 
 const SCOPE_ICON = { global: Globe, project: FolderKanban, agent: Bot } as const;
 
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-
 const inlineLink = "font-medium text-foreground underline underline-offset-2 hover:text-primary";
 
 export default async function MemoryPage(props: PageProps<"/memory">) {
@@ -56,13 +55,13 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
     getMemoryOptions(),
     getMemoryCounts(),
   ]);
-  const rawTab = one(sp.tab);
+  const rawTab = firstParam(sp.tab);
   // Pending is a tab only while something waits there.
   const requested = (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "global";
   const tab: Tab = requested === "pending" && counts.pending === 0 ? "global" : requested;
-  const q = one(sp.q)?.trim() || undefined;
-  const agent = isUuid(one(sp.agent)) ? one(sp.agent) : undefined;
-  const page = Math.max(1, Number(one(sp.page)) || 1);
+  const q = firstParam(sp.q)?.trim() || undefined;
+  const agent = isUuid(firstParam(sp.agent)) ? firstParam(sp.agent) : undefined;
+  const page = Math.max(1, Number(firstParam(sp.page)) || 1);
 
   const tabs = [
     { value: "global", label: t("scopes.global"), count: counts.global },
@@ -77,16 +76,16 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
   let body: React.ReactNode;
   let params: Record<string, string | undefined>;
   if (tab === "journal") {
-    const from = isDay(one(sp.from)) ? one(sp.from) : undefined;
-    const to = isDay(one(sp.to)) ? one(sp.to) : undefined;
+    const from = isDay(firstParam(sp.from)) ? firstParam(sp.from) : undefined;
+    const to = isDay(firstParam(sp.to)) ? firstParam(sp.to) : undefined;
     params = { tab, q, agent, from, to };
     body = <JournalTab q={q} agent={agent} from={from} to={to} page={page} params={params} options={options} />;
   } else {
-    const rawProject = one(sp.project);
+    const rawProject = firstParam(sp.project);
     // On the agent level the project filter can also keep only the agents' global memory.
     const project = isUuid(rawProject) || (tab === "agent" && rawProject === AGENT_GLOBAL_ONLY) ? rawProject : undefined;
-    const origin = ORIGINS.find((o) => o === one(sp.origin));
-    const flag = (key: string) => (one(sp[key]) === "1" ? "1" : undefined);
+    const origin = ORIGINS.find((o) => o === firstParam(sp.origin));
+    const flag = (key: string) => (firstParam(sp[key]) === "1" ? "1" : undefined);
     params = {
       tab: tab === "global" ? undefined : tab,
       q,

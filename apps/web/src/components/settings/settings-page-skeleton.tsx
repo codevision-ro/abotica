@@ -1,6 +1,7 @@
 import { sectionCardClass } from "@/components/app/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { SectionHeadSkeleton } from "./settings-skeleton";
 
 /**
  * A settings page while it loads: its title, then one section card per entry of `sections`, each with that
@@ -15,14 +16,7 @@ export function SettingsPageSkeleton({ sections }: { sections: number[] }) {
       </div>
       {sections.map((rows, i) => (
         <div key={i} className={sectionCardClass}>
-          <div className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
-            <Skeleton className="size-8 rounded-lg" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-3.5 w-72 max-w-full" />
-            </div>
-          </div>
-          <div className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+          <SectionHeadSkeleton />
           <div className="flex flex-col gap-4 p-4 sm:p-5">
             {rows === 0 ? (
               <Skeleton className="h-24 rounded-xl" />

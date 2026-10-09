@@ -9,7 +9,7 @@ import { getSettings } from "../settings/settings";
 import type { Task, TaskPriority, TaskStatus } from "./tasks";
 
 /** What keeps a task from moving now. */
-export type TaskWaitingFor =
+type TaskWaitingFor =
   | { kind: "dependencies"; taskIds: string[] }
   | { kind: "slot" }
   | { kind: "answer"; questionIds: string[] }
@@ -18,7 +18,7 @@ export type TaskWaitingFor =
   | { kind: "retry"; at: Date }
   | { kind: "continuation"; done: number; of: number };
 
-export type TeamStatusTask = {
+type TeamStatusTask = {
   id: string;
   title: string;
   projectId: string | null;

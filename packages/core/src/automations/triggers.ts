@@ -1,11 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { agents, db, tasks, triggers } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
-import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
+import { errorMessage, UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 import { loadDelegationProject, reportTask } from "../tasks/delegation";
-import { env } from "../infra/env";
 import type { Run } from "../runs/runs";
 import { startDelegatedTask } from "../tasks/delegation-slots";
 import { handOffFiles } from "../tasks/handoffs";
@@ -26,9 +25,6 @@ type TriggerValues = Pick<
 >;
 
 const newToken = () => randomBytes(24).toString("base64url");
-
-/** Public URL that fires a webhook trigger. */
-export const webhookUrl = (token: string) => new URL(`/api/webhooks/${token}`, env().APP_URL).toString();
 
 /**
  * Schedules and triggers start runs, so their agent must exist and not be a template. When an agent
@@ -177,7 +173,7 @@ export async function fireTrigger(
   const webhook = usesWebhook(trigger.event);
   // Task events carry the task's output, which its agent wrote and may quote pages or files in.
   const source = webhook ? "webhook" : "task-output";
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   const run = await startAutomationWork({
     agentId: trigger.agentId,
     projectId,
@@ -229,10 +225,10 @@ export async function handleTaskEvent(taskId: string, event: "created" | "done")
         .select()
         .from(triggers)
         .where(and(eq(triggers.event, name), eq(triggers.enabled, true)));
+  const payload = JSON.stringify({ id: task.id, title: task.title, status: task.status, output: task.output }, null, 2);
   // The job runs once (a retry would fire the others again), so one failure must not stop the rest.
   for (const trigger of rows) {
     if (trigger.projectId && trigger.projectId !== task.projectId) continue;
-    const payload = JSON.stringify({ id: task.id, title: task.title, status: task.status, output: task.output }, null, 2);
     try {
       await fireTrigger(trigger, payload, { projectId: task.projectId, subject: task.title });
     } catch (error) {
@@ -279,12 +275,8 @@ async function assertAssigneeEnabled(agentId: string): Promise<void> {
  */
 async function cannotStart(next: Task, dependency: Task, error: unknown): Promise<void> {
   try {
-    const t = getTranslator(settingsLocale(await getSettings()));
-    const reason = isUserError(error)
-      ? translateKey(t, error.key, error.values)
-      : error instanceof Error
-        ? error.message
-        : String(error);
+    const t = await settingsTranslator();
+    const reason = errorMessage(t, error);
     await updateTask(next.id, { status: "blocked" }, "system");
     await addTaskComment(
       next.id,

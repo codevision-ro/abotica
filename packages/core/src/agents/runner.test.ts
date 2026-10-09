@@ -59,7 +59,11 @@ vi.mock("../files/files", () => ({ getFile: vi.fn(), readFileBytes: vi.fn() }));
 vi.mock("../platform/budgets", () => ({ applicableBudgets: async () => [], tightestBudget: vi.fn() }));
 vi.mock("../platform/kill-switch", () => ({ isKillSwitchActive: vi.fn() }));
 vi.mock("../settings/settings", () => ({ settingsLocale: () => "en" }));
-vi.mock("../models/catalog", () => ({ estimateCost: vi.fn(), getCatalog: vi.fn() }));
+vi.mock("../models/catalog", async (importOriginal) => ({
+  estimateCost: vi.fn(),
+  getCatalog: vi.fn(),
+  tokenUsage: (await importOriginal<typeof import("../models/catalog")>()).tokenUsage,
+}));
 vi.mock("../models/chain", async () => {
   const { UserError } = await import("@abotica/i18n");
   class NoModelError extends UserError {

@@ -1,13 +1,11 @@
 "use client";
 
-import { CalendarClockIcon, CornerLeftUpIcon, FolderIcon, Link2Icon, ListTodoIcon, UserIcon, XIcon } from "lucide-react";
+import { CalendarClockIcon, CornerLeftUpIcon, FolderIcon, Link2Icon, ListTodoIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { AgentAvatar } from "@/components/app/agent-avatar";
 import { heroFieldVariants } from "@/components/app/hero-fields";
 import { chipVariants } from "@/components/app/selectable-chip";
-import { PRIORITIES, useStatusLabels } from "@/components/app/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,11 +20,9 @@ import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 import { createTask } from "@/server/actions/tasks";
 import type { TaskOptions } from "@/server/queries/tasks";
-import { SELECT_WITH_MEDIA, TaskPriorityIcon } from "./task-icons";
-import { fromLocalInput, type TaskPriorityValue, useTaskParams } from "./task-meta";
+import { AgentSelectItem, PersonTile, PrioritySelectItems, SELECT_WITH_MEDIA } from "./task-icons";
+import { fromLocalInput, NONE, type TaskPriorityValue, useTaskParams } from "./task-meta";
 import { TaskPicker } from "./task-picker";
-
-const NONE = "none";
 
 export function TaskNewDialog({ options }: { options: TaskOptions }) {
   const { searchParams, openOverlay, closeOverlay } = useTaskParams();
@@ -81,7 +77,6 @@ function TaskNewForm({
 }) {
   const t = useTranslations("tasks");
   const tc = useTranslations("common");
-  const labels = useStatusLabels();
   const fmt = useFormat();
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
@@ -194,21 +189,14 @@ function TaskNewForm({
           </SelectTrigger>
           <SelectContent className="max-w-[min(32rem,calc(100vw-2rem))]">
             <SelectItem value="user">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <UserIcon className="size-3!" />
-              </span>
+              <PersonTile />
               {t("assignee.you")}
             </SelectItem>
             {agents.map((a) => (
-              <SelectItem key={a.id} value={a.id} title={a.name} className="*:[span]:last:min-w-0">
-                <AgentAvatar avatar={a.avatar} size="xs" />
-                <span className="truncate">{a.name}</span>
-              </SelectItem>
+              <AgentSelectItem key={a.id} agent={a} />
             ))}
             <SelectItem value={NONE}>
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-md border border-dashed border-muted-foreground/40 text-muted-foreground">
-                <UserIcon className="size-3!" />
-              </span>
+              <PersonTile empty />
               {t("assignee.nobody")}
             </SelectItem>
           </SelectContent>
@@ -219,12 +207,7 @@ function TaskNewForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PRIORITIES.map((p) => (
-              <SelectItem key={p} value={p}>
-                <TaskPriorityIcon priority={p} />
-                {labels.priority(p)}
-              </SelectItem>
-            ))}
+            <PrioritySelectItems />
           </SelectContent>
         </Select>
 

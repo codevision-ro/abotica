@@ -1,13 +1,13 @@
-import { createRedis, env, type NotificationJob, QUEUE } from "@abotica/core";
+import { createRedis, env, type NotificationJob, QUEUE, settingsTranslator } from "@abotica/core";
 import { agents, approvals, conversations, db, projects, runs, taskComments, tasks } from "@abotica/db";
 import { and, desc, eq } from "@abotica/db/orm";
 import { Worker } from "bullmq";
 import { InlineKeyboard } from "grammy";
-import { botTranslator, getBot, notifyChatId } from "../telegram/bot";
+import { getBot, notifyChatId } from "../telegram/bot";
 import { sendQuestion } from "../telegram/commands";
 import { sendTelegramNotice } from "../telegram/delivery";
 import { runFinishedNotice } from "../telegram/routing";
-import { sendMarkdown, type Target } from "../telegram/send";
+import { inThread, sendMarkdown, type Target, truncate } from "../telegram/send";
 
 /** Project notifications go to the project's forum topic when one is configured. */
 async function targetFor(projectId: string | null | undefined): Promise<Target | null> {
@@ -33,15 +33,12 @@ const PREVIEW_CHARS = { approval: 600, blockedReason: 1_500, result: 3_000 } as 
 
 const asText = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
 
-const preview = (value: unknown, max: number) => {
-  const text = asText(value);
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-};
+const preview = (value: unknown, max: number) => truncate(asText(value), max);
 
 async function handle(job: NotificationJob) {
   const bot = getBot();
   if (!bot) return;
-  const t = await botTranslator();
+  const t = await settingsTranslator();
 
   if (job.kind === "text") {
     const target = await targetFor(job.projectId);
@@ -105,7 +102,7 @@ async function handle(job: NotificationJob) {
     // Plain text: tool input is arbitrary JSON and must not be parsed as Markdown.
     const msg = await bot.api.sendMessage(target.chatId, text, {
       reply_markup: keyboard,
-      ...(target.threadId ? { message_thread_id: target.threadId } : {}),
+      ...inThread(target.threadId),
     });
     await db.update(approvals).set({ telegramMessageId: msg.message_id }).where(eq(approvals.id, row.approval.id));
     return;

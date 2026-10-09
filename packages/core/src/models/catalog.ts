@@ -1,3 +1,4 @@
+import type { LanguageModelUsage } from "ai";
 import { env } from "../infra/env";
 import { redis } from "../infra/redis";
 import { inputFromOllama } from "./input-modalities";
@@ -109,7 +110,8 @@ function apiKeyModels(data: ModelsDev, onPlan: Set<ProviderId>): CatalogModel[] 
   return out;
 }
 
-const PLAN_COST = { input: 0, output: 0 };
+/** Plans and the local server cost nothing per token. */
+const NO_TOKEN_COST = { input: 0, output: 0 };
 
 /**
  * The models of each provider connected through its plan, as the account lists them. models.dev
@@ -131,7 +133,7 @@ async function planModels(data: ModelsDev | null): Promise<{ models: CatalogMode
           : { toolCall: true, reasoning: null, input: null, contextWindow: null, releaseDate: null, listPrice: null }),
         ...m,
         provider,
-        cost: PLAN_COST,
+        cost: NO_TOKEN_COST,
       });
     }
   }
@@ -176,7 +178,7 @@ async function fetchOllama(): Promise<CatalogModel[]> {
         ...(await ollamaDetails(base, m.name)),
         contextWindow: null,
         releaseDate: null,
-        cost: { input: 0, output: 0 },
+        cost: NO_TOKEN_COST,
         listPrice: null,
       })),
     );
@@ -207,10 +209,22 @@ export async function getCatalog(): Promise<CatalogModel[]> {
 /** How long a prompt cache entry lives; Anthropic bills a 1-hour write at twice the input price. */
 export type CacheTtl = "5m" | "1h";
 
+type TokenUsage = { inputTokens: number; outputTokens: number; cachedInputTokens?: number; cacheWriteTokens?: number };
+
+/** The token counts of a model call or step, from the AI SDK's usage. */
+export function tokenUsage(usage: LanguageModelUsage): Required<TokenUsage> {
+  return {
+    inputTokens: usage.inputTokens ?? 0,
+    outputTokens: usage.outputTokens ?? 0,
+    cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+    cacheWriteTokens: usage.inputTokenDetails?.cacheWriteTokens ?? 0,
+  };
+}
+
 export async function estimateCost(
   provider: string,
   model: string,
-  usage: { inputTokens: number; outputTokens: number; cachedInputTokens?: number; cacheWriteTokens?: number },
+  usage: TokenUsage,
   cacheTtl: CacheTtl = "5m",
 ): Promise<number> {
   if (!isProviderId(provider) || isLocalProvider(provider)) return 0;

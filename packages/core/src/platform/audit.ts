@@ -1,7 +1,5 @@
-import { auditLogs, db } from "@abotica/db";
+import { auditLogs, db, type Tx } from "@abotica/db";
 import type { AuditAction } from "./audit-actions";
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Records an action; inside `tx` the entry is written with the change it describes, or not at all. */
 export async function audit(

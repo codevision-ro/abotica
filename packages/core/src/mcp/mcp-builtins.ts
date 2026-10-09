@@ -24,7 +24,7 @@ type BuiltinBase = {
   hiddenTools?: readonly string[];
 };
 
-export type BuiltinHttpMcp = BuiltinBase & {
+type BuiltinHttpMcp = BuiltinBase & {
   transport: "http";
   url: string;
   /**
@@ -34,7 +34,7 @@ export type BuiltinHttpMcp = BuiltinBase & {
   apiKeySecret: string;
 };
 
-export type BuiltinStdioMcp = BuiltinBase & {
+type BuiltinStdioMcp = BuiltinBase & {
   transport: "stdio";
   command: string;
   args: string[];

@@ -126,14 +126,15 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
     : null;
 
   // Skills and MCP servers come from the agent plus the run's project, and the global servers.
+  const skillColumns = {
+    id: skills.id,
+    slug: skills.slug,
+    name: skills.name,
+    description: skills.description,
+    enabled: skills.enabled,
+  };
   const skillRows = await db
-    .select({
-      id: skills.id,
-      slug: skills.slug,
-      name: skills.name,
-      description: skills.description,
-      enabled: skills.enabled,
-    })
+    .select(skillColumns)
     .from(agentSkills)
     .innerJoin(skills, eq(skills.id, agentSkills.skillId))
     .where(eq(agentSkills.agentId, agent.id));
@@ -147,13 +148,7 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
   if (project) {
     skillRows.push(
       ...(await db
-        .select({
-          id: skills.id,
-          slug: skills.slug,
-          name: skills.name,
-          description: skills.description,
-          enabled: skills.enabled,
-        })
+        .select(skillColumns)
         .from(projectSkills)
         .innerJoin(skills, eq(skills.id, projectSkills.skillId))
         .where(eq(projectSkills.projectId, project.id))),
@@ -171,13 +166,7 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
   if (conversation?.testSkillId) {
     skillRows.push(
       ...(await db
-        .select({
-          id: skills.id,
-          slug: skills.slug,
-          name: skills.name,
-          description: skills.description,
-          enabled: sql<boolean>`true`,
-        })
+        .select({ ...skillColumns, enabled: sql<boolean>`true` })
         .from(skills)
         .where(eq(skills.id, conversation.testSkillId))),
     );
@@ -185,8 +174,8 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
 
   // Sorted, since the queries have no order: skills and tools go into the prompt, and a different
   // order on the next run would miss the prompt cache.
-  const uniqueBy = <T extends { slug: string }>(items: T[], key: (t: T) => string) =>
-    [...new Map(items.map((i) => [key(i), i])).values()].sort((a, b) => a.slug.localeCompare(b.slug));
+  const uniqueById = <T extends { id: string; slug: string }>(items: T[]) =>
+    [...new Map(items.map((i) => [i.id, i])).values()].sort((a, b) => a.slug.localeCompare(b.slug));
 
   const ctx: RunContext = {
     run,
@@ -197,14 +186,13 @@ export async function loadRunContext(runId: string): Promise<RunContext> {
     managedProjectIds,
     topicProject: agent.kind === "orchestrator" ? await telegramTopicProject(conversation) : null,
     notesProjectId: null,
-    skills: uniqueBy(
-      skillRows.filter((s) => s.enabled),
-      (s) => s.id,
-    ).map(({ id, slug, name, description }) => ({ id, slug, name, description })),
-    mcpServers: uniqueBy(
-      mcpRows.map((r) => r.server).filter((s) => s.enabled),
-      (s) => s.id,
-    ),
+    skills: uniqueById(skillRows.filter((s) => s.enabled)).map(({ id, slug, name, description }) => ({
+      id,
+      slug,
+      name,
+      description,
+    })),
+    mcpServers: uniqueById(mcpRows.map((r) => r.server).filter((s) => s.enabled)),
     repos: project ? await runRepos(project.id) : [],
     settings: await getSettings(),
     sandbox: null,
@@ -227,7 +215,7 @@ function formatDay(timezone: string): string {
  * the system prompt: a prompt that changes every minute would defeat prompt caching and invalidate
  * the thinking blocks Anthropic binds to the conversation prefix.
  */
-export function sentAtLine(sentAt: Date, timezone: string): string {
+function sentAtLine(sentAt: Date, timezone: string): string {
   const time = new Intl.DateTimeFormat("en-US", { timeZone: timezone, dateStyle: "full", timeStyle: "short" });
   return `[Sent ${time.format(sentAt)}]`;
 }

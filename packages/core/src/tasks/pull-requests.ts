@@ -30,7 +30,7 @@ type Row = typeof taskPullRequests.$inferSelect;
  * passed, and a few for a failed run's jobs and logs. 10 a tick stays near 3,600 an hour in the worst
  * case of one token for every pull request; with more open ones each is synced less often.
  */
-export const PR_SYNC_BATCH = 10;
+const PR_SYNC_BATCH = 10;
 
 /** Failed checks whose logs are read for one nudge; the others are listed without a log. */
 const MAX_LOGS = 3;
@@ -65,7 +65,7 @@ export async function recordPullRequest(input: {
   await publish({ type: "task.updated", taskId: input.taskId, projectId: null });
 }
 
-export type TaskPullRequest = Pick<
+type TaskPullRequest = Pick<
   Row,
   "id" | "provider" | "number" | "url" | "headBranch" | "baseBranch" | "state" | "draft" | "checks" | "review"
 >;
@@ -96,11 +96,11 @@ export function listTaskPullRequests(taskId: string): Promise<TaskPullRequest[]>
 export type PullRequestRecord = Pick<Row, "state" | "nudgeSignature" | "fixRounds">;
 
 /** A condition the assignee has to fix: failed checks on the head commit, or new review feedback. */
-export type PullRequestNudge =
+type PullRequestNudge =
   | { kind: "checks"; signature: string; headSha: string; failedChecks: FailedCheck[] }
   | { kind: "review"; signature: string; feedback: PullRequestFeedback[] };
 
-export type PullRequestReactions = {
+type PullRequestReactions = {
   /** Merged since the last sync: the task is done once no other pull request of it is open. */
   merged: boolean;
   /** Closed without merge, not reported yet. */

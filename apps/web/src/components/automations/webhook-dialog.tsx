@@ -28,10 +28,10 @@ import {
 } from "@/server/actions/automations";
 import { DialogHeading, stickyFooterClass } from "./dialog-parts";
 
-export const webhookUrl = (appUrl: string, token: string) => `${appUrl}/api/webhooks/${token}`;
-
 const EXAMPLE_BODY = `{"subject": "New order", "customer": "Jane Doe"}`;
 const EXAMPLE_RESPONSE = `202 { "runId": "..." }`;
+
+const code = (chunks: React.ReactNode) => <code className="font-mono text-foreground">{chunks}</code>;
 
 function useCopy() {
   const t = useTranslations("automations.webhook");
@@ -48,6 +48,17 @@ function useCopy() {
   return { copied, copy };
 }
 
+/** The content of a copy button: "Copy", or "Copied" for a moment after a click. */
+function CopyLabel({ copied }: { copied: boolean }) {
+  const tCommon = useTranslations("common");
+  return (
+    <>
+      {copied ? <CheckIcon /> : <CopyIcon />}
+      {copied ? tCommon("actions.copied") : tCommon("actions.copy")}
+    </>
+  );
+}
+
 /** A read-only value with a copy button inside the field. */
 function CopyField({
   id,
@@ -62,15 +73,13 @@ function CopyField({
   onCopy: () => void;
   addon?: React.ReactNode;
 }) {
-  const tCommon = useTranslations("common");
   return (
     <InputGroup className="h-10">
       {addon && <InputGroupAddon>{addon}</InputGroupAddon>}
       <InputGroupInput id={id} readOnly value={value} className="font-mono text-xs" />
       <InputGroupAddon align="inline-end">
         <InputGroupButton variant="secondary" className="mr-0.5 h-7 px-2" onClick={onCopy}>
-          {copied ? <CheckIcon /> : <CopyIcon />}
-          {copied ? tCommon("actions.copied") : tCommon("actions.copy")}
+          <CopyLabel copied={copied} />
         </InputGroupButton>
       </InputGroupAddon>
     </InputGroup>
@@ -99,7 +108,6 @@ export function WebhookDialog({
   appUrl: string;
 }) {
   const t = useTranslations("automations.webhook");
-  const tCommon = useTranslations("common");
   const [token, setToken] = useState<string | null>(null);
   const [signedNow, setSignedNow] = useState<boolean | null>(null);
   const [pending, startTransition] = useTransition();
@@ -107,7 +115,7 @@ export function WebhookDialog({
   const current = token ?? trigger?.token ?? null;
   const signed = signedNow ?? trigger?.signed ?? false;
   const UrlHintIcon = signed ? ShieldCheckIcon : ShieldAlertIcon;
-  const url = current ? webhookUrl(appUrl, current) : "";
+  const url = current ? `${appUrl}/api/webhooks/${current}` : "";
   const curl = `curl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -d '${EXAMPLE_BODY}'`;
 
   return (
@@ -150,7 +158,7 @@ export function WebhookDialog({
                 <span>
                   {t.rich(signed ? "urlHintSigned" : "urlHint", {
                     payload: "{{payload}}",
-                    code: (chunks) => <code className="font-mono text-foreground">{chunks}</code>,
+                    code,
                   })}
                 </span>
               </p>
@@ -159,8 +167,7 @@ export function WebhookDialog({
               <div className="flex items-center justify-between gap-3 border-b bg-muted/40 py-1.5 pr-1.5 pl-3">
                 <span className="text-xs font-medium text-muted-foreground">{t("curlExample")}</span>
                 <Button variant="ghost" size="xs" onClick={() => copy("curl", curl)}>
-                  {copied === "curl" ? <CheckIcon /> : <CopyIcon />}
-                  {copied === "curl" ? tCommon("actions.copied") : tCommon("actions.copy")}
+                  <CopyLabel copied={copied === "curl"} />
                 </Button>
               </div>
               <pre className="overflow-x-auto p-3 font-mono text-xs leading-relaxed">{curl}</pre>
@@ -168,7 +175,7 @@ export function WebhookDialog({
                 {t.rich("response", {
                   example: EXAMPLE_RESPONSE,
                   limit: trigger?.rateLimitPerMinute ?? WEBHOOK_RATE_LIMIT.requests,
-                  code: (chunks) => <code className="font-mono text-foreground">{chunks}</code>,
+                  code,
                 })}
               </p>
             </div>
@@ -229,7 +236,6 @@ function WebhookSigning({
   const [secret, setSecret] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const { copied, copy } = useCopy();
-  const code = (chunks: React.ReactNode) => <code className="font-mono text-foreground">{chunks}</code>;
   const strong = (chunks: React.ReactNode) => <strong className="font-medium text-foreground">{chunks}</strong>;
 
   const createSecret = (message: string) =>

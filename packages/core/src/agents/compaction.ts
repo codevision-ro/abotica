@@ -19,9 +19,9 @@ export const HARD_SHARE = 0.9;
  * Share from which the prompt is compacted when its prompt cache has expired anyway: compacting while
  * the cache is warm throws away what was paid for it (Mastra's activateAfterIdle, Trigger.dev).
  */
-export const SOFT_SHARE = 0.6;
+const SOFT_SHARE = 0.6;
 /** Recent messages kept verbatim before the current turn, in tokens (Codex keeps 20k)... */
-export const KEEP_RECENT_TOKENS = 20_000;
+const KEEP_RECENT_TOKENS = 20_000;
 /** ...and at most this share of the window, so a compaction of a small window still frees room. */
 const KEEP_RECENT_SHARE = 0.2;
 /**
@@ -93,7 +93,7 @@ export function approxTokens(value: unknown): number {
 }
 
 /** A prompt size in tokens, and the time after which messages are not in it. */
-export type MeasuredPrompt = { tokens: number; since: Date };
+type MeasuredPrompt = { tokens: number; since: Date };
 
 /**
  * The last known size of the conversation's prompt: the newest step of its runs (`since` its run's
@@ -149,7 +149,7 @@ export function keepBudget(reason: CompactionReason, window: number | null, esti
 }
 
 /** A message for `pickCut`: its size, and whether the kept part may start with it. */
-export type CutEntry = { tokens: number; cuttable: boolean };
+type CutEntry = { tokens: number; cuttable: boolean };
 
 /**
  * Where the kept part of a history starts: the index of its first entry, 0 when nothing would be

@@ -10,6 +10,7 @@ import {
   getSandboxStatus,
   startTaskRun,
 } from "../src/index";
+import { wait } from "./e2e-shared";
 
 /**
  * End-to-end check of a project repository in a real sandbox: a specialist works on a task in a
@@ -26,7 +27,6 @@ const REPO = { host: "github.com", path: "octocat/Hello-World", defaultBranch: "
 const TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TIMEOUT_MS = 8 * 60_000;
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const failures: string[] = [];
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "PASS" : "FAIL"} ${label}`);

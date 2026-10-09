@@ -50,8 +50,8 @@ export function NewConversationDialog({
   projects: ChatProject[];
   /** Preselected project, e.g. the one the conversation list is filtered by. */
   initialProjectId?: string;
-  /** Where the new conversation opens; `/chat/<id>` by default. */
-  hrefFor?: (id: string, projectId: string | null) => string;
+  /** Where the new conversation opens. */
+  hrefFor: (id: string, projectId: string | null) => string;
 }) {
   const t = useTranslations("chat.newConversation");
   const tc = useTranslations("common.actions");
@@ -82,7 +82,7 @@ export function NewConversationDialog({
       { agentId, projectId: projectId ?? undefined },
       {
         onStarted: () => onOpenChange(false),
-        href: hrefFor && ((id) => hrefFor(id, projectId)),
+        href: (id) => hrefFor(id, projectId),
       },
     );
   }

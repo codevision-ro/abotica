@@ -7,7 +7,7 @@
 import { type CommandResult, type CredentialRoute, runCommand, shellQuote, type Workspace } from "@abotica/sandbox";
 import { routeUrl } from "@abotica/sandbox/routes";
 import type { RepoProvider } from "../projects/repo-url";
-import { REPOS_DIR, repoPath, taskBranch, taskWorktreePath, WORK_DIR } from "./workspace-paths";
+import { isIdFolder, REPOS_DIR, repoPath, taskBranch, taskWorktreePath, WORK_DIR } from "./workspace-paths";
 
 export type WorkspaceRepo = {
   name: string;
@@ -18,14 +18,13 @@ export type WorkspaceRepo = {
   token: string;
 };
 
-export type GitAuthor = { name: string; email: string };
+type GitAuthor = { name: string; email: string };
 
 /** Username sent with the token; GitHub and GitLab both take the token as the password. */
 const TOKEN_USERNAME: Record<RepoProvider, string> = { github: "x-access-token", gitlab: "oauth2" };
 
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const GIT_TIMEOUT_MS = 2 * 60_000;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** How git in a workspace reaches the repositories: the environment of its commands and their routes. */
 export type RepoGitAccess = { env: Record<string, string>; routes: CredentialRoute[] };
@@ -73,7 +72,7 @@ export function repoGitAccess(repos: WorkspaceRepo[], author: GitAuthor): RepoGi
   return { env, routes };
 }
 
-export type PrepareReposOptions = {
+type PrepareReposOptions = {
   repos: WorkspaceRepo[];
   /** `repoGitAccess` of the run. */
   git: RepoGitAccess;
@@ -121,7 +120,7 @@ export async function prepareRepos(workspace: Workspace, options: PrepareReposOp
   }
 
   const listed = await run(`if [ -d ${WORK_DIR} ]; then ls -1A ${WORK_DIR}; fi`, GIT_TIMEOUT_MS);
-  const taskIds = listed.stdout.split("\n").filter((id) => UUID_RE.test(id) && id !== options.taskId);
+  const taskIds = listed.stdout.split("\n").filter((id) => isIdFolder(id) && id !== options.taskId);
   const finished = taskIds.length ? [...(await options.finishedTasks(taskIds))] : [];
   if (!finished.length || signal.aborted) return;
   const cleaned = await run(cleanupScript(finished), GIT_TIMEOUT_MS);

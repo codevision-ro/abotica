@@ -4,15 +4,13 @@ export function PageHeader({
   title,
   description,
   actions,
-  className,
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between", className)}>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1 space-y-1.5">
         <h1
           title={typeof title === "string" ? title : undefined}

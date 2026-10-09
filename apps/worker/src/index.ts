@@ -6,8 +6,9 @@ import {
   invalidateSettings,
   requestSandboxCheck,
   setDefaultUploadsRoot,
-  settleEmbeddingModel,
   type SettingsDomain,
+  settingsTranslator,
+  settleEmbeddingModel,
   subscribe,
   syncSettingsSchedules,
 } from "@abotica/core";
@@ -25,7 +26,6 @@ import { describeSandbox, startSandboxWorker } from "./jobs/sandbox";
 import { startSchedulesWorker } from "./jobs/schedules";
 import { startTaskEventsWorker } from "./jobs/task-events";
 import { abortAllRuns, abortRun, activeRunCount, drainRuns, startRunsWorker } from "./runtime";
-import { botTranslator } from "./telegram/bot";
 import { closeBot, reloadBot } from "./telegram/bot-lifecycle";
 
 // Stored files live in the uploads folder the web app serves; without UPLOADS_DIR that is its .data/uploads.
@@ -104,7 +104,7 @@ async function main() {
   const unsubscribe = subscribe((event) => {
     if (event.type === "kill-switch" && event.active) {
       if (event.reason) abortAllRuns(event.reason, "kill_switch");
-      else void botTranslator().then((t) => abortAllRuns(t("errors.run.stoppedByKillSwitch"), "kill_switch"));
+      else void settingsTranslator().then((t) => abortAllRuns(t("errors.run.stoppedByKillSwitch"), "kill_switch"));
     }
     if (event.type === "run.cancel") abortRun(event.runId, event.reason, event.kind);
     if (event.type === "telegram.config-changed") void reloadBot();
@@ -179,7 +179,7 @@ async function applyRunConcurrency(worker: Worker) {
 
 /** Why runs still going at shutdown were stopped, in the language from Settings (English if that cannot be read). */
 async function shutdownReason(): Promise<string> {
-  const t = await botTranslator().catch(() => getTranslator(defaultLocale));
+  const t = await settingsTranslator().catch(() => getTranslator(defaultLocale));
   return t("errors.run.workerRestarting");
 }
 

@@ -2,7 +2,14 @@ import { ListTodoIcon, PlusIcon, UserIcon, UserRoundXIcon } from "lucide-react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { AgentAvatar } from "@/components/app/agent-avatar";
-import { SectionCard, SectionEmpty, SectionEmptyLink, SectionList, SectionRow } from "@/components/app/section-card";
+import {
+  SectionCard,
+  SectionEmpty,
+  SectionEmptyLink,
+  SectionIcon,
+  SectionList,
+  SectionRow,
+} from "@/components/app/section-card";
 import { PriorityBadge, TASK_STATUSES, TaskStatusBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -58,13 +65,7 @@ export async function ProjectTasks({ projectId, tasks }: { projectId: string; ta
                       task.assigneeAvatar && !task.assignedToUser ? (
                         <AgentAvatar avatar={task.assigneeAvatar} size="lg" />
                       ) : (
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                          {task.assignedToUser ? (
-                            <UserIcon className="size-4" aria-hidden />
-                          ) : (
-                            <UserRoundXIcon className="size-4" aria-hidden />
-                          )}
-                        </span>
+                        <SectionIcon icon={task.assignedToUser ? UserIcon : UserRoundXIcon} variant="muted" />
                       )
                     }
                     title={

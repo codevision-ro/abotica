@@ -1,8 +1,13 @@
-import { type Conversation, createConversation, getOrchestrator, telegramConversationKey } from "@abotica/core";
+import {
+  type Conversation,
+  createConversation,
+  getOrchestrator,
+  settingsTranslator,
+  telegramConversationKey,
+} from "@abotica/core";
 import { conversations, db } from "@abotica/db";
 import { and, desc, eq, isNull } from "@abotica/db/orm";
 import type { Context } from "grammy";
-import { botTranslator } from "./bot";
 
 /**
  * The chat's conversation with the super agent, who answers in every chat and topic (a new one when
@@ -33,6 +38,6 @@ export async function currentConversation(ctx: Context, fresh = false): Promise<
     channel: "telegram",
     externalId,
     projectId: null,
-    title: (await botTranslator())("telegram.conversationTitle"),
+    title: (await settingsTranslator())("telegram.conversationTitle"),
   });
 }

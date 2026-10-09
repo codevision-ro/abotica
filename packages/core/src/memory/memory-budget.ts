@@ -62,7 +62,7 @@ const LAYER_LABEL: Record<MemoryLayer, string> = {
 type Origin = (typeof memories.$inferSelect)["origin"];
 
 /** What marks an entry distilled from untrusted content where a prompt lists it. */
-export const EXTERNAL_MARK = "(from external content) ";
+const EXTERNAL_MARK = "(from external content) ";
 
 /** The line that explains the mark, in a prompt that lists marked entries. */
 export const EXTERNAL_NOTE =

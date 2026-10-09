@@ -29,11 +29,11 @@ function Stat({ icon: Icon, muted, children }: { icon: LucideIcon; muted: boolea
  * What an agent did in one project: memories it wrote there, journal days, open tasks and its latest run.
  * Zero counts are dimmed so the ones that matter stand out.
  */
-export function MemberActivityStats({ activity, className }: { activity: MemberActivity; className?: string }) {
+export function MemberActivityStats({ activity }: { activity: MemberActivity }) {
   const t = useTranslations("team.activity");
   const lastActiveAt = activity.lastActiveAt;
   return (
-    <div className={cn("tabular flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground", className)}>
+    <div className="tabular flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
       <Stat icon={BrainIcon} muted={!activity.memories}>
         {t("memories", { count: activity.memories })}
       </Stat>

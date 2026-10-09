@@ -43,6 +43,9 @@ function assigneeFields(assignee: z.infer<typeof ASSIGNEE>) {
   return { assigneeAgentId: assignee, assignedToUser: false };
 }
 
+/** The reason the task's agents read when the user stopped or paused it without giving one. */
+const byYou = async () => getTranslator(await getLocale())("tasks.control.byYou");
+
 function revalidateTask(id?: string) {
   revalidatePath("/tasks");
   if (id) revalidatePath(`/tasks/${id}`);
@@ -116,13 +119,12 @@ export const createTask = action(
  * the task controls. True when it did; the caller then sets nothing else.
  */
 async function controlByStatus(id: string, status: TaskStatus): Promise<boolean> {
-  const t = getTranslator(await getLocale());
   if (status === "paused") {
-    await pauseTaskRun(id, { by: "user", reason: t("tasks.control.byYou") });
+    await pauseTaskRun(id, { by: "user", reason: await byYou() });
     return true;
   }
   if (status === "cancelled") {
-    await cancelTaskTree(id, { by: "user", reason: t("tasks.control.byYou"), cascade: true });
+    await cancelTaskTree(id, { by: "user", reason: await byYou(), cascade: true });
     return true;
   }
   if (status !== "in_progress") return false;
@@ -166,8 +168,7 @@ export const moveTask = action(
 
 /** Puts the task aside: its running run stops at its next step, and it waits until resumed. */
 export const pauseTask = action(z.object({ id: z.uuid(), reason: REASON }), async ({ id, reason }) => {
-  const t = getTranslator(await getLocale());
-  await pauseTaskRun(id, { by: "user", reason: reason || t("tasks.control.byYou") });
+  await pauseTaskRun(id, { by: "user", reason: reason || (await byYou()) });
   revalidateTask(id);
 });
 
@@ -182,8 +183,7 @@ export const resumeTask = action(z.object({ id: z.uuid(), note: REASON }), async
 export const cancelTask = action(
   z.object({ id: z.uuid(), reason: REASON, cascade: z.boolean() }),
   async ({ id, reason, cascade }) => {
-    const t = getTranslator(await getLocale());
-    const { cancelled } = await cancelTaskTree(id, { by: "user", reason: reason || t("tasks.control.byYou"), cascade });
+    const { cancelled } = await cancelTaskTree(id, { by: "user", reason: reason || (await byYou()), cascade });
     revalidateTask(id);
     return { count: cancelled.length };
   },

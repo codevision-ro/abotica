@@ -9,7 +9,7 @@ import type { RunTrigger } from "../runs/runs";
 type TaskPriority = (typeof tasks.$inferSelect)["priority"];
 
 /** 1 (served first) to 6. */
-export type QueuePriority = 1 | 2 | 3 | 4 | 5 | 6;
+type QueuePriority = 1 | 2 | 3 | 4 | 5 | 6;
 
 const TASK_RANK: Record<TaskPriority, QueuePriority> = { urgent: 2, high: 3, medium: 4, low: 5 };
 

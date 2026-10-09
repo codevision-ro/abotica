@@ -1,16 +1,14 @@
 import "server-only";
-import { agents, approvals, conversations, db, projects, runEvents, runs, tasks } from "@abotica/db";
+import { agents, approvals, conversations, db, projects, runEvents, runs, runStatus, runTrigger, tasks } from "@abotica/db";
 import { and, asc, count, desc, eq, ne, sql, type SQL } from "@abotica/db/orm";
 import { isUuid } from "@/lib/uuid";
+import { listProjectOptions } from "./projects";
 import { query } from "@/server/query";
 
 export const RUNS_PAGE_SIZE = 50;
 
-const RUN_STATUSES = ["queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"] as const;
-const RUN_TRIGGERS = ["chat", "telegram", "task", "schedule", "webhook", "event", "delegation", "system"] as const;
-
-type RunStatus = (typeof RUN_STATUSES)[number];
-export type RunTrigger = (typeof RUN_TRIGGERS)[number];
+type RunStatus = (typeof runStatus.enumValues)[number];
+type RunTrigger = (typeof runTrigger.enumValues)[number];
 
 type RunFilters = {
   status?: string;
@@ -41,12 +39,20 @@ export const runRowColumns = {
   projectName: projects.name,
 };
 
+/** Run rows with their agent and project, as the lists show them. */
+const selectRunRows = () =>
+  db
+    .select(runRowColumns)
+    .from(runs)
+    .leftJoin(agents, eq(agents.id, runs.agentId))
+    .leftJoin(projects, eq(projects.id, runs.projectId));
+
 export const getRunPage = query(async (filters: RunFilters) => {
   const where: SQL[] = [];
-  if (filters.status && (RUN_STATUSES as readonly string[]).includes(filters.status)) {
+  if (filters.status && (runStatus.enumValues as readonly string[]).includes(filters.status)) {
     where.push(eq(runs.status, filters.status as RunStatus));
   }
-  if (filters.trigger && (RUN_TRIGGERS as readonly string[]).includes(filters.trigger)) {
+  if (filters.trigger && (runTrigger.enumValues as readonly string[]).includes(filters.trigger)) {
     where.push(eq(runs.trigger, filters.trigger as RunTrigger));
   }
   if (isUuid(filters.agent)) where.push(eq(runs.agentId, filters.agent));
@@ -55,11 +61,7 @@ export const getRunPage = query(async (filters: RunFilters) => {
   const page = Math.max(1, filters.page ?? 1);
 
   const [rows, [total]] = await Promise.all([
-    db
-      .select(runRowColumns)
-      .from(runs)
-      .leftJoin(agents, eq(agents.id, runs.agentId))
-      .leftJoin(projects, eq(projects.id, runs.projectId))
+    selectRunRows()
       .where(condition)
       .orderBy(desc(runs.createdAt))
       .limit(RUNS_PAGE_SIZE)
@@ -78,7 +80,7 @@ export const getRunFilterOptions = query(async () => {
       .from(agents)
       .where(eq(agents.isTemplate, false))
       .orderBy(asc(agents.name)),
-    db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
+    listProjectOptions(),
   ]);
   return { agents: agentRows, projects: projectRows };
 });
@@ -104,13 +106,7 @@ export const getRunDetail = query(async (id: string) => {
   const [events, runApprovals, children, parent] = await Promise.all([
     db.select().from(runEvents).where(eq(runEvents.runId, id)).orderBy(asc(runEvents.id)),
     db.select().from(approvals).where(eq(approvals.runId, id)).orderBy(asc(approvals.createdAt)),
-    db
-      .select(runRowColumns)
-      .from(runs)
-      .leftJoin(agents, eq(agents.id, runs.agentId))
-      .leftJoin(projects, eq(projects.id, runs.projectId))
-      .where(eq(runs.parentRunId, id))
-      .orderBy(asc(runs.createdAt)),
+    selectRunRows().where(eq(runs.parentRunId, id)).orderBy(asc(runs.createdAt)),
     row.run.parentRunId
       ? db
           .select({ id: runs.id, status: runs.status, agentName: agents.name, agentAvatar: agents.avatar })

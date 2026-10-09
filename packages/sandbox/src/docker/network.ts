@@ -5,7 +5,7 @@ import { addressKey, localAddresses } from "../egress/addresses";
 import { errorMessage, statusOf, withTimeout } from "./client";
 
 /** Driver options that keep the host off an internal bridge network (no gateway address on the bridge). */
-export const ISOLATED_BRIDGE_OPTIONS = {
+const ISOLATED_BRIDGE_OPTIONS = {
   "com.docker.network.bridge.inhibit_ipv4": "true",
   "com.docker.network.bridge.gateway_mode_ipv4": "isolated",
 } as const;

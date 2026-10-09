@@ -3,8 +3,6 @@ import { ENGINEERING_TEMPLATES } from "./engineering";
 import { MANAGEMENT_TEMPLATES } from "./management";
 import { MARKETING_TEMPLATES } from "./marketing";
 
-export type { AgentTemplate } from "./_shared";
-
 /** The agent templates the seed installs, one file per domain. */
 export const AGENT_TEMPLATES = [
   ...MANAGEMENT_TEMPLATES,

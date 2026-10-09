@@ -1,14 +1,14 @@
 "use client";
 
 import { TOOL_CATALOG } from "@abotica/core/agents/tools/tool-catalog";
-import type { DynamicToolUIPart, ToolUIPart } from "ai";
+import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import { isToday } from "date-fns";
 import { Ban, Check, ChevronRight, CircleX, Clock3, type LucideIcon, Plug, ShieldAlert, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { TOOL_GROUP_ICONS } from "@/components/app/tool-group-icons";
-import { JsonBlock } from "@/components/runs/json-block";
+import { ErrorBlock, JsonBlock } from "@/components/runs/json-block";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,6 +19,10 @@ type ToolPart = ToolUIPart | DynamicToolUIPart;
 
 /** Shared width for the message column and the composer, so their edges line up. */
 export const CHAT_COLUMN = "mx-auto w-full max-w-4xl px-4 md:px-8 min-[1600px]:max-w-5xl";
+
+/** A message's text parts, one paragraph each. */
+export const messageText = (message: UIMessage) =>
+  message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
 
 /**
  * Tool label in the current language (`tools.<name>.label`) with its group's icon, or the MCP tool
@@ -117,9 +121,7 @@ export function ChatToolCall({ part, name, children }: { part: ToolPart; name: s
                 {part.errorText ? t("error") : t("result")}
               </div>
               {part.errorText ? (
-                <pre className="max-h-64 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap text-destructive">
-                  {part.errorText}
-                </pre>
+                <ErrorBlock>{part.errorText}</ErrorBlock>
               ) : (
                 <JsonBlock value={part.output} className="max-h-64 bg-muted/50" />
               )}

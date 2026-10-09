@@ -6,7 +6,7 @@ import { FormSubsection } from "@/components/app/form-section";
 import { OptionCards } from "@/components/app/option-cards";
 import { Button } from "@/components/ui/button";
 import type { McpOAuthStatus } from "@/server/queries/mcp";
-import { KeyValueEditor, type KeyValueRow } from "./key-value-editor";
+import { KeyValueEditor, type KeyValueRow, keyCount } from "./key-value-editor";
 import { McpOAuthAdvanced, McpOAuthPanel, type OAuthClientValue } from "./mcp-oauth-panel";
 import type { McpAuthDetection } from "./use-mcp-auth-detection";
 
@@ -101,7 +101,7 @@ export function McpFormAuth({
       )}
       <FormSubsection
         title={oauthMode ? t("extraHeaders") : t("headers")}
-        count={headerRows.filter((r) => r.key.trim()).length}
+        count={keyCount(headerRows)}
         description={secretsHint}
       >
         <KeyValueEditor

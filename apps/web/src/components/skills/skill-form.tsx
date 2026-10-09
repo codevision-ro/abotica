@@ -24,7 +24,6 @@ import { FormSection, FormSectionCollapsible } from "@/components/app/form-secti
 import { heroFieldVariants } from "@/components/app/hero-fields";
 import { SummaryItem, SummaryList, type SummaryStatus } from "@/components/app/summary-rail";
 import { AssignmentChips } from "@/components/mcp/assignment-chips";
-import { SkillTestPanel } from "@/components/skills/skill-test-panel";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
@@ -33,11 +32,13 @@ import { cn } from "@/lib/utils";
 import { createSkill, deleteSkill, updateSkill } from "@/server/actions/skills";
 import type { PickerOption } from "./assignment-picker";
 import { downloadSkillZip } from "./skill-export";
+import { byteLength } from "./skill-file-tree";
 import { SkillFilesEditor } from "./skill-files-editor";
 import { SkillIcon } from "./skill-icon";
 import { SkillSourceBanner } from "./skill-source-banner";
+import { SkillTestPanel } from "./skill-test-panel";
 
-export type SkillFormInitial = {
+type SkillFormInitial = {
   name: string;
   slug: string;
   description: string;
@@ -68,8 +69,6 @@ const fieldsJson = (value: SkillFormInitial) => JSON.stringify({ ...value, files
 function savedState(value: SkillFormInitial) {
   return { fields: fieldsJson(value), files: new Map(value.files.map((f) => [f.path, f.content])) };
 }
-
-const byteLength = (s: string) => new TextEncoder().encode(s).length;
 
 export function SkillForm({
   mode,
@@ -183,7 +182,8 @@ export function SkillForm({
   const statusLabel = (done: boolean) => (done ? t("complete") : t("incomplete"));
   const name = v.name.trim();
   const identityDone = Boolean(name && v.slug && !slugError);
-  const skillMdEmpty = !v.files.find((f) => f.path === SKILL_MD)?.content.trim();
+  const skillMd = v.files.find((f) => f.path === SKILL_MD)?.content ?? "";
+  const skillMdEmpty = !skillMd.trim();
   const filesDone = !problem && !skillMdEmpty;
   const filesSummary = problem
     ? problemMessage(problem)
@@ -400,7 +400,7 @@ export function SkillForm({
           slug={v.slug}
           name={v.name}
           description={v.description}
-          skillMd={v.files.find((f) => f.path === SKILL_MD)?.content ?? ""}
+          skillMd={skillMd}
           filePaths={v.files.map((f) => f.path)}
           agents={agents}
           dirty={dirty}

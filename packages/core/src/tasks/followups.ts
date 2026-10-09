@@ -23,16 +23,16 @@ import {
   or,
   sql,
 } from "@abotica/db/orm";
-import { getTranslator, isUserError, translateKey } from "@abotica/i18n";
+import { errorMessage } from "@abotica/i18n";
 import { neutralizeMarkers } from "../agents/untrusted";
 import { notify } from "../infra/queues";
 import { deliverToConversation, deliverToSuperior, deliverToTask } from "../runs/deliver";
 import { isLimitStop } from "../runs/run-lifecycle";
 import { ConversationBusyError, noticeMessage, type Run, startContinuation } from "../runs/runs";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsTranslator } from "../settings/settings";
 import type { AppSettings } from "../settings/settings-schema";
 import { chainOfCommand } from "./chain";
-import { resumePausedFor } from "./control";
+import { resumeHeldWork, resumePausedFor } from "./control";
 import { reportTask } from "./delegation";
 import { SETTLED_TASK_STATUSES } from "./delegation-report";
 import { startDelegatedTask } from "./delegation-slots";
@@ -110,15 +110,14 @@ export async function sweepFollowUps(now: Date = new Date()): Promise<void> {
     ["due retries", () => startDueRetries(now)],
     ["user reminders", () => sendWaitingReminders(now)],
     ["work put aside", () => resumeSettledPauses()],
+    ["work put aside with the work above it", () => resumeHeldWork(null)],
   ];
   // A step that fails (its query, or a module not ready) leaves the others their turn; it runs again next minute.
-  for (const [what, step] of steps) {
-    try {
-      await step();
-    } catch (error) {
-      console.error(`[followups] ${what} failed:`, error);
-    }
-  }
+  await each(
+    steps,
+    ([what]) => what,
+    ([, step]) => step(),
+  );
 }
 
 /** 1. Open questions whose time is up go one level up (task-messages.ts escalateQuestion claims each). */
@@ -214,8 +213,6 @@ async function alertAbove(task: Task, text: string, userText: string): Promise<"
   return "agent";
 }
 
-const translator = async () => getTranslator(settingsLocale(await getSettings()));
-
 /** 4. Still late deadlineEscalationMinutes after the miss: the level above the superior hears. */
 async function escalateMissedDeadlines(now: Date, settings: AppSettings) {
   const since = new Date(now.getTime() - settings.agents.deadlineEscalationMinutes * MINUTE_MS);
@@ -224,7 +221,7 @@ async function escalateMissedDeadlines(now: Date, settings: AppSettings) {
     .set({ deadlineEscalatedAt: now })
     .where(and(isNull(tasks.deadlineEscalatedAt), lte(tasks.deadlineMissedAt, since), notInArray(tasks.status, CLOSED)))
     .returning();
-  const t = await translator();
+  const t = await settingsTranslator();
   await each(
     late,
     (task) => `escalating task ${task.id}'s missed deadline`,
@@ -318,7 +315,7 @@ async function followUpQuietTasks(now: Date, settings: AppSettings) {
       ),
     )
     .returning();
-  const t = await translator();
+  const t = await settingsTranslator();
   await each(
     claimed,
     (task) => `following up quiet task ${task.id}`,
@@ -375,7 +372,7 @@ async function remindReviews(now: Date, settings: AppSettings) {
 /** 5c. A delegated task left blocked goes one level above its delegator, once. */
 async function escalateBlocked(now: Date, settings: AppSettings) {
   const blocked = await claimStaleSettled(now, settings, "blocked");
-  const t = await translator();
+  const t = await settingsTranslator();
   await each(
     blocked,
     (task) => `escalating blocked task ${task.id}`,
@@ -452,12 +449,8 @@ async function retryTask(run: Run, taskId: string): Promise<Run | null> {
     });
   } catch (error) {
     if (isActiveTaskRunConflict(error)) return null; // it was started meanwhile
-    const t = await translator();
-    const reason = isUserError(error)
-      ? translateKey(t, error.key, error.values)
-      : error instanceof Error
-        ? error.message
-        : String(error);
+    const t = await settingsTranslator();
+    const reason = errorMessage(t, error);
     await updateTask(taskId, { status: "blocked" }, "system");
     await addTaskComment(taskId, t("notifications.followups.retryNotStarted", { reason }), "system");
     await reportTask(taskId);

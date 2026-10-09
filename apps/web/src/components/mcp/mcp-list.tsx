@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { SectionEmptyLink, SectionIcon } from "@/components/app/section-card";
+import { listCardClass, SectionEmptyLink, SectionIcon } from "@/components/app/section-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -39,8 +39,6 @@ import { McpTestResultView } from "./mcp-test-result";
 import { useMcpOAuthReturn } from "./use-mcp-oauth-return";
 
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3";
-const CARD =
-  "group relative flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40";
 
 type Patch = { id: string; enabled?: boolean; global?: boolean };
 
@@ -147,87 +145,113 @@ function SectionHeading({
   );
 }
 
-/** Name link covering the card, the enabled switch on the right. */
-function CardHeader({
+/**
+ * What both cards share: the name link covering the card with the enabled switch, the badges (transport,
+ * `badge`, tool count, `link`), the last test result, and a footer ending in `actions` and Test.
+ */
+function ServerCard({
   server: s,
-  subtitle,
   toggle,
-}: {
-  server: McpListItem;
+  test,
+  results,
+  testing,
+  subtitle,
+  badge,
+  link,
+  footer,
+  actions,
+}: CardProps & {
   subtitle: React.ReactNode;
-  toggle: CardProps["toggle"];
+  badge: React.ReactNode;
+  link?: React.ReactNode;
+  footer: React.ReactNode;
+  actions: React.ReactNode;
 }) {
   const t = useTranslations("mcp.list");
-  return (
-    <div className="flex items-center gap-3">
-      <McpServerIcon transport={s.transport} builtin={s.builtin} size="xl" />
-      <div className="min-w-0 flex-1">
-        <Link
-          href={`/mcp/${s.id}`}
-          title={s.name}
-          className="line-clamp-2 font-medium wrap-anywhere outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-        >
-          {s.name}
-        </Link>
-        {subtitle}
-      </div>
-      <div className="relative z-10">
-        <Switch
-          checked={s.enabled}
-          onCheckedChange={(enabled) => toggle({ id: s.id, enabled })}
-          aria-label={s.enabled ? t("disable", { name: s.name }) : t("enable", { name: s.name })}
-        />
-      </div>
-    </div>
-  );
-}
-
-function TestButton({ id, test, testing }: Pick<CardProps, "test" | "testing"> & { id: string }) {
   const tc = useTranslations("common.actions");
-  return (
-    <Button variant="ghost" size="sm" onClick={() => void test(id)} disabled={testing[id]}>
-      {testing[id] ? <Spinner /> : <ZapIcon />} {tc("test")}
-    </Button>
-  );
-}
-
-function BuiltinCard({ server: s, toggle, test, results, testing }: CardProps) {
-  const t = useTranslations("mcp.list");
-  const tb = useTranslations("mcp.builtin");
-  const tk = useTranslations("mcp.apiKey");
-  const bundled = builtinMcp(s.builtin);
   const result = results[s.id];
-  const description = bundled ? tb(bundled.key as BuiltinMcpKey) : null;
   return (
-    <div className={cn(CARD, !s.enabled && "opacity-70")}>
-      <CardHeader
-        server={s}
-        toggle={toggle}
-        subtitle={
-          description && (
-            <p className="line-clamp-2 text-sm text-muted-foreground" title={description}>
-              {description}
-            </p>
-          )
-        }
-      />
+    <div className={cn(listCardClass, !s.enabled && "opacity-70")}>
+      <div className="flex items-center gap-3">
+        <McpServerIcon transport={s.transport} builtin={s.builtin} size="xl" />
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/mcp/${s.id}`}
+            title={s.name}
+            className="line-clamp-2 font-medium wrap-anywhere outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+          >
+            {s.name}
+          </Link>
+          {subtitle}
+        </div>
+        <div className="relative z-10">
+          <Switch
+            checked={s.enabled}
+            onCheckedChange={(enabled) => toggle({ id: s.id, enabled })}
+            aria-label={s.enabled ? t("disable", { name: s.name }) : t("enable", { name: s.name })}
+          />
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge variant="outline" className="font-normal">
           {s.transport === "http" ? "HTTP" : "stdio"}
         </Badge>
-        {s.apiKey !== null && (
-          <Badge variant={s.apiKey ? "secondary" : "outline"} className="font-normal">
-            {s.apiKey && <KeyRoundIcon aria-hidden />}
-            {s.apiKey ? tk("set") : tk("anonymous")}
-          </Badge>
-        )}
+        {badge}
         {s.toolCount !== null && (
           <Badge variant="secondary" className="tabular font-normal">
             {t("tools", { count: s.toolCount })}
           </Badge>
         )}
-        {bundled && (
+        {link}
+      </div>
+
+      {result && (
+        <div className="relative z-10">
+          <McpTestResultView result={result} slug={s.slug} compact />
+        </div>
+      )}
+
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+        {footer}
+        <div className="relative z-10 ml-auto flex gap-1">
+          {actions}
+          <Button variant="ghost" size="sm" onClick={() => void test(s.id)} disabled={testing[s.id]}>
+            {testing[s.id] ? <Spinner /> : <ZapIcon />} {tc("test")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BuiltinCard(props: CardProps) {
+  const { server: s, toggle } = props;
+  const t = useTranslations("mcp.list");
+  const tb = useTranslations("mcp.builtin");
+  const tk = useTranslations("mcp.apiKey");
+  const bundled = builtinMcp(s.builtin);
+  const description = bundled ? tb(bundled.key as BuiltinMcpKey) : null;
+  return (
+    <ServerCard
+      {...props}
+      subtitle={
+        description && (
+          <p className="line-clamp-2 text-sm text-muted-foreground" title={description}>
+            {description}
+          </p>
+        )
+      }
+      badge={
+        s.apiKey !== null && (
+          <Badge variant={s.apiKey ? "secondary" : "outline"} className="font-normal">
+            {s.apiKey && <KeyRoundIcon aria-hidden />}
+            {s.apiKey ? tk("set") : tk("anonymous")}
+          </Badge>
+        )
+      }
+      link={
+        bundled && (
           <a
             href={bundled.docsUrl}
             target="_blank"
@@ -238,16 +262,9 @@ function BuiltinCard({ server: s, toggle, test, results, testing }: CardProps) {
             {t("docs")}
             <ExternalLinkIcon className="size-3" aria-hidden />
           </a>
-        )}
-      </div>
-
-      {result && (
-        <div className="relative z-10">
-          <McpTestResultView result={result} slug={s.slug} compact />
-        </div>
-      )}
-
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+        )
+      }
+      footer={
         <label className="relative z-10 inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <Switch
             size="sm"
@@ -257,28 +274,27 @@ function BuiltinCard({ server: s, toggle, test, results, testing }: CardProps) {
           />
           <span aria-hidden>{t("allAgents")}</span>
         </label>
-        <div className="relative z-10 ml-auto flex gap-1">
-          {bundled?.transport === "http" && (
-            <McpApiKeyDialog serverId={s.id} name={s.name} secret={bundled.apiKeySecret} keySet={Boolean(s.apiKey)}>
-              <Button variant="ghost" size="sm" aria-label={tk("manageAria", { name: s.name })}>
-                <KeyRoundIcon /> {tk("title")}
-              </Button>
-            </McpApiKeyDialog>
-          )}
-          <TestButton id={s.id} test={test} testing={testing} />
-        </div>
-      </div>
-    </div>
+      }
+      actions={
+        bundled?.transport === "http" && (
+          <McpApiKeyDialog serverId={s.id} name={s.name} secret={bundled.apiKeySecret} keySet={Boolean(s.apiKey)}>
+            <Button variant="ghost" size="sm" aria-label={tk("manageAria", { name: s.name })}>
+              <KeyRoundIcon /> {tk("title")}
+            </Button>
+          </McpApiKeyDialog>
+        )
+      }
+    />
   );
 }
 
-function UserCard({ server: s, toggle, test, results, testing }: CardProps) {
+function UserCard(props: CardProps) {
+  const { server: s } = props;
   const t = useTranslations("mcp.list");
   const to = useTranslations("mcp.oauth");
   const [connecting, setConnecting] = useState(false);
   const needsConnect = s.transport === "http" && (s.oauth === "disconnected" || s.oauth === "error");
-  const result = results[s.id];
-  const target = endpoint(s);
+  const target = s.transport === "http" ? (s.url ?? "") : [s.command, ...s.args].filter(Boolean).join(" ");
 
   /** The authorization page returns to the server page, which then loads the tools. */
   async function connect() {
@@ -290,22 +306,16 @@ function UserCard({ server: s, toggle, test, results, testing }: CardProps) {
   }
 
   return (
-    <div className={cn(CARD, !s.enabled && "opacity-70")}>
-      <CardHeader
-        server={s}
-        toggle={toggle}
-        subtitle={
-          <p className="truncate font-mono text-xs text-muted-foreground" title={target || undefined}>
-            {target || t("notConfigured")}
-          </p>
-        }
-      />
-
-      <div className="flex flex-wrap gap-1.5">
-        <Badge variant="outline" className="font-normal">
-          {s.transport === "http" ? "HTTP" : "stdio"}
-        </Badge>
-        {s.transport === "http" && s.oauth && (
+    <ServerCard
+      {...props}
+      subtitle={
+        <p className="truncate font-mono text-xs text-muted-foreground" title={target || undefined}>
+          {target || t("notConfigured")}
+        </p>
+      }
+      badge={
+        s.transport === "http" &&
+        s.oauth && (
           <OAuthStatusBadge
             state={s.oauth}
             subtle
@@ -314,21 +324,9 @@ function UserCard({ server: s, toggle, test, results, testing }: CardProps) {
             }
             title={s.oauth === "connected" ? t("oauthConnectedTitle") : undefined}
           />
-        )}
-        {s.toolCount !== null && (
-          <Badge variant="secondary" className="tabular font-normal">
-            {t("tools", { count: s.toolCount })}
-          </Badge>
-        )}
-      </div>
-
-      {result && (
-        <div className="relative z-10">
-          <McpTestResultView result={result} slug={s.slug} compact />
-        </div>
-      )}
-
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+        )
+      }
+      footer={
         <div className="flex gap-3 text-xs text-muted-foreground">
           {s.global ? (
             <span className="inline-flex items-center gap-1">
@@ -345,20 +343,15 @@ function UserCard({ server: s, toggle, test, results, testing }: CardProps) {
             </>
           )}
         </div>
-        <div className="relative z-10 ml-auto flex gap-1">
-          {needsConnect && (
-            <Button variant="outline" size="sm" onClick={() => void connect()} disabled={connecting}>
-              {connecting ? <Spinner /> : s.oauth === "error" ? <RefreshCwIcon /> : <LogInIcon />}
-              {s.oauth === "error" ? to("reconnect") : to("connect")}
-            </Button>
-          )}
-          <TestButton id={s.id} test={test} testing={testing} />
-        </div>
-      </div>
-    </div>
+      }
+      actions={
+        needsConnect && (
+          <Button variant="outline" size="sm" onClick={() => void connect()} disabled={connecting}>
+            {connecting ? <Spinner /> : s.oauth === "error" ? <RefreshCwIcon /> : <LogInIcon />}
+            {s.oauth === "error" ? to("reconnect") : to("connect")}
+          </Button>
+        )
+      }
+    />
   );
-}
-
-function endpoint(s: McpListItem): string {
-  return s.transport === "http" ? (s.url ?? "") : [s.command, ...s.args].filter(Boolean).join(" ");
 }

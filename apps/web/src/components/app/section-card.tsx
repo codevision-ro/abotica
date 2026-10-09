@@ -10,17 +10,79 @@ import { cn } from "@/lib/utils";
 export const sectionCardClass =
   "rounded-2xl border border-border/70 bg-card/70 shadow-[0_1px_2px_rgb(0_0_0/0.03)] dark:bg-card/40";
 
-/** Tinted square behind a section or row icon. */
-export function SectionIcon({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
+/** The card of the agent, automation, skill, project and MCP lists: quiet border, primary tint on hover. */
+export const listCardClass =
+  "group relative flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40";
+
+/** Hairline between a card's header and its content, fading out to the right. */
+export function SectionDivider({ className }: { className?: string }) {
+  return <div aria-hidden className={cn("h-px bg-linear-to-r from-border via-border/50 to-transparent", className)} />;
+}
+
+/** Tinted square behind a section or row icon; `muted` for secondary rows. */
+export function SectionIcon({
+  icon: Icon,
+  variant = "primary",
+  className,
+}: {
+  icon: LucideIcon;
+  variant?: "primary" | "muted";
+  className?: string;
+}) {
   return (
     <span
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary dark:bg-primary/15",
+        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+        variant === "muted" ? "bg-muted text-muted-foreground" : "bg-primary/8 text-primary dark:bg-primary/15",
         className,
       )}
     >
       <Icon className="size-4" aria-hidden />
     </span>
+  );
+}
+
+/**
+ * The header of `SectionCard` and `FormSection`: icon, title and description, controls on the right. On
+ * phones the description runs under the action too, so a long one is not squeezed into a sliver.
+ */
+export function SectionHeader({
+  icon,
+  titleId,
+  title,
+  description,
+  descriptionAs: Description = "div",
+  action,
+}: {
+  icon: LucideIcon;
+  titleId: string;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  descriptionAs?: "div" | "p";
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-4 py-3.5 sm:px-5">
+      <SectionIcon icon={icon} className={cn(description && "row-[1/3]")} />
+      <h2 id={titleId} className="col-start-2 row-start-1 text-base leading-snug font-semibold tracking-tight">
+        {title}
+      </h2>
+      {action && (
+        <div
+          className={cn(
+            "col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2",
+            description && "sm:row-[1/3]",
+          )}
+        >
+          {action}
+        </div>
+      )}
+      {description && (
+        <Description className="col-[2/-1] row-start-2 text-sm text-pretty text-muted-foreground sm:col-[2/3]">
+          {description}
+        </Description>
+      )}
+    </div>
   );
 }
 
@@ -51,30 +113,21 @@ export function SectionCard({
   const id = useId();
   return (
     <section aria-labelledby={id} className={cn(sectionCardClass, "min-w-0", className)}>
-      {/* On phones the description runs under the action too, so a long one is not squeezed into a sliver. */}
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-4 py-3.5 sm:px-5">
-        <SectionIcon icon={icon} className={cn(description && "row-[1/3]")} />
-        <h2 id={id} className="col-start-2 row-start-1 text-base leading-snug font-semibold tracking-tight">
-          {title}
-          {count !== undefined && count > 0 && (
-            <span className="tabular ml-1.5 text-sm font-normal text-muted-foreground">{count}</span>
-          )}
-        </h2>
-        {action && (
-          <div
-            className={cn(
-              "col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2",
-              description && "sm:row-[1/3]",
+      <SectionHeader
+        icon={icon}
+        titleId={id}
+        title={
+          <>
+            {title}
+            {count !== undefined && count > 0 && (
+              <span className="tabular ml-1.5 text-sm font-normal text-muted-foreground">{count}</span>
             )}
-          >
-            {action}
-          </div>
-        )}
-        {description && (
-          <div className="col-[2/-1] row-start-2 text-sm text-pretty text-muted-foreground sm:col-[2/3]">{description}</div>
-        )}
-      </div>
-      <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+          </>
+        }
+        description={description}
+        action={action}
+      />
+      <SectionDivider />
       <div className={cn(flush ? "overflow-hidden rounded-b-2xl" : "p-4 sm:p-5")}>{children}</div>
     </section>
   );

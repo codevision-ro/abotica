@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { SectionIcon } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
@@ -86,9 +87,7 @@ export function ChatFileCard({ file, className }: { file: CardFile; className?: 
         </a>
       )}
       <div className="flex min-w-0 items-center gap-3 p-2.5">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary dark:bg-primary/15">
-          <Icon className="size-4" aria-hidden />
-        </span>
+        <SectionIcon icon={Icon} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium" title={file.name}>
             {file.name}

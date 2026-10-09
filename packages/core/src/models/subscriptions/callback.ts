@@ -11,12 +11,7 @@ export function loopbackCallback(
   provider: Pick<SubscriptionProvider, "callbackPath" | "fallbackPort">,
   origin: string | null,
 ): { redirectUri: string; direct: boolean } {
-  let url: URL | null = null;
-  try {
-    url = origin ? new URL(origin) : null;
-  } catch {
-    url = null;
-  }
+  const url = origin && URL.canParse(origin) ? new URL(origin) : null;
   const direct = url?.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
   const port = direct ? url!.port || "80" : String(provider.fallbackPort);
   return { redirectUri: `http://127.0.0.1:${port}${provider.callbackPath}`, direct };

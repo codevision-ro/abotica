@@ -1,6 +1,5 @@
 "use client";
 
-import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
 
 /** A bordered row with a title, a hint and a switch; the whole row toggles it. */
@@ -28,45 +27,5 @@ export function McpSwitchRow({
       </span>
       <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
     </label>
-  );
-}
-
-/** "Available to all agents": a global server reaches every agent without an assignment. */
-export function McpGlobalSwitch({
-  checked,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  const t = useTranslations("mcp.form");
-  return (
-    <McpSwitchRow
-      id="mcp-global"
-      title={t("globalTitle")}
-      hint={t("globalHint")}
-      checked={checked}
-      onCheckedChange={onCheckedChange}
-    />
-  );
-}
-
-/** "Active": a disabled server is not offered to any agent. */
-export function McpActiveSwitch({
-  checked,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  const t = useTranslations("mcp.form");
-  return (
-    <McpSwitchRow
-      id="mcp-enabled"
-      title={t("active")}
-      hint={t("activeHint")}
-      checked={checked}
-      onCheckedChange={onCheckedChange}
-    />
   );
 }

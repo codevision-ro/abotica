@@ -2,7 +2,8 @@
  * Creates the Docker backend when the sandbox is on and Docker can run it, and describes the result
  * for the status page. Never throws: an unavailable backend is a status, not an error.
  */
-import { createDockerBackend, detectDocker } from "./docker/index";
+import { createDockerBackend } from "./docker/backend";
+import { detectDocker } from "./docker/detect";
 import { runCommand } from "./process";
 import type { BackendOptions, SandboxBackend, SandboxStatus } from "./types";
 
@@ -78,7 +79,7 @@ async function dockerStatus(options: BackendOptions): Promise<SandboxStatus["doc
 }
 
 /** Version line of each tool inside the sandbox, run in parallel in a throwaway workspace. */
-export async function probeTools(backend: SandboxBackend): Promise<SandboxStatus["tools"]> {
+async function probeTools(backend: SandboxBackend): Promise<SandboxStatus["tools"]> {
   const signal = AbortSignal.timeout(PROBE_TOTAL_TIMEOUT_MS);
   try {
     const workspace = await backend.open({ key: PROBE_KEY });
@@ -110,12 +111,7 @@ export async function probeTools(backend: SandboxBackend): Promise<SandboxStatus
  * (`pdftotext -v` on older poppler), so a line with a version number counts unless the command
  * was missing (127), not executable (126) or timed out.
  */
-export function versionLine(result: {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  timedOut: boolean;
-}): string | null {
+function versionLine(result: { exitCode: number; stdout: string; stderr: string; timedOut: boolean }): string | null {
   const firstLine = (text: string) =>
     text
       .split("\n")

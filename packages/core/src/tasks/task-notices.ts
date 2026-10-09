@@ -6,18 +6,8 @@
  */
 import { isDelegationReport } from "./delegation-report";
 
-export const TASK_NOTICE_KINDS = [
-  "instruction",
-  "question",
-  "answer",
-  "progress",
-  "control",
-  "reminder",
-  "alert",
-  "help-answer",
-] as const;
-
-export type TaskNoticeKind = (typeof TASK_NOTICE_KINDS)[number];
+export type TaskNoticeKind =
+  "instruction" | "question" | "answer" | "progress" | "control" | "reminder" | "alert" | "help-answer";
 
 export type TaskNoticeMetadata = {
   kind: "task-notice";

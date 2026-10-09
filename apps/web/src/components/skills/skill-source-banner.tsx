@@ -17,7 +17,7 @@ import { checkSkillUpdate, syncSkill } from "@/server/actions/skills";
 type UpdateCheck = "checking" | "current" | "available" | "failed";
 
 /** "owner/repo/skill" on skills.sh, "owner/repo/path" on GitHub. */
-export function skillSourceLabel(source: SkillSource): string {
+function skillSourceLabel(source: SkillSource): string {
   return source.kind === "skills.sh" ? source.id : [source.repo, source.path].filter(Boolean).join("/");
 }
 

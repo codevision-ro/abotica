@@ -15,11 +15,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { setProjectStatus } from "@/server/actions/projects";
-import { PROJECT_STATUSES, useProjectStatusLabel } from "./project-badges";
+import { PROJECT_STATUSES, type ProjectStatus, useProjectStatusLabel } from "./project-badges";
 
-type Status = "active" | "paused" | "archived";
-
-export function ProjectStatusMenu({ projectId, status }: { projectId: string; status: Status }) {
+export function ProjectStatusMenu({ projectId, status }: { projectId: string; status: ProjectStatus }) {
   const [pending, startTransition] = useTransition();
   const t = useTranslations("projects.status");
   const label = useProjectStatusLabel();
@@ -27,7 +25,7 @@ export function ProjectStatusMenu({ projectId, status }: { projectId: string; st
   function change(next: string) {
     if (next === status) return;
     startTransition(async () => {
-      const res = await setProjectStatus({ id: projectId, status: next as Status });
+      const res = await setProjectStatus({ id: projectId, status: next as ProjectStatus });
       if (!res.ok) toast.error(res.error);
       else toast.success(t("changed", { status: label(next) }));
     });

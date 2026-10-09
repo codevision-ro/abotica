@@ -47,6 +47,9 @@ export function repoCheckoutOf(file: string, repoNames: string[]): string | null
 }
 
 /** The file with the full output of one tool call; a shell command has one per stream. */
+/** A folder named by a task or run id, as under WORK_DIR and TOOL_OUTPUT_DIR; any other folder there is not Abotica's. */
+export const isIdFolder = (name: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(name);
+
 export const toolOutputPath = (runId: string, toolCallId: string, stream?: "stdout" | "stderr") =>
   `${TOOL_OUTPUT_DIR}/${runId}/${safeFileName(toolCallId, "call")}${stream ? `.${stream}` : ""}.txt`;
 

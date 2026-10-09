@@ -16,7 +16,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { RelativeTime } from "@/components/app/relative-time";
-import { SectionCard, SectionEmpty, SectionList, SectionRow } from "@/components/app/section-card";
+import { SectionCard, SectionEmpty, SectionIcon, SectionList, SectionRow } from "@/components/app/section-card";
 import { ToneBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,11 +117,7 @@ function RepoRow({ repo }: { repo: ProjectRepo }) {
 
   return (
     <SectionRow
-      media={
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <FolderGitIcon className="size-4" aria-hidden />
-        </span>
-      }
+      media={<SectionIcon icon={FolderGitIcon} variant="muted" />}
       title={
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate font-mono" title={`repos/${repo.name}`}>

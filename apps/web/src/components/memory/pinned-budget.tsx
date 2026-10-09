@@ -9,20 +9,12 @@ export type PinnedUsage = { count: number; usedTokens: number; omitted: number; 
  * How much of the pinned budget (the memory part of Settings > Agents) pinned entries take in every run, and how many do
  * not fit. `withGlobal` on an agent's or a project's memory, whose runs also get the global ones.
  */
-export function PinnedBudget({
-  usage,
-  withGlobal = false,
-  className,
-}: {
-  usage: PinnedUsage;
-  withGlobal?: boolean;
-  className?: string;
-}) {
+export function PinnedBudget({ usage, withGlobal = false }: { usage: PinnedUsage; withGlobal?: boolean }) {
   const t = useTranslations("memory.budget");
   const full = usage.omitted > 0;
   const percent = usage.budgetTokens > 0 ? Math.min(100, (usage.usedTokens / usage.budgetTokens) * 100) : 100;
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className="flex flex-col gap-2">
       <p className="flex items-start gap-2 text-sm text-pretty text-muted-foreground">
         <Pin aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         <span>

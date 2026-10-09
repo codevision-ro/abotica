@@ -12,7 +12,11 @@ vi.mock("@abotica/db", async (importOriginal) => {
   interceptQueries(actual.db, actual.tasks, (q: SentQuery) => db.routes.find(([re]) => re.test(q.sql))?.[1] ?? []);
   return actual;
 });
-vi.mock("../settings/settings", () => ({ getSettings: async () => ({}), settingsLocale: () => "en" }));
+vi.mock("../settings/settings", () => ({
+  getSettings: async () => ({}),
+  settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
+}));
 vi.mock("../tasks/delegation-slots", () => ({ startDelegatedTask: vi.fn(async () => null) }));
 vi.mock("../tasks/handoffs", () => ({ handOffFiles: vi.fn(async () => 0) }));
 vi.mock("../tasks/delegation", async (importOriginal) => ({

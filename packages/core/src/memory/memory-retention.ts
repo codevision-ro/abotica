@@ -1,15 +1,10 @@
 import { db, memories, memoryRecalls } from "@abotica/db";
 import { and, count, countDistinct, eq, inArray, isNull, lte, ne, sql } from "@abotica/db/orm";
 import { audit } from "../platform/audit";
+import { memoryAuditData } from "./memory";
 import { promotable } from "./memory-consolidation";
 
 /** The weekly memory upkeep after consolidation: promotion of entries agents keep searching for, expiry. */
-
-const auditData = (row: { scope: string; agentId: string | null; projectId: string | null }) => ({
-  scope: row.scope,
-  ...(row.agentId && { agentId: row.agentId }),
-  ...(row.projectId && { projectId: row.projectId }),
-});
 
 /**
  * Makes permanent the durable entries memory_search keeps returning (see promotable): exempt from decay
@@ -54,7 +49,7 @@ export async function promoteRecalledMemories(): Promise<number> {
       action: "memory.promoted",
       entityType: "memory",
       entityId: row.id,
-      data: { ...auditData(row), searchRecalls, distinctQueries },
+      data: memoryAuditData(row, { searchRecalls, distinctQueries }),
     });
   }
   return rows.length;
@@ -82,7 +77,7 @@ export async function deleteExpiredMemories(): Promise<number> {
       action: "memory.expired",
       entityType: "memory",
       entityId: row.id,
-      data: { ...auditData(row), content: row.content, expiresAt: row.expiresAt },
+      data: memoryAuditData(row, { content: row.content, expiresAt: row.expiresAt }),
     });
   }
   return rows.length;

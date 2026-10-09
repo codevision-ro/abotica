@@ -5,10 +5,10 @@
  */
 import { agents, approvals, db, projects, runs, taskComments, taskEvents, tasks, type Tx } from "@abotica/db";
 import { and, eq, inArray, isNull, notInArray, sql } from "@abotica/db/orm";
-import { getTranslator, type Translator } from "@abotica/i18n";
+import { type Translator } from "@abotica/i18n";
 import { env } from "../infra/env";
 import { notify } from "../infra/queues";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsTranslator } from "../settings/settings";
 
 /** One thing waiting for the user, with what it is about and since when. */
 export type WaitingItem = {
@@ -178,7 +178,7 @@ export async function waitingMessage(
   items: WaitingItem[],
   opts: { title: "reminder" | "list"; now?: Date },
 ): Promise<string> {
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   const projectIds = [...new Set(items.flatMap((i) => (i.projectId ? [i.projectId] : [])))];
   const rows = projectIds.length
     ? await db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))

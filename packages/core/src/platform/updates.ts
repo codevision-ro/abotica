@@ -1,8 +1,7 @@
-import { getTranslator } from "@abotica/i18n";
 import { notify } from "../infra/queues";
 import { redis } from "../infra/redis";
 import { env } from "../infra/env";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsTranslator } from "../settings/settings";
 
 /** Where releases are published (owner/name on GitHub); install.sh and install.ps1 install from the same repository. */
 export const releasesRepo = (): string => env().ABOTICA_RELEASES_REPO;
@@ -133,7 +132,7 @@ export async function notifyUpdateAvailable(status: UpdateStatus): Promise<boole
   if (!status.enabled || !status.available || !status.latest) return false;
   const { version, url } = status.latest;
   if ((await redis().set(notifiedKey(version), "1", "NX")) !== "OK") return false;
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   await notify({
     kind: "text",
     text: t("notifications.update.available", { version, current: status.current ?? "", url }),

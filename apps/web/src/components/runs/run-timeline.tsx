@@ -20,7 +20,7 @@ import type { Format } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getFormat } from "@/server/format";
 import { useToolLabel } from "../approvals/tool-label";
-import { JsonBlock } from "./json-block";
+import { ErrorBlock, JsonBlock } from "./json-block";
 
 type ModelRef = { provider?: string; model?: string } | null | undefined;
 type ToolCall = { id?: string; name?: string; input?: unknown };
@@ -136,9 +136,7 @@ function ToolCallRow({
             )}
             {error && (
               <Labelled label={t("toolError")}>
-                <pre className="max-h-64 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap text-destructive">
-                  {error.error}
-                </pre>
+                <ErrorBlock>{error.error}</ErrorBlock>
               </Labelled>
             )}
           </div>
@@ -259,6 +257,15 @@ function NoticeRow({
   );
 }
 
+/** Errors a run logged and went on after, each with the icon of what failed. */
+const ERROR_ICONS: Record<string, React.ReactNode> = {
+  "steering-error": <MessageSquarePlus />,
+  "compaction-error": <FoldVertical />,
+  "mcp-error": <Plug />,
+  "sandbox-error": <Box />,
+  "recall-error": <Brain />,
+};
+
 function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
   const t = useTranslations("runs.timeline");
   const typeKey = `eventType.${event.type}` as Parameters<typeof t>[0];
@@ -267,6 +274,13 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
   const d = event.data;
   const kindKey = `errorKind.${String(d.kind)}` as Parameters<typeof t>[0];
   const kind = t.has(kindKey) ? t(kindKey) : null;
+  if (Object.hasOwn(ERROR_ICONS, event.type)) {
+    return (
+      <NoticeRow tone="destructive" icon={ERROR_ICONS[event.type]} title={title}>
+        {String(d.error ?? d.message ?? JSON.stringify(d))}
+      </NoticeRow>
+    );
+  }
   switch (event.type) {
     case "step":
       return <StepEvent data={d as StepData} fmt={fmt} />;
@@ -363,36 +377,6 @@ function EventBody({ event, fmt }: { event: TimelineEvent; fmt: Format }) {
         </NoticeRow>
       );
     }
-    case "steering-error":
-      return (
-        <NoticeRow tone="destructive" icon={<MessageSquarePlus />} title={title}>
-          {String(d.error ?? d.message ?? JSON.stringify(d))}
-        </NoticeRow>
-      );
-    case "compaction-error":
-      return (
-        <NoticeRow tone="destructive" icon={<FoldVertical />} title={title}>
-          {String(d.error ?? d.message ?? JSON.stringify(d))}
-        </NoticeRow>
-      );
-    case "mcp-error":
-      return (
-        <NoticeRow tone="destructive" icon={<Plug />} title={title}>
-          {String(d.error ?? d.message ?? JSON.stringify(d))}
-        </NoticeRow>
-      );
-    case "sandbox-error":
-      return (
-        <NoticeRow tone="destructive" icon={<Box />} title={title}>
-          {String(d.error ?? d.message ?? JSON.stringify(d))}
-        </NoticeRow>
-      );
-    case "recall-error":
-      return (
-        <NoticeRow tone="destructive" icon={<Brain />} title={title}>
-          {String(d.error ?? d.message ?? JSON.stringify(d))}
-        </NoticeRow>
-      );
     case "error":
       return (
         <NoticeRow tone="destructive" icon={<CircleAlert />} title={title}>

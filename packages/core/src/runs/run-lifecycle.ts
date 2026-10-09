@@ -11,7 +11,7 @@ import {
   scheduleRunRetry,
 } from "../infra/queues";
 import { redis } from "../infra/redis";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsLocale, settingsTranslator } from "../settings/settings";
 import { addTaskComment, awaitsAnswer, awaitsDelegatedWork, awaitsWakeup, touchTask, updateTask } from "../tasks/tasks";
 import type { RunFailureKind } from "./run-failures";
 import { interruptRunMessage } from "./run-messages";
@@ -67,8 +67,6 @@ export async function clearHeldReplies(conversationId: string): Promise<void> {
   await redis().del(heldRepliesKey(conversationId));
 }
 
-const translator = async () => getTranslator(settingsLocale(await getSettings()));
-
 /** Side effects of an ending run: one that fails is logged and does not skip the others. */
 async function attempt<T>(runId: string, what: string, fn: () => Promise<T>): Promise<T | null> {
   try {
@@ -107,7 +105,7 @@ async function blockTask(run: Run, comment: (t: Translator) => string) {
   const [task] = await db.select({ status: tasks.status }).from(tasks).where(eq(tasks.id, run.taskId));
   if (task?.status !== "in_progress") return;
   await updateTask(run.taskId, { status: "blocked" }, "system");
-  await addTaskComment(run.taskId, comment(await translator()), "system");
+  await addTaskComment(run.taskId, comment(await settingsTranslator()), "system");
 }
 
 /**
@@ -313,14 +311,16 @@ async function settleCancelled(cancelled: Run[], reason: string): Promise<void> 
   for (const run of cancelled) await reportBack(run);
 }
 
+const cancelledPatch = (reason: string, kind: RunFailureKind) => ({
+  status: "cancelled" as const,
+  error: reason,
+  failureKind: kind,
+  finishedAt: new Date(),
+});
+
 /** Cancels a run that has not started or waits for approvals; its pending approvals expire. */
 export async function cancelPendingRun(id: string, reason: string, kind: RunFailureKind): Promise<Run | null> {
-  const run = await transition(id, ["queued", "waiting_approval"], {
-    status: "cancelled",
-    error: reason,
-    failureKind: kind,
-    finishedAt: new Date(),
-  });
+  const run = await transition(id, ["queued", "waiting_approval"], cancelledPatch(reason, kind));
   if (!run) return null;
   await expireApprovals(id);
   await settleCancelled([run], reason);
@@ -329,12 +329,7 @@ export async function cancelPendingRun(id: string, reason: string, kind: RunFail
 
 /** Ends a running run as cancelled: its worker aborted it, or the kill switch was on when it was claimed. */
 export async function cancelClaimedRun(run: Run, reason: string, kind: RunFailureKind): Promise<Run | null> {
-  const cancelled = await transition(run.id, ["running"], {
-    status: "cancelled",
-    error: reason,
-    failureKind: kind,
-    finishedAt: new Date(),
-  });
+  const cancelled = await transition(run.id, ["running"], cancelledPatch(reason, kind));
   if (!cancelled) return null;
   await settleCancelled([cancelled], reason);
   return cancelled;
@@ -342,11 +337,7 @@ export async function cancelClaimedRun(run: Run, reason: string, kind: RunFailur
 
 /** Cancels every queued run (the kill switch), so none of them starts. */
 export async function cancelQueuedRuns(reason: string, kind: RunFailureKind): Promise<Run[]> {
-  const cancelled = await db
-    .update(runs)
-    .set({ status: "cancelled", error: reason, failureKind: kind, finishedAt: new Date() })
-    .where(eq(runs.status, "queued"))
-    .returning();
+  const cancelled = await db.update(runs).set(cancelledPatch(reason, kind)).where(eq(runs.status, "queued")).returning();
   for (const run of cancelled) await attempt(run.id, "publishing the status", () => publishRunUpdate(run));
   await settleCancelled(cancelled, reason);
   return cancelled;
@@ -359,7 +350,7 @@ const OVERDUE_MARGIN_MS = 15 * 60_000;
 /** Job states in which a queued run is still going to be picked up. */
 const PENDING_JOB_STATES: readonly RunJobState[] = ["waiting", "prioritized", "delayed", "waiting-children", "active"];
 
-export type StaleReason = "unqueued" | "orphaned" | "overdue";
+type StaleReason = "unqueued" | "orphaned" | "overdue";
 
 /** The failure kind of a stale run: a run whose worker is gone was cut by its restart. */
 const STALE_KINDS: Record<StaleReason, RunFailureKind> = {

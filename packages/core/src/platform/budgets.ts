@@ -17,7 +17,7 @@ export type MonthlyBudget =
 type ProjectBudgetFields = { id: string; name: string; budgetUsd: number | null };
 
 /** Total cost of a project's runs this month, background "system" runs included. */
-export async function projectSpendThisMonth(projectId: string): Promise<number> {
+async function projectSpendThisMonth(projectId: string): Promise<number> {
   const start = startOfMonth((await getSettings()).general.timezone);
   const [row] = await db
     .select({ total: sum(runs.costUsd) })
@@ -92,7 +92,7 @@ export async function reachedBudget(projectId: string | null): Promise<MonthlyBu
 }
 
 /** Reaching the whole budget always alerts, whatever else is configured: runs stop there. */
-export const BUDGET_REACHED_PERCENT = 100;
+const BUDGET_REACHED_PERCENT = 100;
 
 /** Percentages of a budget that send an alert, ascending: the warnings from Settings below 100, then 100. */
 export function budgetAlertThresholds(alertPercents: readonly number[]): number[] {

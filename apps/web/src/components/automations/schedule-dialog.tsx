@@ -1,6 +1,5 @@
 "use client";
 
-import type { AgentAvatar } from "@abotica/db/avatar";
 import { isValidCron } from "@abotica/core/cron";
 import {
   CalendarClockIcon,
@@ -12,24 +11,22 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { OptionCards } from "@/components/app/option-cards";
 import { chipVariants } from "@/components/app/selectable-chip";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { createSchedule, updateSchedule } from "@/server/actions/automations";
 import { CRON_PRESETS, type CronTranslator, describeCron } from "./cron";
-import { DialogActiveSwitch, DialogGroup, DialogHeading, stickyFooterClass } from "./dialog-parts";
+import { DialogActiveSwitch, DialogGroup, DialogHeading, FormDialog, stickyFooterClass } from "./dialog-parts";
 import { nextRun } from "./next-run";
-import { AgentSelect, ProjectSelect } from "./option-selects";
+import { AgentSelect, type Option, ProjectSelect } from "./option-selects";
 import { dateToZonedLocal, formatInZone, isTimeZone } from "@/lib/time-zone";
-
-type Option = { id: string; name: string; avatar?: AgentAvatar | null };
 
 export type ScheduleDraft = {
   id?: string;
@@ -60,29 +57,16 @@ export function ScheduleDialog({
   /** The time zone in Settings, shown as the example of the field. */
   defaultTimezone: string;
 }) {
-  const edited = useRef(false);
-  useEffect(() => {
-    if (open) edited.current = false;
-  }, [open]);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
-        // A stray tap next to the dialog must not throw away typed text; Escape and the close button still work.
-        onInteractOutside={(e) => edited.current && e.preventDefault()}
-      >
-        {open && (
-          <ScheduleForm
-            initial={initial}
-            agents={agents}
-            projects={projects}
-            defaultTimezone={defaultTimezone}
-            onEdit={() => (edited.current = true)}
-            onDone={() => onOpenChange(false)}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <FormDialog open={open} onOpenChange={onOpenChange}>
+      <ScheduleForm
+        initial={initial}
+        agents={agents}
+        projects={projects}
+        defaultTimezone={defaultTimezone}
+        onDone={() => onOpenChange(false)}
+      />
+    </FormDialog>
   );
 }
 
@@ -91,14 +75,12 @@ function ScheduleForm({
   agents,
   projects,
   defaultTimezone,
-  onEdit,
   onDone,
 }: {
   initial: ScheduleDraft;
   agents: Option[];
   projects: Option[];
   defaultTimezone: string;
-  onEdit: () => void;
   onDone: () => void;
 }) {
   const t = useTranslations("automations.scheduleDialog");
@@ -163,7 +145,7 @@ function ScheduleForm({
   );
 
   return (
-    <form onSubmit={submit} onInput={onEdit} className="flex min-w-0 flex-col gap-5">
+    <form onSubmit={submit} className="flex min-w-0 flex-col gap-5">
       <DialogHeading
         icon={CalendarClockIcon}
         title={initial.id ? t("editTitle") : t("createTitle")}

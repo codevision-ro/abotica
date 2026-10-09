@@ -16,10 +16,9 @@ function formatContext(value: number | null): string | null {
   return value >= 1_000_000 ? `${Number((value / 1_000_000).toFixed(1))}M` : `${Math.round(value / 1000)}k`;
 }
 
-export function ModelMeta({ model }: { model: ModelOption | undefined }) {
+export function ModelMeta({ model }: { model: ModelOption }) {
   const t = useTranslations("agents.model");
   const format = useFormat();
-  if (!model) return null;
   const ctx = formatContext(model.contextWindow);
   return (
     <span className="tabular text-xs text-muted-foreground">

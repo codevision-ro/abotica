@@ -22,7 +22,7 @@ export async function nearestFirst<T extends { distance: number | null }>(search
  * `vector` is the query's embedding, null when the embedding provider is not allowed or not reachable:
  * the search is then by keyword only. `where` limits the rows searched (who may read them).
  */
-export type SearchOptions = { vector: number[] | null; where?: SQL; limit: number; now?: Date };
+type SearchOptions = { vector: number[] | null; where?: SQL; limit: number; now?: Date };
 
 /** A row as either branch found it, with both of its scores and what MMR compares. */
 type Found<R> = { row: R; distance: number | null; rank: number; embedding: number[] | null; evergreen: boolean };

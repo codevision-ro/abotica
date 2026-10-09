@@ -4,17 +4,14 @@ import { ActivityIcon, CrownIcon, FolderKanbanIcon, WalletIcon } from "lucide-re
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
+import { listCardClass } from "@/components/app/section-card";
 import { ToneBadge } from "@/components/app/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { createFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AgentEnabledSwitch } from "./agent-actions";
 
-/** Same card as the MCP and project lists: quiet border, primary tint on hover. */
-const CARD =
-  "group relative flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40";
-
-export function ModelBadge({ provider, model }: { provider: string | null; model: string | null }) {
+function ModelBadge({ provider, model }: { provider: string | null; model: string | null }) {
   const t = useTranslations("agents.card");
   if (!provider || !model) {
     return (
@@ -58,44 +55,28 @@ type CardAgent = {
   projects: { id: string; name: string }[];
 };
 
-/** Avatar, name and role, the avatar centered on the two lines; the name link covers the whole card. */
-function CardIdentity({
-  href,
-  agent,
-  noRole,
-}: {
-  href: string;
-  agent: Pick<CardAgent, "name" | "role" | "avatar">;
-  noRole: string;
-}) {
-  return (
-    <>
-      <AgentAvatar avatar={agent.avatar} size="xl" />
-      <div className="min-w-0 flex-1">
-        <Link
-          href={href}
-          title={agent.name}
-          className="line-clamp-2 font-medium wrap-anywhere outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-        >
-          {agent.name}
-        </Link>
-        <p className="truncate text-sm text-muted-foreground" title={agent.role || undefined}>
-          {agent.role || noRole}
-        </p>
-      </div>
-    </>
-  );
-}
-
 export function AgentCard({ agent }: { agent: CardAgent }) {
   const t = useTranslations("agents.card");
   const fmt = createFormat(useLocale());
   const projects = agent.projects.map((p) => p.name).join(", ");
   const leads = agent.kind === "manager";
   return (
-    <div className={cn(CARD, !agent.enabled && "opacity-70")}>
+    <div className={cn(listCardClass, !agent.enabled && "opacity-70")}>
       <div className="flex items-center gap-3">
-        <CardIdentity href={`/agents/${agent.id}`} agent={agent} noRole={t("noRole")} />
+        {/* The name link covers the whole card. */}
+        <AgentAvatar avatar={agent.avatar} size="xl" />
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/agents/${agent.id}`}
+            title={agent.name}
+            className="line-clamp-2 font-medium wrap-anywhere outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+          >
+            {agent.name}
+          </Link>
+          <p className="truncate text-sm text-muted-foreground" title={agent.role || undefined}>
+            {agent.role || t("noRole")}
+          </p>
+        </div>
         <div className="relative z-10">
           <AgentEnabledSwitch id={agent.id} enabled={agent.enabled} locked={agent.kind === "orchestrator"} />
         </div>

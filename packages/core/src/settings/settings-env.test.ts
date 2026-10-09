@@ -29,6 +29,7 @@ vi.mock("./settings", () => ({
   updateSettings: async (domain: string, patch: Record<string, unknown>) =>
     void (state.stored[domain] = { ...state.stored[domain], ...patch }),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("../platform/vault", () => ({
   setSecret: async (name: string, value: string) => void state.secrets.set(name, value),

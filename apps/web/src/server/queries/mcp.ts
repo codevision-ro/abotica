@@ -60,7 +60,7 @@ const listColumns = {
   tools: mcpServers.tools,
 };
 
-export const listMcpServers = query(async () => {
+async function listMcpServers() {
   const [rows, agentCounts, projectCounts, oauthRows, keys] = await Promise.all([
     db.select(listColumns).from(mcpServers).orderBy(asc(mcpServers.name)),
     db.select({ id: agentMcpServers.mcpServerId, n: count() }).from(agentMcpServers).groupBy(agentMcpServers.mcpServerId),
@@ -82,7 +82,7 @@ export const listMcpServers = query(async () => {
     oauth: isOAuth(s) ? oauthStatus(o.get(s.id)).state : null,
     apiKey: apiKeyStatus(s.builtin, keys),
   }));
-});
+}
 
 /** The servers split for the list page: the bundled ones in catalog order, then the user's. */
 export const listMcpServerGroups = query(async () => {

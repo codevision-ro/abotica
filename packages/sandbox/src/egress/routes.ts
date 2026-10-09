@@ -21,7 +21,7 @@ const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 const RESERVED_HEADERS = new Set(["host", "connection", "content-length", "transfer-encoding", "proxy-authorization"]);
 
 /** An id a route may have; it is the first path segment of the route's URL. */
-export const isRouteId = (id: string) => ROUTE_ID_RE.test(id);
+const isRouteId = (id: string) => ROUTE_ID_RE.test(id);
 
 /** An upstream a route may have: an https URL without credentials, query or fragment. */
 export function isRouteUpstream(upstream: string): boolean {
@@ -70,7 +70,7 @@ export function resolveRoute(route: CredentialRoute): ResolvedRoute {
  */
 export function parseRouteTarget(pathAndQuery: string): { id: string; rest: string } | null {
   const match = /^\/([^/?]+)([/?].*)?$/s.exec(pathAndQuery);
-  if (!match?.[1] || !ROUTE_ID_RE.test(match[1])) return null;
+  if (!match?.[1] || !isRouteId(match[1])) return null;
   return { id: match[1], rest: match[2] ?? "" };
 }
 

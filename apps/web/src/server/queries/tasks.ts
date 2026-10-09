@@ -3,6 +3,7 @@ import { listFiles, listTaskWakeups, TASK_PRIORITIES, taskFailureStreak, type Ta
 import { agents, db, projects, runs, taskPullRequests, tasks } from "@abotica/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, notInArray, or, sql, type SQL } from "@abotica/db/orm";
 import { isUuid } from "@/lib/uuid";
+import { listProjectOptions } from "./projects";
 import { query } from "@/server/query";
 
 const DONE_WINDOW_DAYS = 14;
@@ -102,7 +103,7 @@ export const listBoardTasks = query(async (filters: TaskFilters) => {
  */
 export const getTaskOptions = query(async () => {
   const [projectRows, agentRows, openTasks] = await Promise.all([
-    db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
+    listProjectOptions(),
     db
       .select({
         id: agents.id,

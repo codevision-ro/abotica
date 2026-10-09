@@ -13,7 +13,7 @@ const MAX_REDIRECTS = 5;
 const DEFAULT_TIMEOUT_MS = 20_000;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-export type SafeFetchErrorCode = "protocol" | "credentials" | "blocked" | "redirects";
+type SafeFetchErrorCode = "protocol" | "credentials" | "blocked" | "redirects";
 
 /** A request refused before it reached the target. `message` is English, for logs and the model. */
 export class SafeFetchError extends Error {
@@ -78,7 +78,7 @@ function vettedLookup(hostname: string, options: dns.LookupOptions, callback: Lo
 let agent: Agent | undefined;
 const dispatcher = () => (agent ??= new Agent({ connect: { lookup: vettedLookup } }));
 
-export type SafeFetchOptions = {
+type SafeFetchOptions = {
   /** The caller's signal (a cancelled run); combined with the timeout. */
   signal?: AbortSignal;
   timeoutMs?: number;

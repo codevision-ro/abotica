@@ -76,8 +76,8 @@ export function useChatModel(conversationId: string, state: ChatModelState) {
 }
 
 /** Small dot marking a choice that differs from the agent's. */
-export function OverrideDot({ className }: { className?: string }) {
-  return <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full bg-primary", className)} />;
+export function OverrideDot() {
+  return <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />;
 }
 
 type PickerProps = {
@@ -281,17 +281,13 @@ function PickerBody({
       </Command>
       {!hideEffort && (
         <>
-          <SeparatorLine />
+          {/* A plain separator: CommandSeparator hides itself while searching, this one stays. */}
+          <div role="separator" className="h-px shrink-0 bg-border" />
           <EffortSection state={state} selection={selection} effective={effective} onChange={onChange} busy={busy} />
         </>
       )}
     </>
   );
-}
-
-/** A plain separator: CommandSeparator hides itself while searching, this one stays. */
-function SeparatorLine() {
-  return <div role="separator" className="h-px shrink-0 bg-border" />;
 }
 
 function ModelItem({

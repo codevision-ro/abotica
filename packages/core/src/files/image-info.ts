@@ -6,7 +6,7 @@
 
 export type ImageMediaType = "image/png" | "image/jpeg" | "image/gif" | "image/webp";
 
-export type ImageSize = { width: number; height: number };
+type ImageSize = { width: number; height: number };
 
 const startsWith = (bytes: Uint8Array, signature: readonly number[], offset = 0) =>
   bytes.length >= offset + signature.length && signature.every((byte, i) => bytes[offset + i] === byte);

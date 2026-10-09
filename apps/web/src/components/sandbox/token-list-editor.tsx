@@ -5,10 +5,9 @@ import { useId, useState } from "react";
 import { chipVariants } from "@/components/app/selectable-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 /** The value to store, or the message to show next to the input. */
-export type TokenParse = { value: string } | { error: string };
+type TokenParse = { value: string } | { error: string };
 
 /**
  * A list of short values (domains, package names) shown as removable pills, with an input that adds
@@ -26,7 +25,6 @@ export function TokenListEditor({
   placeholder,
   addLabel,
   removeLabel,
-  className,
 }: {
   label: string;
   values: string[];
@@ -38,7 +36,6 @@ export function TokenListEditor({
   placeholder: string;
   addLabel: string;
   removeLabel: (value: string) => string;
-  className?: string;
 }) {
   const id = useId();
   const [draft, setDraft] = useState("");
@@ -68,7 +65,7 @@ export function TokenListEditor({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className="flex flex-col gap-2">
       <div className="flex gap-2">
         <Input
           id={id}

@@ -5,12 +5,12 @@
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import { db, mcpServers, type McpToolInfo, projects } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
-import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
+import { isUserError, translateKey, UserError } from "@abotica/i18n";
 import { sandboxQueue, sandboxQueueEvents } from "../infra/queues";
 import { requestWorkspaceRemoval } from "../sandbox/sandbox";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
 import { builtinMcp } from "../mcp/mcp-builtins";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 import {
   GLOBAL_SECRETS,
   OWNER_SECRETS,
@@ -118,7 +118,7 @@ export async function saveMcpToolCache(serverId: string, tools: McpToolInfo[]): 
 
 async function errorMessage(error: unknown): Promise<string> {
   if (!isUserError(error)) return error instanceof Error ? error.message : String(error);
-  return translateKey(getTranslator(settingsLocale(await getSettings())), error.key, error.values);
+  return translateKey(await settingsTranslator(), error.key, error.values);
 }
 
 /**
@@ -190,9 +190,9 @@ export function mcpWorkspaceKeys(slug: string, projectIds: string[]): string[] {
  */
 export async function onMcpServerDeleted(slug: string): Promise<void> {
   const rows = await db.select({ id: projects.id }).from(projects);
-  for (const key of mcpWorkspaceKeys(
+  const keys = mcpWorkspaceKeys(
     slug,
     rows.map((r) => r.id),
-  ))
-    await requestWorkspaceRemoval(key);
+  );
+  for (const key of keys) await requestWorkspaceRemoval(key);
 }

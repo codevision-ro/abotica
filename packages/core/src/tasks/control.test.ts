@@ -3,7 +3,16 @@ import { enqueueTaskEvent } from "../infra/queues";
 import { deliverToTask } from "../runs/deliver";
 import { cancelPendingRun } from "../runs/run-lifecycle";
 import { cancelRun } from "../runs/runs";
-import { cancelTask, pauseTask, redirectTask, requestSoftStop, resumePausedFor, resumeTask, takeSoftStop } from "./control";
+import {
+  cancelTask,
+  pauseTask,
+  redirectTask,
+  requestSoftStop,
+  resumeHeldWork,
+  resumePausedFor,
+  resumeTask,
+  takeSoftStop,
+} from "./control";
 import { loadDelegationProject, reportTask } from "./delegation";
 import { startDelegatedTask } from "./delegation-slots";
 import { postInstruction } from "./task-messages";
@@ -62,9 +71,12 @@ vi.mock("@abotica/db/orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
   inArray: vi.fn(),
+  isNull: vi.fn(),
   notInArray: vi.fn(),
   or: vi.fn(),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ sql: strings.join("?"), values }),
+  sql: Object.assign((strings: TemplateStringsArray, ...values: unknown[]) => ({ sql: strings.join("?"), values }), {
+    identifier: (name: string) => name,
+  }),
 }));
 vi.mock("../infra/queues", () => ({ enqueueTaskEvent: vi.fn() }));
 vi.mock("../infra/redis", () => ({
@@ -83,6 +95,7 @@ vi.mock("../runs/runs", () => ({ cancelRun: vi.fn() }));
 vi.mock("../settings/settings", () => ({
   getSettings: async () => ({ agents: { maxContinuations: 3 } }),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("./delegation", () => ({ loadDelegationProject: vi.fn(), reportTask: vi.fn() }));
 vi.mock("./delegation-slots", () => ({ startDelegatedTask: vi.fn(async () => ({ id: "run-new" })) }));
@@ -184,6 +197,32 @@ describe("pauseTask", () => {
     expect(vi.mocked(deliverToTask).mock.calls[0]![1].text).toContain('for the more urgent task "Fix checkout"');
   });
 
+  it("puts the open work under it aside with it, naming the work it belongs to", async () => {
+    results.select = [
+      [task("a1", { title: "Window plan" })],
+      [],
+      [MANAGER_ROW],
+      // The subtree, level by level, then the tasks in it still waiting or underway.
+      [{ id: "s1" }, { id: "s2" }],
+      [],
+      [{ id: "s1" }],
+      [task("s1")],
+      [{ id: "run-s1", status: "running" }],
+      [MANAGER_ROW],
+    ];
+    await pauseTask("a1", { by: MANAGER, reason: "the apology goes first" });
+
+    expect(updateTask).toHaveBeenCalledWith("s1", { status: "paused" }, "agent:mara");
+    expect(updateTask).not.toHaveBeenCalledWith("s2", expect.anything(), expect.anything());
+    expect(await takeSoftStop("run-s1")).toBe("Paused by Mara: the apology goes first");
+    expect(patches("insert")).toContainEqual(
+      expect.objectContaining({ taskId: "s1", type: "paused", data: expect.objectContaining({ pausedWith: "a1" }) }),
+    );
+    expect(vi.mocked(deliverToTask).mock.calls[1]![1].text).toContain(
+      'Put aside by Mara with "Window plan", the work it belongs to: the apology goes first',
+    );
+  });
+
   it("refuses a task whose run waits for an approval, and a settled one", async () => {
     results.select = [[task("a1")], [{ id: "run-1", status: "waiting_approval" }]];
     await expect(pauseTask("a1", { by: "user", reason: "x" })).rejects.toThrow(/waits for an approval/);
@@ -196,7 +235,7 @@ describe("pauseTask", () => {
 describe("resumeTask", () => {
   it("goes on in the conversation it worked in, through the delegation places, with the note leading", async () => {
     const paused = task("a1", { status: "paused", pauseReason: "later", pausedForTaskId: "u1" });
-    results.select = [[paused], [], [paused]];
+    results.select = [[paused], [], [], [paused]];
     const { run } = await resumeTask("a1", { by: "user", note: "use the new prices" });
 
     expect(run).toEqual({ id: "run-new" });
@@ -218,7 +257,7 @@ describe("resumeTask", () => {
   });
 
   it("gives back the continuations asked for, and an agent's resume does not force past the breaker", async () => {
-    results.select = [[task("a1", { status: "blocked", continuations: 3 })], [], [MANAGER_ROW], [task("a1")]];
+    results.select = [[task("a1", { status: "blocked", continuations: 3 })], [], [MANAGER_ROW], [], [task("a1")]];
     await resumeTask("a1", { by: MANAGER, extraContinuations: 2 });
     expect(patches()[0]).toMatchObject({ continuations: 1 });
     expect(vi.mocked(startDelegatedTask).mock.calls[0]![1]).toMatchObject({ force: false, reason: "resumed" });
@@ -226,7 +265,7 @@ describe("resumeTask", () => {
   });
 
   it("waits in the backlog while its dependencies are pending, and has its wakeups checked", async () => {
-    results.select = [[task("a1", { status: "paused" })], [], [task("a1")]];
+    results.select = [[task("a1", { status: "paused" })], [], [], [task("a1")]];
     vi.mocked(pendingDependencies).mockResolvedValueOnce([{ id: "dep", title: "Dep" }]);
     expect((await resumeTask("a1", { by: "user" })).run).toBeNull();
     expect(updateTask).toHaveBeenCalledWith("a1", { status: "backlog" }, "user");
@@ -399,6 +438,42 @@ describe("redirectTask", () => {
     });
     await expect(redirectTask("a1", { by: MANAGER, reassignTo: "x" })).rejects.toThrow(/cannot go to outsider/);
     expect(updateTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("resumeHeldWork", () => {
+  it("brings back the work put aside with the task resumed, and only that work", async () => {
+    results.select = [
+      [task("a1", { status: "paused" })],
+      [],
+      [
+        { id: "s1", withId: "a1" },
+        { id: "x1", withId: "other" },
+      ],
+      [task("s1", { status: "paused" })],
+      [],
+      [],
+      [task("s1")],
+      [task("a1")],
+    ];
+    await resumeTask("a1", { by: "user" });
+    expect(vi.mocked(startDelegatedTask).mock.calls.map((c) => c[0])).toEqual(["a1", "s1"]);
+  });
+
+  it("in the sweep, waits while the work above is still paused and leaves a run still stopping for later", async () => {
+    results.select = [
+      [
+        { id: "s1", withId: "a1" },
+        { id: "s2", withId: "a2" },
+      ],
+      [{ id: "a2" }],
+      [task("s1", { status: "paused" })],
+      [{ id: "run-s1", status: "running" }],
+    ];
+    expect(await resumeHeldWork(null)).toBe(0);
+    expect(startDelegatedTask).not.toHaveBeenCalled();
+    expect(updateTask).not.toHaveBeenCalled();
+    expect(reportTask).not.toHaveBeenCalled();
   });
 });
 

@@ -63,8 +63,8 @@ async function projectLead(id: string): Promise<Agent> {
   return agent;
 }
 
-async function projectById(id: string, tx: Tx | typeof db = db): Promise<Project> {
-  const [project] = await tx.select().from(projects).where(eq(projects.id, id));
+async function projectById(id: string): Promise<Project> {
+  const [project] = await db.select().from(projects).where(eq(projects.id, id));
   if (!project) throw new UserError("projects.errors.notFound");
   return project;
 }
@@ -73,6 +73,23 @@ const teamChanged = (projectId: string, actor: string | undefined, data: Record<
   audit({ actor: actor ?? "user", action: "project.agents-changed", entityType: "project", entityId: projectId, data });
 
 const managerName = (projectName: string) => `${projectName} Manager`;
+
+const managerCreated = (agentId: string, projectId: string, actor: string | undefined) =>
+  audit({
+    actor: actor ?? "user",
+    action: "agent.created",
+    entityType: "agent",
+    entityId: agentId,
+    data: { templateSlug: MANAGER_TEMPLATE_SLUG, projectId },
+  });
+
+/** The project's manager leaves its team: a manager is on the team only of the projects it leads. */
+async function removeManagerFromTeam(tx: Tx, project: Project): Promise<void> {
+  if (!project.managerAgentId) return;
+  await tx
+    .delete(projectAgents)
+    .where(and(eq(projectAgents.projectId, project.id), eq(projectAgents.agentId, project.managerAgentId)));
+}
 
 /**
  * Creates a project with its team of specialists. Without `managerAgentId` its manager is created
@@ -111,15 +128,7 @@ export async function createProject(
       : [row];
     return { project: project!, created };
   });
-  if (created) {
-    await audit({
-      actor: opts.actor ?? "user",
-      action: "agent.created",
-      entityType: "agent",
-      entityId: created.id,
-      data: { templateSlug: MANAGER_TEMPLATE_SLUG, projectId: project.id },
-    });
-  }
+  if (created) await managerCreated(created.id, project.id, opts.actor);
   if (project.managerAgentId || memberIds.length) {
     await teamChanged(project.id, opts.actor, { manager: project.managerAgentId, added: memberIds });
   }
@@ -144,11 +153,7 @@ export async function setProjectManager(projectId: string, agentId: string, opts
   await projectLead(agentId);
   if (before.managerAgentId === agentId) return before;
   const project = await db.transaction(async (tx) => {
-    if (before.managerAgentId) {
-      await tx
-        .delete(projectAgents)
-        .where(and(eq(projectAgents.projectId, projectId), eq(projectAgents.agentId, before.managerAgentId)));
-    }
+    await removeManagerFromTeam(tx, before);
     await tx.insert(projectAgents).values({ projectId, agentId }).onConflictDoNothing();
     const [row] = await tx.update(projects).set({ managerAgentId: agentId }).where(eq(projects.id, projectId)).returning();
     return row!;
@@ -179,11 +184,7 @@ async function newManager(before: Project, opts: TeamOptions): Promise<Project> 
   const projectId = before.id;
   const { project, created } = await db.transaction(async (tx) => {
     const created = await insertAgentFromTemplate(tx, MANAGER_TEMPLATE_SLUG, { name: managerName(before.name) });
-    if (before.managerAgentId) {
-      await tx
-        .delete(projectAgents)
-        .where(and(eq(projectAgents.projectId, projectId), eq(projectAgents.agentId, before.managerAgentId)));
-    }
+    await removeManagerFromTeam(tx, before);
     await tx.insert(projectAgents).values({ projectId, agentId: created.id });
     const [row] = await tx
       .update(projects)
@@ -192,13 +193,7 @@ async function newManager(before: Project, opts: TeamOptions): Promise<Project> 
       .returning();
     return { project: row!, created };
   });
-  await audit({
-    actor: opts.actor ?? "user",
-    action: "agent.created",
-    entityType: "agent",
-    entityId: created.id,
-    data: { templateSlug: MANAGER_TEMPLATE_SLUG, projectId },
-  });
+  await managerCreated(created.id, projectId, opts.actor);
   await teamChanged(projectId, opts.actor, { manager: created.id, previousManager: before.managerAgentId });
   return project;
 }
@@ -252,12 +247,4 @@ export async function deleteProject(id: string, opts: { actor?: string } = {}): 
     entityId: id,
     data: { name: row.name },
   });
-}
-
-export async function projectAgentIds(projectId: string): Promise<string[]> {
-  const rows = await db
-    .select({ id: projectAgents.agentId })
-    .from(projectAgents)
-    .where(eq(projectAgents.projectId, projectId));
-  return rows.map((r) => r.id);
 }

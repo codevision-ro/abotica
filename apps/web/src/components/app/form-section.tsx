@@ -1,8 +1,8 @@
 "use client";
 
 import { ChevronDownIcon, type LucideIcon } from "lucide-react";
+import { SectionDivider, SectionHeader, SectionIcon, sectionCardClass } from "@/components/app/section-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
 
 /** Scrolls a form section into view; sections carry `scroll-mt-*` so the sticky header does not cover them. */
 export function scrollToSection(id: string) {
@@ -10,26 +10,7 @@ export function scrollToSection(id: string) {
 }
 
 /** The quiet card every section sits in; the rail and nested lists keep their own, stronger borders. */
-const SECTION_CARD =
-  "scroll-mt-20 rounded-2xl border border-border/70 bg-card/70 shadow-[0_1px_2px_rgb(0_0_0/0.03)] dark:bg-card/40";
-
-/** Hairline between a section's header and its content, fading out to the right. */
-function SectionDivider() {
-  return <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />;
-}
-
-function SectionIcon({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
-  return (
-    <span
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary dark:bg-primary/15",
-        className,
-      )}
-    >
-      <Icon className="size-4" aria-hidden />
-    </span>
-  );
-}
+const SECTION_CARD = `scroll-mt-20 ${sectionCardClass}`;
 
 /**
  * One titled block of a long form, in a subtle card: icon, title and description on top, the fields below.
@@ -42,7 +23,6 @@ export function FormSection({
   description,
   action,
   children,
-  className,
 }: {
   id: string;
   icon: LucideIcon;
@@ -51,30 +31,17 @@ export function FormSection({
   /** Secondary control on the right of the header, e.g. a bulk action. */
   action?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className={cn(SECTION_CARD, className)}>
-      {/* Same header as SectionCard: on phones the description runs under the action, so it keeps its width. */}
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-4 py-3.5 sm:px-5">
-        <SectionIcon icon={icon} className={cn(description && "row-[1/3]")} />
-        <h2 id={`${id}-title`} className="col-start-2 row-start-1 text-base leading-snug font-semibold tracking-tight">
-          {title}
-        </h2>
-        {action && (
-          <div
-            className={cn(
-              "col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2",
-              description && "sm:row-[1/3]",
-            )}
-          >
-            {action}
-          </div>
-        )}
-        {description && (
-          <p className="col-[2/-1] row-start-2 text-sm text-pretty text-muted-foreground sm:col-[2/3]">{description}</p>
-        )}
-      </div>
+    <section id={id} aria-labelledby={`${id}-title`} className={SECTION_CARD}>
+      <SectionHeader
+        icon={icon}
+        titleId={`${id}-title`}
+        title={title}
+        description={description}
+        descriptionAs="p"
+        action={action}
+      />
       <SectionDivider />
       <div className="flex flex-col gap-4 p-4 sm:p-5">{children}</div>
     </section>
@@ -90,7 +57,6 @@ export function FormSectionCollapsible({
   open,
   onOpenChange,
   children,
-  className,
 }: {
   id: string;
   icon: LucideIcon;
@@ -100,10 +66,9 @@ export function FormSectionCollapsible({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <Collapsible asChild open={open} onOpenChange={onOpenChange} className={cn(SECTION_CARD, className)}>
+    <Collapsible asChild open={open} onOpenChange={onOpenChange} className={SECTION_CARD}>
       <section id={id} aria-labelledby={`${id}-title`}>
         <CollapsibleTrigger asChild>
           <button
@@ -141,17 +106,15 @@ export function FormSubsection({
   description,
   action,
   children,
-  className,
 }: {
   title: React.ReactNode;
   count?: number;
   description?: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-2.5", className)}>
+    <div className="flex flex-col gap-2.5">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-medium">

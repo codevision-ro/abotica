@@ -4,9 +4,7 @@ import { BotIcon, FolderIcon, KanbanIcon, ListIcon, PlusIcon, SearchIcon, Signal
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { AgentAvatar } from "@/components/app/agent-avatar";
 import { chipVariants, SelectableChip } from "@/components/app/selectable-chip";
-import { PRIORITIES, useStatusLabels } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SEARCH_DEBOUNCE_MS } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { TaskOptions } from "@/server/queries/tasks";
-import { SELECT_WITH_MEDIA, TaskPriorityIcon } from "./task-icons";
+import { AgentSelectItem, PrioritySelectItems, SELECT_WITH_MEDIA } from "./task-icons";
 import { rememberOverlayBase, saveTasksListHref, useTaskParams } from "./task-meta";
 
 const ALL = "all";
@@ -48,7 +46,6 @@ export function NewTaskLink({ children }: { children: React.ReactNode }) {
 export function TaskToolbar({ options }: { options: TaskOptions }) {
   const t = useTranslations("tasks.toolbar");
   const tControl = useTranslations("tasks.control");
-  const labels = useStatusLabels();
   const { searchParams, setParams } = useTaskParams();
   const urlQuery = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(urlQuery);
@@ -136,10 +133,7 @@ export function TaskToolbar({ options }: { options: TaskOptions }) {
           {options.agents
             .filter((a) => a.assignable)
             .map((a) => (
-              <SelectItem key={a.id} value={a.id} title={a.name} className="*:[span]:last:min-w-0">
-                <AgentAvatar avatar={a.avatar} size="xs" />
-                <span className="truncate">{a.name}</span>
-              </SelectItem>
+              <AgentSelectItem key={a.id} agent={a} />
             ))}
         </SelectContent>
       </Select>
@@ -151,12 +145,7 @@ export function TaskToolbar({ options }: { options: TaskOptions }) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>{t("allPriorities")}</SelectItem>
-          {[...PRIORITIES].reverse().map((p) => (
-            <SelectItem key={p} value={p}>
-              <TaskPriorityIcon priority={p} />
-              {labels.priority(p)}
-            </SelectItem>
-          ))}
+          <PrioritySelectItems reversed />
         </SelectContent>
       </Select>
 

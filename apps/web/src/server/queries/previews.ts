@@ -1,7 +1,8 @@
 import "server-only";
 import { getPreview as findPreview, listPreviews, type Preview, previewUrl } from "@abotica/core";
-import { conversations, db, projects } from "@abotica/db";
+import { conversations, db } from "@abotica/db";
 import { inArray } from "@abotica/db/orm";
+import { getProjectNames } from "./projects";
 import { query } from "@/server/query";
 
 /** A preview as the list shows it, with where it came from. */
@@ -22,12 +23,9 @@ export type PreviewRow = {
 /** Active previews, newest first: of a project, or all of them. */
 export const listPreviewRows = query(async (projectId?: string): Promise<PreviewRow[]> => {
   const rows = await listPreviews(projectId ? { projectId } : undefined);
-  const projectIds = [...new Set(rows.flatMap((p) => (p.projectId ? [p.projectId] : [])))];
   const conversationIds = [...new Set(rows.flatMap((p) => (p.conversationId ? [p.conversationId] : [])))];
-  const [projectRows, conversationRows] = await Promise.all([
-    projectIds.length
-      ? db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))
-      : [],
+  const [projectNames, conversationRows] = await Promise.all([
+    getProjectNames(rows.map((p) => p.projectId)),
     conversationIds.length
       ? db
           .select({ id: conversations.id, title: conversations.title })
@@ -35,7 +33,6 @@ export const listPreviewRows = query(async (projectId?: string): Promise<Preview
           .where(inArray(conversations.id, conversationIds))
       : [],
   ]);
-  const projectNames = new Map(projectRows.map((p) => [p.id, p.name]));
   const conversationTitles = new Map(conversationRows.map((c) => [c.id, c.title]));
   return rows.map((preview) => ({
     id: preview.id,

@@ -3,7 +3,7 @@ import { ArrowUpRight, Plug, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
-import { sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider } from "@/components/app/section-card";
 import { Badge } from "@/components/ui/badge";
 import { createFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function ApprovalCard({ approval }: { approval: ApprovalCardData }) {
           {fmt.relative(approval.createdAt)}
         </time>
       </div>
-      <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
       <div className="space-y-3 p-4 sm:p-5">
         {approval.reason && <p className="text-sm leading-6 wrap-anywhere">{approval.reason}</p>}
         <div className="space-y-1.5">

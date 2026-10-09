@@ -52,6 +52,7 @@ vi.mock("../models/provider-policy", () => ({
 vi.mock("../settings/settings", () => ({
   getSettings: async () => ({ agents: { maxAutoRounds: 10 }, general: { language: "en" } }),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("../tasks/chain", () => ({ superiorOf: vi.fn() }));
 vi.mock("../tasks/delegation-slots", () => ({ startDelegatedTask: vi.fn() }));

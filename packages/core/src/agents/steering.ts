@@ -21,7 +21,7 @@ import type { StepPreparer } from "./step-preparation";
 /** Messages a run took in before one of its steps. */
 export type Steer = { step: number; messages: StoredMessage[] };
 
-export type SteeringOptions = {
+type SteeringOptions = {
   /** The conversation's user messages that arrived since the run started and no run took in yet. */
   load: () => Promise<StoredMessage[]>;
   /** Records that the run took these messages in, after its step `afterStep`. */

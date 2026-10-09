@@ -1,6 +1,7 @@
 import { CircleCheckIcon, FolderKanbanIcon, ListTodoIcon, TargetIcon } from "lucide-react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { listCardClass } from "@/components/app/section-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getFormat } from "@/server/format";
@@ -15,12 +16,7 @@ export async function ProjectCard({ project }: { project: ProjectListItem }) {
   const b = (chunks: React.ReactNode) => <b className="font-medium text-foreground">{chunks}</b>;
 
   return (
-    <div
-      className={cn(
-        "group relative flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40",
-        project.status === "archived" && "opacity-70",
-      )}
-    >
+    <div className={cn(listCardClass, project.status === "archived" && "opacity-70")}>
       <div className="flex items-center gap-3">
         <span
           aria-hidden

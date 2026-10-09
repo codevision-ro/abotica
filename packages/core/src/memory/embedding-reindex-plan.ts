@@ -6,7 +6,7 @@
 import type { EmbeddingProvider } from "../settings/settings-schema";
 
 /** The tables with an embedding column, in the order they are re-embedded. */
-export const REINDEX_TABLES = ["memories", "journals", "knowledge_chunks"] as const;
+const REINDEX_TABLES = ["memories", "journals", "knowledge_chunks"] as const;
 export type ReindexTable = (typeof REINDEX_TABLES)[number];
 
 /** Where a re-embedding stands. Stored in the app_state table, so it goes on after a restart. */

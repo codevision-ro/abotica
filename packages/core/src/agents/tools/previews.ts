@@ -13,9 +13,8 @@ import {
 } from "../../sandbox/previews";
 import { currentSandboxBackend } from "../../sandbox/sandbox-runtime";
 import type { RunContext } from "../context";
-import { blankToUndefined, errorResult, optionalId, type ToolFactory } from "./shared";
+import { blankToUndefined, errorResult, NO_SANDBOX, optionalId, type ToolFactory } from "./shared";
 
-const NO_SANDBOX = { error: "The workspace is not available in this run." };
 /** Room above the content limit for the archive's own headers. */
 const ARCHIVE_SLACK = 8 * 1024 * 1024;
 const PORT_CHECK_MS = 3_000;

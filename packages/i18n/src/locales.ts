@@ -11,7 +11,7 @@ export const localeNames: Record<Locale, string> = { en: "English", ro: "RomÃ¢nÄ
 /** Language name in English, for prompts that tell a model which language to write in. */
 export const localeEnglishNames: Record<Locale, string> = { en: "English", ro: "Romanian" };
 
-export function isLocale(value: unknown): value is Locale {
+function isLocale(value: unknown): value is Locale {
   return hasLocale(locales, value);
 }
 

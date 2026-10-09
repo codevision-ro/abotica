@@ -8,7 +8,7 @@ import { completeSignIn } from "./sign-in";
 import { subscriptionProvider } from "./registry";
 
 /** Why a connection is not usable although the user signed in before. */
-export type SubscriptionProblem =
+type SubscriptionProblem =
   | { kind: "plan-not-granted" }
   /** The provider refused the session (expired, revoked, disconnected from its settings). */
   | { kind: "session-ended"; detail: string };

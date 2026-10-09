@@ -17,6 +17,7 @@ import {
   blankToUndefined,
   closedProjects,
   errorResult,
+  inVisibleProject,
   optionalDateTime,
   optionalId,
   optionalText,
@@ -30,9 +31,7 @@ import { withholdClosed } from "./withheld";
  * a manager the projects it leads, and inside a project only that one.
  */
 export function inControl(ctx: RunContext, projectId: string | null, projectManagerId: string | null): boolean {
-  const visible = visibleProjects(ctx);
-  const inScope = !visible || (projectId !== null && visible.includes(projectId));
-  return inScope && mayControlTask(ctx.agent, { projectManagerId });
+  return inVisibleProject(ctx, projectId) && mayControlTask(ctx.agent, { projectManagerId });
 }
 
 /** The task when this run may control it (inControl). Never the run's own task: that one it finishes, or asks about. */
@@ -56,7 +55,7 @@ export const controlTools: Record<string, ToolFactory> = {
   task_control: (ctx) =>
     tool({
       description:
-        "Act on a task underway in a project you lead (the super agent: any task). pause: it stops at its next step and keeps its conversation; resume: it goes on there; cancel: it stops for good, with its subtasks unless cascade is false; redirect: new instructions, another assignee, priority or deadline.",
+        "Act on a task underway in a project you lead (the super agent: any task). pause: it stops at its next step and keeps its conversation, and the work under it (its subtasks, what it delegated) pauses with it; resume: it goes on there, and that work with it; cancel: it stops for good, with its subtasks unless cascade is false; redirect: new instructions, another assignee, priority or deadline.",
       inputSchema: z.object({
         taskId: z.string().uuid(),
         action: z.enum(["pause", "resume", "cancel", "redirect"]),

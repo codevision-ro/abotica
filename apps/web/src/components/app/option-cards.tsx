@@ -3,7 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type OptionCard<T extends string> = {
+type OptionCard<T extends string> = {
   value: T;
   icon: LucideIcon;
   title: React.ReactNode;

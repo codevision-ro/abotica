@@ -18,11 +18,11 @@ const TAB_SCOPED = new Set(["tab", "page", "project", "agent", "from", "to"]);
 export function UrlTabs({
   value,
   tabs,
-  params = {},
+  params,
 }: {
   value: string;
   tabs: { value: string; label: string; count?: number; tone?: "warning" }[];
-  params?: QueryParams;
+  params: QueryParams;
 }) {
   const pathname = usePathname();
   const strip = useRef<HTMLDivElement>(null);

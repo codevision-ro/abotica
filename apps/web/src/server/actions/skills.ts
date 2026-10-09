@@ -41,18 +41,16 @@ function revalidateSkill(id?: string) {
   if (id) revalidatePath(`/skills/${id}`);
 }
 
-export const createSkill = action(skillInput, async (input) => {
+async function insertSkill(input: Parameters<typeof core.createSkill>[0]) {
   const skill = await core.createSkill(input);
   revalidateSkill();
   return { id: skill.id };
-});
+}
+
+export const createSkill = action(skillInput, insertSkill);
 
 /** A folder imported by hand (zip, folder, .md): the slug comes from the name, made unique. */
-export const importSkill = action(skillInput.omit({ slug: true }), async (input) => {
-  const skill = await core.createSkill(input);
-  revalidateSkill();
-  return { id: skill.id };
-});
+export const importSkill = action(skillInput.omit({ slug: true }), insertSkill);
 
 export const updateSkill = action(
   skillInput.partial().extend({ id: z.uuid(), note: z.string().trim().max(VERSION_NOTE_MAX_LENGTH).optional() }),

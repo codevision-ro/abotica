@@ -2,19 +2,21 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import type { PRIORITIES, TASK_STATUSES } from "@/components/app/status-badge";
 
-/** The board's columns; cancelled is shown only on request (?cancelled=1). */
-export const TASK_STATUS_ORDER = ["backlog", "in_progress", "paused", "blocked", "review", "done", "cancelled"] as const;
-export type TaskStatusValue = (typeof TASK_STATUS_ORDER)[number];
-export type TaskPriorityValue = "low" | "medium" | "high" | "urgent";
+export type TaskStatusValue = (typeof TASK_STATUSES)[number];
+export type TaskPriorityValue = (typeof PRIORITIES)[number];
 
 export const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
-/** Value used by assignee selects: "user", "none" or an agent id. */
+/** Select value for "no project", "no parent" or "nobody". */
+export const NONE = "none";
+
+/** Value used by assignee selects: "user", NONE or an agent id. */
 export function assigneeValue(task: { assigneeAgentId?: string | null; agentId?: string | null; assignedToUser: boolean }) {
   const agentId = task.assigneeAgentId ?? task.agentId;
   if (agentId) return agentId;
-  return task.assignedToUser ? "user" : "none";
+  return task.assignedToUser ? "user" : NONE;
 }
 
 export function isOverdue(deadline: Date | string | null, status: string) {
@@ -46,9 +48,12 @@ export function focusAtEnd(el: HTMLInputElement | HTMLTextAreaElement | null) {
  */
 let overlayBase: string | null = null;
 
+/** A click that opens a new tab or window (modifier key or other button) rather than navigating here. */
+export const opensElsewhere = (e: React.MouseEvent) => e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+
 /** Call when opening an overlay with a push (setParams or a Link click), before navigating. */
 export function rememberOverlayBase(e?: React.MouseEvent) {
-  if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)) return;
+  if (e && opensElsewhere(e)) return;
   overlayBase = normalizeHref(window.location.pathname + window.location.search);
 }
 

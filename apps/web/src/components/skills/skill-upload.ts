@@ -1,6 +1,7 @@
 import { SKILL_MAX_FILE_BYTES } from "@abotica/core/limits";
 import { packageSkillFiles, SKILL_MD, type SkillFileEntry, type SkillPackage } from "@abotica/core/skill-md";
 import { unzipSync } from "fflate";
+import { isMarkdown } from "./skill-file-tree";
 
 /** A skill read from the user's computer, packaged but not stored yet. */
 export type LocalSkill = {
@@ -15,8 +16,6 @@ type PickedFile = { path: string; file: File };
 
 /** OS and VCS leftovers that are never part of a skill; dropped without a mention. */
 const JUNK = /(^|\/)(__MACOSX|\.git|node_modules)(\/|$)|(^|\/)(\.DS_Store|Thumbs\.db|desktop\.ini|\._[^/]*)$/;
-
-const MARKDOWN = /\.(md|markdown)$/i;
 
 /** Files from the file or folder picker (folder uploads carry their relative path). */
 export function readPickedSkill(files: FileList): Promise<LocalSkill | null> {
@@ -75,7 +74,7 @@ async function readSkill(picked: PickedFile[]): Promise<LocalSkill | null> {
       },
     });
     for (const [path, bytes] of Object.entries(entries)) addDecoded(raw, skipped, path, bytes);
-  } else if (single && MARKDOWN.test(single.path)) {
+  } else if (single && isMarkdown(single.path)) {
     // A lone markdown file is the SKILL.md, whatever it is called.
     label = fileName(single.path);
     if (label !== SKILL_MD) fallbackName = baseName(label);

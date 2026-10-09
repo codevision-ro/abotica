@@ -7,17 +7,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export const PERMISSION_ICONS: Record<ToolPermission, LucideIcon> = {
+const PERMISSION_ICONS: Record<ToolPermission, LucideIcon> = {
   allow: CircleCheckIcon,
   ask: HandIcon,
   deny: BanIcon,
-};
-
-/** Text color by meaning; warning and success are darkened in light mode to stay readable. */
-export const PERMISSION_TEXT: Record<ToolPermission, string> = {
-  allow: "text-[color-mix(in_oklch,var(--success),black_20%)] dark:text-success",
-  ask: "text-[color-mix(in_oklch,var(--warning),black_40%)] dark:text-warning",
-  deny: "text-destructive",
 };
 
 /** Tints of the chosen option, keyed on `aria-checked` because the tooltip trigger takes over `data-state`. */

@@ -16,7 +16,14 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { RelativeTime } from "@/components/app/relative-time";
-import { SectionCard, sectionCardClass, SectionEmpty, SectionList, SectionRow } from "@/components/app/section-card";
+import {
+  SectionCard,
+  sectionCardClass,
+  SectionEmpty,
+  SectionIcon,
+  SectionList,
+  SectionRow,
+} from "@/components/app/section-card";
 import { ToneBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -82,11 +89,7 @@ function PreviewItem({ preview, showOwner }: { preview: PreviewRow; showOwner: b
 
   return (
     <SectionRow
-      media={
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="size-4" aria-hidden />
-        </span>
-      }
+      media={<SectionIcon icon={Icon} variant="muted" />}
       title={
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate" title={preview.title}>

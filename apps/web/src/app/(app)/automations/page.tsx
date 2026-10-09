@@ -1,3 +1,4 @@
+import { trustedAppOrigin } from "@abotica/core/app-origins";
 import { XIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -9,7 +10,6 @@ import { UrlTabs } from "@/components/memory/url-tabs";
 import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import { getAutomationOptions, listSchedules, listTriggers } from "@/server/queries/automations";
-import { appUrl } from "@/server/request-origin";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("automations");
@@ -67,7 +67,7 @@ export default async function AutomationsPage(props: PageProps<"/automations">) 
           triggers={triggers}
           agents={options.agents}
           projects={options.projects}
-          appUrl={appUrl()}
+          appUrl={trustedAppOrigin()}
           toolbar={tabs}
         />
       )}

@@ -1,3 +1,4 @@
+import { firstParam } from "@/lib/search-params";
 import { isUuid } from "@/lib/uuid";
 
 /** The chat list's project filter, kept in `?project=`. Shared by server pages and client components. */
@@ -19,7 +20,7 @@ export type ConversationFilter = { projectId: string } | { projectId: null } | n
 
 /** `?project=` as a filter; anything else shows every conversation. */
 export function parseConversationFilter(value: string | string[] | undefined): ConversationFilter {
-  const v = Array.isArray(value) ? value[0] : value;
+  const v = firstParam(value);
   if (v === NO_PROJECT) return { projectId: null };
   return v && isUuid(v) ? { projectId: v } : null;
 }

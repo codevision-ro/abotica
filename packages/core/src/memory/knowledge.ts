@@ -58,6 +58,11 @@ const refusalKeys = {
   redirects: "memory.errors.tooManyRedirects",
 } as const;
 
+const fetchFailure = (error: unknown) =>
+  error instanceof Error && error.name === "TimeoutError"
+    ? new UserError("projects.errors.fetchTimeout")
+    : new UserError("projects.errors.fetchFailed", { reason: (error as Error).message });
+
 /**
  * Downloads a text page for the knowledge base, from public addresses only (see safeFetch). A page
  * larger than the cap is kept up to it. Errors are UserErrors with a readable reason.
@@ -77,8 +82,7 @@ export async function fetchPageText(url: string): Promise<{ url: string; title: 
     });
   } catch (error) {
     if (error instanceof SafeFetchError) throw new UserError(refusalKeys[error.code], { host: error.host });
-    if (error instanceof Error && error.name === "TimeoutError") throw new UserError("projects.errors.fetchTimeout");
-    throw new UserError("projects.errors.fetchFailed", { reason: (error as Error).message });
+    throw fetchFailure(error);
   }
   const type = res.headers.get("content-type") ?? "";
   const readable = /text\/|json|xml/.test(type);
@@ -94,8 +98,7 @@ export async function fetchPageText(url: string): Promise<{ url: string; title: 
   try {
     ({ text: body } = await readTextCapped(res, MAX_PAGE_BYTES));
   } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") throw new UserError("projects.errors.fetchTimeout");
-    throw new UserError("projects.errors.fetchFailed", { reason: (error as Error).message });
+    throw fetchFailure(error);
   }
   const isHtml = type.includes("html") || /<html[\s>]/i.test(body.slice(0, 2_000));
   const content = isHtml ? htmlToText(body) : body;

@@ -10,6 +10,7 @@ import { AgentAvatar } from "@/components/app/agent-avatar";
 import { ConfirmDelete } from "@/components/app/confirm-dialog";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionIcon } from "@/components/app/section-card";
+import { focusAtEnd } from "@/components/tasks/task-meta";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,13 +210,6 @@ export function Replaces({ m }: { m: MemoryListItem }) {
       ))}
     </ul>
   );
-}
-
-/** Focus the editor once on mount with the caret after the existing text. */
-function focusAtEnd(el: HTMLTextAreaElement | null) {
-  if (!el) return;
-  el.focus();
-  el.setSelectionRange(el.value.length, el.value.length);
 }
 
 function MemoryItem({

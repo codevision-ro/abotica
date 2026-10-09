@@ -20,9 +20,7 @@ export async function requireUser() {
   return session.user;
 }
 
-/** Same as requireUser for route handlers, where redirect is not wanted. */
-export async function requireApiUser() {
-  const session = await getSession();
-  if (!session) throw new Response("Unauthorized", { status: 401 });
-  return session.user;
+/** The session check of route handlers, where redirect is not wanted: a 401 response without a session, else null. */
+export async function unauthorized(): Promise<Response | null> {
+  return (await getSession()) ? null : new Response("Unauthorized", { status: 401 });
 }

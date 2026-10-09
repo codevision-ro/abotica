@@ -16,10 +16,10 @@ import { type StepPreparer, withUserMessage } from "./step-preparation";
  */
 export const LOOP_THRESHOLDS = { repeat: 8, error: 6, alternation: 12 } as const;
 
-export type LoopPattern = keyof typeof LOOP_THRESHOLDS;
+type LoopPattern = keyof typeof LOOP_THRESHOLDS;
 
 /** A loop at the end of a run's steps: its pattern, the tools it calls and how many steps it spans. */
-export type LoopHit = { pattern: LoopPattern; tools: string[]; steps: number };
+type LoopHit = { pattern: LoopPattern; tools: string[]; steps: number };
 
 type Step = Pick<StepResult<ToolSet>, "content">;
 
@@ -137,7 +137,7 @@ export function loopNudgeText(loop: LoopHit): string {
   }
 }
 
-export type LoopGuard = {
+type LoopGuard = {
   /** Before a step: tells the model about the first loop of the run, once. */
   nudge: StepPreparer;
   /** After a step: the loop the run is in after the nudge, which ends it; null to go on. */

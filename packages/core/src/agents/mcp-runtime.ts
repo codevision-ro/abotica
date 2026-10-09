@@ -83,13 +83,13 @@ export type McpRunOptions = McpConnectOptions & {
  * How long a tool call waits for the server's answer. `@ai-sdk/mcp` has no default, so a server
  * that never answers would hold the run until its own time limit; past this the call fails instead.
  */
-export const MCP_CALL_TIMEOUT_MS = MCP_TIMEOUTS.callSec.default * 1000;
+const MCP_CALL_TIMEOUT_MS = MCP_TIMEOUTS.callSec.default * 1000;
 
 /**
  * How long a server may take to start: long enough for `npx -y` or `uvx` to download it on a first
  * start, short enough that a server stuck before its handshake does not hold the run.
  */
-export const MCP_CONNECT_TIMEOUT_MS = MCP_TIMEOUTS.connectSec.default * 1000;
+const MCP_CONNECT_TIMEOUT_MS = MCP_TIMEOUTS.connectSec.default * 1000;
 
 /** A server's own timeout (its form's Advanced section), else the run's, else the default. */
 const serverTimeoutMs = (serverSec: number | null | undefined, runMs: number | undefined, defaultMs: number) =>

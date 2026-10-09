@@ -10,15 +10,16 @@ import {
   listWaitingForUser,
   redis,
   setKillSwitch,
+  settingsTranslator,
   waitingMessage,
 } from "@abotica/core";
 import { isUserError, translateKey, type Translator } from "@abotica/i18n";
 import { agents, approvals, db, taskComments, tasks } from "@abotica/db";
 import { eq } from "@abotica/db/orm";
-import { type Bot, type Context, InlineKeyboard } from "grammy";
-import { botTranslator } from "./bot";
+import { type Bot, type CallbackQueryContext, type Context, InlineKeyboard } from "grammy";
+
 import { currentConversation } from "./chat";
-import { sendMarkdown, type Target } from "./send";
+import { inThread, sendMarkdown, type Target, truncate } from "./send";
 
 /** Questions shown again by /waiting, each with its buttons; the rest are in the list and the inbox. */
 const WAITING_QUESTIONS_SHOWN = 5;
@@ -27,8 +28,6 @@ const QUESTION_CHARS = 3_000;
 const OPTION_CHARS = 60;
 /** How long a reply to a question's message still answers it. */
 const REPLY_TTL_SECONDS = 30 * 24 * 3600;
-
-const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
 
 /** Which question a Telegram message asked, so a reply to it is its answer. */
 const questionMessageKey = (chatId: number, messageId: number) => `abotica:telegram:question:${chatId}:${messageId}`;
@@ -58,18 +57,18 @@ export async function sendQuestion(bot: Bot, questionId: string, target: Target)
     .leftJoin(agents, eq(agents.id, taskComments.authorAgentId))
     .where(eq(taskComments.id, questionId));
   if (!row || row.question.questionStatus !== "open") return false;
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   const { options } = row.question;
   const system = Boolean(options?.system);
   const keyboard = new InlineKeyboard();
   options?.options.forEach((option, n) => {
-    keyboard.text(cut(optionLabel(t, option, system), OPTION_CHARS), `q:${questionId}:${n}`).row();
+    keyboard.text(truncate(optionLabel(t, option, system), OPTION_CHARS), `q:${questionId}:${n}`).row();
   });
   const text = [
     t("inbox.telegram.question.title", { from: row.agent ?? t("inbox.telegram.question.system") }),
     t("inbox.telegram.question.task", { task: row.task }),
     "",
-    cut(row.question.body.trim(), QUESTION_CHARS),
+    truncate(row.question.body.trim(), QUESTION_CHARS),
     ...(options?.recommendation
       ? ["", t("inbox.telegram.question.recommended", { option: optionLabel(t, options.recommendation, system) })]
       : []),
@@ -79,7 +78,7 @@ export async function sendQuestion(bot: Bot, questionId: string, target: Target)
   // Plain text: an agent wrote the question, and it must not be parsed as Markdown.
   const msg = await bot.api.sendMessage(target.chatId, text, {
     ...(options?.options.length ? { reply_markup: keyboard } : {}),
-    ...(target.threadId ? { message_thread_id: target.threadId } : {}),
+    ...inThread(target.threadId),
   });
   await redis().set(questionMessageKey(target.chatId, msg.message_id), questionId, "EX", REPLY_TTL_SECONDS);
   return true;
@@ -90,7 +89,7 @@ export async function sendQuestion(bot: Bot, questionId: string, target: Target)
  * answered, or why not (it is closed, or the answer failed).
  */
 export async function answerFromTelegram(questionId: string, answer: string): Promise<{ ok: boolean; text: string }> {
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   const [question] = await db
     .select({ status: taskComments.questionStatus })
     .from(taskComments)
@@ -108,17 +107,27 @@ export async function answerFromTelegram(questionId: string, answer: string): Pr
 /** Where a command was sent from: its chat, and its forum topic if any. */
 const replyTarget = (ctx: Context): Target => ({ chatId: ctx.chat!.id, threadId: ctx.msg?.message_thread_id ?? null });
 
+/**
+ * Adds the outcome under the text of the message whose button was pressed. Without reply_markup the
+ * buttons go away: the question is answered or no longer open, the approval decided.
+ */
+async function closeButtons(ctx: CallbackQueryContext<Context>, verdict: string) {
+  const message = ctx.callbackQuery.message;
+  const original = message && "text" in message ? message.text : "";
+  await ctx.editMessageText(`${original ?? ""}\n\n${verdict}`.trim()).catch(() => {});
+}
+
 /** Slash commands and the inline buttons they (and approval notifications) show. */
 export function registerCommands(bot: Bot) {
-  bot.command("start", async (ctx) => ctx.reply((await botTranslator())("telegram.start")));
+  bot.command("start", async (ctx) => ctx.reply((await settingsTranslator())("telegram.start")));
 
   bot.command("new", async (ctx) => {
     await currentConversation(ctx, true);
-    await ctx.reply((await botTranslator())("telegram.newConversation"));
+    await ctx.reply((await settingsTranslator())("telegram.newConversation"));
   });
 
   bot.command("stop", async (ctx) => {
-    const t = await botTranslator();
+    const t = await settingsTranslator();
     // Running runs are aborted by the worker's kill switch subscription.
     const stopped = await setKillSwitch(true, t("errors.run.stoppedFromTelegram"));
     await ctx.reply(t("telegram.killSwitchOn", { count: stopped }));
@@ -126,12 +135,12 @@ export function registerCommands(bot: Bot) {
 
   bot.command("resume", async (ctx) => {
     await setKillSwitch(false);
-    await ctx.reply((await botTranslator())("telegram.killSwitchOff"));
+    await ctx.reply((await settingsTranslator())("telegram.killSwitchOff"));
   });
 
   bot.command("status", async (ctx) => {
     const settings = await getSettings();
-    const t = await botTranslator();
+    const t = await settingsTranslator();
     const [active, tasks, cost] = await Promise.all([
       listActiveRuns(),
       countTasksByStatus(),
@@ -161,14 +170,14 @@ export function registerCommands(bot: Bot) {
   bot.command("tasks", async (ctx) => {
     // Cancelled tasks are not open, only not done.
     const rows = (await listOpenTasks(20)).filter((r) => r.status !== "cancelled");
-    if (!rows.length) return ctx.reply((await botTranslator())("telegram.tasks.empty"));
+    if (!rows.length) return ctx.reply((await settingsTranslator())("telegram.tasks.empty"));
     const icon: Record<string, string> = { backlog: "⚪", in_progress: "🔵", paused: "⏸️", blocked: "🔴", review: "🟡" };
     await ctx.reply(rows.map((t) => `${icon[t.status]} ${t.title}${t.agent ? ` · ${t.agent}` : ""}`).join("\n"));
   });
 
   // What waits for the user: the list, then the open questions again with their buttons.
   bot.command("waiting", async (ctx) => {
-    const t = await botTranslator();
+    const t = await settingsTranslator();
     const items = await listWaitingForUser();
     if (!items.length) return ctx.reply(t("inbox.telegram.empty"));
     const target = replyTarget(ctx);
@@ -179,23 +188,20 @@ export function registerCommands(bot: Bot) {
 
   bot.callbackQuery(/^q:([0-9a-f-]+):(\d+)$/, async (ctx) => {
     const [, id, index] = ctx.match;
-    const t = await botTranslator();
+    const t = await settingsTranslator();
     const [row] = await db.select({ options: taskComments.options }).from(taskComments).where(eq(taskComments.id, id!));
     const option = row?.options?.options[Number(index)];
     if (!option) return ctx.answerCallbackQuery({ text: t("inbox.telegram.question.closed") });
     const result = await answerFromTelegram(id!, option);
     await ctx.answerCallbackQuery({ text: result.text });
-    const original = ctx.callbackQuery.message && "text" in ctx.callbackQuery.message ? ctx.callbackQuery.message.text : "";
     const answer = optionLabel(t, option, Boolean(row?.options?.system));
-    const verdict = result.ok ? t("inbox.telegram.question.verdict", { answer }) : result.text;
-    // Without reply_markup the buttons go away: the question is answered, or no longer open.
-    await ctx.editMessageText(`${original ?? ""}\n\n${verdict}`.trim()).catch(() => {});
+    await closeButtons(ctx, result.ok ? t("inbox.telegram.question.verdict", { answer }) : result.text);
   });
 
   bot.callbackQuery(/^ap:([0-9a-f-]+):([01])$/, async (ctx) => {
     const [, id, decision] = ctx.match;
     const approved = decision === "1";
-    const t = await botTranslator();
+    const t = await settingsTranslator();
     // The reason is read by the model when the run continues.
     const result = await decideApproval(id!, approved, {
       actor: `telegram:${ctx.from.id}`,
@@ -209,13 +215,13 @@ export function registerCommands(bot: Bot) {
         : t("telegram.approval.alreadyDecided"),
     });
     const [row] = await db.select().from(approvals).where(eq(approvals.id, id!));
-    const original = ctx.callbackQuery.message && "text" in ctx.callbackQuery.message ? ctx.callbackQuery.message.text : "";
-    const verdict =
+    await closeButtons(
+      ctx,
       row?.status === "approved"
         ? t("telegram.approval.verdictApproved")
         : row?.status === "rejected"
           ? t("telegram.approval.verdictRejected")
-          : "";
-    await ctx.editMessageText(`${original ?? ""}\n\n${verdict}`.trim()).catch(() => {});
+          : "",
+    );
   });
 }

@@ -1,8 +1,39 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useEffect, useRef } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+
+/**
+ * The dialog of a schedule or trigger form, mounted while open. Once something is typed, a stray tap next
+ * to the dialog must not throw away the text; Escape and the close button still work.
+ */
+export function FormDialog({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+}) {
+  const edited = useRef(false);
+  useEffect(() => {
+    if (open) edited.current = false;
+  }, [open]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
+        onInput={() => (edited.current = true)}
+        onInteractOutside={(e) => edited.current && e.preventDefault()}
+      >
+        {open && children}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 /** Dialog header with a tinted icon tile, vertically centered with the title and description. */
 export function DialogHeading({

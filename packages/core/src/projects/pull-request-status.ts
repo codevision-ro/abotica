@@ -4,9 +4,9 @@
  */
 import { z } from "zod";
 
-export type PullRequestState = "open" | "merged" | "closed";
+type PullRequestState = "open" | "merged" | "closed";
 export type PullRequestChecks = "none" | "pending" | "success" | "failure";
-export type PullRequestReview = "none" | "approved" | "changes_requested" | "commented";
+type PullRequestReview = "none" | "approved" | "changes_requested" | "commented";
 
 /** A failed CI check; `job` is how to read its log (a GitHub Actions job or a GitLab job), when known. */
 export type FailedCheck = { name: string; status: string; url: string | null; job: number | null };
@@ -359,7 +359,7 @@ const GITLAB_PENDING = new Set([
   "waiting_for_callback",
 ]);
 
-export type GitlabMerge = Pick<PullRequestStatus, "state" | "draft" | "headSha" | "mergedAt" | "checks"> & {
+type GitlabMerge = Pick<PullRequestStatus, "state" | "draft" | "headSha" | "mergedAt" | "checks"> & {
   pipeline: { id: number; url: string | null } | null;
   changesRequested: boolean;
 };
@@ -431,14 +431,14 @@ export function gitlabReviewState(
 }
 
 /** Lines kept from the end of a failed job's log. */
-export const LOG_TAIL_LINES = 20;
+const LOG_TAIL_LINES = 20;
 const LOG_LINE_CHARS = 400;
 
 /**
- * The last `count` lines of a job log, without terminal colors, GitLab's section markers or lines a
+ * The last LOG_TAIL_LINES lines of a job log, without terminal colors, GitLab's section markers or lines a
  * carriage return overwrote; each line cut to a readable length.
  */
-export function logTail(text: string, count = LOG_TAIL_LINES): string {
+export function logTail(text: string): string {
   const lines = text
     .split("\n")
     .map((line) =>
@@ -450,7 +450,7 @@ export function logTail(text: string, count = LOG_TAIL_LINES): string {
     )
     .filter((line) => line.trim());
   return lines
-    .slice(-count)
+    .slice(-LOG_TAIL_LINES)
     .map((line) => (line.length > LOG_LINE_CHARS ? `${line.slice(0, LOG_LINE_CHARS)}...` : line))
     .join("\n");
 }

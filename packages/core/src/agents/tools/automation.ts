@@ -6,7 +6,6 @@ import { audit } from "../../platform/audit";
 import { isValidCron } from "../../automations/cron";
 import { env } from "../../infra/env";
 import { createSchedule, deleteSchedule, updateSchedule } from "../../automations/schedules";
-import type { Delegator } from "../../tasks/team-rules";
 import { TRIGGER_EVENT_VALUES, usesWebhook } from "../../automations/trigger-events";
 import { deleteTrigger, saveTrigger } from "../../automations/triggers";
 import type { RunContext } from "../context";
@@ -14,6 +13,7 @@ import {
   actorOf,
   agentBySlug,
   clip,
+  delegatorOf,
   errorResult,
   optionalDateTime,
   optionalId,
@@ -22,13 +22,6 @@ import {
 } from "./shared";
 
 type Timing = Pick<typeof schedules.$inferSelect, "kind" | "cron" | "runAt">;
-
-/** The calling agent, held to the delegation rules for whom it may make runs of. */
-const delegatorOf = (ctx: RunContext): Delegator => ({
-  id: ctx.agent.id,
-  kind: ctx.agent.kind,
-  managedProjectIds: ctx.managedProjectIds,
-});
 
 /**
  * A webhook trigger's URL is a secret: agents never get it, so an injected instruction cannot send

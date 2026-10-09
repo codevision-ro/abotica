@@ -168,14 +168,14 @@ export type PreviewSettings = {
   staticDays: number;
 };
 
-export type TelegramSettings = {
+type TelegramSettings = {
   /** Telegram users allowed to talk to the bot; the bot token itself is in the vault (TELEGRAM_BOT_TOKEN). */
   allowedUserIds: number[];
   /** Chat that gets notifications (a user id, or a forum group id); null sends them to the first allowed user. */
   notifyChatId: string | null;
 };
 
-export type ReportSettings = {
+type ReportSettings = {
   /** The day's summary, at `hour` local time. */
   daily: { enabled: boolean; hour: number };
   /** The week's summary, on `weekday` (0 = Sunday) at `hour` local time. */
@@ -191,7 +191,7 @@ export type BudgetSettings = {
   alertPercents: number[];
 };
 
-export type SecuritySettings = {
+type SecuritySettings = {
   /** Days a sign-in stays valid without being used. */
   sessionDays: number;
 };

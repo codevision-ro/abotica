@@ -35,7 +35,6 @@ export function SettingsNumberField({
   step,
   unit,
   decimal = false,
-  className,
 }: (
   | { nullable?: false; value: number; onChange: (value: number) => void }
   | { nullable: true; value: number | null; onChange: (value: number | null) => void }
@@ -51,7 +50,6 @@ export function SettingsNumberField({
   /** Shown after the number ("MB", "min", "%"). */
   unit?: string;
   decimal?: boolean;
-  className?: string;
 }) {
   const [text, setText] = useState(shown(value));
   // A value changed from outside (a reset, a save that normalized it) replaces what was typed; adjusted
@@ -63,7 +61,7 @@ export function SettingsNumberField({
   }
 
   return (
-    <Field orientation="responsive" data-invalid={Boolean(error)} className={className}>
+    <Field orientation="responsive" data-invalid={Boolean(error)}>
       <FieldContent>
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         {hint && <FieldDescription>{hint}</FieldDescription>}

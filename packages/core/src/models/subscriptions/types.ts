@@ -17,7 +17,7 @@ export type SubscriptionModel = Pick<CatalogModel, "id" | "name"> &
   Partial<Pick<CatalogModel, "reasoning" | "input" | "contextWindow" | "toolCall">>;
 
 /** Everything one authorization attempt needs to build its URL; the generic flow owns the values. */
-export type AuthorizationRequest = {
+type AuthorizationRequest = {
   /** Null on the first sign-in, when the provider registers a client dynamically. */
   clientId: string | null;
   hostId: string;
@@ -32,7 +32,7 @@ export type AuthorizationRequest = {
   forceConsent: boolean;
 };
 
-export type CodeExchange = {
+type CodeExchange = {
   /** The client the authorization was started with, or the one the callback reports for a new registration. */
   clientId: string;
   code: string;

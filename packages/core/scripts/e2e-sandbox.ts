@@ -16,16 +16,7 @@ import {
   setDefaultUploadsRoot,
   startRun,
 } from "../src/index";
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-async function waitRun(id: string) {
-  for (let i = 0; i < 300; i++) {
-    const [r] = await db.select().from(runs).where(eq(runs.id, id));
-    if (r && !["queued", "running"].includes(r.status)) return r;
-    await wait(1000);
-  }
-  throw new Error("timeout");
-}
+import { wait, waitRun } from "./e2e-shared";
 
 /** The first run matching `where`, once it exists. */
 async function waitForRun(where: SQL | undefined) {
@@ -41,7 +32,7 @@ const text = async (id: string) => new TextDecoder().decode((await readFileBytes
 
 /** Prints the tool calls and results of a run; returns the results. */
 async function printRun(label: string, runId: string) {
-  const result = await waitRun(runId);
+  const result = await waitRun(runId, 300);
   console.log(`${label}:`, result.status, result.error ?? "", "steps", result.steps, result.provider, result.model);
   const events = await db.select().from(runEvents).where(eq(runEvents.runId, runId)).orderBy(asc(runEvents.id));
   for (const e of events) {

@@ -1,12 +1,11 @@
 import "server-only";
-import { getSettings, pinnedUsage, searchAllMemories, searchJournals } from "@abotica/core";
+import { getSettings, type MemoryScope, pinnedUsage, searchAllMemories, searchJournals } from "@abotica/core";
 import { agents, db, journals, memories, memoryOrigin, projects } from "@abotica/db";
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "@abotica/db/orm";
 import { isDay } from "@/lib/day";
 import { isUuid } from "@/lib/uuid";
+import { getProjectNames, listProjectOptions } from "./projects";
 import { query } from "@/server/query";
-
-export type MemoryScope = "global" | "project" | "agent";
 
 /**
  * The current entries a pending one would replace once approved (it waits, e.g. because it contradicts an
@@ -68,7 +67,7 @@ export const getMemoryOptions = query(async () => {
       .from(agents)
       .where(eq(agents.isTemplate, false))
       .orderBy(asc(agents.name)),
-    db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
+    listProjectOptions(),
     getSettings(),
   ]);
   return { agents: agentRows, projects: projectRows, unusedDays: settings.memory.unusedDays };
@@ -143,23 +142,7 @@ export const listOwnerMemories = query(async (owner: { agentId: string } | { pro
       ? and(eq(memories.scope, "agent"), eq(memories.agentId, owner.agentId))
       : and(inArray(memories.scope, ["project", "agent"]), eq(memories.projectId, owner.projectId));
   return db
-    .select({
-      id: memories.id,
-      scope: memories.scope,
-      content: memories.content,
-      source: memories.source,
-      origin: memories.origin,
-      status: memories.status,
-      pinned: memories.pinned,
-      flagReason: memories.flagReason,
-      updatedAt: memories.updatedAt,
-      ...lifecycleColumns,
-      projectId: memories.projectId,
-      projectName: projects.name,
-      agentId: memories.agentId,
-      agentName: agents.name,
-      agentAvatar: agents.avatar,
-    })
+    .select(memoryColumns)
     .from(memories)
     .leftJoin(projects, eq(projects.id, memories.projectId))
     .leftJoin(agents, eq(agents.id, memories.agentId))
@@ -192,30 +175,31 @@ export const getMemoryCounts = query(async () => {
   return counts;
 });
 
+/** Names and avatars of the given agents (nulls and repeats allowed), by id. */
+async function agentsById(ids: (string | null)[]) {
+  const wanted = [...new Set(ids.filter((id) => id !== null))];
+  const rows = wanted.length
+    ? await db
+        .select({ id: agents.id, name: agents.name, avatar: agents.avatar })
+        .from(agents)
+        .where(inArray(agents.id, wanted))
+    : [];
+  return new Map(rows.map((a) => [a.id, a]));
+}
+
 /** Hybrid search across every memory (all scopes and owners), keyword only without embeddings. */
 export const getMemorySearchResults = query(async (search: string, limit: number = 20) => {
   const { rows } = await searchAllMemories(search, limit);
-  const projectIds = [...new Set(rows.flatMap((r) => (r.projectId ? [r.projectId] : [])))];
-  const agentIds = [...new Set(rows.flatMap((r) => (r.agentId ? [r.agentId] : [])))];
-  const [projectRows, agentRows] = await Promise.all([
-    projectIds.length
-      ? db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))
-      : [],
-    agentIds.length
-      ? db
-          .select({ id: agents.id, name: agents.name, avatar: agents.avatar })
-          .from(agents)
-          .where(inArray(agents.id, agentIds))
-      : [],
+  const [projectNames, agentById] = await Promise.all([
+    getProjectNames(rows.map((r) => r.projectId)),
+    agentsById(rows.map((r) => r.agentId)),
   ]);
-  const projectById = new Map(projectRows.map((p) => [p.id, p]));
-  const agentById = new Map(agentRows.map((a) => [a.id, a]));
   return {
     rows: rows.map((r) => {
       const agent = r.agentId ? agentById.get(r.agentId) : undefined;
       return {
         ...r,
-        projectName: (r.projectId ? projectById.get(r.projectId)?.name : null) ?? null,
+        projectName: (r.projectId ? projectNames.get(r.projectId) : null) ?? null,
         agentName: agent?.name ?? null,
         agentAvatar: agent?.avatar ?? null,
       };
@@ -268,14 +252,7 @@ export const getJournalDays = query(async (opts: { agentId?: string; from?: stri
 
 export const listJournalSearchResults = query(async (search: string, agentId?: string) => {
   const rows = await searchJournals(search, { agentId: isUuid(agentId) ? agentId : undefined, limit: 20 });
-  const ids = [...new Set(rows.map((r) => r.agentId))];
-  const agentRows = ids.length
-    ? await db
-        .select({ id: agents.id, name: agents.name, avatar: agents.avatar })
-        .from(agents)
-        .where(inArray(agents.id, ids))
-    : [];
-  const byId = new Map(agentRows.map((a) => [a.id, a]));
+  const byId = await agentsById(rows.map((r) => r.agentId));
   return rows.map((r) => ({
     ...r,
     agentName: byId.get(r.agentId)?.name ?? null,

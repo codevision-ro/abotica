@@ -42,6 +42,7 @@ vi.mock("../settings/settings", () => ({
   updateSettings: async (_domain: "telegram", patch: Partial<typeof state.telegram>) =>
     void Object.assign(state.telegram, patch),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("../platform/audit", () => ({ audit: async () => {} }));
 vi.mock("../infra/redis", () => ({

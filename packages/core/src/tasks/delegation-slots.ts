@@ -1,8 +1,8 @@
 import { agents, db, runs, tasks } from "@abotica/db";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, notExists, or, sql } from "@abotica/db/orm";
-import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
+import { errorMessage, isUserError, UserError } from "@abotica/i18n";
 import { withLock } from "../infra/redis";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsTranslator } from "../settings/settings";
 import { type Run, startTaskRun, type StartTaskRunOptions } from "../runs/runs";
 import { addTaskComment, isActiveTaskRunConflict, type Task, type TaskPriority, updateTask } from "./tasks";
 
@@ -18,7 +18,7 @@ import { addTaskComment, isActiveTaskRunConflict, type Task, type TaskPriority, 
  */
 
 /** Places of a conversation: its cap, the places taken, and how many of those urgent tasks hold. */
-export type Places = { limit: number; busy: number; urgent: number };
+type Places = { limit: number; busy: number; urgent: number };
 
 /**
  * Whether a task of `priority` may take a place now: a free one under the cap, or, for urgent work with
@@ -141,12 +141,8 @@ async function startClaimed(task: Task): Promise<StartOutcome> {
     // The user started it since it was claimed: that run holds the place.
     if (isActiveTaskRunConflict(error)) return "taken";
     if (isUserError(error) && error.key === "tasks.errors.notFound") return "not-started";
-    const t = getTranslator(settingsLocale(await getSettings()));
-    const reason = isUserError(error)
-      ? translateKey(t, error.key, error.values)
-      : error instanceof Error
-        ? error.message
-        : String(error);
+    const t = await settingsTranslator();
+    const reason = errorMessage(t, error);
     console.warn(`[delegation] waiting task ${task.id} did not start: ${reason}`);
     await updateTask(task.id, { status: "blocked" }, "system");
     await addTaskComment(task.id, t("tasks.slots.startFailed", { reason }), "system");

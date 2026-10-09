@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { ConfirmButton } from "@/components/app/confirm-dialog";
 import { OptionCards } from "@/components/app/option-cards";
 import { RelativeTime } from "@/components/app/relative-time";
-import { sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider } from "@/components/app/section-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -31,12 +31,12 @@ type Method = "api-key" | "plan";
  */
 export function ProviderCard({
   provider,
-  ollamaBaseUrl = "",
+  ollamaBaseUrl,
   onClose,
 }: {
   provider: ProviderStatus;
-  /** Only for Ollama: where its server listens, from Settings. */
-  ollamaBaseUrl?: string;
+  /** Where the Ollama server listens, from Settings; only the Ollama card shows it. */
+  ollamaBaseUrl: string;
   onClose: () => void;
 }) {
   const t = useTranslations("settings.providers");
@@ -52,39 +52,19 @@ export function ProviderCard({
   const planNames = plan ? { plan: plan.label, provider: provider.label } : undefined;
 
   /** Runs a removal, then closes the card: nothing is connected anymore. */
-  function removeWith(run: () => Promise<{ ok: boolean; error?: string }>, done: () => void) {
+  function removeWith<T>(
+    run: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>,
+    done: (data: T) => void,
+  ) {
     startRemove(async () => {
       const res = await run();
       if (!res.ok) return void toast.error(res.error);
       test.reset();
       onClose();
-      done();
+      done(res.data);
       router.refresh();
     });
   }
-
-  const removeKey = () =>
-    removeWith(
-      () => deleteProviderKey({ provider: provider.id }),
-      () => toast.success(t("keyRemoved", { provider: provider.label })),
-    );
-
-  const disconnectPlan = () =>
-    startRemove(async () => {
-      const res = await disconnectSubscriptionAccount({ provider: provider.id });
-      if (!res.ok) return void toast.error(res.error);
-      test.reset();
-      onClose();
-      if (res.data.revoked) toast.success(tp("disconnected", planNames));
-      else toast.warning(tp("disconnectedUnconfirmed", planNames));
-      router.refresh();
-    });
-
-  const deactivate = () =>
-    removeWith(
-      () => setOllamaEnabled({ enabled: false }),
-      () => toast.success(t("deactivated", { provider: provider.label })),
-    );
 
   const subtitle = isOllama ? (
     <span className="truncate">{t("subtitleLocal")}</span>
@@ -101,46 +81,47 @@ export function ProviderCard({
   );
 
   const removal =
-    provider.connection === "plan" ? (
-      <ConfirmButton
-        className="shrink-0 text-muted-foreground hover:text-destructive ml-auto"
-        titleClassName="[overflow-wrap:anywhere]"
-        destructive
-        icon={LogOut}
-        label={tp("disconnect")}
-        title={tp("disconnectTitle", planNames)}
-        description={tp("disconnectDescription", planNames)}
-        confirm={tp("disconnect")}
-        pending={removing}
-        onConfirm={disconnectPlan}
-      />
-    ) : provider.connection === "local" ? (
-      <ConfirmButton
-        className="shrink-0 text-muted-foreground hover:text-destructive ml-auto"
-        titleClassName="[overflow-wrap:anywhere]"
-        destructive
-        icon={PowerOff}
-        label={t("deactivate")}
-        title={t("deactivateTitle", { provider: provider.label })}
-        description={t("deactivateDescription")}
-        confirm={t("deactivate")}
-        pending={removing}
-        onConfirm={deactivate}
-      />
-    ) : (
-      <ConfirmButton
-        className="shrink-0 text-muted-foreground hover:text-destructive ml-auto"
-        titleClassName="[overflow-wrap:anywhere]"
-        destructive
-        icon={Trash2}
-        label={t("removeKey")}
-        title={t("removeTitle", { provider: provider.label })}
-        description={t("removeDescription")}
-        confirm={tc("delete")}
-        pending={removing}
-        onConfirm={removeKey}
-      />
-    );
+    provider.connection === "plan"
+      ? {
+          icon: LogOut,
+          label: tp("disconnect"),
+          title: tp("disconnectTitle", planNames),
+          description: tp("disconnectDescription", planNames),
+          confirm: tp("disconnect"),
+          onConfirm: () =>
+            removeWith(
+              () => disconnectSubscriptionAccount({ provider: provider.id }),
+              ({ revoked }) =>
+                revoked
+                  ? toast.success(tp("disconnected", planNames))
+                  : toast.warning(tp("disconnectedUnconfirmed", planNames)),
+            ),
+        }
+      : provider.connection === "local"
+        ? {
+            icon: PowerOff,
+            label: t("deactivate"),
+            title: t("deactivateTitle", { provider: provider.label }),
+            description: t("deactivateDescription"),
+            confirm: t("deactivate"),
+            onConfirm: () =>
+              removeWith(
+                () => setOllamaEnabled({ enabled: false }),
+                () => toast.success(t("deactivated", { provider: provider.label })),
+              ),
+          }
+        : {
+            icon: Trash2,
+            label: t("removeKey"),
+            title: t("removeTitle", { provider: provider.label }),
+            description: t("removeDescription"),
+            confirm: tc("delete"),
+            onConfirm: () =>
+              removeWith(
+                () => deleteProviderKey({ provider: provider.id }),
+                () => toast.success(t("keyRemoved", { provider: provider.label })),
+              ),
+          };
 
   return (
     <section
@@ -170,7 +151,7 @@ export function ProviderCard({
           </Badge>
         )}
       </div>
-      <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
 
       <div className="flex flex-1 flex-col gap-4 p-4 sm:px-5">
         {isOllama ? (
@@ -226,7 +207,13 @@ export function ProviderCard({
                 {provider.testModel}
               </span>
             )}
-            {removal}
+            <ConfirmButton
+              className="shrink-0 text-muted-foreground hover:text-destructive ml-auto"
+              titleClassName="[overflow-wrap:anywhere]"
+              destructive
+              pending={removing}
+              {...removal}
+            />
           </>
         ) : (
           <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={onClose}>

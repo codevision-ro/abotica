@@ -1,4 +1,4 @@
-import { sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider } from "@/components/app/section-card";
 import {
   SettingsCollapsedSkeleton,
   SettingsHeaderSkeleton,
@@ -20,7 +20,7 @@ export default function Loading() {
           </div>
           <Skeleton className="h-5 w-20 rounded-full" />
         </div>
-        <div className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+        <SectionDivider />
         <div className="flex flex-col gap-4 p-4 sm:p-5">
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {[0, 1].map((i) => (

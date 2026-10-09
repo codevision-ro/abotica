@@ -3,6 +3,7 @@
 import type { CompactionMetadata } from "@abotica/core/compaction-record";
 import { ChevronRight, FoldVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { SectionDivider } from "@/components/app/section-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChatMarkdown, MessageTime } from "./chat-parts";
 
@@ -34,7 +35,7 @@ export function CompactionDivider({ compaction, date }: { compaction: Compaction
               <MessageTime date={date} />
             </span>
           </div>
-          <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+          <SectionDivider />
           <ChatMarkdown className="px-3 py-2.5 text-sm">{compaction.summary}</ChatMarkdown>
         </div>
       </CollapsibleContent>

@@ -177,29 +177,25 @@ export function AgentForm({
     : v.model
       ? `${v.provider}/${v.model}`
       : t("noModel");
-  const subject = { kind: v.kind };
   // Integrations the agent gets: the global ones and those assigned to it.
   const integrationCount = options.mcpServers.filter((s) => s.global || v.mcpServerIds.includes(s.id)).length;
 
   const editing = mode.kind === "edit";
 
   function submit() {
-    const steps = maxSteps;
-    const minutes = timeoutMin;
-    const budgetUsd = budget;
     // Problems in the advanced section open it, so the field in question is visible.
     const advancedError = (message: string) => {
       setAdvancedOpen(true);
       toast.error(message);
     };
     const within = (n: number, range: { min: number; max: number }) => n >= range.min && n <= range.max;
-    if (!Number.isInteger(steps) || !within(steps, LIMITS.maxSteps)) {
+    if (!Number.isInteger(maxSteps) || !within(maxSteps, LIMITS.maxSteps)) {
       return advancedError(tv("maxSteps", LIMITS.maxSteps));
     }
-    if (!Number.isFinite(minutes) || !within(minutes, LIMITS.timeoutMinutes)) {
+    if (!Number.isFinite(timeoutMin) || !within(timeoutMin, LIMITS.timeoutMinutes)) {
       return advancedError(tv("timeout", LIMITS.timeoutMinutes));
     }
-    if (budgetUsd !== null && (!Number.isFinite(budgetUsd) || !within(budgetUsd, LIMITS.budgetUsd))) {
+    if (budget !== null && (!Number.isFinite(budget) || !within(budget, LIMITS.budgetUsd))) {
       return advancedError(tv("budget", LIMITS.budgetUsd));
     }
     if (!usesDefault && !v.model?.trim()) return toast.error(t("pickModel"));
@@ -209,7 +205,7 @@ export function AgentForm({
       ...v,
       // Only a specialist's teams are edited here: a manager's projects are those it leads, set in their Team tab.
       projectIds: v.kind === "specialist" ? v.projectIds : initial.projectIds,
-      limits: { maxSteps: steps, timeoutMs: Math.round(minutes * 60_000), budgetUsd },
+      limits: { maxSteps, timeoutMs: Math.round(timeoutMin * 60_000), budgetUsd: budget },
     };
 
     startTransition(async () => {
@@ -241,11 +237,10 @@ export function AgentForm({
   const ledProjects = editing ? options.projects.filter((p) => p.managerAgentId === mode.agentId) : [];
   // Only specialists join teams here: a manager joins the projects it leads, from their Team tab.
   const joinsProjects = v.kind === "specialist" && !isTemplate;
-  // A project the agent manages keeps it: the manager changes in the project's Team tab first.
-  const managedHint = t("managesProject");
   const projectItems = options.projects.map((p) => {
+    // A project the agent manages keeps it: the manager changes in the project's Team tab first.
     const manages = editing && p.managerAgentId === mode.agentId;
-    return { id: p.id, label: p.name, hint: manages ? managedHint : undefined, locked: manages };
+    return { id: p.id, label: p.name, hint: manages ? t("managesProject") : undefined, locked: manages };
   });
   const submitLabel = editing ? tc("save") : t("create");
   const submitButton = (className?: string) => (
@@ -546,7 +541,7 @@ export function AgentForm({
         mcpServerIds={v.mcpServerIds}
         setMcpServerIds={(ids) => set("mcpServerIds", ids)}
         servers={options.mcpServers}
-        subject={subject}
+        subject={{ kind: v.kind }}
       />
 
       <FormSection

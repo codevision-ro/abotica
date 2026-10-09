@@ -5,17 +5,18 @@
  * mayControlTask). The runner's soft stop ends a running run cleanly between steps.
  */
 import { agents, db, projects, runs, taskComments, taskEvents, tasks, taskWakeups } from "@abotica/db";
-import { and, eq, inArray, notInArray, or, sql } from "@abotica/db/orm";
-import { getTranslator, isUserError, type Translator, translateKey, UserError } from "@abotica/i18n";
+import { and, eq, inArray, isNull, notInArray, or, sql } from "@abotica/db/orm";
+import { errorMessage, getTranslator, type Translator, UserError } from "@abotica/i18n";
 import { enqueueTaskEvent } from "../infra/queues";
 import { redis } from "../infra/redis";
 import { deliverToTask, type TaskNotice } from "../runs/deliver";
 import type { RunFailureKind } from "../runs/run-failures";
 import { cancelPendingRun } from "../runs/run-lifecycle";
 import { cancelRun, type Run } from "../runs/runs";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsLocale, settingsTranslator } from "../settings/settings";
 import { loadDelegationProject, reportTask } from "./delegation";
 import { startDelegatedTask } from "./delegation-slots";
+import { delegatorAgentId } from "./task-authority";
 import { postInstruction } from "./task-messages";
 import { checkDelegationTarget } from "./team-rules";
 import {
@@ -38,8 +39,6 @@ const RESUMABLE: readonly TaskStatus[] = ["paused", "blocked", "in_progress"];
 const OVER: readonly TaskStatus[] = ["done", "cancelled"];
 
 const ACTIVE_RUN_STATUSES = ["queued", "running", "waiting_approval"] as const;
-
-const translator = async () => getTranslator(settingsLocale(await getSettings()));
 
 /** Who acts, as people read it (`name`) and as task events and runs record it (`actor`). */
 type Who = { name: string; actor: string };
@@ -103,19 +102,20 @@ export async function takeSoftStop(runId: string): Promise<string | null> {
 
 /**
  * Puts the task aside: status paused, its queued run cancelled and its running one stopped at the next
- * step. `pausedForTaskId`: the (urgent) task it makes room for; it resumes on its own once that settles.
- * Refused for a task waiting for an approval and for a settled one.
+ * step, and the work under it with it (pauseBelow). `pausedForTaskId`: the (urgent) task it makes room
+ * for; it resumes on its own once that settles. `with`: the task above it that was put aside, for a task
+ * paused as part of its work. Refused for a task waiting for an approval and for a settled one.
  */
 export async function pauseTask(
   taskId: string,
-  opts: { by: Actor; reason: string; pausedForTaskId?: string | null },
+  opts: { by: Actor; reason: string; pausedForTaskId?: string | null; with?: { id: string; title: string } },
 ): Promise<Task> {
   const task = await loadTask(taskId);
   if (!PAUSABLE.includes(task.status)) throw new UserError("flow.control.errors.notPausable");
   const run = await activeRunOf(taskId);
   // The run is idle, waiting for the user; deciding its approvals (or a cancel) moves it on.
   if (run?.status === "waiting_approval") throw new UserError("flow.control.errors.waitingApproval");
-  const t = await translator();
+  const t = await settingsTranslator();
   const actor = await who(opts.by, t);
   const pausedForTaskId = opts.pausedForTaskId ?? null;
 
@@ -129,16 +129,98 @@ export async function pauseTask(
     const cancelled = run.status === "queued" && (await cancelPendingRun(run.id, runReason, "paused"));
     if (!cancelled) await requestSoftStop(run.id, runReason);
   }
-  await logEvent(taskId, "paused", actor.actor, { reason: opts.reason, pausedForTaskId, runId: run?.id ?? null });
+  await logEvent(taskId, "paused", actor.actor, {
+    reason: opts.reason,
+    pausedForTaskId,
+    runId: run?.id ?? null,
+    ...(opts.with ? { pausedWith: opts.with.id } : {}),
+  });
 
   const [forTask] = pausedForTaskId
     ? await db.select({ title: tasks.title }).from(tasks).where(eq(tasks.id, pausedForTaskId))
     : [];
   const text = forTask
     ? t("flow.control.pausedFor", { by: actor.name, reason: opts.reason, task: forTask.title })
-    : t("flow.control.paused", { by: actor.name, reason: opts.reason });
+    : opts.with
+      ? t("flow.control.pausedWith", { by: actor.name, reason: opts.reason, task: opts.with.title })
+      : t("flow.control.paused", { by: actor.name, reason: opts.reason });
   await controlNotice(taskId, text, opts.by, actor.name);
+  if (!opts.with) await pauseBelow(task, opts);
   return paused;
+}
+
+/**
+ * The work under a task put aside goes aside with it: its subtasks and the tasks its runs delegated that
+ * are waiting or underway, at any depth. They come back when the task resumes (resumeHeldWork); one put
+ * aside on its own already keeps its own pause.
+ */
+async function pauseBelow(root: Task, opts: { by: Actor; reason: string }): Promise<void> {
+  const below = (await taskSubtree(root.id)).filter((id) => id !== root.id);
+  if (!below.length) return;
+  const open = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(and(inArray(tasks.id, below), inArray(tasks.status, ["backlog", "in_progress"])));
+  for (const { id } of open) {
+    try {
+      await pauseTask(id, { by: opts.by, reason: opts.reason, with: { id: root.id, title: root.title } });
+    } catch (error) {
+      // Waiting for an approval: it stays as it is, and its run goes on once the approval is decided.
+      console.warn(
+        `[control] task ${id} under ${root.id} was not put aside: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+}
+
+/** Tasks put aside with the work above them (pauseBelow) and still waiting for it, with that work's id. */
+async function heldWork(): Promise<{ id: string; withId: string }[]> {
+  const pausedWith = sql<string | null>`(select e.data->>'pausedWith' from ${taskEvents} e
+    where e.task_id = ${tasks}.${sql.identifier(tasks.id.name)} and e.type = 'paused'
+    order by e.created_at desc limit 1)`;
+  const rows = await db
+    .select({ id: tasks.id, withId: pausedWith })
+    .from(tasks)
+    .where(and(eq(tasks.status, "paused"), isNull(tasks.pausedForTaskId)));
+  return rows.flatMap((row) => (row.withId ? [{ id: row.id, withId: row.withId }] : []));
+}
+
+/**
+ * Brings back the work put aside with a task once that task goes on: resumeTask calls it for the task it
+ * resumed, and the follow-up sweeper (no `taskId`) for every such task no longer paused, which catches
+ * work whose run was still stopping. One that cannot go on is blocked with the reason and reported.
+ */
+export async function resumeHeldWork(taskId: string | null, by: Actor = "system"): Promise<number> {
+  let held = await heldWork();
+  if (taskId) {
+    held = held.filter((h) => h.withId === taskId);
+  } else if (held.length) {
+    const ids = [...new Set(held.map((h) => h.withId))];
+    const stillPaused = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(inArray(tasks.id, ids), eq(tasks.status, "paused")));
+    const waiting = new Set(stillPaused.map((r) => r.id));
+    held = held.filter((h) => !waiting.has(h.withId));
+  }
+  let resumed = 0;
+  for (const { id, withId } of held) {
+    try {
+      await resumeTask(id, { by });
+      resumed += 1;
+    } catch (error) {
+      // Its run is still stopping: the follow-up sweeper resumes it later.
+      if (isActiveTaskRunConflict(error)) continue;
+      const t = await settingsTranslator();
+      const [above] = await db.select({ title: tasks.title }).from(tasks).where(eq(tasks.id, withId));
+      const reason = errorMessage(t, error);
+      console.warn(`[control] task ${id} put aside with ${withId} did not resume: ${reason}`);
+      await updateTask(id, { status: "blocked" }, "system");
+      await addTaskComment(id, t("flow.control.heldResumeFailed", { task: above?.title ?? withId, reason }), "system");
+      await reportTask(id);
+    }
+  }
+  return resumed;
 }
 
 /**
@@ -196,6 +278,7 @@ export async function resumeTask(
   }
   // Its wakeups were skipped while it was paused; a run started checks them when it ends.
   if (!run) await enqueueTaskEvent({ taskId, event: "wakeups" });
+  await resumeHeldWork(taskId, opts.by);
   return { task: await loadTask(taskId), run };
 }
 
@@ -231,13 +314,6 @@ async function taskSubtree(rootId: string): Promise<string[]> {
   return [...seen];
 }
 
-/** The agent whose run delegated the task, if any. */
-async function delegatorAgentId(task: Task): Promise<string | null> {
-  if (!task.delegatedByRunId) return null;
-  const [run] = await db.select({ agentId: runs.agentId }).from(runs).where(eq(runs.id, task.delegatedByRunId));
-  return run?.agentId ?? null;
-}
-
 /**
  * Whether whoever gave the task hears of its cancel: someone above it (an agent's run delegated it, or a
  * schedule or trigger fired it), unless that agent cancelled it itself.
@@ -259,7 +335,7 @@ export async function cancelTask(
 ): Promise<{ cancelled: string[] }> {
   const root = await loadTask(taskId);
   if (OVER.includes(root.status)) throw new UserError("flow.control.errors.over");
-  const t = await translator();
+  const t = await settingsTranslator();
   const actor = await who(opts.by, t);
   const tree = opts.cascade === false ? [taskId] : await taskSubtree(taskId);
   const open = await db
@@ -376,7 +452,7 @@ export async function redirectTask(
 ): Promise<Task> {
   const task = await loadTask(taskId);
   if (OVER.includes(task.status)) throw new UserError("flow.control.errors.over");
-  const t = await translator();
+  const t = await settingsTranslator();
   const actor = await who(opts.by, t);
   const reason = opts.reason ?? "";
 
@@ -412,7 +488,7 @@ export async function resumePausedFor(settledTaskId: string): Promise<number> {
     .returning({ id: tasks.id });
   if (!claimed.length) return 0;
   const [settled] = await db.select({ title: tasks.title }).from(tasks).where(eq(tasks.id, settledTaskId));
-  const t = await translator();
+  const t = await settingsTranslator();
   const title = settled?.title ?? settledTaskId;
   let resumed = 0;
   for (const { id } of claimed) {
@@ -425,11 +501,7 @@ export async function resumePausedFor(settledTaskId: string): Promise<number> {
         await db.update(tasks).set({ pausedForTaskId: settledTaskId }).where(eq(tasks.id, id));
         continue;
       }
-      const reason = isUserError(error)
-        ? translateKey(t, error.key, error.values)
-        : error instanceof Error
-          ? error.message
-          : String(error);
+      const reason = errorMessage(t, error);
       console.warn(`[control] task ${id} put aside for ${settledTaskId} did not resume: ${reason}`);
       await updateTask(id, { status: "blocked" }, "system");
       await addTaskComment(id, t("flow.control.autoResumeFailed", { task: title, reason }), "system");

@@ -71,6 +71,7 @@ vi.mock("../infra/env", () => ({ env: () => ({ APP_URL: "http://localhost" }) })
 vi.mock("../settings/settings", () => ({
   getSettings: async () => settings,
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("../runs/runs", () => ({
   ConversationBusyError: class extends Error {},

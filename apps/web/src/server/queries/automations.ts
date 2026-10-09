@@ -3,6 +3,7 @@ import { getSettings, type Trigger, WEBHOOK_EVENTS } from "@abotica/core";
 import { agents, db, projects, schedules, triggers } from "@abotica/db";
 import { and, asc, eq, inArray, sql } from "@abotica/db/orm";
 import { getLocale } from "next-intl/server";
+import { listProjectOptions } from "./projects";
 import { publicQuery, query } from "@/server/query";
 
 export const getAutomationOptions = query(async () => {
@@ -12,7 +13,7 @@ export const getAutomationOptions = query(async () => {
       .from(agents)
       .where(and(eq(agents.isTemplate, false), eq(agents.enabled, true)))
       .orderBy(asc(agents.kind), asc(agents.name)),
-    db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name)),
+    listProjectOptions(),
     getSettings(),
   ]);
   return { agents: agentRows, projects: projectRows, timezone: settings.general.timezone };

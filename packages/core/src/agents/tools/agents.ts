@@ -23,11 +23,25 @@ import { type ModelRole, modelRole, roleDefaultModels } from "../../models/model
 import type { RunContext } from "../context";
 import { REASONING_EFFORTS } from "../../models/reasoning";
 import { defaultPermissions } from "../permissions";
-import { actorOf, agentBySlug, blankToUndefined, clip, errorResult, optionalText, type ToolFactory } from "./shared";
+import {
+  actorOf,
+  agentBySlug,
+  blankToUndefined,
+  clip,
+  errorResult,
+  optionalId,
+  optionalText,
+  type ToolFactory,
+} from "./shared";
 
 /** An explicit model keeps its role's default chain behind it, so the agent survives provider outages. */
-const fallbacksFor = (ctx: RunContext, primary: ModelRef, role: ModelRole): ModelRef[] =>
-  roleDefaultModels(ctx.settings.models, role).filter((m) => m.provider !== primary.provider || m.model !== primary.model);
+const explicitModel = (ctx: RunContext, primary: ModelRef, role: ModelRole) => ({
+  provider: primary.provider,
+  model: primary.model,
+  fallbacks: roleDefaultModels(ctx.settings.models, role).filter(
+    (m) => m.provider !== primary.provider || m.model !== primary.model,
+  ),
+});
 
 const modelLabel = (m: ModelRef | undefined) => (m ? `${m.provider}/${m.model}` : "not set");
 
@@ -165,11 +179,7 @@ export const agentTools: Record<string, ToolFactory> = {
           : [];
         const missing = projectIds.filter((id) => !found.some((p) => p.id === id));
         if (missing.length) return { error: `Unknown projects: ${missing.join(", ")}. Use project_list.` };
-        const modelRef = picked.ref && {
-          provider: picked.ref.provider,
-          model: picked.ref.model,
-          fallbacks: fallbacksFor(ctx, picked.ref, modelRole({ kind })),
-        };
+        const modelRef = picked.ref && explicitModel(ctx, picked.ref, modelRole({ kind }));
         let agent;
         try {
           if (template) {
@@ -249,11 +259,7 @@ export const agentTools: Record<string, ToolFactory> = {
         if ("error" in picked) return picked;
         const modelChange = input.useDefaultModel
           ? { provider: null, model: null, fallbacks: [] }
-          : picked.ref && {
-              provider: picked.ref.provider,
-              model: picked.ref.model,
-              fallbacks: fallbacksFor(ctx, picked.ref, modelRole(agent)),
-            };
+          : picked.ref && explicitModel(ctx, picked.ref, modelRole(agent));
         const result = await updateAgentConfig(
           agent.id,
           {
@@ -346,7 +352,7 @@ export const agentTools: Record<string, ToolFactory> = {
         kind: z.enum(["skill", "mcp"]),
         slug: z.string().describe("Skill or MCP server slug"),
         agentSlug: optionalText().describe("Target agent; send this or projectId"),
-        projectId: z.preprocess(blankToUndefined, z.string().uuid().optional()).describe("Target project"),
+        projectId: optionalId().describe("Target project"),
       }),
       execute: async ({ action, kind, slug, agentSlug, projectId }) => {
         if (Boolean(agentSlug) === Boolean(projectId)) return { error: "Send exactly one target: agentSlug or projectId" };

@@ -9,14 +9,14 @@
 import { agents, conversations, db, messages, runs, taskComments, taskEvents, tasks } from "@abotica/db";
 import { generateId, type UIMessage } from "ai";
 import { and, desc, eq, inArray, isNotNull } from "@abotica/db/orm";
-import { getTranslator, isUserError } from "@abotica/i18n";
+import { isUserError } from "@abotica/i18n";
 import { fullModelChain } from "../agents/model-chain";
 import { env } from "../infra/env";
 import { publish } from "../infra/events";
 import { notify } from "../infra/queues";
 import { redis } from "../infra/redis";
 import { combinePolicies, deniesEveryModel, projectsProviderPolicy, runProviderPolicy } from "../models/provider-policy";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { getSettings, settingsTranslator } from "../settings/settings";
 import { superiorOf, type Superior } from "../tasks/chain";
 import { type DelegationReportMetadata, isDelegationReport, SETTLED_TASK_STATUSES } from "../tasks/delegation-report";
 import { startDelegatedTask } from "../tasks/delegation-slots";
@@ -69,7 +69,6 @@ const ACTIVE_RUN = ["queued", "running", "waiting_approval"] as const;
 /** Notice wakes one conversation takes per hour; past it, notices wait there for its next run. */
 export const NOTICE_WAKES_PER_HOUR = 30;
 
-const translator = async () => getTranslator(settingsLocale(await getSettings()));
 const taskUrl = (taskId: string) => `${env().APP_URL}/tasks/${taskId}`;
 
 /**
@@ -101,7 +100,7 @@ export async function mayRead(
  * chat. The tasks stay as they settled; the user decides on them.
  */
 async function deliverToUser(agent: Agent, conversationId: string, report: DelegationReportMetadata): Promise<void> {
-  const t = await translator();
+  const t = await settingsTranslator();
   const text = [
     t("notifications.delegationWithheld.title", { count: report.tasks.length, agent: agent.name }),
     ...report.tasks.map((task) =>
@@ -132,7 +131,7 @@ async function withhold(agent: Agent, conversationId: string, message: UIMessage
   const metadata = message.metadata;
   if (isDelegationReport(metadata)) return deliverToUser(agent, conversationId, metadata);
   if (!isTaskNotice(metadata)) return;
-  const t = await translator();
+  const t = await settingsTranslator();
   await notify({
     kind: "text",
     projectId: metadata.projectId,
@@ -140,11 +139,17 @@ async function withhold(agent: Agent, conversationId: string, message: UIMessage
   });
 }
 
-async function activeRunIn(conversationId: string) {
+/** The run still working in a conversation or on a task, if any. */
+async function activeRun(on: { conversationId: string } | { taskId: string }) {
   const [run] = await db
-    .select({ id: runs.id, status: runs.status })
+    .select({ id: runs.id, status: runs.status, conversationId: runs.conversationId })
     .from(runs)
-    .where(and(eq(runs.conversationId, conversationId), inArray(runs.status, [...ACTIVE_RUN])))
+    .where(
+      and(
+        "taskId" in on ? eq(runs.taskId, on.taskId) : eq(runs.conversationId, on.conversationId),
+        inArray(runs.status, [...ACTIVE_RUN]),
+      ),
+    )
     .limit(1);
   return run ?? null;
 }
@@ -176,7 +181,7 @@ async function takeNoticeWake(conversationId: string): Promise<boolean> {
 async function tellNoticeWakesLimit(conversationId: string, agent: Agent): Promise<void> {
   const first = await redis().set(`${noticeWakesKey(conversationId)}:told`, "1", "EX", 3600, "NX");
   if (!first) return;
-  const t = await translator();
+  const t = await settingsTranslator();
   await notify({
     kind: "text",
     text: t("flow.notices.noticeWakesLimit", { agent: agent.name, count: NOTICE_WAKES_PER_HOUR }),
@@ -214,7 +219,7 @@ export async function deliverToConversation(input: {
     await withhold(agent, conversationId, message);
     return { result: "withheld" };
   }
-  const active = await activeRunIn(conversationId);
+  const active = await activeRun({ conversationId });
   const wakes = input.wake === "now" || (input.wake === "if-open" && (await taskOpen(input.run.taskId)));
   if (active || !wakes) {
     await saveInto(conversationId, message);
@@ -240,7 +245,7 @@ export async function deliverToConversation(input: {
   } catch (error) {
     if (!(error instanceof ConversationBusyError)) throw error;
     // The message is saved: the run that started there meanwhile takes it in, or answers it after.
-    const now = await activeRunIn(conversationId);
+    const now = await activeRun({ conversationId });
     return now ? intoActive(now) : { result: "follow-up" };
   }
 }
@@ -278,15 +283,6 @@ async function intoTaskRun(
   return intoActive(run);
 }
 
-async function activeTaskRun(taskId: string) {
-  const [run] = await db
-    .select({ id: runs.id, status: runs.status, conversationId: runs.conversationId })
-    .from(runs)
-    .where(and(eq(runs.taskId, taskId), inArray(runs.status, [...ACTIVE_RUN])))
-    .limit(1);
-  return run ?? null;
-}
-
 /**
  * An agent's instruction would wake the task once more than agents.maxAutoRounds times since the user
  * last stepped in: it stays stored, the task records the stop and the user is told.
@@ -298,7 +294,7 @@ async function roundsLimit(task: Task, by: Actor, max: number): Promise<string> 
     actor: typeof by === "string" ? by : `agent:${by.agentId}`,
     data: { rounds: task.agentRounds, max },
   });
-  const t = await translator();
+  const t = await settingsTranslator();
   await notify({
     kind: "text",
     projectId: task.projectId,
@@ -323,7 +319,7 @@ export async function deliverToTask(
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) throw new Error(`Task ${taskId} not found`);
   if (task.status === "done" || task.status === "cancelled") return { result: "stored" };
-  const active = await activeTaskRun(taskId);
+  const active = await activeRun({ taskId });
   if (active) return intoTaskRun(task, active, notice);
   const round = await lastRound(taskId);
   // Not started yet (waiting for its dependencies or a place, or never run): its brief lists the comment.
@@ -363,7 +359,7 @@ export async function deliverToTask(
     // Not woken: it stays as it settled, already reported.
     if (settled) await db.update(tasks).set({ reportedAt: task.reportedAt }).where(eq(tasks.id, taskId));
     if (isActiveTaskRunConflict(error)) {
-      const now = await activeTaskRun(taskId);
+      const now = await activeRun({ taskId });
       if (now) return intoTaskRun(task, now, notice);
     }
     if (error instanceof TaskCircuitOpenError) return { result: "refused", error: error.message };
@@ -391,7 +387,7 @@ export async function deliverToLevel(
       await notify({ kind: "question", questionId: notice.questionId });
       return { result: "stored" };
     }
-    const t = await translator();
+    const t = await settingsTranslator();
     await notify({
       kind: "text",
       projectId: task.projectId,

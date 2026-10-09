@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 /**
  * The Telegram bot's configuration, set in Settings > Telegram: the token in the vault, who may talk to
  * the bot and where notifications go in the settings. The worker runs the bot (apps/worker/src/telegram)
  * and stores what it is doing here, for the settings page.
  */
+import { createHash } from "node:crypto";
 import { UserError } from "@abotica/i18n";
 import { env } from "../infra/env";
 import { publish } from "../infra/events";
@@ -64,14 +64,14 @@ export async function removeTelegramToken(): Promise<void> {
   await announceTelegramChange();
 }
 
-export type TelegramAccess = { allowedUserIds: number[]; notifyChatId: string | null };
+type TelegramAccess = { allowedUserIds: number[]; notifyChatId: string | null };
 
 /**
  * Saves who may talk to the bot and the notification chat (updateSettings audits the change). The
  * worker reads them from the settings on every update, so they apply at once, without a restart.
  */
 export async function saveTelegramAccess(access: TelegramAccess): Promise<void> {
-  await updateSettings("telegram", { allowedUserIds: access.allowedUserIds, notifyChatId: access.notifyChatId });
+  await updateSettings("telegram", access);
 }
 
 /** Tells the worker the token may have changed (also after an edit on the vault page). */
@@ -79,7 +79,10 @@ export async function announceTelegramChange(): Promise<void> {
   await publish({ type: "telegram.config-changed" });
 }
 
-/** What the worker's bot is doing: polling as @username, or stopped by an error (a revoked token, a second instance). */
+/**
+ * What the worker's bot is doing: polling as @username, or stopped by an error (a revoked token, a second
+ * instance).
+ */
 export type TelegramBotStatus =
   { state: "running"; username: string; startedAt: string } | { state: "error"; error: string; at: string };
 

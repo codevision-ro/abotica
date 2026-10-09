@@ -231,7 +231,7 @@ export async function runHelper(
   return { exitCode: (await exitCodeOf(exec)) ?? -1, stdout: out(), stderr: err() };
 }
 
-export type ExecHooks = {
+type ExecHooks = {
   /** Called once when the process has exited and its streams are done. */
   onExit(): void;
 };

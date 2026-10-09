@@ -7,7 +7,7 @@ import { OptionCards } from "@/components/app/option-cards";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { KeyValueEditor, type KeyValueRow } from "./key-value-editor";
+import { KeyValueEditor, type KeyValueRow, keyCount } from "./key-value-editor";
 
 /** Transport choice and its endpoint: the URL for HTTP, command, arguments and environment for stdio. */
 export function McpFormTransport({
@@ -100,7 +100,7 @@ export function McpFormTransport({
             />
             <FieldDescription>{t("argsHint")}</FieldDescription>
           </Field>
-          <FormSubsection title={t("env")} count={envRows.filter((r) => r.key.trim()).length} description={secretsHint}>
+          <FormSubsection title={t("env")} count={keyCount(envRows)} description={secretsHint}>
             <KeyValueEditor
               rows={envRows}
               onChange={onEnvRowsChange}

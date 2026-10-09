@@ -38,7 +38,6 @@ export function SkillDiscover({
   installed: Record<string, string>;
 }) {
   const t = useTranslations("skills.discover");
-  const tc = useTranslations("common.actions");
   const [query, setQuery] = useState(initialQuery);
   const [search, setSearch] = useState<Search | null>(null);
   const [pending, setPending] = useState(initialQuery.trim().length >= MIN_QUERY);
@@ -123,12 +122,7 @@ export function SkillDiscover({
           </div>
         </div>
       ) : search && "error" in search && !pending ? (
-        <p role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          {search.error}
-          <Button variant="outline" size="sm" onClick={() => update(query, 0)}>
-            {tc("retry")}
-          </Button>
-        </p>
+        <RetryAlert error={search.error} onRetry={() => update(query, 0)} />
       ) : !results ? (
         <ResultsSkeleton />
       ) : results.length === 0 ? (
@@ -162,6 +156,18 @@ function writeQuery(q: string) {
   if (q) url.searchParams.set("q", q);
   else url.searchParams.delete("q");
   if (url.href !== window.location.href) window.history.replaceState(null, "", url);
+}
+
+function RetryAlert({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const tc = useTranslations("common.actions");
+  return (
+    <p role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+      {error}
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        {tc("retry")}
+      </Button>
+    </p>
+  );
 }
 
 function ResultCard({ result, installedId, onOpen }: { result: SkillsShResult; installedId?: string; onOpen: () => void }) {
@@ -246,7 +252,6 @@ function PreviewSheet({
 }) {
   const t = useTranslations("skills.discover");
   const tp = useTranslations("skills.preview");
-  const tc = useTranslations("common.actions");
   const { install, pending } = useInstallSkill();
   const [preview, setPreview] = useState<Preview | null>(null);
   // Keep the last result rendered while the close animation runs.
@@ -285,19 +290,13 @@ function PreviewSheet({
               source={{ kind: "remote", origin: current.skill.source }}
             />
           ) : current?.error ? (
-            <p role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              {current.error}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPreview(null);
-                  void load(current.id);
-                }}
-              >
-                {tc("retry")}
-              </Button>
-            </p>
+            <RetryAlert
+              error={current.error}
+              onRetry={() => {
+                setPreview(null);
+                void load(current.id);
+              }}
+            />
           ) : (
             <SkillPreviewSkeleton />
           )}

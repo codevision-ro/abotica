@@ -5,7 +5,7 @@
  * every later replay hold the short text too.
  */
 import type { Experimental_SandboxSession } from "ai";
-import { type CollectedText, HeadTailText, type TextCut } from "./tools/workspace-text";
+import { type CollectedText, type HeadTailText, headTailText, type TextCut } from "./tools/workspace-text";
 import { toolOutputPath } from "./workspace-paths";
 
 /** Characters of one tool result the model reads when the rest cannot be kept: no workspace to save it in. */
@@ -22,15 +22,13 @@ export const toolTextMax = (target: FullOutputTarget | null) => (target ? SAVED_
 /** How long the full output of a run stays in its workspace after the run ended. */
 export const TOOL_OUTPUT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type CappedText = { text: string; cut: TextCut | null };
+type CappedText = { text: string; cut: TextCut | null };
 
 /** The line in place of a cut middle: the file with the full text, or that nothing else was kept. */
 export const cutNotice = (omitted: number, fullPath: string | null) =>
   fullPath
     ? `[... ${omitted} characters cut. Full output in your workspace: ${fullPath} ...]`
     : `[... ${omitted} characters cut and not kept. Re-run with narrower arguments to see them ...]`;
-
-const headTail = (max: number) => new HeadTailText(Math.floor(max / 2), Math.ceil(max / 2));
 
 const shown = (view: HeadTailText, fullPath: string | null): CappedText => ({
   text: view.text((omitted) => cutNotice(omitted, fullPath)),
@@ -42,7 +40,7 @@ const shown = (view: HeadTailText, fullPath: string | null): CappedText => ({
  * between naming the file with the full text (`fullPath`). A text within `max` comes back as it is.
  */
 export function capText(text: string, max = TOOL_TEXT_MAX_CHARS, fullPath: string | null = null): CappedText {
-  const view = headTail(max);
+  const view = headTailText(max);
   view.push(text);
   return shown(view, fullPath);
 }
@@ -88,7 +86,7 @@ export async function saveFullOutput(target: FullOutputTarget, text: string): Pr
 }
 
 /** Capped text, and the workspace file with the full text when it was cut and saved. */
-export type CappedOutput = CappedText & { file: string | null };
+type CappedOutput = CappedText & { file: string | null };
 
 async function capView(view: HeadTailText, full: () => string, target: FullOutputTarget | null): Promise<CappedOutput> {
   if (!view.cut()) return { ...shown(view, null), file: null };
@@ -98,7 +96,7 @@ async function capView(view: HeadTailText, full: () => string, target: FullOutpu
 
 /** Caps a tool's text at toolTextMax; when it was cut, the full text goes to `target` first. */
 export function capToolText(text: string, target: FullOutputTarget | null): Promise<CappedOutput> {
-  const view = headTail(toolTextMax(target));
+  const view = headTailText(toolTextMax(target));
   view.push(text);
   return capView(view, () => text, target);
 }

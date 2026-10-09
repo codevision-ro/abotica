@@ -39,7 +39,6 @@ import { heroFieldVariants } from "@/components/app/hero-fields";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionCard, SectionEmpty, SectionList } from "@/components/app/section-card";
 import {
-  PRIORITIES,
   RunStatusBadge,
   SETTABLE_TASK_STATUSES,
   type Tone,
@@ -70,12 +69,14 @@ import {
   updateTask,
 } from "@/server/actions/tasks";
 import type { TaskDetailData, TaskOptions } from "@/server/queries/tasks";
-import { SELECT_WITH_MEDIA, TaskPriorityIcon, TaskStatusIcon } from "./task-icons";
+import { AgentSelectItem, PersonTile, PrioritySelectItems, SELECT_WITH_MEDIA, TaskStatusIcon } from "./task-icons";
 import {
   assigneeValue,
   focusAtEnd,
   fromLocalInput,
   isOverdue,
+  NONE,
+  type TaskPriorityValue,
   tasksListHref,
   toLocalInput,
   useTaskParams,
@@ -85,8 +86,6 @@ import { TaskPicker } from "./task-picker";
 import { QuestionAnswer } from "./task-question";
 import { PullRequestBadge } from "./task-pull-request";
 import { TaskWakeups } from "./task-wakeups";
-
-const NONE = "none";
 
 type Patch = Omit<Parameters<typeof updateTask>[0], "id">;
 
@@ -529,17 +528,12 @@ function Properties({
           </Select>
         </Property>
         <Property label={t("detail.fields.priority")} htmlFor="meta-priority">
-          <Select value={task.priority} onValueChange={(v) => onSave({ priority: v as (typeof PRIORITIES)[number] })}>
+          <Select value={task.priority} onValueChange={(v) => onSave({ priority: v as TaskPriorityValue })}>
             <SelectTrigger id="meta-priority" className={cn(PROPERTY_CONTROL, SELECT_WITH_MEDIA)}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  <TaskPriorityIcon priority={p} />
-                  {labels.priority(p)}
-                </SelectItem>
-              ))}
+              <PrioritySelectItems />
             </SelectContent>
           </Select>
         </Property>
@@ -554,10 +548,7 @@ function Properties({
                 {t("assignee.you")}
               </SelectItem>
               {agents.map((a) => (
-                <SelectItem key={a.id} value={a.id} title={a.name} className="*:[span]:last:min-w-0">
-                  <AgentAvatar avatar={a.avatar} size="xs" />
-                  <span className="truncate">{a.name}</span>
-                </SelectItem>
+                <AgentSelectItem key={a.id} agent={a} />
               ))}
               <SelectItem value={NONE}>
                 <PersonTile empty />
@@ -623,21 +614,6 @@ function Property({ label, htmlFor, children }: { label: string; htmlFor?: strin
       <dt className="text-sm text-muted-foreground">{htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}</dt>
       <dd className="-mr-2 min-w-0">{children}</dd>
     </div>
-  );
-}
-
-/** "You" or "nobody" in places where agents show their avatar. */
-function PersonTile({ empty }: { empty?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-md",
-        empty ? "border border-dashed border-muted-foreground/40 text-muted-foreground" : "bg-primary/10 text-primary",
-      )}
-    >
-      <UserIcon className="size-3!" />
-    </span>
   );
 }
 

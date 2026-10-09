@@ -22,7 +22,7 @@ export function mcpWorkspaceKeyFor(slug: string, scope: SecretScope): string {
   return `mcp-${slug.slice(0, 24).replace(/-+$/, "")}-${hash}`;
 }
 
-export type WorkspaceOwner = { kind: "project"; id: string } | { kind: "conversation"; id: string } | { kind: "mcp" };
+type WorkspaceOwner = { kind: "project"; id: string } | { kind: "conversation"; id: string } | { kind: "mcp" };
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const PROJECT_RE = new RegExp(`^project-(${UUID})$`);

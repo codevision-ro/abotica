@@ -72,7 +72,7 @@ export function ProviderList({ providers, ollamaBaseUrl }: { providers: Provider
             <ProviderCard
               key={p.id}
               provider={p}
-              ollamaBaseUrl={p.id === "ollama" ? ollamaBaseUrl : undefined}
+              ollamaBaseUrl={ollamaBaseUrl}
               onClose={() => setAdded((a) => a.filter((id) => id !== p.id))}
             />
           ))}

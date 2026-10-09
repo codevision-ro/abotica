@@ -6,8 +6,6 @@
  */
 import type { AgentKind } from "@abotica/db";
 
-export type { AgentKind };
-
 /** The template every new project's manager is created from. */
 export const MANAGER_TEMPLATE_SLUG = "template-project-manager";
 
@@ -25,7 +23,7 @@ export const canJoinTeam = (agent: TeamCandidate) => agent.enabled && !agent.isT
 export const canLeadProject = (agent: TeamCandidate) => agent.enabled && !agent.isTemplate && agent.kind === "manager";
 
 /** Where the agent stands before its kind changes: projects it leads, and teams it is on without leading them. */
-export type KindChange = { from: AgentKind; to: AgentKind; managedProjects: number; memberProjects: number };
+type KindChange = { from: AgentKind; to: AgentKind; managedProjects: number; memberProjects: number };
 
 /**
  * Null when the agent may change kind, else the message key of the refusal. There is one super agent,
@@ -52,7 +50,7 @@ export type DelegationProject = {
   memberIds: string[];
 };
 
-export type DelegationTarget = { id: string; slug: string; kind: AgentKind };
+type DelegationTarget = { id: string; slug: string; kind: AgentKind };
 
 type Rule<T> = { ok: true; value: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -151,7 +149,7 @@ export function worksIn(
 export type TeamActor = "user" | { id: string; kind: AgentKind };
 
 /** Who stands above a task: the agent whose run delegated it, and its project's manager. */
-export type TaskAuthority = { delegatorAgentId: string | null; projectManagerId: string | null };
+type TaskAuthority = { delegatorAgentId: string | null; projectManagerId: string | null };
 
 type TaskRef = { assigneeAgentId: string | null };
 
@@ -189,7 +187,7 @@ export function mayControlTask(actor: TeamActor, authority: Pick<TaskAuthority, 
 }
 
 /** Open help tasks one task may have at once (ask_colleague). */
-export const MAX_OPEN_HELP_TASKS = 2;
+const MAX_OPEN_HELP_TASKS = 2;
 
 /**
  * Whether `asker` may ask `target` for help (ask_colleague) while on `askerTask`: work (not itself help,

@@ -15,7 +15,7 @@ export const NETWORK_MODES = ["off", "packages", "custom", "full"] as const sati
  * yarn (the npm registry, and Yarn's own for corepack), Composer (Packagist, which serves most
  * packages as GitHub archives) and apt for root commands (Debian).
  */
-export const PACKAGE_REGISTRY_HOSTS = [
+const PACKAGE_REGISTRY_HOSTS = [
   "pypi.org",
   "files.pythonhosted.org",
   "registry.npmjs.org",
@@ -73,7 +73,7 @@ export function setupEgressFor(network: NetworkPolicy): readonly string[] | "pub
 const DOMAIN_RE = /^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}(:\d{1,5})?$/;
 
 /** `example.com`, `*.example.com` or `api.example.com:8443`; lowercase, no scheme or path. */
-export function isDomainPattern(value: string): boolean {
+function isDomainPattern(value: string): boolean {
   if (!DOMAIN_RE.test(value) || value.length > 253) return false;
   const port = value.split(":")[1];
   return port === undefined || (Number(port) >= 1 && Number(port) <= 65_535);
@@ -126,7 +126,7 @@ export function parseNetworkPolicy(input: unknown): NetworkPolicy {
 }
 
 /** Validates package lists; throws a UserError naming the bad entry. */
-export function parsePackages(input: unknown): SandboxPackages {
+function parsePackages(input: unknown): SandboxPackages {
   const out: SandboxPackages = { python: [], node: [] };
   if (!isRecord(input)) return out;
   for (const kind of ["python", "node"] as const) {

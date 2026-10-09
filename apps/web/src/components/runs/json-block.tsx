@@ -107,3 +107,12 @@ export function JsonBlock({ value, className }: { value: unknown; className?: st
     </div>
   );
 }
+
+/** A tool's error message, in the same scrollable monospace block. */
+export function ErrorBlock({ children }: { children: React.ReactNode }) {
+  return (
+    <pre className="max-h-64 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap text-destructive">
+      {children}
+    </pre>
+  );
+}

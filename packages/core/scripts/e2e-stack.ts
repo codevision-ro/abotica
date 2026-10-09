@@ -8,6 +8,7 @@ import {
   getSandboxStatus,
   startTaskRun,
 } from "../src/index";
+import { wait } from "./e2e-shared";
 
 /**
  * End-to-end check of what a project workspace offers for real work: a specialist starts MySQL,
@@ -78,7 +79,6 @@ const STEPS = [
   },
 ] as const;
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const failures: string[] = [];
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "PASS" : "FAIL"} ${label}`);

@@ -4,6 +4,7 @@ import { splitUntrusted } from "@abotica/core/agents/untrusted";
 import { ChevronRight, Import } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment } from "react";
+import { SectionDivider } from "@/components/app/section-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 /** Message key under `chat.untrusted.source` for each source the core wraps; MCP sources carry the server. */
@@ -35,7 +36,7 @@ function UntrustedBlock({ source, text }: { source: string; text: string }) {
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/untrusted:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+        <SectionDivider />
         <pre className="max-h-72 overflow-auto px-2.5 py-2 font-mono text-xs leading-5 break-all whitespace-pre-wrap">
           {text}
         </pre>

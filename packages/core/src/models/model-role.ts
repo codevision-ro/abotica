@@ -10,7 +10,7 @@ export type { ModelRole };
  */
 export type RoleModelSettings = Pick<ModelSettings, "chains">;
 
-export type RoleEffortSettings = Pick<ModelSettings, "reasoningEffort">;
+type RoleEffortSettings = Pick<ModelSettings, "reasoningEffort">;
 
 export function modelRole(agent: { kind: AgentKind }): ModelRole {
   return agent.kind === "specialist" ? "agent" : agent.kind;

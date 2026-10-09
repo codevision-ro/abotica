@@ -15,7 +15,15 @@ import { AgentAvatar } from "@/components/app/agent-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChatFileCard, sharedFile } from "./chat-file-card";
-import { CHAT_COLUMN, ChatApproval, ChatMarkdown, ChatToolCall, ChatToolGroup, MessageTime } from "./chat-parts";
+import {
+  CHAT_COLUMN,
+  ChatApproval,
+  ChatMarkdown,
+  ChatToolCall,
+  ChatToolGroup,
+  MessageTime,
+  messageText,
+} from "./chat-parts";
 import { CompactionDivider } from "./compaction-divider";
 import { DelegationNotice, TaskNotice } from "./delegation-notice";
 import { UntrustedText } from "./untrusted-text";
@@ -65,7 +73,7 @@ export function ChatMessageList({
 
   function renderUserMessage(message: UIMessage, sentWhileWorking: boolean) {
     const files = message.parts.filter((p) => p.type === "file");
-    const text = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
+    const text = messageText(message);
     return (
       <div key={message.id} className="group flex flex-col items-end gap-1.5">
         {files.length > 0 && (
@@ -145,7 +153,7 @@ export function ChatMessageList({
             return <CompactionDivider key={message.id} compaction={message.metadata} date={timestamps[message.id]} />;
           }
           if (message.role === "user") return renderUserMessage(message, isSteered(message));
-          const copyText = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
+          const copyText = messageText(message);
           return (
             <div key={message.id} className="group flex gap-3 md:gap-4">
               <AgentAvatar avatar={agentAvatar} size="lg" className="hidden sm:flex" />

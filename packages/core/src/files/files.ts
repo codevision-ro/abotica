@@ -16,7 +16,7 @@ import { FILE_MAX_BYTES } from "../platform/limits";
 import { resolveUpload } from "./uploads";
 
 export type StoredFile = typeof files.$inferSelect;
-export type FileSource = StoredFile["source"];
+type FileSource = StoredFile["source"];
 
 /** Who a file belongs to; it is deleted together with its owner. */
 export type FileOwner = { conversationId: string } | { taskId: string } | { knowledgeItemId: string };
@@ -133,17 +133,12 @@ export async function readFileBytes(id: string, maxBytes?: number): Promise<Uint
 export async function listFiles(filter: {
   conversationId?: string;
   taskId?: string;
-  taskIds?: string[];
-  knowledgeItemId?: string;
   runId?: string;
   source?: FileSource;
 }): Promise<StoredFile[]> {
-  if (filter.taskIds && !filter.taskIds.length) return [];
   const conditions: SQL[] = [];
   if (filter.conversationId) conditions.push(eq(files.conversationId, filter.conversationId));
   if (filter.taskId) conditions.push(eq(files.taskId, filter.taskId));
-  if (filter.taskIds) conditions.push(inArray(files.taskId, filter.taskIds));
-  if (filter.knowledgeItemId) conditions.push(eq(files.knowledgeItemId, filter.knowledgeItemId));
   if (filter.runId) conditions.push(eq(files.runId, filter.runId));
   if (filter.source) conditions.push(eq(files.source, filter.source));
   if (!conditions.length) throw new Error("listFiles needs a filter");
@@ -240,7 +235,8 @@ export async function removeFileBytes(ids: string[]): Promise<void> {
  * Removes pending uploads nobody claimed within a day, and bytes on disk whose row is gone (an owner
  * deleted without `removeFileBytes`, or a save that failed halfway). Returns how many files went.
  */
-export async function sweepFiles(now = Date.now()): Promise<{ pending: number; orphaned: number }> {
+export async function sweepFiles(): Promise<{ pending: number; orphaned: number }> {
+  const now = Date.now();
   const pending = await db
     .delete(files)
     .where(and(unowned(), lt(files.createdAt, new Date(now - PENDING_MAX_AGE_MS))))

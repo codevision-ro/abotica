@@ -11,8 +11,8 @@ import { maintenanceQueue } from "../infra/queues";
 import { redis } from "../infra/redis";
 import { projectWorkspaceKey } from "./sandbox-keys";
 
-export type { Isolation, SandboxStatus } from "@abotica/sandbox";
-export { conversationWorkspaceKey, projectWorkspaceKey, workspaceOwner } from "./sandbox-keys";
+export type { SandboxStatus } from "@abotica/sandbox";
+export { conversationWorkspaceKey, projectWorkspaceKey } from "./sandbox-keys";
 
 export const SANDBOX_STATUS_KEY = "abotica:sandbox:status";
 /** Hash of workspace key -> ISO time it was last opened; backends may not know it themselves. */

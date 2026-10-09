@@ -6,6 +6,7 @@
  * (nothingNew). Pure, so the rules are testable on their own.
  */
 import type { AgentKind } from "@abotica/db";
+import type { RunTrigger } from "../runs/runs";
 
 /** The agent above the assignee: "manager" is the project's manager, "orchestrator" the super agent. */
 export type ReportTarget = "manager" | "orchestrator";
@@ -18,6 +19,13 @@ export function reportTargetOf(
   if (assignee.kind === "specialist" && manager?.enabled && manager.id !== assignee.id) return "manager";
   return "orchestrator";
 }
+
+/**
+ * The trigger of the runs that work a schedule or trigger fired leads to later (its report, a notice about
+ * it): the automation's, as the run on the task had it, else "task".
+ */
+export const automationTrigger = (trigger: RunTrigger | undefined): RunTrigger =>
+  trigger === "schedule" || trigger === "webhook" || trigger === "event" ? trigger : "task";
 
 type QuietCandidate = {
   reportsUp: boolean;

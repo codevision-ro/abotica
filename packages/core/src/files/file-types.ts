@@ -73,7 +73,7 @@ export function mimeTypeFor(name: string): string {
   return MIME_BY_EXTENSION[name.slice(dot + 1).toLowerCase()] ?? FALLBACK_MIME;
 }
 
-/** Extension for a media type, for files that arrive without a usable name (data URLs). */
+/** Extension for a media type, for files that arrive without a usable name (some files sent to the Telegram bot). */
 export function extensionFor(mimeType: string): string | null {
   const type = mimeType.split(";")[0]!.trim().toLowerCase();
   if (type === "image/jpeg") return "jpg";
@@ -90,21 +90,6 @@ export function safeFileName(name: string, fallback = "file"): string {
     .replace(/^\.+/, "")
     .slice(-120);
   return cleaned || fallback;
-}
-
-/** Bytes and media type of a `data:` URL, or null when it is not one. */
-export function parseDataUrl(url: string): { mimeType: string; data: Uint8Array } | null {
-  const match = /^data:([^,]*?),(.*)$/s.exec(url);
-  if (!match) return null;
-  const meta = match[1]!.split(";");
-  const base64 = meta.includes("base64");
-  const mimeType = meta[0]?.trim() || "text/plain";
-  try {
-    const data = base64 ? Buffer.from(match[2]!, "base64") : Buffer.from(decodeURIComponent(match[2]!), "utf8");
-    return { mimeType, data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) };
-  } catch {
-    return null;
-  }
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

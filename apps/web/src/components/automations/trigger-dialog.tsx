@@ -1,6 +1,5 @@
 "use client";
 
-import type { AgentAvatar } from "@abotica/db/avatar";
 import {
   eventKey,
   TRIGGER_EVENTS,
@@ -21,22 +20,20 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { OptionCards } from "@/components/app/option-cards";
 import { SettingsNumberField } from "@/components/settings/settings-number-field";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { createTrigger, updateTrigger } from "@/server/actions/automations";
-import { DialogActiveSwitch, DialogGroup, DialogHeading, stickyFooterClass } from "./dialog-parts";
-import { AgentSelect, ProjectSelect } from "./option-selects";
-
-type Option = { id: string; name: string; avatar?: AgentAvatar | null };
+import { DialogActiveSwitch, DialogGroup, DialogHeading, FormDialog, stickyFooterClass } from "./dialog-parts";
+import { AgentSelect, type Option, ProjectSelect } from "./option-selects";
 
 export type TriggerDraft = {
   id?: string;
@@ -50,7 +47,7 @@ export type TriggerDraft = {
   rateLimitPerMinute?: number | null;
 };
 
-export type SavedTrigger = {
+type SavedTrigger = {
   id: string;
   name: string;
   event: string;
@@ -84,31 +81,18 @@ export function TriggerDialog({
   projects: Option[];
   onSaved: (saved: SavedTrigger, created: boolean) => void;
 }) {
-  const edited = useRef(false);
-  useEffect(() => {
-    if (open) edited.current = false;
-  }, [open]);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
-        // A stray tap next to the dialog must not throw away typed text; Escape and the close button still work.
-        onInteractOutside={(e) => edited.current && e.preventDefault()}
-      >
-        {open && (
-          <TriggerForm
-            initial={initial}
-            agents={agents}
-            projects={projects}
-            onEdit={() => (edited.current = true)}
-            onSaved={(saved, created) => {
-              onOpenChange(false);
-              onSaved(saved, created);
-            }}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <FormDialog open={open} onOpenChange={onOpenChange}>
+      <TriggerForm
+        initial={initial}
+        agents={agents}
+        projects={projects}
+        onSaved={(saved, created) => {
+          onOpenChange(false);
+          onSaved(saved, created);
+        }}
+      />
+    </FormDialog>
   );
 }
 
@@ -116,13 +100,11 @@ function TriggerForm({
   initial,
   agents,
   projects,
-  onEdit,
   onSaved,
 }: {
   initial: TriggerDraft;
   agents: Option[];
   projects: Option[];
-  onEdit: () => void;
   onSaved: (saved: SavedTrigger, created: boolean) => void;
 }) {
   const t = useTranslations("automations.triggerDialog");
@@ -163,7 +145,7 @@ function TriggerForm({
   };
 
   return (
-    <form onSubmit={submit} onInput={onEdit} className="flex min-w-0 flex-col gap-5">
+    <form onSubmit={submit} className="flex min-w-0 flex-col gap-5">
       <DialogHeading icon={ZapIcon} title={initial.id ? t("editTitle") : t("createTitle")} description={t("description")} />
 
       <DialogGroup>

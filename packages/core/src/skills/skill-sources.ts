@@ -35,7 +35,7 @@ export type FetchedSkill = {
 /** One skill among several found at a URL, to pick from. */
 export type SkillChoice = { ref: SkillSourceRef; name: string; description: string };
 
-export type ResolvedSkillUrl = { kind: "single"; skill: FetchedSkill } | { kind: "many"; choices: SkillChoice[] };
+type ResolvedSkillUrl = { kind: "single"; skill: FetchedSkill } | { kind: "many"; choices: SkillChoice[] };
 
 async function request(url: string, init: RequestInit = {}): Promise<Response> {
   try {
@@ -58,6 +58,13 @@ export function hashSkillPackage(pkg: SkillPackage): string {
     { path: "\0meta", content: JSON.stringify([pkg.name, pkg.description, pkg.metadata]) },
     ...pkg.files,
   ]);
+}
+
+/** Downloaded files as a skill; `skipped` are the files the download already left out. */
+function fetchedSkill(files: SkillFileEntry[], skipped: string[], source: SkillOrigin): FetchedSkill {
+  const packaged = packageSkillFiles(files);
+  if (!packaged) throw new UserError("skills.errors.noSkillMd");
+  return { pkg: packaged.pkg, skipped: [...skipped, ...packaged.skipped], source };
 }
 
 // ─── skills.sh ───
@@ -115,13 +122,7 @@ async function fetchFromSkillsSh(id: string): Promise<FetchedSkill> {
     const folder = await findGitHubSkillFolder(repo, skillId);
     ({ files, skipped } = await readGitHubFolder(repo, folder.ref, folder.path, folder.entries));
   }
-  const packaged = packageSkillFiles(files);
-  if (!packaged) throw new UserError("skills.errors.noSkillMd");
-  return {
-    pkg: packaged.pkg,
-    skipped: [...skipped, ...packaged.skipped],
-    source: { kind: "skills.sh", id, url: `${SKILLS_SH}/${id}`, hash: hashSkillFiles(files) },
-  };
+  return fetchedSkill(files, skipped, { kind: "skills.sh", id, url: `${SKILLS_SH}/${id}`, hash: hashSkillFiles(files) });
 }
 
 // ─── GitHub ───
@@ -230,20 +231,14 @@ async function fetchFromGitHub(repo: string, ref: string | undefined, path: stri
   if (folder && !tree.entries.some((e) => e.type === "tree" && e.path === folder))
     throw new UserError("skills.errors.githubNotFound");
   const { files, skipped } = await readGitHubFolder(repo, tree.ref, folder, tree.entries);
-  const packaged = packageSkillFiles(files);
-  if (!packaged) throw new UserError("skills.errors.noSkillMd");
-  return {
-    pkg: packaged.pkg,
-    skipped: [...skipped, ...packaged.skipped],
-    source: {
-      kind: "github",
-      repo,
-      ref: tree.ref,
-      path: folder,
-      url: `https://github.com/${repo}/tree/${tree.ref}${folder ? `/${folder}` : ""}`,
-      hash: hashSkillFiles(files),
-    },
-  };
+  return fetchedSkill(files, skipped, {
+    kind: "github",
+    repo,
+    ref: tree.ref,
+    path: folder,
+    url: `https://github.com/${repo}/tree/${tree.ref}${folder ? `/${folder}` : ""}`,
+    hash: hashSkillFiles(files),
+  });
 }
 
 /** Skills inside a GitHub folder (or the whole repo): one fetched skill, or a list to choose from. */
@@ -277,13 +272,15 @@ export async function fetchSkill(ref: SkillSourceRef): Promise<FetchedSkill> {
   return ref.kind === "skills.sh" ? fetchFromSkillsSh(ref.id) : fetchFromGitHub(ref.repo, ref.ref, ref.path ?? "");
 }
 
+/** Where a stored skill came from, to fetch it again. */
+export const sourceRef = (source: SkillSource): SkillSourceRef =>
+  source.kind === "skills.sh"
+    ? { kind: "skills.sh", id: source.id }
+    : { kind: "github", repo: source.repo, ref: source.ref, path: source.path };
+
 /** The upstream hash of a stored source, to compare with the one saved at install. */
 export async function fetchSourceHash(source: SkillSource): Promise<string> {
-  const ref: SkillSourceRef =
-    source.kind === "skills.sh"
-      ? { kind: "skills.sh", id: source.id }
-      : { kind: "github", repo: source.repo, ref: source.ref, path: source.path };
-  return (await fetchSkill(ref)).source.hash;
+  return (await fetchSkill(sourceRef(source))).source.hash;
 }
 
 /**

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export const PROJECT_STATUSES = ["active", "paused", "archived"] as const;
-type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 const isProjectStatus = (value: string): value is ProjectStatus => (PROJECT_STATUSES as readonly string[]).includes(value);
 
 const PROJECT_STATUS_CLASS: Record<string, string> = {
@@ -36,17 +36,11 @@ export function ProjectStatusBadge({ status }: { status: string }) {
   );
 }
 
-/** Overlapping avatars for a list of agents. */
-export function AgentAvatarStack({
-  agents,
-  max = 5,
-}: {
-  agents: { id: string; name: string; avatar: AgentAvatarValue }[];
-  max?: number;
-}) {
+/** Overlapping avatars for a list of agents, the first five. */
+export function AgentAvatarStack({ agents }: { agents: { id: string; name: string; avatar: AgentAvatarValue }[] }) {
   const t = useTranslations("projects.badges");
   if (!agents.length) return <span className="text-xs text-muted-foreground">{t("noAgents")}</span>;
-  const shown = agents.slice(0, max);
+  const shown = agents.slice(0, 5);
   const rest = agents.length - shown.length;
   return (
     <div className="flex items-center -space-x-1.5">

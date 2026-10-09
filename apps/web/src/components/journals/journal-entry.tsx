@@ -2,7 +2,7 @@ import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import { useTranslations } from "next-intl";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { AgentAvatar } from "@/components/app/agent-avatar";
-import { sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider } from "@/components/app/section-card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +43,7 @@ export function JournalEntryCard({
           </Badge>
         )}
       </header>
-      <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
       <div className="min-w-0 px-4 py-3.5 text-sm wrap-anywhere sm:px-5">
         <MessageResponse>{summary}</MessageResponse>
       </div>

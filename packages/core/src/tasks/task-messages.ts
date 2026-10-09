@@ -4,7 +4,7 @@
  * the task, then delivered (runs/deliver.ts). What agents write going up (questions, progress) reaches
  * the level above as untrusted data; instructions and answers going down only lose marker look-alikes.
  */
-import { agents, db, projects, runs, taskComments, taskEvents, tasks, type QuestionOptions } from "@abotica/db";
+import { agents, db, taskComments, taskEvents, tasks, type QuestionOptions } from "@abotica/db";
 import { and, count, desc, eq, gt, sql } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { neutralizeMarkers, wrapUntrusted } from "../agents/untrusted";
@@ -12,11 +12,12 @@ import { newMarkerId } from "../agents/untrusted-id";
 import { type Delivered, deliverToLevel, deliverToTask, type Wake } from "../runs/deliver";
 import { getSettings } from "../settings/settings";
 import { chainAgentIds, chainOfCommand, type Superior, superiorOf } from "./chain";
+import { taskAuthority } from "./task-authority";
 import { mayAnswer, mayInstruct, type TeamActor } from "./team-rules";
 import { type Actor, addTaskComment, type Task, type TaskComment } from "./tasks";
 
 /** A question, with the choices the asker sees and the one it would pick. */
-export type QuestionInput = {
+type QuestionInput = {
   question: string;
   options?: string[];
   recommendation?: string;
@@ -24,17 +25,17 @@ export type QuestionInput = {
   to?: "delegator" | "user";
 };
 
-export type ProgressInput = { summary: string; percentDone?: number; eta?: string; needsAttention?: boolean };
+type ProgressInput = { summary: string; percentDone?: number; eta?: string; needsAttention?: boolean };
 
 /** A comment stored on the task and what became of its delivery. */
-export type PostedMessage = { comment: TaskComment; delivered: Delivered; runId?: string; error?: string };
+type PostedMessage = { comment: TaskComment; delivered: Delivered; runId?: string; error?: string };
 
 /** Open questions one task may have at once. */
 export const MAX_OPEN_QUESTIONS = 3;
 /** Questions one task may ask in an hour. */
-export const MAX_QUESTIONS_PER_HOUR = 6;
+const MAX_QUESTIONS_PER_HOUR = 6;
 /** Progress reports that need attention (and wake) one task may send in an hour. */
-export const MAX_ATTENTION_PER_HOUR = 3;
+const MAX_ATTENTION_PER_HOUR = 3;
 
 const HOUR_MS = 3_600_000;
 const USER: Superior = { kind: "user", conversationId: null };
@@ -69,19 +70,6 @@ async function logEvent(taskId: string, type: string, by: Actor, data: Record<st
   await db.insert(taskEvents).values({ taskId, type, actor: actorLabel(by), data });
 }
 
-/** The agent whose run delegated the task, and its project's manager: those who decide on it. */
-async function authorityOf(task: Task) {
-  const [[delegator], [project]] = await Promise.all([
-    task.delegatedByRunId
-      ? db.select({ agentId: runs.agentId }).from(runs).where(eq(runs.id, task.delegatedByRunId))
-      : Promise.resolve([]),
-    task.projectId
-      ? db.select({ managerAgentId: projects.managerAgentId }).from(projects).where(eq(projects.id, task.projectId))
-      : Promise.resolve([]),
-  ]);
-  return { delegatorAgentId: delegator?.agentId ?? null, projectManagerId: project?.managerAgentId ?? null };
-}
-
 /**
  * The user stepped in: agents may wake the task again (agents.maxAutoRounds counts from here), and its
  * automatic continuations start over.
@@ -105,7 +93,7 @@ export async function postInstruction(
 ): Promise<PostedMessage> {
   const task = await loadTask(taskId);
   const actor = await teamActor(by);
-  const instructs = actor !== null && mayInstruct(actor, task, await authorityOf(task));
+  const instructs = actor !== null && mayInstruct(actor, task, await taskAuthority(task));
   const comment = await addTaskComment(taskId, body, by, {
     kind: instructs ? "instruction" : "note",
     authorRunId: opts.runId ?? null,
@@ -183,8 +171,6 @@ function sendQuestion(
   );
 }
 
-const escalateAt = (minutes: number, now = new Date()) => new Date(now.getTime() + minutes * 60_000);
-
 /** Where a question goes: the level's agent with its escalation time, or the user. */
 async function addressFor(level: Superior, now = new Date()) {
   if (level.kind === "user") return { addresseeAgentId: null, addressedToUser: true, escalateAt: null };
@@ -192,7 +178,7 @@ async function addressFor(level: Superior, now = new Date()) {
   return {
     addresseeAgentId: level.agent.id,
     addressedToUser: false,
-    escalateAt: escalateAt(questionEscalationMinutes, now),
+    escalateAt: new Date(now.getTime() + questionEscalationMinutes * 60_000),
   };
 }
 
@@ -275,15 +261,10 @@ function addresseeIndex(question: QuestionRow, chain: readonly Superior[]): numb
 }
 
 /** Moves an open question to `level`, unless someone else moved or closed it first. */
-async function readdress(
-  question: QuestionRow,
-  level: Superior,
-  index: number,
-  now = new Date(),
-): Promise<QuestionRow | null> {
+async function readdress(question: QuestionRow, level: Superior, index: number): Promise<QuestionRow | null> {
   const [moved] = await db
     .update(taskComments)
-    .set({ ...(await addressFor(level, now)), escalationLevel: index })
+    .set({ ...(await addressFor(level)), escalationLevel: index })
     .where(and(eq(taskComments.id, question.id), eq(taskComments.questionStatus, "open")))
     .returning();
   return (moved as QuestionRow | undefined) ?? null;

@@ -5,12 +5,13 @@ import {
   backfillEmbeddings,
   CATALOG_REFRESH_MS,
   checkForUpdates,
-  type ConsolidationTarget,
   consolidationCandidates,
   consolidationPrompt,
+  type ConsolidationTarget,
   costSince,
   craftLessonsAllowed,
   craftLessonsPrompt,
+  createRedis,
   dayBounds,
   deleteExpiredMemories,
   embedDocument,
@@ -32,9 +33,9 @@ import {
   requestReindex,
   requeueMissedReports,
   resolveModelChain,
-  createRedis,
   sendBudgetAlerts,
   settingsLocale,
+  settingsTranslator,
   startAllWaitingTasks,
   sweepFiles,
   sweepFollowUps,
@@ -50,7 +51,7 @@ import { localeEnglishNames } from "@abotica/i18n";
 import { agents, db, journals, projects, runEvents, runs, tasks } from "@abotica/db";
 import { and, asc, eq, gte, inArray, lt, ne } from "@abotica/db/orm";
 import { Worker } from "bullmq";
-import { botTranslator, getBot, notifyChatId } from "../telegram/bot";
+import { getBot, notifyChatId } from "../telegram/bot";
 import { sendMarkdown } from "../telegram/send";
 import { groupByJournal, type JournalKey, journalHeading, splitByProject, verbatimJournals } from "./journal-groups";
 import { systemCompletion } from "./llm";
@@ -211,6 +212,8 @@ export async function writeJournals() {
 async function sendDigest(period: "daily" | "weekly") {
   const bot = getBot();
   const chatId = await notifyChatId();
+  // The digest goes only to Telegram: without a bot and a chat nobody would read it.
+  if (!bot || !chatId) return;
   const settings = await getSettings();
   const language = localeEnglishNames[settingsLocale(settings)];
   const days = period === "daily" ? 1 : 7;
@@ -273,11 +276,11 @@ async function sendDigest(period: "daily" | "weekly") {
   });
   // A reached budget skips the digest like the other background calls.
   if (summary === null) return;
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   const digest = [summary, verbatimJournals(t("telegram.digest.restrictedJournals"), journalsBy.closed)]
     .filter(Boolean)
     .join("\n\n");
-  if (bot && chatId) await sendMarkdown(bot, { chatId }, digest);
+  await sendMarkdown(bot, { chatId }, digest);
 }
 
 /**

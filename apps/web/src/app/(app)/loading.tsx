@@ -1,5 +1,5 @@
 import { PageBody } from "@/components/app/page-header";
-import { sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider } from "@/components/app/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ function CardSkeleton({ rows, className }: { rows: number; className?: string })
           <Skeleton className="h-3 w-48" />
         </div>
       </div>
-      <div className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
       <div className="space-y-3 p-4 sm:p-5">
         {Array.from({ length: rows }, (_, i) => (
           <Skeleton key={i} className="h-10 w-full rounded-lg" />
@@ -58,7 +58,7 @@ export default function Loading() {
               <Skeleton className="h-3 w-40" />
             </div>
           </div>
-          <div className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+          <SectionDivider />
           <div className="p-4 sm:p-5">
             <Skeleton className="h-56 w-full rounded-lg" />
           </div>

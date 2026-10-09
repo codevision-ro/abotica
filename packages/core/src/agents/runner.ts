@@ -2,9 +2,9 @@ import { approvals, db, runs } from "@abotica/db";
 import { convertToModelMessages, type StopCondition, streamText, type ToolSet, type UIMessageChunk } from "ai";
 import { eq } from "@abotica/db/orm";
 import { createHmac } from "node:crypto";
-import { getTranslator, isUserError, translateKey } from "@abotica/i18n";
+import { errorMessage, getTranslator } from "@abotica/i18n";
 import { applicableBudgets, type MonthlyBudget, tightestBudget } from "../platform/budgets";
-import { type CacheTtl, estimateCost, getCatalog } from "../models/catalog";
+import { type CacheTtl, estimateCost, getCatalog, tokenUsage } from "../models/catalog";
 import { env } from "../infra/env";
 import { publish } from "../infra/events";
 import { availableProviders, NoModelError } from "../models/chain";
@@ -175,8 +175,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
 
   // Run errors are stored as text and shown as-is, so they are written in the configured language.
   const t = getTranslator(settingsLocale(ctx.settings));
-  const errorText = (error: unknown) =>
-    isUserError(error) ? translateKey(t, error.key, error.values) : error instanceof Error ? error.message : String(error);
+  const errorText = (error: unknown) => errorMessage(t, error);
 
   const fail = async (error: string, kind: RunFailureKind) => outcome(await failRun(run, error, kind), "failed");
   const cancel = async (reason: string, kind: RunFailureKind) =>
@@ -362,6 +361,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
         await updateProgress(runId, { inputTokens, outputTokens, costUsd: cost });
       },
       errorText,
+      logInBackground: (type, data) => logEventInBackground(runId, type, data),
     });
     history = await compactor.atStart(history);
 
@@ -442,12 +442,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
         onStepEnd: async (step) => {
           steps += 1;
           const served = model.lastServed;
-          const usage = {
-            inputTokens: step.usage.inputTokens ?? 0,
-            outputTokens: step.usage.outputTokens ?? 0,
-            cachedInputTokens: step.usage.inputTokenDetails?.cacheReadTokens ?? 0,
-            cacheWriteTokens: step.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
-          };
+          const usage = tokenUsage(step.usage);
           const stepCost = await estimateCost(served.provider, served.model, usage, ttl);
           cost += stepCost;
           inputTokens += usage.inputTokens;
@@ -551,7 +546,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
     }
 
     const content = await result.content;
-    const pending = content.filter((p) => p.type === "tool-approval-request" && !p.isAutomatic);
+    const pending = content.flatMap((p) => (p.type === "tool-approval-request" && !p.isAutomatic ? [p] : []));
     const output = (await result.finalStep).text.trim();
 
     if (pending.length) {
@@ -559,21 +554,15 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
       const rows = await db
         .insert(approvals)
         .values(
-          pending.flatMap((p) =>
-            p.type === "tool-approval-request"
-              ? [
-                  {
-                    runId,
-                    agentId: ctx.agent.id,
-                    approvalId: p.approvalId,
-                    toolName: p.toolCall.toolName,
-                    toolCallId: p.toolCall.toolCallId,
-                    input: p.toolCall.input,
-                    reason: p.reason ?? null,
-                  },
-                ]
-              : [],
-          ),
+          pending.map((p) => ({
+            runId,
+            agentId: ctx.agent.id,
+            approvalId: p.approvalId,
+            toolName: p.toolCall.toolName,
+            toolCallId: p.toolCall.toolCallId,
+            input: p.toolCall.input,
+            reason: p.reason ?? null,
+          })),
         )
         .returning({ id: approvals.id });
       const result = await finish("waiting_approval", output);

@@ -113,6 +113,13 @@ export async function recallMemories(query: string, opts: MemoryReader & { budge
 const queryHash = (query: string) =>
   createHash("sha256").update(query.normalize("NFC").toLowerCase().replace(/\s+/gu, " ").trim()).digest("hex");
 
+/** Counts one more use of an entry. A use, not an edit: `updatedAt` stays. */
+const usedNow = () => ({
+  recallCount: sql`${memories.recallCount} + 1`,
+  lastRecalledAt: sql`now()`,
+  updatedAt: sql`${memories.updatedAt}`,
+});
+
 /**
  * Records that entries reached a run, for ranking by use and promotion: one `memory_recalls` row each, and
  * their counters. A use, not an edit: `updatedAt` (recency in search, order in the prompt) stays.
@@ -127,14 +134,7 @@ export async function logMemoryRecalls(
   await run
     .insert(memoryRecalls)
     .values(ids.map((memoryId) => ({ memoryId, runId: opts.runId, source: opts.source, queryHash: hash })));
-  await run
-    .update(memories)
-    .set({
-      recallCount: sql`${memories.recallCount} + 1`,
-      lastRecalledAt: sql`now()`,
-      updatedAt: sql`${memories.updatedAt}`,
-    })
-    .where(inArray(memories.id, ids));
+  await run.update(memories).set(usedNow()).where(inArray(memories.id, ids));
 }
 
 /**
@@ -146,11 +146,7 @@ export async function logMemoryRecalls(
 export function notePromptMemoryUse(ids: string[]): void {
   if (!ids.length) return;
   db.update(memories)
-    .set({
-      recallCount: sql`${memories.recallCount} + 1`,
-      lastRecalledAt: sql`now()`,
-      updatedAt: sql`${memories.updatedAt}`,
-    })
+    .set(usedNow())
     .where(
       and(
         inArray(memories.id, ids),

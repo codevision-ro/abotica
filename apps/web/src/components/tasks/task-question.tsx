@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { answerQuestion } from "@/server/actions/inbox";
 
 /** The choices an open question offers; `system` marks the platform's own (continue, redirect, cancel). */
-export type QuestionChoices = { options: string[]; recommendation?: string; system?: string } | null;
+type QuestionChoices = { options: string[]; recommendation?: string; system?: string } | null;
 
 /**
  * Answers an open question: one tap on an option, or the user's own words. The answer reaches the asker

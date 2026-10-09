@@ -72,6 +72,19 @@ export const getProject = query(async (id: string) => {
 
 export type ProjectDetail = NonNullable<Awaited<ReturnType<typeof getProject>>>;
 
+/** Every project by name, for the project selects and filters. */
+export const listProjectOptions = query(async () => {
+  return db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name));
+});
+
+/** Names of the given projects (nulls and repeats allowed), by id. */
+export const getProjectNames = query(async (ids: (string | null)[]): Promise<Map<string, string>> => {
+  const wanted = [...new Set(ids.filter((id) => id !== null))];
+  if (!wanted.length) return new Map();
+  const rows = await db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, wanted));
+  return new Map(rows.map((p) => [p.id, p.name]));
+});
+
 const agentSummary = {
   id: agents.id,
   name: agents.name,
@@ -80,27 +93,20 @@ const agentSummary = {
   enabled: agents.enabled,
 };
 
-/** Agents that can join a project's team, by core's rule (enabled specialists, see canJoinTeam), by name. */
-export const listJoinableAgents = query(async () => {
+/** The agents that pass one of core's team rules, by name. */
+async function agentsAllowedBy(rule: typeof canJoinTeam) {
   const rows = await db
     .select({ ...agentSummary, isTemplate: agents.isTemplate, kind: agents.kind })
     .from(agents)
     .orderBy(asc(agents.name));
-  return rows
-    .filter(canJoinTeam)
-    .map((a) => ({ id: a.id, name: a.name, avatar: a.avatar, role: a.role, enabled: a.enabled }));
-});
+  return rows.filter(rule).map((a) => ({ id: a.id, name: a.name, avatar: a.avatar, role: a.role, enabled: a.enabled }));
+}
+
+/** Agents that can join a project's team, by core's rule (enabled specialists, see canJoinTeam), by name. */
+export const listJoinableAgents = query(() => agentsAllowedBy(canJoinTeam));
 
 /** Managers that can lead a project, by core's rule (enabled managers, see canLeadProject), by name. */
-export const listLeadableAgents = query(async () => {
-  const rows = await db
-    .select({ ...agentSummary, isTemplate: agents.isTemplate, kind: agents.kind })
-    .from(agents)
-    .orderBy(asc(agents.name));
-  return rows
-    .filter(canLeadProject)
-    .map((a) => ({ id: a.id, name: a.name, avatar: a.avatar, role: a.role, enabled: a.enabled }));
-});
+export const listLeadableAgents = query(() => agentsAllowedBy(canLeadProject));
 
 export type JoinableAgent = Awaited<ReturnType<typeof listJoinableAgents>>[number];
 export type LeadableAgent = Awaited<ReturnType<typeof listLeadableAgents>>[number];

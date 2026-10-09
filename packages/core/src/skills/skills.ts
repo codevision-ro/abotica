@@ -13,14 +13,14 @@ import {
   type Tx,
 } from "@abotica/db";
 import { and, asc, eq, inArray, like } from "@abotica/db/orm";
-import { getTranslator, UserError } from "@abotica/i18n";
+import { UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
 import { createConversation } from "../runs/conversations";
 import { isUniqueViolation } from "../infra/db-errors";
 import { startRun } from "../runs/runs";
-import { getSettings, settingsLocale } from "../settings/settings";
+import { settingsTranslator } from "../settings/settings";
 import { checkSkillFiles, compareSkillPaths, SKILL_MD, type SkillFileEntry, type SkillPackage } from "./skill-md";
-import { fetchSkill, fetchSourceHash, hashSkillPackage, type SkillSourceRef } from "./skill-sources";
+import { fetchSkill, fetchSourceHash, hashSkillPackage, type SkillSourceRef, sourceRef } from "./skill-sources";
 import { slugify } from "../platform/slug";
 
 /**
@@ -32,12 +32,12 @@ export type Skill = typeof skills.$inferSelect;
 
 type Assignments = { agentIds: string[]; projectIds: string[] };
 
-export type SkillChange = Partial<SkillPackage & Assignments & { slug: string; enabled: boolean }>;
+type SkillChange = Partial<SkillPackage & Assignments & { slug: string; enabled: boolean }>;
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 async function versionNotes() {
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   return {
     initial: t("skills.versionNotes.initial"),
     installed: (url: string) => t("skills.versionNotes.installed", { url }),
@@ -294,7 +294,7 @@ export async function installSkill(ref: SkillSourceRef, opts: { expectedHash?: s
   return createSkill(fetched.pkg, { source: fetched.source, actor: opts.actor });
 }
 
-export type SkillUpdateStatus = { updateAvailable: boolean; modified: boolean };
+type SkillUpdateStatus = { updateAvailable: boolean; modified: boolean };
 
 export async function checkSkillUpdate(id: string): Promise<SkillUpdateStatus> {
   const [skill] = await db.select().from(skills).where(eq(skills.id, id));
@@ -312,10 +312,7 @@ export async function syncSkillFromSource(id: string) {
   const [skill] = await db.select().from(skills).where(eq(skills.id, id));
   if (!skill) throw new UserError("skills.errors.notFound");
   if (!skill.source) throw new UserError("skills.errors.noSource");
-  const s = skill.source;
-  const fetched = await fetchSkill(
-    s.kind === "skills.sh" ? { kind: "skills.sh", id: s.id } : { kind: "github", repo: s.repo, ref: s.ref, path: s.path },
-  );
+  const fetched = await fetchSkill(sourceRef(skill.source));
   const notes = await versionNotes();
   return updateSkill(id, fetched.pkg, {
     note: notes.synced(fetched.source.url),
@@ -332,7 +329,7 @@ export async function syncSkillFromSource(id: string) {
 export async function startSkillTest(input: { skillId: string; agentId: string; prompt: string }): Promise<string> {
   const [skill] = await db.select({ name: skills.name }).from(skills).where(eq(skills.id, input.skillId));
   if (!skill) throw new UserError("skills.errors.notFound");
-  const t = getTranslator(settingsLocale(await getSettings()));
+  const t = await settingsTranslator();
   const conversation = await createConversation({
     agentId: input.agentId,
     channel: "web",

@@ -2,8 +2,8 @@
  * Docker backend: one long-lived container per workspace, its files in a named volume, commands
  * through exec. Containers start on first use, are paused when idle (no command and no background
  * process) and stopped after a longer idle (reap), and are recreated when their spec changes while
- * nothing runs in them. The egress proxy
- * runs in this process, on the worker's address in the sandbox network.
+ * nothing runs in them. The egress proxy runs in this process, on the worker's address in the
+ * sandbox network.
  *
  * Users: agent commands run as the sandbox user, stdio MCP servers as the MCP user. A workspace is
  * owned by the sandbox user, except an MCP server's own workspace, which belongs to the MCP user;
@@ -12,7 +12,7 @@
  */
 import type Docker from "dockerode";
 import { startEgressProxy } from "../egress/proxy";
-import type { DockerBackendOptions, ExecOptions, SandboxBackend, SandboxProcess, Workspace, WorkspaceSpec } from "../types";
+import type { DockerBackendOptions, ExecOptions, SandboxBackend, SandboxProcess, WorkspaceSpec } from "../types";
 import {
   assertBundle,
   BUNDLE_STATE_FILE,
@@ -22,6 +22,7 @@ import {
   planIsEmpty,
   type BundleState,
 } from "./bundles";
+import { keyedQueue } from "../keyed-queue";
 import { dockerClient, errorMessage, statusOf, withTimeout } from "./client";
 import { mcpExecOptions, runHelper, startProcess } from "./exec";
 import { findWorkerAddress } from "./network";
@@ -98,17 +99,19 @@ const ignoreStatus =
 
 export async function createDockerBackend(options: DockerBackendOptions): Promise<SandboxBackend> {
   const docker = dockerClient(options.host);
-  const info = await withTimeout(docker.info(), API_TIMEOUT_MS, "Docker info");
+  const api = <T>(request: Promise<T>, what: string) => withTimeout(request, API_TIMEOUT_MS, what);
+  const info = await api(docker.info(), "Docker info");
   const runtimes = Object.keys((info as { Runtimes?: Record<string, unknown> }).Runtimes ?? {});
   const gvisor = runtimes.includes("runsc");
   if (options.runtime === "runsc" && !gvisor) throw new Error("The gVisor runtime (runsc) is not installed in Docker");
   const runtime = options.runtime === "runc" || !gvisor ? "runc" : "runsc";
   const address = await findWorkerAddress(docker, options.network);
-  const networkId = (await withTimeout(docker.getNetwork(options.network).inspect(), API_TIMEOUT_MS, "Network inspect")).Id;
+  const networkId = (await api(docker.getNetwork(options.network).inspect(), "Network inspect")).Id;
   const proxy = await startEgressProxy({ host: address });
 
   const usage = new Map<string, Usage>();
-  const locks = new Map<string, Promise<unknown>>();
+  /** Runs `task` after every earlier task for the same key, so opens, stops and removals never interleave. */
+  const serialize = keyedQueue();
   const specs = new Map<string, WorkspaceSpec>();
   const bundleCache = new Map<string, BundleCache>();
   /** Container instance (`id/startedAt`) whose users and folders are prepared, by key. */
@@ -128,22 +131,10 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
   };
   const touch = (key: string) => (usageOf(key).usedAt = Date.now());
 
-  /** Runs `task` after every earlier task for the same key, so opens, stops and removals never interleave. */
-  function serialize<T>(key: string, task: () => Promise<T>): Promise<T> {
-    const previous = locks.get(key) ?? Promise.resolve();
-    const run = previous.catch(() => {}).then(task);
-    const tail = run.catch(() => {});
-    locks.set(key, tail);
-    void tail.then(() => {
-      if (locks.get(key) === tail) locks.delete(key);
-    });
-    return run;
-  }
-
   async function imageId(): Promise<string> {
     if (image && Date.now() - image.checkedAt < IMAGE_CHECK_MS) return image.id;
     try {
-      const inspected = await withTimeout(docker.getImage(options.image).inspect(), API_TIMEOUT_MS, "Image inspect");
+      const inspected = await api(docker.getImage(options.image).inspect(), "Image inspect");
       image = { id: inspected.Id, checkedAt: Date.now() };
       return inspected.Id;
     } catch (error) {
@@ -163,15 +154,13 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     current?.State.Running && !current.State.Paused ? endpointOf(current)?.IPAddress || null : null;
 
   const inspect = (name: string) =>
-    withTimeout(docker.getContainer(name).inspect(), API_TIMEOUT_MS, "Container inspect").catch((error: unknown) => {
+    api(docker.getContainer(name).inspect(), "Container inspect").catch((error: unknown) => {
       if (statusOf(error) === 404) return null;
       throw error;
     });
 
   async function removeContainer(name: string) {
-    await withTimeout(docker.getContainer(name).remove({ force: true }), API_TIMEOUT_MS, "Container remove").catch(
-      ignoreStatus(404, 409),
-    );
+    await api(docker.getContainer(name).remove({ force: true }), "Container remove").catch(ignoreStatus(404, 409));
   }
 
   /** Creates or starts the workspace container; returns it running. */
@@ -192,22 +181,21 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
       current = null;
     }
     if (!current) {
-      await withTimeout(
+      await api(
         docker.createVolume({ Name: name, Labels: { [LABELS.sandbox]: "1", [LABELS.workspace]: key } }),
-        API_TIMEOUT_MS,
         "Volume create",
       );
       // 409: created meanwhile by a concurrent open (another worker); use that one.
-      await withTimeout(docker.createContainer(spec), API_TIMEOUT_MS, "Container create").catch(ignoreStatus(409));
+      await api(docker.createContainer(spec), "Container create").catch(ignoreStatus(409));
       current = await inspect(name);
       if (!current) throw new Error(`Sandbox container ${name} disappeared after creation`);
     }
     if (current.State.Running && !current.State.Paused) return current;
     const container = docker.getContainer(current.Id);
     if (current.State.Paused) {
-      await withTimeout(container.unpause(), API_TIMEOUT_MS, "Container unpause").catch(ignoreStatus(304, 409));
+      await api(container.unpause(), "Container unpause").catch(ignoreStatus(304, 409));
     } else {
-      await withTimeout(container.start(), API_TIMEOUT_MS, "Container start").catch(ignoreStatus(304));
+      await api(container.start(), "Container start").catch(ignoreStatus(304));
     }
     const started = await inspect(name);
     if (!started?.State.Running) {
@@ -339,7 +327,7 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     await Promise.allSettled([...children].map((child) => withTimeout(child.kill(), 20_000, "kill")));
   }
 
-  const backend: SandboxBackend = {
+  return {
     isolation: runtime === "runsc" ? "gvisor" : "runc",
 
     pathsFor(key) {
@@ -351,12 +339,7 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
       assertWorkspaceKey(spec.key);
       for (const bundle of spec.bundles ?? []) assertBundle(bundle);
       await prepare(spec);
-      const workspace: Workspace = {
-        key: spec.key,
-        paths: PATHS,
-        exec: (execOptions) => exec(spec, execOptions),
-      };
-      return workspace;
+      return { key: spec.key, paths: PATHS, exec: (execOptions) => exec(spec, execOptions) };
     },
 
     async wake(key) {
@@ -368,7 +351,7 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
         current = await serialize(key, async () => {
           const latest = await inspect(name);
           if (!latest?.State.Paused) return latest;
-          await withTimeout(docker.getContainer(latest.Id).unpause(), API_TIMEOUT_MS, "Container unpause");
+          await api(docker.getContainer(latest.Id).unpause(), "Container unpause");
           return inspect(name);
         });
       }
@@ -384,7 +367,7 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
         await killAll(usage.get(key)?.active ?? []);
         const name = resourceName(key);
         await removeContainer(name);
-        await withTimeout(docker.getVolume(name).remove(), API_TIMEOUT_MS, "Volume remove").catch(ignoreStatus(404));
+        await api(docker.getVolume(name).remove(), "Volume remove").catch(ignoreStatus(404));
         usage.delete(key);
         specs.delete(key);
         addresses.delete(key);
@@ -394,11 +377,7 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     },
 
     async list() {
-      const result = await withTimeout(
-        docker.listVolumes({ filters: { label: [`${LABELS.sandbox}=1`] } }),
-        API_TIMEOUT_MS,
-        "Volume list",
-      );
+      const result = await api(docker.listVolumes({ filters: { label: [`${LABELS.sandbox}=1`] } }), "Volume list");
       return (result.Volumes ?? []).flatMap((volume) => {
         const key = volume.Labels?.[LABELS.workspace];
         if (!key) return [];
@@ -408,9 +387,8 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
     },
 
     async reap({ pauseAfterMs, stopAfterMs }) {
-      const containers = await withTimeout(
+      const containers = await api(
         docker.listContainers({ filters: { label: [`${LABELS.sandbox}=1`], status: ["running", "paused"] } }),
-        API_TIMEOUT_MS,
         "Container list",
       );
       const now = Date.now();
@@ -436,12 +414,12 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
           if (action === "pause") {
             // Pausing would freeze what the agent left running; the stop after the longer idle still applies.
             if (await runsInBackground(target)) return;
-            await withTimeout(target.pause(), API_TIMEOUT_MS, "Container pause").catch(ignoreStatus(404, 409));
+            await api(target.pause(), "Container pause").catch(ignoreStatus(404, 409));
             return;
           }
           // Unpaused first: a signal cannot be delivered into a paused gVisor sandbox.
-          if (paused) await withTimeout(target.unpause(), API_TIMEOUT_MS, "Container unpause").catch(ignoreStatus(404));
-          await withTimeout(target.stop({ t: 5 }), API_TIMEOUT_MS, "Container stop").catch(ignoreStatus(304, 404));
+          if (paused) await api(target.unpause(), "Container unpause").catch(ignoreStatus(404));
+          await api(target.stop({ t: 5 }), "Container stop").catch(ignoreStatus(304, 404));
           usageOf(key).seenAt = null;
         }).catch((error: unknown) => failures.push(`${resourceName(key)}: ${errorMessage(error)}`));
       }
@@ -453,5 +431,4 @@ export async function createDockerBackend(options: DockerBackendOptions): Promis
       await proxy.close();
     },
   };
-  return backend;
 }

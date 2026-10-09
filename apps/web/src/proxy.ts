@@ -1,7 +1,6 @@
-import { appOrigins } from "@abotica/core/app-origins";
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
-import { authCookiePrefix } from "@/server/auth-cookies";
+import { authCookiePrefix, isHttpsApp } from "@/server/auth-cookies";
 import { isCrossOriginWrite } from "@/server/same-origin";
 
 /** Pages reachable without a session: the proxy still sets their Content-Security-Policy. */
@@ -58,7 +57,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const https = appOrigins()[0]?.startsWith("https:") ?? false;
+  const https = isHttpsApp();
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = contentSecurityPolicy(nonce, https);
   const requestHeaders = new Headers(request.headers);

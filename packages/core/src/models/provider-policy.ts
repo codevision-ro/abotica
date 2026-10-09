@@ -79,7 +79,7 @@ export const projectProviderPolicy = (projectId: string | null): Promise<Provide
  * A conversation that received the results of delegated tasks holds their projects' data from then
  * on: the delegation reports given to its agent (not the ones withheld from it) stay in its history.
  */
-export async function conversationProviderPolicy(conversationId: string | null): Promise<ProviderPolicy> {
+async function conversationProviderPolicy(conversationId: string | null): Promise<ProviderPolicy> {
   if (!conversationId) return ANY_PROVIDER;
   const reports = await db
     .select({ metadata: messages.metadata })

@@ -13,8 +13,6 @@ import { cn } from "@/lib/utils";
 import { checkSandbox } from "@/server/actions/sandbox";
 import type { SandboxStatusView } from "@/server/queries/sandbox";
 
-type Status = NonNullable<SandboxStatusView>;
-
 /** How long the button spins when the worker never answers (not running, queue stuck). */
 const CHECK_TIMEOUT_MS = 30_000;
 
@@ -60,16 +58,11 @@ export function SandboxCheckButton({ checkedAt }: { checkedAt: string | null }) 
 /** Whether containers run, why not and how to fix it, and the tools found; a note when nothing checked yet. */
 export function SandboxStatus({ status }: { status: SandboxStatusView }) {
   const t = useTranslations("sandbox.settings.status");
-  return status ? <StatusBody status={status} /> : <p className="text-sm text-muted-foreground">{t("none")}</p>;
-}
-
-function StatusBody({ status }: { status: Status }) {
-  const t = useTranslations("sandbox.settings.status");
+  if (!status) return <p className="text-sm text-muted-foreground">{t("none")}</p>;
   const off = !status.enabled;
   const ready = status.isolation !== null;
   const tools = status.tools.filter((tool) => tool.version !== null);
   const fix = status.docker.configured ? t("fix.dockerUnreachable") : t("fix.dockerNotConfigured");
-  const details = status.docker.reason ? [`Docker: ${status.docker.reason}`] : [];
 
   const headline = ready ? t("running") : off ? t("off") : t("unavailable");
   const detail = ready ? t(`isolation.${status.isolation!}`) : off ? t("offHint") : t("unavailableHint");
@@ -107,14 +100,10 @@ function StatusBody({ status }: { status: Status }) {
         </div>
       )}
 
-      {!ready && details.length > 0 && (
+      {!ready && status.docker.reason && (
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">{t("details")}</p>
-          {details.map((line) => (
-            <p key={line} className="font-mono text-xs wrap-anywhere text-muted-foreground">
-              {line}
-            </p>
-          ))}
+          <p className="font-mono text-xs wrap-anywhere text-muted-foreground">{`Docker: ${status.docker.reason}`}</p>
         </div>
       )}
 

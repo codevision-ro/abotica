@@ -1,10 +1,10 @@
-import { filePath, holdStaleReply, listFiles } from "@abotica/core";
+import { filePath, holdStaleReply, listFiles, settingsTranslator } from "@abotica/core";
 import type { ExecuteResult, RunHooks } from "@abotica/core/agents/runner";
 import type { conversations, runs } from "@abotica/db";
 import type { Translator } from "@abotica/i18n";
 import { type Bot, InputFile } from "grammy";
-import { botTranslator, getBot } from "./bot";
-import { sendMarkdown, type Target } from "./send";
+import { getBot } from "./bot";
+import { inThread, sendMarkdown, type Target } from "./send";
 
 /**
  * Files the agent shared with file_share during the run, after the answer. All go as documents, images
@@ -14,9 +14,7 @@ import { sendMarkdown, type Target } from "./send";
 async function sendSharedFiles(bot: Bot, target: Target, runId: string, conversationId: string) {
   for (const file of await listFiles({ runId, conversationId, source: "agent" })) {
     try {
-      await bot.api.sendDocument(target.chatId, new InputFile(filePath(file.id), file.name), {
-        ...(target.threadId ? { message_thread_id: target.threadId } : {}),
-      });
+      await bot.api.sendDocument(target.chatId, new InputFile(filePath(file.id), file.name), inThread(target.threadId));
     } catch (error) {
       console.error(`[telegram] sending shared file ${file.id} failed:`, error);
     }
@@ -42,7 +40,7 @@ export async function deliverTelegramReply(
   const bot = getBot();
   if (!bot || !conversation.externalId) return;
   const target = targetOf(conversation.externalId);
-  const t = await botTranslator();
+  const t = await settingsTranslator();
   try {
     if (!(await holdStaleReply(run))) await sendReply(bot, target, run, result, t);
   } finally {
@@ -84,7 +82,7 @@ export function showTelegramTyping(conversation: typeof conversations.$inferSele
   const bot = getBot();
   if (!bot || !conversation.externalId) return;
   const { chatId, threadId } = targetOf(conversation.externalId);
-  void bot.api.sendChatAction(chatId, "typing", threadId ? { message_thread_id: threadId } : {}).catch(() => {});
+  void bot.api.sendChatAction(chatId, "typing", inThread(threadId)).catch(() => {});
 }
 
 type SteeredMessage = Parameters<NonNullable<RunHooks["onSteered"]>>[0][number];

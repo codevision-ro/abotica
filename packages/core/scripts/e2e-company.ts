@@ -34,6 +34,7 @@ import {
   type TaskPriority,
   updateSettings,
 } from "../src/index";
+import { wait } from "./e2e-shared";
 
 /**
  * End-to-end checks of the company flow, one scenario per run: a project with a manager and two
@@ -94,14 +95,13 @@ export type Harness = {
   track: { conversation: (id: string) => void; task: (id: string) => void; agent: (id: string) => void };
 };
 
-export type Scenario = (h: Harness) => Promise<void>;
+type Scenario = (h: Harness) => Promise<void>;
 
 const MODEL: ModelRef = {
   provider: process.env.E2E_PROVIDER ?? "anthropic",
   model: process.env.E2E_MODEL ?? "claude-haiku-4-5-20251001",
 };
 const SCENARIOS_DIR = join(import.meta.dirname, "company");
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function scenarioFile(id: string | undefined): string {
   const files = readdirSync(SCENARIOS_DIR).filter((f) => /^s\d{2}-.+\.ts$/.test(f));

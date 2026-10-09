@@ -4,7 +4,7 @@ import { ArrowUpRight, Ellipsis, KeyRound, Plus, RefreshCw, Trash2 } from "lucid
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionEmpty, SectionIcon, SectionList, sectionCardClass } from "@/components/app/section-card";
@@ -38,6 +38,7 @@ import { deleteVaultSecret, setVaultSecret } from "@/server/actions/secrets";
 import type { VaultSecretRow } from "@/server/queries/settings";
 import { SecretInput } from "./secret-input";
 import { SectionHeader } from "./section-header";
+import { useReturnFocus } from "./use-return-focus";
 
 /** Where a key is used: the page that sets it up (Models, Telegram, the project). */
 export type KeyUse = { label: string; href: string; title: string };
@@ -96,17 +97,10 @@ export function KeysManager({
   const [deleting, startDelete] = useTransition();
 
   // The dialogs have no Radix trigger, so return focus by hand: to "Add key" or to the row's menu button.
-  const opener = useRef<HTMLElement | null>(null);
-  const restoreFocus = (e: Event) => {
-    if (!opener.current?.isConnected) return;
-    e.preventDefault();
-    opener.current.focus();
-  };
-  const rememberMenu = (e: React.SyntheticEvent<HTMLElement>) => {
-    opener.current = e.currentTarget;
-  };
+  const { remember, restoreFocus } = useReturnFocus();
+  const rememberMenu = (e: React.SyntheticEvent<HTMLElement>) => remember(e.currentTarget);
   const openNew = () => {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    remember();
     // A new key belongs to the project the list shows.
     const projectId = typeof filter === "object" ? filter.projectId : null;
     setDraft({ name: "", value: "", description: "", projectId, replacing: false });

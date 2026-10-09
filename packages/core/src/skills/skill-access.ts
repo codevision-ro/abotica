@@ -46,7 +46,10 @@ export async function findReadableSkill(reader: SkillReader, slug: string): Prom
   return skill ?? null;
 }
 
-/** Whether skill_read is offered: to an agent with skills, and to those who may read others' (see findReadableSkill). */
+/**
+ * Whether skill_read is offered: to an agent with skills, and to those who may read others' (see
+ * findReadableSkill).
+ */
 export const readsSkills = (reader: SkillReader): boolean =>
   reader.skills.length > 0 ||
   reader.agent.kind === "orchestrator" ||

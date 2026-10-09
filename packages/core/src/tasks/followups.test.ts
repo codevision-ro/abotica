@@ -46,9 +46,10 @@ vi.mock("../settings/settings", () => ({
     agents: { maxContinuations: 2, staleTaskMinutes: 60, deadlineEscalationMinutes: 60 },
   }),
   settingsLocale: () => "en",
+  settingsTranslator: async () => (await import("@abotica/i18n")).getTranslator("en"),
 }));
 vi.mock("./chain", () => ({ chainOfCommand: vi.fn() }));
-vi.mock("./control", () => ({ resumePausedFor: vi.fn(async () => 0) }));
+vi.mock("./control", () => ({ resumeHeldWork: vi.fn(async () => 0), resumePausedFor: vi.fn(async () => 0) }));
 vi.mock("./delegation", () => ({ reportTask: vi.fn(async () => {}) }));
 vi.mock("./delegation-slots", () => ({ startDelegatedTask: vi.fn(async () => ({ id: "next-run" })) }));
 vi.mock("./handoffs", () => ({ alertDependents: vi.fn(async () => {}) }));

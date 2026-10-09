@@ -17,6 +17,7 @@ import { PageBody, PageHeader } from "@/components/app/page-header";
 import {
   SectionCard,
   sectionCardClass,
+  SectionDivider,
   SectionEmpty,
   SectionIcon,
   SectionList,
@@ -127,7 +128,7 @@ export default async function RunDetailPage(props: PageProps<"/runs/[id]">) {
               <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/input:rotate-180" />
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+              <SectionDivider />
               <div className="p-4 sm:p-5">
                 {run.input ? (
                   // A div, not a pre: external data inside the input renders as its own block.

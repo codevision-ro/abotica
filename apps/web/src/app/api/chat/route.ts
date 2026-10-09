@@ -12,7 +12,7 @@ import { z } from "zod";
 import { isUuid } from "@/lib/uuid";
 import { getConversationWithAgent } from "@/server/queries/chat";
 import { runStreamResponse } from "@/server/run-stream";
-import { requireApiUser } from "@/server/session";
+import { unauthorized } from "@/server/session";
 
 export const dynamic = "force-dynamic";
 
@@ -38,11 +38,8 @@ const requestBody = z.object({
 
 /** Adds the user's message, starts a run in the worker and relays its stream. */
 export async function POST(request: Request) {
-  try {
-    await requireApiUser();
-  } catch (response) {
-    return response as Response;
-  }
+  const denied = await unauthorized();
+  if (denied) return denied;
   const t = await getTranslations("chat");
   const parsed = requestBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return new Response(t("errors.invalidRequest"), { status: 400 });

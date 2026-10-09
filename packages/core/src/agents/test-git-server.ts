@@ -17,7 +17,7 @@ export type GitServer = {
   close(): Promise<void>;
 };
 
-export type GitServerOptions = {
+type GitServerOptions = {
   root: string;
   tls: { cert: string; key: string };
   authorization: string;

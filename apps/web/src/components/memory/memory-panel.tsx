@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { SectionIcon, sectionCardClass } from "@/components/app/section-card";
+import { sectionCardClass, SectionDivider, SectionIcon } from "@/components/app/section-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,7 +13,6 @@ export function MemoryPanel({
   action,
   children,
   footer,
-  className,
 }: {
   icon?: LucideIcon;
   title?: React.ReactNode;
@@ -22,10 +21,9 @@ export function MemoryPanel({
   action?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <section className={cn(sectionCardClass, "min-w-0", className)}>
+    <section className={cn(sectionCardClass, "min-w-0")}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 sm:px-5">
         {icon && <SectionIcon icon={icon} />}
         <div className="min-w-0 flex-1 basis-56 space-y-0.5">
@@ -34,7 +32,7 @@ export function MemoryPanel({
         </div>
         {action && <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 max-sm:w-full">{action}</div>}
       </div>
-      <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
+      <SectionDivider />
       <div className="overflow-hidden rounded-b-2xl">{children}</div>
       {footer}
     </section>

@@ -23,14 +23,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
-import { SkillFileTree, skillFileIcon } from "./skill-file-tree";
-
-const isMarkdown = (path: string) => /\.(md|markdown)$/i.test(path);
+import { byteLength, isMarkdown, SkillFileTree, skillFileIcon } from "./skill-file-tree";
 
 /** "references/api.md" -> "references/"; "" for files at the top of the skill. */
 const folderOf = (path: string) => path.slice(0, path.lastIndexOf("/") + 1);
-
-const byteLength = (s: string) => new TextEncoder().encode(s).length;
 
 /** Frontmatter values as they would read in YAML, on one line. */
 function metadataLine(metadata: Record<string, unknown>): string {

@@ -3,7 +3,7 @@ import { Bot, Cpu, KeyRound, type LucideIcon, Send, Server, SlidersHorizontal, U
 type SettingsPageKey = "general" | "models" | "agents" | "telegram" | "account" | "keys" | "system";
 
 /** `also`: pages outside the nav that belong to this one (the audit log is opened from System). */
-export type SettingsPage = { key: SettingsPageKey; href: string; icon: LucideIcon; also?: string[] };
+type SettingsPage = { key: SettingsPageKey; href: string; icon: LucideIcon; also?: string[] };
 
 /**
  * The settings pages, for the settings nav and the command menu. Labels live in the `settings.nav`

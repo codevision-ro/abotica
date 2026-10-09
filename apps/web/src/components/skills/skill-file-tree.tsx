@@ -14,10 +14,14 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
+export const isMarkdown = (path: string) => /\.(md|markdown)$/i.test(path);
+
+export const byteLength = (s: string) => new TextEncoder().encode(s).length;
+
 type TreeNode = { name: string; path: string; children: TreeNode[] | null };
 
 /** Nested folders from flat paths, in the editor's order: SKILL.md first, folders before files. */
-export function buildSkillTree(paths: string[]): TreeNode[] {
+function buildSkillTree(paths: string[]): TreeNode[] {
   const root: TreeNode[] = [];
   for (const path of [...paths].sort(compareSkillPaths)) {
     const parts = path.split("/");
@@ -68,13 +72,12 @@ export function skillFileIcon(path: string): LucideIcon {
 
 /**
  * The files of a skill as a collapsible tree. Folders start open; arrow keys move between rows,
- * Left/Right close and open folders. `actions` renders extra controls on a file row (shown on hover/focus).
+ * Left/Right close and open folders.
  */
 export function SkillFileTree({
   paths,
   selected,
   onSelect,
-  actions,
   marks,
   label,
   className,
@@ -82,7 +85,6 @@ export function SkillFileTree({
   paths: string[];
   selected: string | null;
   onSelect: (path: string) => void;
-  actions?: (path: string) => React.ReactNode;
   /** Small trailing marker per path, e.g. a dot for unsaved or a status letter in a diff. */
   marks?: Record<string, React.ReactNode>;
   /** Accessible name of the tree. */
@@ -159,18 +161,12 @@ export function SkillFileTree({
               active
                 ? "bg-primary/8 font-medium text-foreground dark:bg-primary/15"
                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              actions && "pr-9",
             )}
           >
             <Icon aria-hidden className={cn("size-4 shrink-0", active && "text-primary")} />
             <span className="truncate">{node.name}</span>
             {marks?.[node.path] && <span className="ml-auto shrink-0 pl-1">{marks[node.path]}</span>}
           </button>
-          {actions && (
-            <span className="absolute right-1 flex items-center opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100">
-              {actions(node.path)}
-            </span>
-          )}
         </li>
       );
     });

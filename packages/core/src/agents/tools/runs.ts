@@ -33,11 +33,13 @@ import {
   agentBySlug,
   blankToUndefined,
   clip,
+  delegatorOf,
   optionalDateTime,
   optionalId,
   optionalText,
   closedProjects,
   errorResult,
+  inVisibleProject,
   runContentClosed,
   type ToolFactory,
   visibleProjects,
@@ -51,7 +53,7 @@ const STEP_LIMIT = 8;
 type StepEvent = { step?: number; text?: string; toolCalls?: { name: string }[] };
 
 /** A file read from the workspace of the agent handing it over. */
-export type Handover = { path: string; name: string; data: Uint8Array };
+type Handover = { path: string; name: string; data: Uint8Array };
 
 /**
  * Reads the files to hand over from the delegating agent's workspace; any problem fails them all.
@@ -268,11 +270,7 @@ export const runTools: Record<string, ToolFactory> = {
             }
           : given;
         // Who may hand what to whom: the super agent reaches a project through its manager, a manager its team.
-        const delegator = {
-          id: ctx.agent.id,
-          kind: ctx.agent.kind,
-          managedProjectIds: ctx.managedProjectIds,
-        };
+        const delegator = delegatorOf(ctx);
         const resolved = delegationProjectId(
           delegator,
           ctx.projectId,
@@ -290,9 +288,7 @@ export const runTools: Record<string, ToolFactory> = {
         const handover = await readHandover(input.files, sandbox, abortSignal);
         if ("error" in handover) return handover;
 
-        let taskId: string;
         let plan: { save: Handover[]; replace: string[] };
-        const own = await ownTask(ctx);
         let delegated: { id: string; title: string; priority: TaskPriority };
         if (existing) {
           const task = existing;
@@ -324,7 +320,6 @@ export const runTools: Record<string, ToolFactory> = {
           if (input.priority && input.priority !== task.priority) {
             await updateTask(task.id, { priority: input.priority }, actorOf(ctx));
           }
-          taskId = task.id;
           delegated = { id: task.id, title: task.title, priority: input.priority ?? task.priority };
         } else {
           if (!input.title || input.title.trim().length < 3)
@@ -335,6 +330,7 @@ export const runTools: Record<string, ToolFactory> = {
           const planned = planHandover(handover, []);
           if ("error" in planned) return planned;
           plan = planned;
+          const own = await ownTask(ctx);
           const parentId = ownTaskParent(own, resolved.value);
           let task: Task;
           try {
@@ -356,9 +352,9 @@ export const runTools: Record<string, ToolFactory> = {
             if (isUserError(error)) return errorResult(error);
             throw error;
           }
-          taskId = task.id;
           delegated = task;
         }
+        const taskId = delegated.id;
         await storeHandover(ctx, taskId, plan);
         if (input.reportTogether) {
           await db.update(tasks).set({ reportGroup: input.reportTogether }).where(eq(tasks.id, taskId));
@@ -446,9 +442,8 @@ export const runTools: Record<string, ToolFactory> = {
           .leftJoin(agents, eq(agents.id, runs.agentId))
           .leftJoin(tasks, eq(tasks.id, runs.taskId))
           .where(eq(runs.id, runId));
-        const visible = visibleProjects(ctx);
-        const inScope = !visible || (row?.run.projectId != null && visible.includes(row.run.projectId));
-        if (!row || !inScope) return { error: `Run ${runId} does not exist or is not visible to you. Use run_list.` };
+        if (!row || !inVisibleProject(ctx, row.run.projectId))
+          return { error: `Run ${runId} does not exist or is not visible to you. Use run_list.` };
         const { run } = row;
         const [closed, children, pending, steps] = await Promise.all([
           runContentClosed(ctx, run),

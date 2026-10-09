@@ -18,7 +18,7 @@ import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { RelativeTime } from "@/components/app/relative-time";
-import { SectionCard, SectionEmpty, SectionList, SectionRow } from "@/components/app/section-card";
+import { SectionCard, SectionEmpty, SectionIcon, SectionList, SectionRow } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -119,11 +119,7 @@ function KnowledgeRow({ projectId, item }: { projectId: string; item: KnowledgeI
 
   return (
     <SectionRow
-      media={
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="size-4" aria-hidden />
-        </span>
-      }
+      media={<SectionIcon icon={Icon} variant="muted" />}
       title={<span title={item.title}>{item.title}</span>}
       subtitle={
         <>

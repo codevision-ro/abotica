@@ -16,13 +16,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 import { installSkill } from "@/server/actions/skills";
-import { SkillFileTree, skillFileIcon } from "./skill-file-tree";
+import { byteLength, isMarkdown, SkillFileTree, skillFileIcon } from "./skill-file-tree";
 import { SkillIcon } from "./skill-icon";
 
-const MARKDOWN = /\.(md|markdown)$/i;
-
 /** Where the previewed skill comes from: a remote source (linked) or the user's computer. */
-export type SkillPreviewSource = { kind: "remote"; origin: SkillOrigin } | { kind: "local"; label: string };
+type SkillPreviewSource = { kind: "remote"; origin: SkillOrigin } | { kind: "local"; label: string };
 
 /**
  * Read-only look at a skill folder before it is added: what it is, where it comes from and every
@@ -32,28 +30,23 @@ export function SkillPreview({
   pkg,
   skipped,
   source,
-  className,
 }: {
   pkg: SkillPackage;
   skipped: string[];
   source: SkillPreviewSource;
-  className?: string;
 }) {
   const t = useTranslations("skills.preview");
   const format = useFormat();
   const [selected, setSelected] = useState(SKILL_MD);
   const [raw, setRaw] = useState(false);
   const paths = useMemo(() => pkg.files.map((f) => f.path), [pkg.files]);
-  const bytes = useMemo(
-    () => pkg.files.reduce((sum, f) => sum + new TextEncoder().encode(f.content).length, 0),
-    [pkg.files],
-  );
+  const bytes = useMemo(() => pkg.files.reduce((sum, f) => sum + byteLength(f.content), 0), [pkg.files]);
   const file = pkg.files.find((f) => f.path === selected) ?? pkg.files[0];
-  const markdown = !!file && MARKDOWN.test(file.path);
+  const markdown = !!file && isMarkdown(file.path);
   const extras = Object.entries(pkg.metadata);
 
   return (
-    <div className={cn("flex min-w-0 flex-col gap-4", className)}>
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="flex items-center gap-3">
         <SkillIcon size="xl" />
         <div className="min-w-0 flex-1 space-y-1">
@@ -217,7 +210,7 @@ export function SkillPreviewSkeleton() {
 }
 
 /** The ref that fetches this origin again, for installing exactly what was previewed. */
-export function skillSourceRef(origin: SkillOrigin): SkillSourceRef {
+function skillSourceRef(origin: SkillOrigin): SkillSourceRef {
   return origin.kind === "skills.sh"
     ? { kind: "skills.sh", id: origin.id }
     : { kind: "github", repo: origin.repo, ref: origin.ref, path: origin.path };

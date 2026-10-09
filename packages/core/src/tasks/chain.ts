@@ -11,6 +11,7 @@ import { and, desc, eq, sql } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { getOrchestrator, type RunTrigger } from "../runs/runs";
 import { superAgentInbox } from "../runs/super-agent-inbox";
+import { automationTrigger } from "./automation-rules";
 import { reportTargetAgent } from "./automation-target";
 
 type Agent = typeof agents.$inferSelect;
@@ -37,10 +38,6 @@ const USER: Superior = { kind: "user", conversationId: null };
 
 /** A run that answers a person in its conversation: the user stands right above it. */
 const answersPerson = (trigger: RunTrigger) => trigger === "chat" || trigger === "telegram";
-
-/** The trigger of the runs a notice starts for work a schedule or trigger fired: the automation's. */
-const automationTrigger = (trigger: RunTrigger): RunTrigger =>
-  trigger === "schedule" || trigger === "webhook" || trigger === "event" ? trigger : "task";
 
 /**
  * The manager's conversation for what reaches it about its project outside a delegation (questions on

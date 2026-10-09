@@ -7,17 +7,17 @@ import { vectorRelevance } from "../models/embedding-profiles";
  */
 
 /** Share of the vector and the keyword score in the fused score (OpenClaw's defaults). */
-export const VECTOR_WEIGHT = 0.7;
-export const KEYWORD_WEIGHT = 0.3;
+const VECTOR_WEIGHT = 0.7;
+const KEYWORD_WEIGHT = 0.3;
 
 /** Each branch fetches this many times the results asked for, so fusion and MMR have room to reorder. */
 export const CANDIDATE_MULTIPLIER = 4;
 
 /** Age in days at which recency halves a score. */
-export const DECAY_HALF_LIFE_DAYS = 30;
+const DECAY_HALF_LIFE_DAYS = 30;
 
 /** MMR trade-off between relevance (1) and diversity (0). */
-export const MMR_LAMBDA = 0.7;
+const MMR_LAMBDA = 0.7;
 
 /** Words a query is matched by, at most; a long message stays a cheap query. */
 export const MAX_QUERY_WORDS = 32;

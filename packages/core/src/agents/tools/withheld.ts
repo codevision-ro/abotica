@@ -7,7 +7,7 @@
 export const WITHHELD_NOTE =
   "Withheld: this project's allowed AI providers do not include every model of this run, so its content is not shown here.";
 
-export type Withheld<T, K extends keyof T> = { [P in keyof T]: P extends K ? T[P] | typeof WITHHELD_NOTE : T[P] };
+type Withheld<T, K extends keyof T> = { [P in keyof T]: P extends K ? T[P] | typeof WITHHELD_NOTE : T[P] };
 
 /** `item` with `fields` replaced by WITHHELD_NOTE when `closed` is true. */
 export function withhold<T extends object, K extends keyof T>(

@@ -14,21 +14,19 @@ export function createRedis(): Redis {
   return new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
 }
 
+const LOCK_TTL_MS = 30_000;
+const LOCK_POLL_MS = 100;
+
 /**
- * Runs `fn` holding a lock shared by the web app and the workers, waiting up to `ttlMs` to get it. The
- * lock expires after `ttlMs` should its holder die, and only its holder releases it.
+ * Runs `fn` holding a lock shared by the web app and the workers, waiting up to LOCK_TTL_MS to get it.
+ * The lock expires after LOCK_TTL_MS should its holder die, and only its holder releases it.
  */
-export async function withLock<T>(
-  key: string,
-  fn: () => Promise<T>,
-  opts: { ttlMs?: number; pollMs?: number } = {},
-): Promise<T> {
-  const { ttlMs = 30_000, pollMs = 100 } = opts;
+export async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const owner = randomUUID();
-  const deadline = Date.now() + ttlMs;
-  while (!(await redis().set(key, owner, "PX", ttlMs, "NX"))) {
+  const deadline = Date.now() + LOCK_TTL_MS;
+  while (!(await redis().set(key, owner, "PX", LOCK_TTL_MS, "NX"))) {
     if (Date.now() > deadline) throw new Error(`Timed out waiting for the lock ${key}`);
-    await new Promise((r) => setTimeout(r, pollMs));
+    await new Promise((r) => setTimeout(r, LOCK_POLL_MS));
   }
   try {
     return await fn();
