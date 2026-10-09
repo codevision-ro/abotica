@@ -160,15 +160,15 @@ A separate domain for previews (for example `abotica-preview.com`) isolates them
 
 Listed in `COMPOSE_PROFILES` in `.env`, comma separated (for example `COMPOSE_PROFILES=https,ollama`), then `docker compose up -d`.
 
-**Ollama** (embeddings from an Ollama server instead of the built-in model or OpenAI). Pull the embedding model once:
+**Ollama** (the embedding model run by an Ollama server instead of inside the worker, for example on a machine with a GPU). Pull the embedding model once:
 
 ```bash
-docker compose exec ollama ollama pull nomic-embed-text
+docker compose exec ollama ollama pull embeddinggemma
 ```
 
 Then, in **Settings > Models**, add Ollama and set its server address to `http://ollama:11434`, and choose Ollama under **Settings > Memory > Embeddings**. The embeddings stored so far are made again with Ollama in the background.
 
-The model uses about 400 MB of RAM while loaded and unloads itself after 5 minutes of inactivity. On a small VPS, embeddings through OpenAI are cheaper in terms of resources.
+The model uses about 700 MB of RAM while loaded and unloads itself after 5 minutes of inactivity. It is the same model as the built-in one (EmbeddingGemma), which runs inside the worker and needs up to about 1 GB of RAM while it embeds.
 
 ## Environment variables
 
@@ -187,7 +187,7 @@ Read from `.env`. Only the ones marked required must be set; the compose files s
 | `DATABASE_POOL_MAX` | `10` | Database connections per process (the web app and the worker each have a pool). |
 | `REDIS_URL` | `redis://localhost:6379` | Redis (compose sets it). |
 | `UPLOADS_DIR` | `apps/web/.data/uploads` | Stored files (compose sets it; required without Docker). |
-| `MODELS_DIR` | `apps/worker/.data/models` | The built-in embedding model, downloaded once (compose sets a volume). |
+| `MODELS_DIR` | `apps/worker/.data/models` | The built-in embedding model (EmbeddingGemma, about 330 MB), downloaded once (compose sets a volume). |
 | `HOST_GATEWAY` | | The host as containers reach it (compose sets it). |
 | `WORKER_SHUTDOWN_DRAIN_MS` | `30000` | Time runs in progress get to finish when the worker stops. |
 | `SANDBOX_DOCKER_HOST` | | Docker API for the sandbox; unset means no sandbox (compose sets it). |
@@ -216,7 +216,7 @@ The installers also read `ABOTICA_DIR` (and `install.ps1` reads `ABOTICA_YES`, s
 
 ### Settings from older `.env` files
 
-Some settings used to be environment variables and are now set in the app: the Telegram bot (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS`, `TELEGRAM_NOTIFY_CHAT_ID`), `OLLAMA_BASE_URL`, `EMBEDDING_PROVIDER` and `RUN_CONCURRENCY`. The worker copies them into Settings once, at its first start after the update, without overwriting anything already set there; later changes to these lines have no effect, and they can be removed.
+Some settings used to be environment variables and are now set in the app: the Telegram bot (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS`, `TELEGRAM_NOTIFY_CHAT_ID`), `OLLAMA_BASE_URL`, `EMBEDDING_PROVIDER` and `RUN_CONCURRENCY`. The worker copies them into Settings once, at its first start after the update, without overwriting anything already set there; later changes to these lines have no effect, and they can be removed. OpenAI no longer embeds: an install that used it moves to the built-in model at the update, and its memory is embedded again in the background.
 
 ## Without Docker
 
@@ -284,6 +284,6 @@ Everything (memory, journals, tasks, conversations) is in Postgres; the files (y
 
 ### Ollama without Docker
 
-Install it from ollama.com, run `ollama pull nomic-embed-text`, then add Ollama in **Settings > Models** and choose it under **Settings > Memory > Embeddings**.
+Install it from ollama.com, run `ollama pull embeddinggemma`, then add Ollama in **Settings > Models** and choose it under **Settings > Memory > Embeddings**.
 
 The bundled Playwright and Scrapling need the sandbox. To use Scrapling anyway, install it on the server (`pip install "scrapling[ai]"` and `scrapling install`, which downloads the browser into the worker user's home) and add your own server under **MCP > New**: transport `stdio`, command = the full path from `which scrapling`, argument `mcp`, with **Run in the sandbox** turned off. It then runs in the worker with the worker user's files (see `SECURITY.md`).

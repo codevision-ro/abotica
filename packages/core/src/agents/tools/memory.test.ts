@@ -69,8 +69,8 @@ vi.mock("ai", async (importOriginal) => ({
   embed: async () => ({ embedding: [0.1, 0.2] }),
 }));
 vi.mock("../../models/providers", () => ({
-  embeddingModel: async () => ({ model: {} }),
-  embeddingProvider: () => "openai",
+  ollamaEmbeddingModel: async () => ({}),
+  embeddingProvider: () => "ollama",
 }));
 vi.mock("../../models/provider-policy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../models/provider-policy")>();
@@ -311,7 +311,7 @@ describe("memory_save", () => {
   });
 
   it("returns the entry a duplicate restates and creates no second row", async () => {
-    state.nearest = [{ row: { id: "m1", content: "Deploys go to Hetzner.", source: "agent" }, distance: 0.04 }];
+    state.owned = [{ id: "m1", content: "Deploys go to Hetzner.", source: "agent" }];
     const result = await save(runContext(), "Deploys go to Hetzner");
     expect(result).toMatchObject({ saved: false, duplicateOf: "m1", content: "Deploys go to Hetzner." });
     expect(state.inserted).toEqual([]);
@@ -325,7 +325,7 @@ describe("memory_save", () => {
     ];
     const result = await save(runContext(), "Deploys go to Hetzner.");
     expect(result).toMatchObject({ saved: true, related: [{ id: "m1", content: "Deploys go to AWS." }] });
-    expect(result.note).toMatch(/update or delete/);
+    expect(result.note).toMatch(/says the same thing or that the new fact makes wrong/);
     expect(state.inserted).toHaveLength(1);
   });
 
@@ -434,10 +434,8 @@ describe("memory_save", () => {
     });
 
     it("gets the id of the entry a duplicate restates, never its content", async () => {
-      state.nearest = [
-        { row: { id: "m1", content: "The staging password hint is Rex.", source: "agent" }, distance: 0.04 },
-      ];
-      const result = await saveInto("p2", "Staging password hint");
+      state.owned = [{ id: "m1", content: "The staging password hint is Rex.", source: "agent" }];
+      const result = await saveInto("p2", "The staging password hint is Rex");
       expect(result).toMatchObject({ saved: false, duplicateOf: "m1" });
       expect(JSON.stringify(result)).not.toContain("Rex");
     });
@@ -450,7 +448,7 @@ describe("memory_save", () => {
     });
 
     it("saves its own notes on a project, and sees what they restate unless the project is closed to its models", async () => {
-      state.nearest = [{ row: { id: "m1", content: "The client wants weekly reports.", source: "agent" }, distance: 0.04 }];
+      state.owned = [{ id: "m1", content: "The client wants weekly reports.", source: "agent" }];
       expect(await saveInto("p2", "The client wants weekly reports", "mine")).toMatchObject({
         saved: false,
         duplicateOf: "m1",
@@ -458,7 +456,7 @@ describe("memory_save", () => {
       });
       state.closed = new Set(["p2"]);
       expect(await saveInto("p2", "The client wants weekly reports", "mine")).not.toHaveProperty("content");
-      state.nearest = [];
+      state.owned = [];
       await saveInto("p2", "Reports go out on Fridays.", "mine");
       expect(state.inserted).toEqual([expect.objectContaining({ scope: "agent", projectId: "p2", agentId: "orch" })]);
     });

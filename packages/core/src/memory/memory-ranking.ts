@@ -1,3 +1,5 @@
+import { vectorRelevance } from "../models/embedding-profiles";
+
 /**
  * Pure ranking rules of memory and journal search (memory-search.ts runs the queries): fusion of the
  * vector and keyword scores, recency decay and MMR diversity. No server imports, so they are testable
@@ -189,15 +191,16 @@ const candidateSimilarity = (a: Candidate, b: Candidate) =>
 
 /**
  * Fuses each candidate's scores (keyword only when the query has no embedding), decays them by age unless
- * the entry is evergreen, and returns the best `limit` after MMR, best first.
+ * the entry is evergreen, and returns the best `limit` after MMR, best first. The vector score counts from
+ * `unrelatedSimilarity`, the embedding model's level for an entry that does not answer (see vectorRelevance).
  */
 export function rankCandidates<T extends Candidate>(
   candidates: readonly T[],
-  opts: { hybrid: boolean; limit: number; now: Date },
+  opts: { hybrid: boolean; limit: number; now: Date; unrelatedSimilarity?: number },
 ): (T & { score: number })[] {
   const scored = candidates.map((candidate) => {
     const fused = fuseScores({
-      vector: opts.hybrid ? Math.max(0, candidate.similarity ?? 0) : null,
+      vector: opts.hybrid ? vectorRelevance(candidate.similarity ?? 0, opts.unrelatedSimilarity ?? 0) : null,
       keyword: keywordScore(candidate.textRank),
     });
     const ageDays = (opts.now.getTime() - candidate.at.getTime()) / DAY_MS;

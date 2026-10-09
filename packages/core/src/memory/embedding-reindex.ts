@@ -2,6 +2,7 @@ import { appState, db, journals, knowledgeChunks, memories, type Tx } from "@abo
 import { and, asc, count, eq, gt, inArray, isNotNull, isNull, or, sql } from "@abotica/db/orm";
 import { publish } from "../infra/events";
 import { maintenanceQueue } from "../infra/queues";
+import { embeddingFingerprint, LEGACY_EMBEDDING_FINGERPRINTS } from "../models/embedding-profiles";
 import { embeddingAllowed, projectProviderPolicy } from "../models/provider-policy";
 import { embeddingProvider } from "../models/providers";
 import {
@@ -25,8 +26,8 @@ import { embedWith } from "./memory";
 export type { ReindexState } from "./embedding-reindex-plan";
 
 /**
- * Vectors of two embedding models cannot be compared, so changing the provider clears every embedding
- * and embeds the rows again in the background, a batch at a time. Meanwhile, rows without an embedding
+ * Vectors of two embedding models cannot be compared, so changing the provider, or an update changing its
+ * model (see embedding-profiles.ts), clears every embedding and embeds the rows again in the background, a batch at a time. Meanwhile, rows without an embedding
  * are found by keyword (see memory-search.ts). The state lives in an app_state row: the worker picks it up
  * after a restart, and a batch commits only if the state is still where it read it, so a batch handled
  * twice, or one embedded for a provider that was switched away since, writes nothing.
@@ -34,6 +35,8 @@ export type { ReindexState } from "./embedding-reindex-plan";
 
 /** The app_state row of the re-embedding in progress; there is none when nothing is left to do. */
 const STATE_KEY = "embeddings_reindex";
+/** The app_state row naming what the stored vectors are embedded with (embeddingFingerprint). */
+const MODEL_KEY = "embedding_model";
 /** Rows per embedding request: well within what any provider takes at once. */
 const BATCH_SIZE = 64;
 
@@ -77,11 +80,15 @@ export async function changeEmbeddingProvider(provider: EmbeddingProvider, actor
 }
 
 async function startEmbeddingReindex(provider: EmbeddingProvider, actor: string): Promise<ReindexState> {
-  const state = startReindex(provider, await rowCount(), new Date());
+  const model = embeddingFingerprint(provider);
+  const state = startReindex(provider, model, await rowCount(), new Date());
+  // Compared with what is saved, not the default: saving it also settles an install that never chose one.
+  const providerChanged = (await storedSettings()).memory?.embeddingProvider !== provider;
   await db.transaction(async (tx) => {
     // The state row first: a batch locks it before writing vectors, so the two never wait on each other.
     await saveState(tx, state);
-    await updateSettings("memory", { embeddingProvider: provider }, { actor, tx });
+    await saveModel(tx, model);
+    if (providerChanged) await updateSettings("memory", { embeddingProvider: provider }, { actor, tx });
     await tx
       .update(memories)
       .set({ embedding: null, updatedAt: sql`${memories.updatedAt}` })
@@ -89,29 +96,44 @@ async function startEmbeddingReindex(provider: EmbeddingProvider, actor: string)
     await tx.update(journals).set({ embedding: null }).where(isNotNull(journals.embedding));
     await tx.update(knowledgeChunks).set({ embedding: null }).where(isNotNull(knowledgeChunks.embedding));
   });
-  await announceSettings("memory");
+  if (providerChanged) await announceSettings("memory");
   await requestReindex();
   await publish({ type: "embeddings.reindex" });
   return state;
 }
 
 /**
- * The provider of an install from before the built-in model became the default, where a provider never
- * saved in Settings meant OpenAI; run at the worker's start. Vectors already stored are OpenAI's, so it
- * stays on OpenAI. Rows without any vector mean OpenAI never embedded (no API key): they are embedded
- * with the built-in model. Without rows, or with the provider saved, there is nothing to settle.
+ * Embeds everything again when the stored vectors are of another model than the provider's now: an update
+ * changed the model (see embedding-profiles.ts), or the install embedded with OpenAI, which no longer
+ * embeds (its saved provider is no longer valid and reads as the built-in model). Run at the worker's
+ * start. Installs from before the model was recorded have the legacy model of their provider.
  */
-export async function settleEmbeddingProvider(): Promise<void> {
-  if ((await storedSettings()).memory?.embeddingProvider) return;
-  const embedded = await Promise.all(
-    [memories, journals, knowledgeChunks].map((table) =>
-      db.select({ id: table.id }).from(table).where(isNotNull(table.embedding)).limit(1),
-    ),
-  );
-  if (embedded.some((rows) => rows.length)) {
-    return void (await updateSettings("memory", { embeddingProvider: "openai" }, { actor: "system" }));
+export async function settleEmbeddingModel(): Promise<void> {
+  const provider = await embeddingProvider();
+  // As saved, which may be a provider no longer offered ("openai").
+  const saved = (await storedSettings()).memory?.embeddingProvider as string | undefined;
+  const current = embeddingFingerprint(provider);
+  const [row] = await db.select({ value: appState.value }).from(appState).where(eq(appState.key, MODEL_KEY));
+  const stored =
+    (row?.value as string | undefined) ?? (saved === "openai" ? "openai" : LEGACY_EMBEDDING_FINGERPRINTS[provider]);
+  if (stored !== current && (await rowCount())) {
+    console.log(`[embeddings] the stored vectors are of ${stored}; embedding them again with ${current}`);
+    return void (await startEmbeddingReindex(provider, "system"));
   }
-  if (await rowCount()) await startEmbeddingReindex("local", "system");
+  await db.transaction(async (tx) => {
+    if (row?.value !== current) await saveModel(tx, current);
+    // A provider no longer offered is saved as the one that replaces it.
+    if (saved !== undefined && saved !== provider) {
+      await updateSettings("memory", { embeddingProvider: provider }, { actor: "system", tx });
+    }
+  });
+}
+
+async function saveModel(tx: Tx, model: string): Promise<void> {
+  await tx
+    .insert(appState)
+    .values({ key: MODEL_KEY, value: model })
+    .onConflictDoUpdate({ target: appState.key, set: { value: model } });
 }
 
 /** Asks the worker for a slice of the re-embedding now, rather than at its next scheduled one. */
@@ -184,6 +206,7 @@ export async function reindexBatch(): Promise<boolean> {
   const vectors = await embedWith(
     state.provider,
     pending.map((r) => r.text),
+    "document",
   );
   return db.transaction(async (tx) => {
     const stored = await lockState(tx);
@@ -271,6 +294,7 @@ export async function backfillEmbeddings(): Promise<number> {
       vectors = await embedWith(
         provider,
         rows.map((r) => r.text),
+        "document",
       );
     } catch {
       return done;

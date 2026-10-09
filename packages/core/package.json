@@ -17,6 +17,7 @@
     "./compaction-record": "./src/runs/compaction-record.ts",
     "./cron": "./src/automations/cron.ts",
     "./delegation-report": "./src/tasks/delegation-report.ts",
+    "./embedding-profiles": "./src/models/embedding-profiles.ts",
     "./events": "./src/infra/events.ts",
     "./file-types": "./src/files/file-types.ts",
     "./limits": "./src/platform/limits.ts",

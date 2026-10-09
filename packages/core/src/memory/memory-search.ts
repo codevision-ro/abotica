@@ -1,5 +1,7 @@
 import { db, journals, memories, type Tx } from "@abotica/db";
 import { type AnyColumn, and, cosineDistance, desc, isNotNull, sql, type SQL } from "@abotica/db/orm";
+import { EMBEDDING_PROFILES } from "../models/embedding-profiles";
+import { embeddingProvider } from "../models/providers";
 import { CANDIDATE_MULTIPLIER, orTsQuery, rankCandidates } from "./memory-ranking";
 
 /**
@@ -53,7 +55,9 @@ async function candidates<R extends { id: string }>(
   return [...new Map([...near, ...matched].map((found) => [found.row.id, found])).values()];
 }
 
-function ranked<R>(found: Found<R>[], opts: SearchOptions, describe: (row: R) => { text: string; at: Date }) {
+async function ranked<R>(found: Found<R>[], opts: SearchOptions, describe: (row: R) => { text: string; at: Date }) {
+  // The query's vector is of the provider's model, and so are the stored ones it was compared with.
+  const unrelatedSimilarity = opts.vector ? EMBEDDING_PROFILES[await embeddingProvider()].unrelatedSimilarity : 0;
   const ranking = rankCandidates(
     found.map(({ row, distance, rank, embedding, evergreen }) => ({
       row,
@@ -63,7 +67,7 @@ function ranked<R>(found: Found<R>[], opts: SearchOptions, describe: (row: R) =>
       embedding,
       evergreen,
     })),
-    { hybrid: opts.vector !== null, limit: opts.limit, now: opts.now ?? new Date() },
+    { hybrid: opts.vector !== null, limit: opts.limit, now: opts.now ?? new Date(), unrelatedSimilarity },
   );
   return ranking.map(({ row, similarity }) => ({ ...row, similarity }));
 }

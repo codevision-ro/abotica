@@ -242,7 +242,7 @@ export const memoryTools: Record<string, ToolFactory> = {
           ...(!blind &&
             related.length > 0 && {
               related: related.map(({ id, content }) => ({ id, content })),
-              note: "These entries are close to the new fact. If it replaces one of them, update or delete that one.",
+              note: "These entries are close to the new fact. Delete one that says the same thing or that the new fact makes wrong.",
             }),
         };
       },

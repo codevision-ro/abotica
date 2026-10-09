@@ -93,6 +93,10 @@ main() {
 
   say "Pulling the images"
   dc pull --quiet --ignore-buildable
+  # Into the worker's models volume, so memory search works from the first start; already there on updates.
+  say "Downloading the built-in embedding model (about 330 MB, the first time only)"
+  dc run --rm --no-deps -T worker node_modules/.bin/tsx src/download-embedding-model.ts \
+    || warn "The embedding model could not be downloaded now; the worker downloads it when it starts."
   say "Starting Abotica (the first start builds the sandbox image, a few minutes)"
   dc up -d --remove-orphans
 

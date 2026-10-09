@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   createRedis,
   type EmbeddingJob,
@@ -10,63 +9,87 @@ import {
   registerLocalEmbedder,
   setLocalEmbeddingStatus,
 } from "@abotica/core";
-import { env as transformers, type FeatureExtractionPipeline, pipeline } from "@huggingface/transformers";
 import { Worker } from "bullmq";
+import { type EmbeddingModel, openEmbeddingModel } from "./embedding-model";
 import { WORKER_CONCURRENCY } from "./worker-concurrency";
 
-/** Texts per forward pass: a batch is padded to its longest text, so a few at a time. */
-const BATCH = 16;
+/**
+ * Tokens per forward pass, padding included: texts of similar length go together, so a batch of short facts
+ * holds many and a batch of 1,500-character knowledge chunks a few. Memory grows with the batch, not speed.
+ */
+const BATCH_TOKENS = 2048;
+const MAX_BATCH = 32;
 /** How long an embedding waits for a model still loading before the caller goes on without vectors. */
 const LOAD_WAIT_MS = 15_000;
 
-let model: Promise<FeatureExtractionPipeline> | null = null;
+let model: Promise<EmbeddingModel> | null = null;
 let loaded = false;
 
+const status = (state: "loading" | "ready" | "failed", error?: string) =>
+  setLocalEmbeddingStatus({ state, model: LOCAL_EMBEDDING_MODEL.id, ...(error && { error }) });
+
 /**
- * The built-in embedding model, loaded in the worker only (see models/local-embeddings.ts). The first load
- * downloads it (about 280 MB) to MODELS_DIR, a volume in the compose files; later ones read it from there.
+ * The built-in embedding model, loaded in the worker only (see models/local-embeddings.ts). Read from
+ * MODELS_DIR, where the installer downloaded it; a first load without it downloads it (about 330 MB).
  */
-function load(): Promise<FeatureExtractionPipeline> {
+export function loadEmbeddingModel(): Promise<EmbeddingModel> {
   model ??= (async () => {
-    await setLocalEmbeddingStatus({ state: "loading" });
-    transformers.cacheDir = env().MODELS_DIR ?? path.resolve(process.cwd(), ".data/models");
+    await status("loading");
     const started = Date.now();
-    const extractor = await pipeline("feature-extraction", LOCAL_EMBEDDING_MODEL.id, {
-      dtype: LOCAL_EMBEDDING_MODEL.dtype,
-    });
+    const opened = await openEmbeddingModel(env().MODELS_DIR);
     loaded = true;
-    await setLocalEmbeddingStatus({ state: "ready" });
+    await status("ready");
     console.log(`[embeddings] ${LOCAL_EMBEDDING_MODEL.id} loaded in ${((Date.now() - started) / 1000).toFixed(1)}s`);
-    return extractor;
+    return opened;
   })().catch(async (error: unknown) => {
     // The next embedding tries again (a download cut off, no network at the first start).
     model = null;
-    await setLocalEmbeddingStatus({ state: "failed", error: (error as Error).message }).catch(() => {});
+    await status("failed", (error as Error).message).catch(() => {});
     throw error;
   });
   return model;
 }
 
-async function ready(): Promise<FeatureExtractionPipeline> {
-  if (loaded) return load();
+async function ready(): Promise<EmbeddingModel> {
+  if (loaded) return loadEmbeddingModel();
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error("The built-in embedding model is still loading")), LOAD_WAIT_MS);
   });
   try {
-    return await Promise.race([load(), timeout]);
+    return await Promise.race([loadEmbeddingModel(), timeout]);
   } finally {
     clearTimeout(timer);
   }
 }
 
+const unit = (v: number[]) => {
+  const length = Math.hypot(...v);
+  return length ? v.map((x) => x / length) : v;
+};
+
+/** `texts` already carry the model's prompts (embeddingInput). */
 export async function embedInProcess(texts: string[]): Promise<number[][]> {
-  const extractor = await ready();
-  const vectors: number[][] = [];
-  for (let i = 0; i < texts.length; i += BATCH) {
-    // Mean pooling and unit length, as the model was trained; longer texts are cut at 512 tokens.
-    const output = await extractor(texts.slice(i, i + BATCH), { pooling: "mean", normalize: true });
-    vectors.push(...(output.tolist() as number[][]));
+  const { tokenizer, model: weights } = await ready();
+  const max = LOCAL_EMBEDDING_MODEL.maxTokens;
+  const lengths = texts.map((text) => Math.min(max, tokenizer.encode(text).length));
+  const order = texts.map((_, i) => i).sort((a, b) => lengths[a]! - lengths[b]!);
+  const vectors: number[][] = new Array(texts.length);
+  for (let start = 0; start < order.length;) {
+    // Sorted by length, the last text of a batch is its longest: the one every other is padded to.
+    let end = start + 1;
+    while (end < order.length && end - start < MAX_BATCH && lengths[order[end]!]! * (end + 1 - start) <= BATCH_TOKENS) {
+      end++;
+    }
+    const batch = order.slice(start, end);
+    const inputs = tokenizer(
+      batch.map((i) => texts[i]!),
+      { padding: true, truncation: true, max_length: max },
+    );
+    // The model pools and projects on its own (sentence_embedding); unit length, as it was trained.
+    const { sentence_embedding } = (await weights(inputs)) as { sentence_embedding: { tolist(): number[][] } };
+    sentence_embedding.tolist().forEach((vector, k) => (vectors[batch[k]!] = unit(vector)));
+    start = end;
   }
   return vectors;
 }
@@ -78,7 +101,7 @@ export async function embedInProcess(texts: string[]): Promise<number[][]> {
 export function startEmbeddingsWorker() {
   registerLocalEmbedder(embedInProcess);
   void getSettings()
-    .then(({ memory }) => (memory.embeddingProvider === "local" ? load() : null))
+    .then(({ memory }) => (memory.embeddingProvider === "local" ? loadEmbeddingModel() : null))
     .catch((error: unknown) => console.error("[embeddings] loading the built-in model failed:", error));
   return new Worker<EmbeddingJob>(QUEUE.embeddings, (job) => embedLocal(job.data.texts), {
     connection: createRedis(),

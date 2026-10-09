@@ -111,7 +111,7 @@ services:
     # docker-api: the only way to docker-proxy.
     networks: [default, sandbox, docker-api]
     # Agents delete tasks, and with them their attachments. The built-in embedding model is downloaded
-    # once into `models` (about 280 MB, MODELS_DIR in the image) and kept across updates.
+    # once into `models` (about 330 MB, MODELS_DIR in the image) and kept across updates.
     volumes:
       - uploads:/data/uploads
       - models:/data/models
@@ -195,7 +195,7 @@ services:
       web: { condition: service_started }
       worker: { condition: service_started }
 
-  # Local embeddings: pull the model once (docker compose exec ollama ollama pull nomic-embed-text), then
+  # Local embeddings: pull the model once (docker compose exec ollama ollama pull embeddinggemma), then
   # in Settings > Models set the Ollama address to http://ollama:11434, and in Settings > Memory the embeddings to Ollama.
   ollama:
     profiles: [ollama]

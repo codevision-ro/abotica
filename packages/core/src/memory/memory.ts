@@ -1,4 +1,4 @@
-import { EMBEDDING_DIMENSIONS, db, journals, memories, type ModelRef } from "@abotica/db";
+import { db, journals, memories, type ModelRef } from "@abotica/db";
 import { embed, embedMany } from "ai";
 import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
@@ -35,55 +35,55 @@ import {
   projectsClosedTo,
   type ProviderPolicy,
 } from "../models/provider-policy";
+import { type EmbedKind, embeddingInput } from "../models/embedding-profiles";
 import { embedLocal } from "../models/local-embeddings";
-import { embeddingModel, embeddingProvider } from "../models/providers";
+import { embeddingProvider, ollamaEmbeddingModel } from "../models/providers";
 import type { EmbeddingProvider } from "../settings/settings-schema";
 
 export type Memory = typeof memories.$inferSelect;
 export type MemoryScope = Memory["scope"];
 
-const providerOptions = { openai: { dimensions: EMBEDDING_DIMENSIONS } };
-
 /**
  * `policy` is the provider policy of the data the text carries (ANY_PROVIDER outside projects). Returns
  * null when the embedding provider is not allowed for it or not reachable; search is then by keyword only.
  */
-export async function embedText(text: string, policy: ProviderPolicy): Promise<number[] | null> {
-  const provider = await embeddingProvider();
-  if (!embeddingAllowed(policy, provider)) return null;
-  try {
-    if (provider === "local") return (await embedLocal([text]))[0]!;
-    const { model } = await embeddingModel(provider);
-    const { embedding } = await embed({ model, value: text, providerOptions });
-    return embedding;
-  } catch (error) {
-    console.warn("[memory] embedding unavailable:", (error as Error).message);
-    return null;
-  }
+async function embedOne(kind: EmbedKind, text: string, policy: ProviderPolicy): Promise<number[] | null> {
+  const [vector] = await embedAll(kind, [text], policy);
+  return vector ?? null;
 }
 
-export async function embedTexts(texts: string[], policy: ProviderPolicy): Promise<(number[] | null)[]> {
+async function embedAll(kind: EmbedKind, texts: string[], policy: ProviderPolicy): Promise<(number[] | null)[]> {
   if (!texts.length) return [];
   const provider = await embeddingProvider();
   if (!embeddingAllowed(policy, provider)) return texts.map(() => null);
   try {
-    return await embedWith(provider, texts);
+    return await embedWith(provider, texts, kind);
   } catch (error) {
     console.warn("[memory] embedding unavailable:", (error as Error).message);
     return texts.map(() => null);
   }
 }
 
+/** A search query's vector (see embedOne); retrieval models embed a query apart from what it looks for. */
+export const embedQuery = (query: string, policy: ProviderPolicy) => embedOne("query", query, policy);
+
+/** The vector of a text that is stored and searched: a memory, a journal, a knowledge chunk (see embedOne). */
+export const embedDocument = (text: string, policy: ProviderPolicy) => embedOne("document", text, policy);
+
+export const embedDocuments = (texts: string[], policy: ProviderPolicy) => embedAll("document", texts, policy);
+
 /**
  * Embeds with `provider`, throwing when it cannot (no key, server down, the built-in model still
  * loading): the re-embedding after a provider change waits and tries again, where a write goes on
- * without embeddings (embedTexts).
+ * without embeddings (embedDocuments). Each text gets the model's prompt for `kind`.
  */
-export async function embedWith(provider: EmbeddingProvider, texts: string[]): Promise<number[][]> {
+export async function embedWith(provider: EmbeddingProvider, texts: string[], kind: EmbedKind): Promise<number[][]> {
   if (!texts.length) return [];
-  if (provider === "local") return embedLocal(texts);
-  const { model } = await embeddingModel(provider);
-  const { embeddings } = await embedMany({ model, values: texts, providerOptions });
+  const values = texts.map((text) => embeddingInput(provider, kind, text));
+  if (provider === "local") return embedLocal(values);
+  const model = await ollamaEmbeddingModel();
+  if (values.length === 1) return [(await embed({ model, value: values[0]! })).embedding];
+  const { embeddings } = await embedMany({ model, values });
   return embeddings;
 }
 
@@ -119,7 +119,7 @@ type KnownSecrets = { knownSecrets?: readonly string[] };
 /** Throws MemorySecretError when the content holds a secret (see memory-write-gate.ts). */
 export async function remember(input: MemoryInput, opts: KnownSecrets = {}): Promise<Memory> {
   const checked = await checkInput(input, opts);
-  return insertMemory(input, checked, await embedText(checked.content, await memoryPolicy(input)));
+  return insertMemory(input, checked, await embedDocument(checked.content, await memoryPolicy(input)));
 }
 
 const checkInput = (input: MemoryInput, opts: KnownSecrets) =>
@@ -206,7 +206,7 @@ export async function rememberFact(
     return null;
   });
   if (!checked) return "dropped";
-  const embedding = await embedText(checked.content, await memoryPolicy(input));
+  const embedding = await embedDocument(checked.content, await memoryPolicy(input));
   // Only what agents read counts: replaced, expired and pending entries are not restated by a fact.
   // Notes on a project are read with its team memory: a fact the team memory holds is not repeated there.
   const team = input.projectId ? sameMemory({ scope: "project", projectId: input.projectId }) : undefined;
@@ -462,7 +462,7 @@ export async function saveMemory(
   opts: Pick<MemoryWriteOptions, "actor" | "data"> & KnownSecrets = {},
 ): Promise<{ duplicateOf: SimilarMemory } | { memory: Memory; related: SimilarMemory[]; heldBecause: string | null }> {
   const checked = await checkInput(input, opts);
-  const embedding = await embedText(checked.content, await memoryPolicy(input));
+  const embedding = await embedDocument(checked.content, await memoryPolicy(input));
   // Only what agents read: the answer shows these entries to the agent.
   const { duplicate, related } = await similarMemories(and(sameMemory(input), current()), checked.content, embedding);
   if (duplicate) return { duplicateOf: duplicate };
@@ -494,7 +494,7 @@ export async function updateMemory(
   const [memory] = await ownedMemories([id], opts.owner);
   const origin = opts.origin ?? "owner";
   const checked = await checkMemoryWrite(content, { origin, status: opts.status, knownSecrets: opts.knownSecrets });
-  const embedding = await embedText(checked.content, await memoryPolicy(memory!));
+  const embedding = await embedDocument(checked.content, await memoryPolicy(memory!));
   const actor = opts.actor ?? "user";
   if (opts.origin && memory!.status === "active" && keepsHistory(memory!.origin)) {
     const row = await insertMemory(
@@ -716,7 +716,7 @@ export { current as currentMemories, visibleTo as memoriesVisibleTo };
 /** Hybrid search (see hybridSearchMemories) over the memories a run may read. */
 export async function searchMemories(query: string, opts: MemoryReader & { limit?: number }) {
   // A query made inside a project, or about the super agent's notes on one, may carry its data.
-  const vector = await embedText(query, await projectProviderPolicy(notesProject(opts)));
+  const vector = await embedQuery(query, await projectProviderPolicy(notesProject(opts)));
   const found = await hybridSearchMemories(query, { vector, where: visibleTo(opts), limit: opts.limit ?? 8 });
   return found.map((m) => ({
     id: m.id,
@@ -734,7 +734,7 @@ export async function searchMemories(query: string, opts: MemoryReader & { limit
  */
 export async function searchAllMemories(query: string, limit = 20) {
   // The user's own query, typed outside any project.
-  const vector = await embedText(query, ANY_PROVIDER);
+  const vector = await embedQuery(query, ANY_PROVIDER);
   const rows = await hybridSearchMemories(query, { vector, limit });
   return { mode: vector ? ("hybrid" as const) : ("keyword" as const), rows };
 }
@@ -763,7 +763,7 @@ export async function searchJournals(
   query: string,
   opts: { agentId?: string; projectId?: string | null; limit?: number; readableBy?: ModelRef[] } = {},
 ) {
-  const vector = await embedText(query, await projectProviderPolicy(opts.projectId ?? null));
+  const vector = await embedQuery(query, await projectProviderPolicy(opts.projectId ?? null));
   const closed = opts.readableBy ? [...(await projectsClosedTo(opts.readableBy))] : [];
   const scope = and(
     opts.agentId ? eq(journals.agentId, opts.agentId) : undefined,

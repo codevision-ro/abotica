@@ -52,3 +52,12 @@ Browser
   same folder, refers to Google's terms of service at chrome://terms.
 - FFmpeg (Playwright build 1011), used by Playwright for video, in /opt/ms-playwright/ffmpeg-1011.
   License: LGPL-2.1, COPYING.LGPLv2.1 in that folder.
+
+Downloaded at runtime, not bundled
+----------------------------------
+
+- EmbeddingGemma 300M (Google), the built-in embedding model, in its ONNX conversion
+  onnx-community/embeddinggemma-300m-ONNX. The worker downloads it from Hugging Face on its first
+  start into MODELS_DIR; no image contains it. Gemma is provided under and subject to the Gemma
+  Terms of Use found at https://ai.google.dev/gemma/terms, with its Prohibited Use Policy at
+  https://ai.google.dev/gemma/prohibited_use_policy.

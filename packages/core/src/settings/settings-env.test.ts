@@ -62,7 +62,7 @@ describe("settingsFromEnv", () => {
   it("keeps what the stored settings already have, whatever the variable says", () => {
     const stored: StoredSettings = {
       models: { ollama: { baseUrl: "http://localhost:11434" } },
-      memory: { embeddingProvider: "openai" },
+      memory: { embeddingProvider: "local" },
       system: { runConcurrency: 4 },
     };
     const env = { OLLAMA_BASE_URL: "http://ollama:11434", EMBEDDING_PROVIDER: "ollama", RUN_CONCURRENCY: "8" };
@@ -92,7 +92,7 @@ describe("settingsFromEnv", () => {
   });
 
   it("leaves out values it cannot read, so the defaults apply", () => {
-    const env = { OLLAMA_BASE_URL: "localhost:11434", EMBEDDING_PROVIDER: "cohere", RUN_CONCURRENCY: "2.5" };
+    const env = { OLLAMA_BASE_URL: "localhost:11434", EMBEDDING_PROVIDER: "openai", RUN_CONCURRENCY: "2.5" };
     expect(settingsFromEnv({}, env)).toEqual({ patch: {}, imported: [] });
     expect(settingsFromEnv({}, { RUN_CONCURRENCY: "0" }).imported).toEqual([]);
   });

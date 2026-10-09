@@ -24,7 +24,8 @@ export type Range = { min: number; max: number };
 export const MODEL_ROLES = ["orchestrator", "manager", "agent"] as const;
 export type ModelRole = (typeof MODEL_ROLES)[number];
 
-export const EMBEDDING_PROVIDERS = ["local", "openai", "ollama"] as const;
+/** The built-in model, or the same model on an Ollama server (see embedding-profiles.ts). */
+export const EMBEDDING_PROVIDERS = ["local", "ollama"] as const;
 export type EmbeddingProvider = (typeof EMBEDDING_PROVIDERS)[number];
 
 /** Bounds of every numeric setting, by domain; forms show them and the schemas enforce them. */

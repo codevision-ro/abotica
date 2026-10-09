@@ -70,7 +70,8 @@ export function settingsFromEnv(
   }
 
   const embedding = value("EMBEDDING_PROVIDER", "memory", "embeddingProvider");
-  if (embedding === "local" || embedding === "openai" || embedding === "ollama") {
+  // OpenAI no longer embeds: an install that had it gets the built-in model (see settleEmbeddingModel).
+  if (embedding === "local" || embedding === "ollama") {
     patch.memory = { embeddingProvider: embedding };
     imported.push("EMBEDDING_PROVIDER");
   }

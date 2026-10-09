@@ -11,7 +11,8 @@ import { getSettings } from "../settings/settings";
 import type { EmbeddingProvider, ModelSettings } from "../settings/settings-schema";
 import { getSecret } from "../platform/vault";
 import { ollamaBase } from "./ollama";
-import { LOCAL_EMBEDDING_MODEL, localEmbeddingStatus } from "./local-embeddings";
+import { EMBEDDING_PROFILES, LOCAL_EMBEDDING_MODEL } from "./embedding-profiles";
+import { localEmbeddingStatus } from "./local-embeddings";
 import { isSubscriptionConnected, subscriptionLanguageModel } from "./subscriptions/connections";
 
 /** The vault name of each provider's API key, set in Settings; null for a local server. */
@@ -87,57 +88,35 @@ export async function languageModel(provider: string, model: string): Promise<La
   }
 }
 
-export const EMBEDDING_MODELS = {
-  local: LOCAL_EMBEDDING_MODEL.id,
-  openai: "text-embedding-3-small",
-  ollama: "nomic-embed-text",
-} as const satisfies Record<EmbeddingProvider, string>;
-
 /** The provider that embeds memory, journals and knowledge, chosen in Settings. */
 export const embeddingProvider = async (): Promise<EmbeddingProvider> => (await getSettings()).memory.embeddingProvider;
 
-/** The providers embedding through the AI SDK; the built-in model has its own path (local-embeddings.ts). */
-export type RemoteEmbeddingProvider = Exclude<EmbeddingProvider, "local">;
-
-/** The embedding model of `provider`. */
-export async function embeddingModel(
-  provider: RemoteEmbeddingProvider,
-): Promise<{ model: EmbeddingModel; provider: RemoteEmbeddingProvider }> {
-  if (provider === "ollama") {
-    return {
-      provider,
-      model: createOpenAICompatible({ name: "ollama", baseURL: await ollamaApiUrl() }).embeddingModel(
-        EMBEDDING_MODELS.ollama,
-      ),
-    };
-  }
-  const baseURL = providerBaseUrl((await getSettings()).models.baseUrls, "openai");
-  return {
-    provider,
-    model: createOpenAI({ apiKey: await apiKey("openai"), baseURL }).embeddingModel(EMBEDDING_MODELS.openai),
-  };
+/** Ollama's embedding model, through its OpenAI-compatible API; the built-in model has its own path (local-embeddings.ts). */
+export async function ollamaEmbeddingModel(): Promise<EmbeddingModel> {
+  return createOpenAICompatible({ name: "ollama", baseURL: await ollamaApiUrl() }).embeddingModel(
+    EMBEDDING_PROFILES.ollama.model,
+  );
 }
 
 /**
  * Whether `provider` can embed now, else what it lacks: the built-in model needs the worker to have loaded
- * it, OpenAI its API key (a ChatGPT plan does not cover embeddings), Ollama a running server with the
- * embedding model pulled.
+ * it, Ollama a running server with the embedding model pulled.
  */
-export type EmbeddingReadiness =
-  "ready" | "local-loading" | "local-failed" | "no-openai-key" | "ollama-unreachable" | "ollama-model-missing";
+export type EmbeddingReadiness = "ready" | "local-loading" | "local-failed" | "ollama-unreachable" | "ollama-model-missing";
 
 export async function embeddingReadiness(provider: EmbeddingProvider): Promise<EmbeddingReadiness> {
   if (provider === "local") {
+    // A status of another model is from before an update: the worker has not loaded this one yet.
     const status = await localEmbeddingStatus();
-    return status?.state === "ready" ? "ready" : status?.state === "failed" ? "local-failed" : "local-loading";
+    if (status?.model !== LOCAL_EMBEDDING_MODEL.id) return "local-loading";
+    return status.state === "ready" ? "ready" : status.state === "failed" ? "local-failed" : "local-loading";
   }
-  if (provider === "openai") return (await getSecret(PROVIDER_KEY_SECRET.openai!)) ? "ready" : "no-openai-key";
   try {
     const res = await fetch(new URL("/api/tags", await ollamaBase()), { signal: AbortSignal.timeout(3_000) });
     if (!res.ok) return "ollama-unreachable";
     const { models } = (await res.json()) as { models: { name: string }[] };
-    // Pulled without a tag, the model is listed as nomic-embed-text:latest.
-    const pulled = models.some((m) => m.name.split(":")[0] === EMBEDDING_MODELS.ollama);
+    // Pulled without a tag, the model is listed as embeddinggemma:latest.
+    const pulled = models.some((m) => m.name.split(":")[0] === EMBEDDING_PROFILES.ollama.model);
     return pulled ? "ready" : "ollama-model-missing";
   } catch {
     return "ollama-unreachable";

@@ -1,7 +1,8 @@
 "use client";
 
 import type { EmbeddingProvider, EmbeddingReadiness } from "@abotica/core";
-import { CircleAlert, CircleCheck, Cloud, Cpu, HardDrive, Save, ScanSearch } from "lucide-react";
+import { CircleAlert, CircleCheck, Cpu, HardDrive, Save, ScanSearch } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -16,16 +17,29 @@ import type { EmbeddingStatus } from "@/server/queries/embeddings";
 import { ProviderNotice } from "./provider-notice";
 
 /** Names of the providers; the built-in model's is translated. */
-const LABELS: Record<Exclude<EmbeddingProvider, "local">, string> = { openai: "OpenAI", ollama: "Ollama" };
+const LABELS: Record<Exclude<EmbeddingProvider, "local">, string> = { ollama: "Ollama" };
 
 const mono = (chunks: React.ReactNode) => <span className="font-mono text-xs">{chunks}</span>;
+
+const modelsLink = (chunks: React.ReactNode) => (
+  <Link href="/settings/models" className="font-medium text-foreground underline underline-offset-2">
+    {chunks}
+  </Link>
+);
 
 /**
  * What embeds memory, journals and knowledge, whether it can right now, and the re-embedding a change
  * starts. Saved on its own, since a change embeds everything again. The page refreshes on the worker's
- * progress events (see LiveUpdates).
+ * progress events (see LiveUpdates). Both choices run the same model, so there is one to pick only once
+ * Ollama is turned on in Settings > Models (or already embeds): before that the built-in model just shows.
  */
-export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: EmbeddingStatus; ollamaBaseUrl: string }) {
+export function EmbeddingProviderCard({
+  status,
+  ollama,
+}: {
+  status: EmbeddingStatus;
+  ollama: { enabled: boolean; baseUrl: string };
+}) {
   const t = useTranslations("settings.embeddings");
   const tc = useTranslations("common.actions");
   const router = useRouter();
@@ -34,6 +48,7 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
   const changed = choice !== status.provider;
   const { reindex } = status;
   const label = (provider: EmbeddingProvider) => (provider === "local" ? t("localName") : LABELS[provider]);
+  const choosable = ollama.enabled || status.provider === "ollama";
 
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -48,18 +63,28 @@ export function EmbeddingProviderCard({ status, ollamaBaseUrl }: { status: Embed
   return (
     <FormSection id="embeddings" icon={ScanSearch} title={t("title")} description={t("description")}>
       <form onSubmit={save} className="flex flex-col gap-4">
-        <OptionCards<EmbeddingProvider>
-          name="embedding-provider"
-          label={t("title")}
-          value={choice}
-          onValueChange={setChoice}
-          options={[
-            { value: "local", icon: Cpu, title: t("localTitle"), description: t("localHint") },
-            { value: "openai", icon: Cloud, title: LABELS.openai, description: t("openaiHint") },
-            { value: "ollama", icon: HardDrive, title: LABELS.ollama, description: t("ollamaHint") },
-          ]}
-        />
-        <Readiness readiness={status.readiness[choice]} ollamaBaseUrl={ollamaBaseUrl} />
+        {choosable ? (
+          <OptionCards<EmbeddingProvider>
+            name="embedding-provider"
+            label={t("title")}
+            value={choice}
+            onValueChange={setChoice}
+            options={[
+              { value: "local", icon: Cpu, title: t("localTitle"), description: t("localHint") },
+              { value: "ollama", icon: HardDrive, title: LABELS.ollama, description: t("ollamaHint") },
+            ]}
+          />
+        ) : (
+          <div className="flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3 dark:bg-input/20">
+            <Cpu className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-sm font-medium">{t("localTitle")}</span>
+              <span className="text-xs text-muted-foreground">{t("localHint")}</span>
+            </span>
+          </div>
+        )}
+        <Readiness readiness={status.readiness[choice]} ollamaBaseUrl={ollama.baseUrl} />
+        {!choosable && <p className="text-xs text-muted-foreground">{t.rich("ollamaOff", { link: modelsLink })}</p>}
         {reindex && !changed && (
           <div className="flex flex-col gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-sm">
             <p className="flex items-center gap-2">
@@ -121,11 +146,9 @@ function Readiness({ readiness, ollamaBaseUrl }: { readiness: EmbeddingReadiness
         ? t("localLoading")
         : readiness === "local-failed"
           ? t("localFailed")
-          : readiness === "no-openai-key"
-            ? t("noOpenaiKey")
-            : readiness === "ollama-unreachable"
-              ? t.rich("ollamaUnreachable", { url: ollamaBaseUrl, mono })
-              : t.rich("ollamaModelMissing", { mono })}
+          : readiness === "ollama-unreachable"
+            ? t.rich("ollamaUnreachable", { url: ollamaBaseUrl, mono })
+            : t.rich("ollamaModelMissing", { mono })}
     </ProviderNotice>
   );
 }

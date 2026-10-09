@@ -2,10 +2,12 @@ import { createHash } from "node:crypto";
 import { db, memories, memoryRecalls, messages, runs, type Tx } from "@abotica/db";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "@abotica/db/orm";
 import { CHARS_PER_TOKEN } from "../agents/compaction";
+import { EMBEDDING_PROFILES } from "../models/embedding-profiles";
 import { projectProviderPolicy } from "../models/provider-policy";
+import { embeddingProvider } from "../models/providers";
 import type { AppSettings } from "../settings/settings";
 import type { ConversationHistory } from "../runs/run-messages";
-import { currentMemories, embedText, memoriesVisibleTo, type MemoryOwner } from "./memory";
+import { currentMemories, embedQuery, memoriesVisibleTo, type MemoryOwner } from "./memory";
 import { fitBudget, memoryTokens, type MessageRecall, recallQuery, recallTarget, recallText } from "./memory-budget";
 import { orTsQuery } from "./memory-ranking";
 import { type MemoryLayer, memoryLayer, type MemoryReader, notesProject } from "./memory-scope";
@@ -88,18 +90,23 @@ const RECALL_CANDIDATES = 20;
 
 /**
  * The unpinned entries a run may read that match `query`, best first, cut to `budgetTokens`. Nothing for a
- * query without a topic word (a greeting, a thank-you): the nearest entries to "ok, thanks" are noise.
+ * query without a topic word (a greeting, a thank-you): the nearest entries to "ok, thanks" are noise; and
+ * nothing the embedding model finds unlikely to answer it (its recallSimilarity).
  */
 export async function recallMemories(query: string, opts: MemoryReader & { budgetTokens: number }) {
   if (opts.budgetTokens <= 0 || !orTsQuery(query)) return [];
   // A message in a project (or in the super agent's topic of one) may carry its data.
-  const vector = await embedText(query, await projectProviderPolicy(notesProject(opts)));
+  const vector = await embedQuery(query, await projectProviderPolicy(notesProject(opts)));
   const found = await hybridSearchMemories(query, {
     vector,
     where: and(memoriesVisibleTo(opts), eq(memories.pinned, false)),
     limit: RECALL_CANDIDATES,
   });
-  return fitBudget(found, opts.budgetTokens, (m) => memoryTokens(m.content)).kept;
+  // Nobody asked for these entries: one whose vector is far from the message stays out, even when it shares
+  // a word with it. Entries without a vector were found by their words.
+  const { recallSimilarity } = EMBEDDING_PROFILES[await embeddingProvider()];
+  const relevant = found.filter((m) => m.similarity === null || m.similarity >= recallSimilarity);
+  return fitBudget(relevant, opts.budgetTokens, (m) => memoryTokens(m.content)).kept;
 }
 
 /** The same question asked twice hashes the same: case, Unicode form and spacing do not count. */

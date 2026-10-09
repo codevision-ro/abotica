@@ -43,5 +43,5 @@ describe("embedLocal", () => {
 it("lets the built-in model embed data of a project restricted to other providers", () => {
   const policy = { allowed: ["anthropic"] };
   expect(embeddingAllowed(policy, "local")).toBe(true);
-  expect(embeddingAllowed(policy, "openai")).toBe(false);
+  expect(embeddingAllowed(policy, "ollama")).toBe(false);
 });

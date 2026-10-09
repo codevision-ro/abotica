@@ -6,7 +6,7 @@ import {
   invalidateSettings,
   requestSandboxCheck,
   setDefaultUploadsRoot,
-  settleEmbeddingProvider,
+  settleEmbeddingModel,
   type SettingsDomain,
   subscribe,
   syncSettingsSchedules,
@@ -58,9 +58,10 @@ async function main() {
   } catch (error) {
     console.error("[settings] importing the .env values failed:", error);
   }
-  // Installs from before the built-in embedding model became the default keep the provider their vectors are of.
-  await settleEmbeddingProvider().catch((error: unknown) =>
-    console.error("[embeddings] settling the embedding provider failed:", error),
+  // An update that changed the embedding model, or the provider (OpenAI no longer embeds), embeds the
+  // stored texts again with the built-in model or Ollama.
+  await settleEmbeddingModel().catch((error: unknown) =>
+    console.error("[embeddings] settling the embedding model failed:", error),
   );
   const concurrency = (await getSettings()).system.runConcurrency;
 

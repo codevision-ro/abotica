@@ -13,7 +13,9 @@ import { db, memories, projectAgents, projectRepos, projects } from "@abotica/db
 import { and, cosineDistance, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "@abotica/db/orm";
 import { UserError } from "@abotica/i18n";
 import { OWNER_SECRETS, secretValues } from "../platform/vault";
-import { restatesFact } from "./memory-facts";
+import { EMBEDDING_PROFILES } from "../models/embedding-profiles";
+import { embeddingProvider } from "../models/providers";
+import { factKey } from "./memory-facts";
 import { FLAG_KINDS, type MemoryFinding, type MemoryFlagKind, scanMemoryContent, stripInvisible } from "./memory-scan";
 import { nearestFirst } from "./memory-search";
 
@@ -85,24 +87,16 @@ export function sameMemory(target: { scope: Memory["scope"]; projectId?: string 
   );
 }
 
-/** Cosine distance under which two entries state the same fact. */
-export const SAME_FACT_DISTANCE = 0.15;
-
-/**
- * Up to which distance an entry is about the same thing as a new fact, which may then replace it.
- * Measured on Romanian facts with the built-in model (paraphrase-multilingual-mpnet-base-v2): a fact
- * that contradicts an entry sits near 0.38, different facts on the same topic near 0.7.
- */
-export const RELATED_DISTANCE = 0.4;
-
 const MAX_RELATED = 3;
 
 export type SimilarMemory = { id: string; content: string; source: string };
 
 /**
- * The entries `where` selects that a new fact restates (`duplicate`) or is close to (`related`,
- * nearest first). Without an embedding a fact restates an entry only by its text (see restatesFact)
- * and nothing is related.
+ * The entry `where` selects that a new fact restates word for word (`duplicate`, see factKey), and the ones
+ * close to it (`related`, nearest first, under the provider's relatedDistance). Only the same text is a
+ * duplicate: an update ("prefers phone calls over email" after "prefers email over phone calls") is as close
+ * to its entry as a paraphrase with every embedding model, so closeness alone never drops a fact. The agent
+ * (or consolidation) sees the related entries and decides whether the new one restates or replaces them.
  */
 export async function similarMemories(
   where: SQL | undefined,
@@ -110,10 +104,10 @@ export async function similarMemories(
   embedding: number[] | null,
 ): Promise<{ duplicate: SimilarMemory | null; related: SimilarMemory[] }> {
   const fields = { id: memories.id, content: memories.content, source: memories.source };
-  if (!embedding) {
-    const rows = await db.select(fields).from(memories).where(where);
-    return { duplicate: rows.find((row) => restatesFact(content, [row.content])) ?? null, related: [] };
-  }
+  const key = factKey(content);
+  const duplicate = (await db.select(fields).from(memories).where(where)).find((row) => factKey(row.content) === key);
+  if (duplicate || !embedding) return { duplicate: duplicate ?? null, related: [] };
+  const { relatedDistance } = EMBEDDING_PROFILES[await embeddingProvider()];
   const distance = cosineDistance(memories.embedding, embedding);
   const nearest = await nearestFirst((tx) =>
     tx
@@ -123,9 +117,7 @@ export async function similarMemories(
       .orderBy(distance)
       .limit(MAX_RELATED),
   );
-  const [closest] = nearest;
-  if (closest && Number(closest.distance) < SAME_FACT_DISTANCE) return { duplicate: closest.row, related: [] };
-  return { duplicate: null, related: nearest.filter((n) => Number(n.distance) < RELATED_DISTANCE).map((n) => n.row) };
+  return { duplicate: null, related: nearest.filter((n) => Number(n.distance) < relatedDistance).map((n) => n.row) };
 }
 
 /** What names a project in a memory entry: its name, its slug, and the domains of its texts and repositories. */

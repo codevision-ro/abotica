@@ -13,7 +13,7 @@ import {
   craftLessonsPrompt,
   dayBounds,
   deleteExpiredMemories,
-  embedText,
+  embedDocument,
   getOrchestrator,
   getSettings,
   journalPrompt,
@@ -193,7 +193,7 @@ export async function writeJournals() {
       }),
     }).catch(unlessNoAllowedProvider(`journal of ${agent.slug}`));
     if (summary === null) continue;
-    const embedding = await embedText(summary, await projectProviderPolicy(projectId));
+    const embedding = await embedDocument(summary, await projectProviderPolicy(projectId));
     // Facts consolidated from a day that read untrusted content are untrusted too. The input counts on
     // its own: a run that is still going, or failed before its prompt was read, has no flag yet.
     const fromUntrusted = dayRuns.some((r) => r.readUntrusted || hasUntrusted(r.input));

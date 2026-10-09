@@ -20,7 +20,7 @@ export default async function MemorySettingsPage() {
   return (
     <>
       <SectionHeader title={t("title")} description={t("description")} />
-      <EmbeddingProviderCard status={embeddings} ollamaBaseUrl={settings.models.ollama.baseUrl} />
+      <EmbeddingProviderCard status={embeddings} ollama={settings.models.ollama} />
       <MemorySettingsForm initial={settings.memory} />
     </>
   );

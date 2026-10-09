@@ -1,7 +1,9 @@
 /**
- * Pure steps of the re-embedding after the embedding provider changes (see embedding-reindex.ts): the
+ * Pure steps of the re-embedding after the embedding provider or its model changes (see embedding-reindex.ts): the
  * tables in order, the cursor through them and which rows of a batch to embed. No server imports.
  */
+
+import type { EmbeddingProvider } from "../settings/settings-schema";
 
 /** The tables with an embedding column, in the order they are re-embedded. */
 export const REINDEX_TABLES = ["memories", "journals", "knowledge_chunks"] as const;
@@ -9,7 +11,9 @@ export type ReindexTable = (typeof REINDEX_TABLES)[number];
 
 /** Where a re-embedding stands. Stored in the app_state table, so it goes on after a restart. */
 export type ReindexState = {
-  provider: "local" | "openai" | "ollama";
+  provider: EmbeddingProvider;
+  /** The model and prompts the vectors are embedded with (embeddingFingerprint). */
+  model: string;
   /** When the provider changed: tells this re-embedding from a later one that replaced it. */
   startedAt: string;
   table: ReindexTable;
@@ -22,8 +26,17 @@ export type ReindexState = {
   error: string | null;
 };
 
-export function startReindex(provider: ReindexState["provider"], total: number, now: Date): ReindexState {
-  return { provider, startedAt: now.toISOString(), table: REINDEX_TABLES[0], after: null, done: 0, total, error: null };
+export function startReindex(provider: ReindexState["provider"], model: string, total: number, now: Date): ReindexState {
+  return {
+    provider,
+    model,
+    startedAt: now.toISOString(),
+    table: REINDEX_TABLES[0],
+    after: null,
+    done: 0,
+    total,
+    error: null,
+  };
 }
 
 /**
@@ -38,12 +51,13 @@ export function advanceReindex(state: ReindexState, handled: readonly string[], 
 }
 
 /**
- * Whether `stored` is still at the batch `taken` was read for. When it is not, the provider changed again
+ * Whether `stored` is still at the batch `taken` was read for. When it is not, the provider or model changed again
  * or another worker handled the batch first, and what was embedded for it is dropped.
  */
 export const sameBatch = (stored: ReindexState, taken: ReindexState): boolean =>
   stored.startedAt === taken.startedAt &&
   stored.provider === taken.provider &&
+  stored.model === taken.model &&
   stored.table === taken.table &&
   stored.after === taken.after;
 

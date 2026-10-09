@@ -89,7 +89,7 @@ vi.mock("ai", () => ({
   },
   embedMany: vi.fn(),
 }));
-vi.mock("../models/providers", () => ({ embeddingModel: async () => ({ model: {} }), embeddingProvider: () => "openai" }));
+vi.mock("../models/providers", () => ({ ollamaEmbeddingModel: async () => ({}), embeddingProvider: () => "ollama" }));
 vi.mock("../models/provider-policy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../models/provider-policy")>();
   return { ...actual, projectProviderPolicy: async () => actual.ANY_PROVIDER };
@@ -194,12 +194,18 @@ describe("rememberFact (consolidation)", () => {
   });
 
   it("never rewords the entry a fact restates; a trusted one refreshes a consolidated entry", async () => {
-    state.nearest = [{ row: { id: "m1", content: "Deploys go to AWS.", source: "consolidation" }, distance: 0.05 }];
-    expect(await fact("Deploys now go to AWS eu-central.", "untrusted")).toBe("restated");
+    state.rows = [{ id: "m1", content: "Deploys go to AWS.", source: "consolidation" }];
+    expect(await fact("deploys go to AWS", "untrusted")).toBe("restated");
     expect(state.updated).toEqual([]);
-    expect(await fact("Deploys now go to AWS eu-central.")).toBe("restated");
+    expect(await fact("Deploys go to AWS!")).toBe("restated");
     expect(state.updated).toEqual([{ updatedAt: expect.any(Date), recallCount: expect.anything() }]);
     expect(state.inserted).toEqual([]);
+  });
+
+  it("stores a fact close to an entry: only the same text restates it, closeness may be an update", async () => {
+    state.nearest = [{ row: { id: "m1", content: "Deploys go to AWS.", source: "consolidation" }, distance: 0.02 }];
+    expect(await fact("Deploys now go to AWS eu-central.")).toBe("added");
+    expect(state.inserted).toHaveLength(1);
   });
 
   it("compares by text without embeddings", async () => {
@@ -228,8 +234,8 @@ describe("rememberFact (consolidation)", () => {
   });
 
   it("does not store a fact for the notes that the project's team memory already states", async () => {
-    state.nearest = [{ row: { id: "t1", content: "Nobody deletes without approval.", source: "agent" }, distance: 0.08 }];
-    expect(await fact("Nobody deletes anything without the user's approval.")).toBe("restated");
+    state.rows = [{ id: "t1", content: "Nobody deletes without approval.", source: "agent" }];
+    expect(await fact("Nobody deletes without approval")).toBe("restated");
     expect(state.inserted).toEqual([]);
     expect(state.updated).toEqual([]);
   });

@@ -3,7 +3,7 @@ import { and, cosineDistance, desc, eq, inArray, isNotNull, sql } from "@abotica
 import { UserError } from "@abotica/i18n";
 import { isTextFile } from "../files/file-types";
 import { claimFiles, getFile, readFileBytes, removeFileBytes } from "../files/files";
-import { embedText, embedTexts } from "./memory";
+import { embedDocuments, embedQuery } from "./memory";
 import { orTsQuery } from "./memory-ranking";
 import { nearestFirst } from "./memory-search";
 import { projectProviderPolicy, projectsProviderPolicy } from "../models/provider-policy";
@@ -130,7 +130,7 @@ export async function indexKnowledgeItem(itemId: string): Promise<number> {
   const [item] = await db.select().from(knowledgeItems).where(eq(knowledgeItems.id, itemId));
   if (!item) throw new Error(`Knowledge item ${itemId} not found`);
   const chunks = chunkText(`${item.title}\n\n${item.content}`);
-  const vectors = await embedTexts(chunks, await projectProviderPolicy(item.projectId));
+  const vectors = await embedDocuments(chunks, await projectProviderPolicy(item.projectId));
   await db.transaction(async (tx) => {
     await tx.delete(knowledgeChunks).where(eq(knowledgeChunks.itemId, itemId));
     if (chunks.length) {
@@ -176,7 +176,7 @@ export function knowledgeTsQuery(query: string): string | null {
  */
 export async function searchKnowledge(query: string, projectIds: string[], limit = 6) {
   if (!projectIds.length) return [];
-  const vector = await embedText(query, await projectsProviderPolicy(projectIds));
+  const vector = await embedQuery(query, await projectsProviderPolicy(projectIds));
   const columns = { title: knowledgeItems.title, sourceUrl: knowledgeItems.sourceUrl, content: knowledgeChunks.content };
   if (vector) {
     const distance = cosineDistance(knowledgeChunks.embedding, vector);

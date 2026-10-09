@@ -191,6 +191,19 @@ describe("rankCandidates", () => {
     expect(ranked[0]?.text).toBe("ERR_42 means the token expired");
   });
 
+  it("counts vector scores from the model's unrelated level, so a model with high similarities keeps keywords in play", () => {
+    // EmbeddingGemma puts entries that do not answer near 0.18: 0.3 is barely related, a keyword match beats it.
+    const entries = [
+      candidate({ text: "Close by vector only", similarity: 0.3, embedding: [1, 0] }),
+      candidate({ text: "Shares the query's word", similarity: 0.25, textRank: 1, embedding: [0, 1] }),
+    ];
+    const raw = rankCandidates(entries, { hybrid: true, limit: 2, now });
+    const counted = rankCandidates(entries, { hybrid: true, limit: 2, now, unrelatedSimilarity: 0.18 });
+    expect(raw[0]?.score).toBeCloseTo(0.7 * 0.25 + 0.3 * 0.5);
+    expect(counted[0]?.text).toBe("Shares the query's word");
+    expect(counted[1]?.score).toBeCloseTo(0.7 * ((0.3 - 0.18) / 0.82));
+  });
+
   it("gives an entry without an embedding its keyword share in hybrid mode", () => {
     const [ranked] = rankCandidates([candidate({ text: "no embedding", textRank: 1 })], {
       hybrid: true,

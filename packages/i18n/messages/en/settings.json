@@ -139,16 +139,15 @@
     "description": "What turns memory, journals and knowledge into vectors, so agents find them by meaning. Voice message transcription always uses OpenAI with an API key.",
     "localName": "the built-in model",
     "localTitle": "Built-in (local, no key needed)",
-    "localHint": "A multilingual model the worker runs on its own: free, nothing leaves your machine. Downloaded once, about 280 MB.",
-    "openaiHint": "text-embedding-3-small. Needs an OpenAI API key: the ChatGPT plan does not cover it.",
-    "ollamaHint": "nomic-embed-text on your Ollama server: free, and nothing leaves your machine.",
+    "localHint": "EmbeddingGemma, a multilingual model the worker runs on its own: free, nothing leaves your machine. Downloaded once, about 330 MB.",
+    "ollamaHint": "The same model (embeddinggemma) on your Ollama server, for example one with a GPU: free, and nothing leaves your machines.",
+    "ollamaOff": "To run the same model on an Ollama server instead, for example one with a GPU, turn Ollama on in <link>Settings > Models</link>.",
     "readiness": {
       "ready": "Ready to embed",
-      "localLoading": "The worker is loading the built-in model (downloaded once, about 280 MB). Until it is ready, search matches by keyword.",
+      "localLoading": "The worker is loading the built-in model (downloaded once, about 330 MB). Until it is ready, search matches by keyword.",
       "localFailed": "The worker could not load the built-in model. It tries again at the next embedding; check the worker logs if this stays.",
-      "noOpenaiKey": "Add an OpenAI API key in Settings > Models: the ChatGPT plan does not cover embeddings.",
       "ollamaUnreachable": "Ollama does not answer at <mono>{url}</mono>. Start it, or change the address on the Ollama provider card.",
-      "ollamaModelMissing": "Ollama answers, but the embedding model is missing. Pull it once: <mono>ollama pull nomic-embed-text</mono>"
+      "ollamaModelMissing": "Ollama answers, but the embedding model is missing. Pull it once: <mono>ollama pull embeddinggemma</mono>"
     },
     "changeNotice": "Saving clears the stored embeddings and embeds memory, journals and knowledge again with {provider}, in the background. Until then, search matches by keyword.",
     "saved": "Embeddings switched to {provider}: {count, plural, =0 {nothing to embed again} one {# entry is embedded again in the background} other {# entries are embedded again in the background}}",

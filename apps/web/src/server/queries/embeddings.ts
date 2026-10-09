@@ -4,14 +4,13 @@ import { query } from "@/server/query";
 
 /** The embedding provider, whether each one could embed now, and the re-embedding in progress. */
 export const getEmbeddingStatus = query(async () => {
-  const [settings, reindex, local, openai, ollama] = await Promise.all([
+  const [settings, reindex, local, ollama] = await Promise.all([
     getSettings(),
     getReindexState(),
     embeddingReadiness("local"),
-    embeddingReadiness("openai"),
     embeddingReadiness("ollama"),
   ]);
-  return { provider: settings.memory.embeddingProvider, readiness: { local, openai, ollama }, reindex };
+  return { provider: settings.memory.embeddingProvider, readiness: { local, ollama }, reindex };
 });
 
 export type EmbeddingStatus = Awaited<ReturnType<typeof getEmbeddingStatus>>;

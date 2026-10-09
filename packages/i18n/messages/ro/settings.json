@@ -139,16 +139,15 @@
     "description": "Ce transformă memoria, jurnalele și cunoștințele în vectori, ca agenții să le găsească după sens. Transcrierea mesajelor vocale folosește mereu OpenAI cu cheie API.",
     "localName": "modelul integrat",
     "localTitle": "Integrat (local, fără cheie)",
-    "localHint": "Un model multilingv pe care workerul îl rulează singur: gratuit, nimic nu pleacă de pe calculatorul tău. Se descarcă o singură dată, aproximativ 280 MB.",
-    "openaiHint": "text-embedding-3-small. Are nevoie de o cheie API OpenAI: planul ChatGPT nu îl acoperă.",
-    "ollamaHint": "nomic-embed-text pe serverul tău Ollama: gratuit, și nimic nu pleacă de pe calculatorul tău.",
+    "localHint": "EmbeddingGemma, un model multilingv pe care workerul îl rulează singur: gratuit, nimic nu pleacă de pe calculatorul tău. Se descarcă o singură dată, aproximativ 330 MB.",
+    "ollamaHint": "Același model (embeddinggemma) pe serverul tău Ollama, de exemplu unul cu GPU: gratuit, și nimic nu pleacă de pe serverele tale.",
+    "ollamaOff": "Ca să rulezi același model pe un server Ollama, de exemplu unul cu GPU, activează Ollama în <link>Setări > Modele</link>.",
     "readiness": {
       "ready": "Gata de folosit",
-      "localLoading": "Workerul încarcă modelul integrat (se descarcă o singură dată, aproximativ 280 MB). Până e gata, căutarea găsește după cuvinte cheie.",
+      "localLoading": "Workerul încarcă modelul integrat (se descarcă o singură dată, aproximativ 330 MB). Până e gata, căutarea găsește după cuvinte cheie.",
       "localFailed": "Workerul nu a putut încărca modelul integrat. Încearcă din nou la următorul embedding; verifică logurile workerului dacă problema rămâne.",
-      "noOpenaiKey": "Adaugă o cheie API OpenAI în Setări > Modele: planul ChatGPT nu acoperă embeddings.",
       "ollamaUnreachable": "Ollama nu răspunde la <mono>{url}</mono>. Pornește-l sau schimbă adresa din cardul providerului Ollama.",
-      "ollamaModelMissing": "Ollama răspunde, dar lipsește modelul de embeddings. Descarcă-l o dată: <mono>ollama pull nomic-embed-text</mono>"
+      "ollamaModelMissing": "Ollama răspunde, dar lipsește modelul de embeddings. Descarcă-l o dată: <mono>ollama pull embeddinggemma</mono>"
     },
     "changeNotice": "La salvare, embeddings-urile stocate se șterg, iar memoria, jurnalele și cunoștințele se procesează din nou cu {provider}, în fundal. Până atunci, căutarea găsește după cuvinte cheie.",
     "saved": "Embeddings-urile folosesc acum {provider}: {count, plural, =0 {nimic de procesat din nou} one {# intrare se procesează din nou în fundal} few {# intrări se procesează din nou în fundal} other {# de intrări se procesează din nou în fundal}}",

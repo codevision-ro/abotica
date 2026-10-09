@@ -137,7 +137,7 @@ To update, run the same command again. To install with Docker by hand, or withou
 **Memory**
 - Every agent has its own global memory and its own memory per project; each project also has a team memory its team shares. Instructions for all agents, set in Settings, apply to every agent.
 - When entries conflict, a project's team memory wins over your global rules, those over an agent's notes on the project, and its notes over its craft.
-- Searched semantically with pgvector, with a built-in multilingual embedding model that needs no API key (OpenAI or Ollama optional). A run sees only its own project. An agent's profession (prompt, skills, tools) stays the same everywhere.
+- Searched semantically with pgvector, with a built-in multilingual embedding model (EmbeddingGemma) that needs no API key and no extra server. A run sees only its own project. An agent's profession (prompt, skills, tools) stays the same everywhere.
 - Optional approval before memory written by agents becomes active.
 - End-of-day journal per agent and project. Agents read their last N days of journals for the project they work on.
 - Weekly consolidation: an agent's journals of a project become its notes on that project, and the lessons of its craft that hold in any project, stripped of project names, go to its global memory.
@@ -171,7 +171,7 @@ To update, run the same command again. To install with Docker by hand, or withou
 
 **Providers and costs**
 - Anthropic, OpenAI, DeepSeek, Kimi (Moonshot) and Ollama. OpenAI works with an API key or with your ChatGPT plan.
-- Embeddings with a built-in multilingual model that runs in the worker (no key, nothing leaves the machine), or via OpenAI or Ollama. Voice transcription via OpenAI. OpenAI embeddings and transcription need an API key, not the plan.
+- Embeddings with a built-in multilingual model that runs in the worker (no key, nothing leaves the machine), or the same model on an Ollama server. Voice transcription via OpenAI, with an API key, not the plan.
 - Token and cost tracking per agent, project and model.
 - Global and per-project monthly budgets, with Telegram alerts at 80% and 100%.
 

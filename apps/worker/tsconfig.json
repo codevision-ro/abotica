@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "types": ["node"], "lib": ["ES2024", "DOM", "DOM.AsyncIterable"] },
-  "include": ["src"]
+  "include": ["src", "scripts"]
 }

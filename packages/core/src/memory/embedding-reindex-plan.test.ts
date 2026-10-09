@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { advanceReindex, type ReindexState, rowsToEmbed, sameBatch, startReindex } from "./embedding-reindex-plan";
 
-const start = startReindex("ollama", 250, new Date("2026-10-08T10:00:00Z"));
+const start = startReindex("ollama", "ollama/embeddinggemma#1", 250, new Date("2026-10-08T10:00:00Z"));
 
 describe("startReindex", () => {
   it("starts before the first row of the first table", () => {
     expect(start).toEqual({
       provider: "ollama",
+      model: "ollama/embeddinggemma#1",
       startedAt: "2026-10-08T10:00:00.000Z",
       table: "memories",
       after: null,
@@ -42,7 +43,8 @@ describe("sameBatch", () => {
     expect(sameBatch({ ...start, done: 9, error: "x" }, start)).toBe(true);
     expect(sameBatch({ ...start, after: "c" }, start)).toBe(false);
     expect(sameBatch({ ...start, table: "journals" }, start)).toBe(false);
-    expect(sameBatch({ ...start, provider: "openai" }, start)).toBe(false);
+    expect(sameBatch({ ...start, provider: "local" }, start)).toBe(false);
+    expect(sameBatch({ ...start, model: "ollama/embeddinggemma#2" }, start)).toBe(false);
     // Switched away and back: a new re-embedding, even at the same place.
     expect(sameBatch({ ...start, startedAt: "2026-10-08T10:05:00.000Z" }, start)).toBe(false);
   });

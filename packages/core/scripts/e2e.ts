@@ -1,6 +1,6 @@
 import { agents, approvals, db, memories, messages, runEvents, runs, tasks } from "@abotica/db";
 import { and, asc, eq, gte } from "@abotica/db/orm";
-import { ANY_PROVIDER, decideApproval, embedText, startRun } from "../src/index";
+import { ANY_PROVIDER, decideApproval, embedDocument, startRun } from "../src/index";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function waitRun(id: string) {
@@ -15,7 +15,7 @@ async function waitRun(id: string) {
 /** End-to-end check of the agent loop: tools, approval pause, resume. Needs the worker running.
  * Usage: E2E_PROVIDER=deepseek E2E_MODEL=deepseek-v4-flash pnpm --filter @abotica/core e2e */
 const startedAt = new Date();
-const vec = await embedText("test embedding", ANY_PROVIDER);
+const vec = await embedDocument("test embedding", ANY_PROVIDER);
 console.log("embedding dims:", vec?.length ?? null);
 
 const [agent] = await db
