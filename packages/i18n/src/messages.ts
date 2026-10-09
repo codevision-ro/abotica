@@ -29,6 +29,7 @@ import en_repos from "../messages/en/repos.json";
 import en_previews from "../messages/en/previews.json";
 import en_flow from "../messages/en/flow.json";
 import en_inbox from "../messages/en/inbox.json";
+import en_office from "../messages/en/office.json";
 import ro_common from "../messages/ro/common.json";
 import ro_nav from "../messages/ro/nav.json";
 import ro_shell from "../messages/ro/shell.json";
@@ -58,6 +59,7 @@ import ro_repos from "../messages/ro/repos.json";
 import ro_previews from "../messages/ro/previews.json";
 import ro_flow from "../messages/ro/flow.json";
 import ro_inbox from "../messages/ro/inbox.json";
+import ro_office from "../messages/ro/office.json";
 
 export const en = {
   common: en_common,
@@ -89,6 +91,7 @@ export const en = {
   previews: en_previews,
   flow: en_flow,
   inbox: en_inbox,
+  office: en_office,
 };
 
 export type Messages = typeof en;
@@ -124,4 +127,5 @@ export const ro: Messages = {
   previews: ro_previews,
   flow: ro_flow,
   inbox: ro_inbox,
+  office: ro_office,
 };

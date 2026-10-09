@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "title": "Birou"
+  },
+  "page": {
+    "title": "Birou",
+    "description": "Compania ta la lucru: cine ce face și cum lucrează agenții împreună."
+  },
+  "status": {
+    "needs_you": "Are nevoie de tine",
+    "working": "Lucrează",
+    "blocked": "Blocat",
+    "waiting": "Așteaptă",
+    "idle": "Liber"
+  },
+  "activity": {
+    "terminal": "În terminal",
+    "browser": "Navighează",
+    "writing": "Scrie",
+    "talking": "Vorbește cu echipa",
+    "thinking": "Se gândește"
+  },
+  "places": {
+    "superAgent": "Biroul Super agentului",
+    "lounge": "Zona de relaxare",
+    "you": "Tu"
+  },
+  "bubble": {
+    "delegated": "Sarcină nouă",
+    "help": "Mă ajuți?",
+    "question": "Întrebare",
+    "answer": "Răspuns",
+    "escalated": "Trimit mai sus",
+    "instruction": "Instrucțiune nouă",
+    "progress": "Progres",
+    "report": "Gata, poftim",
+    "handoff": "Fișiere pentru tine",
+    "put_aside": "Deoparte: e urgent",
+    "paused": "Pauză",
+    "resumed": "Revin la lucru",
+    "cancelled": "Oprit",
+    "redirected": "Schimbare de plan"
+  },
+  "list": {
+    "empty": "Încă nu există agenți sau proiecte.",
+    "noMembers": "Proiectul nu are încă o echipă.",
+    "inLounge": "În zona de relaxare",
+    "loungeEmpty": "Toți sunt la birou."
+  },
+  "feed": {
+    "title": "Activitate",
+    "empty": "Nicio interacțiune în ultimele 24 de ore.",
+    "show": "Arată activitatea",
+    "hide": "Ascunde activitatea",
+    "delegated": "{from} a delegat sarcina \"{task}\" către {to}",
+    "help": "{from} a cerut ajutor de la {to} pentru \"{task}\"",
+    "question": "{from} a trimis o întrebare către {to} despre \"{task}\"",
+    "answer": "{from} a trimis un răspuns către {to} la \"{task}\"",
+    "escalated": "{from} a transmis mai sus, către {to}, o întrebare despre \"{task}\"",
+    "instruction": "{from} a trimis o instrucțiune către {to} pentru \"{task}\"",
+    "progress": "{from} a raportat progresul la \"{task}\" către {to}",
+    "report": "{from} a predat sarcina \"{task}\" către {to}",
+    "handoff": "{from} a transmis fișierele din \"{task}\" către {to}",
+    "put_aside": "{from} a pus deoparte sarcina \"{task}\" pentru ceva mai urgent",
+    "paused": "{from} a pus pe pauză sarcina \"{task}\"",
+    "resumed": "{from} a reluat sarcina \"{task}\"",
+    "cancelled": "{from} a oprit sarcina \"{task}\"",
+    "redirected": "{from} a trimis indicații noi către {to} pentru \"{task}\"",
+    "fromYou": {
+      "delegated": "Ai delegat sarcina \"{task}\" către {to}",
+      "help": "Ai cerut ajutor de la {to} pentru \"{task}\"",
+      "question": "Ai trimis o întrebare către {to} despre \"{task}\"",
+      "answer": "Ai trimis un răspuns către {to} la \"{task}\"",
+      "escalated": "Ai transmis către {to} o întrebare despre \"{task}\"",
+      "instruction": "Ai trimis o instrucțiune către {to} pentru \"{task}\"",
+      "progress": "Ai raportat progresul la \"{task}\" către {to}",
+      "report": "Ai predat sarcina \"{task}\" către {to}",
+      "handoff": "Ai transmis fișierele din \"{task}\" către {to}",
+      "put_aside": "Ai pus deoparte sarcina \"{task}\" pentru ceva mai urgent",
+      "paused": "Ai pus pe pauză sarcina \"{task}\"",
+      "resumed": "Ai reluat sarcina \"{task}\"",
+      "cancelled": "Ai oprit sarcina \"{task}\"",
+      "redirected": "Ai trimis indicații noi către {to} pentru \"{task}\""
+    },
+    "toYou": {
+      "delegated": "{from} ți-a dat sarcina \"{task}\"",
+      "help": "{from} ți-a cerut ajutorul pentru \"{task}\"",
+      "question": "{from} te-a întrebat despre \"{task}\"",
+      "answer": "{from} ți-a răspuns la \"{task}\"",
+      "escalated": "{from} ți-a transmis o întrebare despre \"{task}\"",
+      "instruction": "{from} ți-a trimis o instrucțiune pentru \"{task}\"",
+      "progress": "{from} ți-a trimis progresul la \"{task}\"",
+      "report": "{from} ți-a predat sarcina \"{task}\"",
+      "handoff": "{from} ți-a transmis fișierele din \"{task}\"",
+      "redirected": "{from} ți-a trimis indicații noi pentru \"{task}\""
+    }
+  },
+  "scene": {
+    "label": "Biroul în 3D: fiecare proiect e o cameră, fiecare agent stă la biroul lui și arată ce face acum.",
+    "paused": "pe pauză"
+  }
+}

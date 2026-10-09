@@ -2,6 +2,7 @@ import {
   AppWindow,
   Blocks,
   Bot,
+  Building2,
   Brain,
   CalendarClock,
   FolderKanban,
@@ -20,6 +21,7 @@ type NavItemKey =
   | "inbox"
   | "tasks"
   | "projects"
+  | "office"
   | "previews"
   | "agents"
   | "memory"
@@ -46,6 +48,7 @@ export const NAV: { key: NavGroupKey; items: NavItem[] }[] = [
       { key: "inbox", href: "/inbox", icon: Inbox, also: ["/approvals"] },
       { key: "tasks", href: "/tasks", icon: SquareKanban },
       { key: "projects", href: "/projects", icon: FolderKanban },
+      { key: "office", href: "/office", icon: Building2 },
       { key: "previews", href: "/previews", icon: AppWindow },
       { key: "agents", href: "/agents", icon: Bot },
     ],

@@ -29,6 +29,7 @@ export * from "./memory/memory-recall";
 export * from "./memory/memory-retention";
 export * from "./memory/memory-scope";
 export * from "./models";
+export * from "./tasks/office";
 export * from "./sandbox/preview-snapshot";
 export * from "./sandbox/previews";
 export * from "./tasks/priority";

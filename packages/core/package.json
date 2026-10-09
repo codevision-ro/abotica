@@ -24,6 +24,7 @@
     "./mcp-builtins": "./src/mcp/mcp-builtins.ts",
     "./mcp-servers": "./src/mcp/mcp-servers.ts",
     "./mcp-stored-values": "./src/mcp/mcp-stored-values.ts",
+    "./office": "./src/tasks/office-types.ts",
     "./models/model-role": "./src/models/model-role.ts",
     "./models/reasoning": "./src/models/reasoning.ts",
     "./preview-server": "./src/sandbox/preview-server.ts",

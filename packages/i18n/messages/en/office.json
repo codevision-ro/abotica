@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "title": "Office"
+  },
+  "page": {
+    "title": "Office",
+    "description": "Your company at work: who is on what, and how the agents work together."
+  },
+  "status": {
+    "needs_you": "Needs you",
+    "working": "Working",
+    "blocked": "Blocked",
+    "waiting": "Waiting",
+    "idle": "Idle"
+  },
+  "activity": {
+    "terminal": "In the terminal",
+    "browser": "Browsing",
+    "writing": "Writing",
+    "talking": "Talking to the team",
+    "thinking": "Thinking"
+  },
+  "places": {
+    "superAgent": "Super agent's office",
+    "lounge": "Lounge",
+    "you": "You"
+  },
+  "bubble": {
+    "delegated": "New task",
+    "help": "Can you help?",
+    "question": "Question",
+    "answer": "Answer",
+    "escalated": "Passing it up",
+    "instruction": "New instruction",
+    "progress": "Progress",
+    "report": "Done, here it is",
+    "handoff": "Files for you",
+    "put_aside": "Put aside: urgent",
+    "paused": "Pause",
+    "resumed": "Back to it",
+    "cancelled": "Stopped",
+    "redirected": "Change of plan"
+  },
+  "list": {
+    "empty": "No agents or projects yet.",
+    "noMembers": "No team in this project yet.",
+    "inLounge": "In the lounge",
+    "loungeEmpty": "Everyone is at a desk."
+  },
+  "feed": {
+    "title": "Activity",
+    "empty": "No interactions in the last 24 hours.",
+    "show": "Show activity",
+    "hide": "Hide activity",
+    "delegated": "{from} gave {to} the task \"{task}\"",
+    "help": "{from} asked {to} for help with \"{task}\"",
+    "question": "{from} asked {to} about \"{task}\"",
+    "answer": "{from} answered {to} on \"{task}\"",
+    "escalated": "{from} passed a question on \"{task}\" up to {to}",
+    "instruction": "{from} gave {to} an instruction on \"{task}\"",
+    "progress": "{from} updated {to} on \"{task}\"",
+    "report": "{from} delivered \"{task}\" to {to}",
+    "handoff": "{from} handed {to} the files from \"{task}\"",
+    "put_aside": "{from} put \"{task}\" aside for more urgent work",
+    "paused": "{from} paused \"{task}\"",
+    "resumed": "{from} resumed \"{task}\"",
+    "cancelled": "{from} stopped \"{task}\"",
+    "redirected": "{from} gave {to} new directions on \"{task}\"",
+    "fromYou": {
+      "delegated": "You gave {to} the task \"{task}\"",
+      "help": "You asked {to} for help with \"{task}\"",
+      "question": "You asked {to} about \"{task}\"",
+      "answer": "You answered {to} on \"{task}\"",
+      "escalated": "You passed a question on \"{task}\" to {to}",
+      "instruction": "You gave {to} an instruction on \"{task}\"",
+      "progress": "You updated {to} on \"{task}\"",
+      "report": "You delivered \"{task}\" to {to}",
+      "handoff": "You handed {to} the files from \"{task}\"",
+      "put_aside": "You put \"{task}\" aside for more urgent work",
+      "paused": "You paused \"{task}\"",
+      "resumed": "You resumed \"{task}\"",
+      "cancelled": "You stopped \"{task}\"",
+      "redirected": "You gave {to} new directions on \"{task}\""
+    },
+    "toYou": {
+      "delegated": "{from} gave you the task \"{task}\"",
+      "help": "{from} asked you for help with \"{task}\"",
+      "question": "{from} asked you about \"{task}\"",
+      "answer": "{from} answered you on \"{task}\"",
+      "escalated": "{from} passed a question on \"{task}\" up to you",
+      "instruction": "{from} sent you an instruction on \"{task}\"",
+      "progress": "{from} updated you on \"{task}\"",
+      "report": "{from} delivered \"{task}\" to you",
+      "handoff": "{from} handed you the files from \"{task}\"",
+      "redirected": "{from} sent you new directions on \"{task}\""
+    }
+  },
+  "scene": {
+    "label": "The office in 3D: every project is a room, every agent sits at a desk showing what it does now.",
+    "paused": "paused"
+  }
+}
