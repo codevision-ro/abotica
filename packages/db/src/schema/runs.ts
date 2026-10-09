@@ -7,6 +7,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -45,6 +46,14 @@ export const runs = pgTable(
     inputTokens: integer().notNull().default(0),
     outputTokens: integer().notNull().default(0),
     costUsd: numeric({ precision: 12, scale: 6, mode: "number" }).notNull().default(0),
+    /** 1 for a first run; an automatic retry after a passing failure counts on from the run it retries. */
+    attempt: integer().notNull().default(1),
+    /** When a run that failed for a passing reason is retried; null when it is not (or no longer) waiting. */
+    retryAt: timestamp({ withTimezone: true }),
+    /** The run that retried it. */
+    retriedByRunId: uuid().references((): AnyPgColumn => runs.id, { onDelete: "set null" }),
+    /** Its job's queue priority: 1 (a person waits) to 6 (the platform's own work); see tasks/priority.ts. */
+    priority: smallint().notNull().default(4),
     startedAt: timestamp({ withTimezone: true }),
     finishedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
@@ -65,6 +74,9 @@ export const runs = pgTable(
     index().on(t.taskId),
     index().on(t.conversationId),
     index().on(t.parentRunId),
+    index()
+      .on(t.retryAt)
+      .where(sql`${t.retryAt} is not null and ${t.retriedByRunId} is null`),
   ],
 );
 
@@ -102,6 +114,8 @@ export const approvals = pgTable(
     reason: text(),
     telegramMessageId: integer(),
     decidedAt: timestamp({ withTimezone: true }),
+    /** When the user was last reminded of it (tasks/waiting-for-user.ts). */
+    remindedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index().on(t.status), index().on(t.runId), index().on(t.approvalId)],

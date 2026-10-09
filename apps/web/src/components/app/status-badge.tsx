@@ -50,6 +50,8 @@ const TASK_TONE: Record<string, Tone> = {
   blocked: "destructive",
   review: "warning",
   done: "success",
+  paused: "warning",
+  cancelled: "muted",
 };
 const PRIORITY_TONE: Record<string, Tone> = { low: "muted", medium: "primary", high: "warning", urgent: "destructive" };
 

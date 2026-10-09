@@ -14,7 +14,7 @@ import { env } from "../infra/env";
 import { publish } from "../infra/events";
 import { filePart, type StoredFile } from "../files/files";
 import { combinePolicies, deniesEveryModel, projectsProviderPolicy, runProviderPolicy } from "../models/provider-policy";
-import { enqueueDelegationReport, notify } from "../infra/queues";
+import { enqueueDelegationReport, enqueueTaskReport, notify } from "../infra/queues";
 import {
   ConversationBusyError,
   getOrchestrator,
@@ -324,6 +324,14 @@ export async function reportDelegatedTasks(finished: Run): Promise<Run | null> {
     throw error;
   }
   return delivered.withheld ? blockOwnTask(from, delivered.settled) : delivered.run;
+}
+
+/**
+ * Reports one settled task when no run ending does it (a cancel, a dependent that cannot start, retries
+ * exhausted), through the queue like every report.
+ */
+export async function reportTask(taskId: string): Promise<void> {
+  await enqueueTaskReport(taskId);
 }
 
 /** How long a settled delegated task may stay unreported before the reaper queues its report again. */

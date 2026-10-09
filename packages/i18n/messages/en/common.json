@@ -49,7 +49,9 @@
     "in_progress": "In progress",
     "blocked": "Blocked",
     "review": "Review",
-    "done": "Done"
+    "done": "Done",
+    "paused": "Paused",
+    "cancelled": "Cancelled"
   },
   "priority": {
     "low": "Low",

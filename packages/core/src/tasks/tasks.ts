@@ -13,15 +13,22 @@ import {
 import { and, count, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from "@abotica/db/orm";
 import { getTranslator, UserError } from "@abotica/i18n";
 import { publish } from "../infra/events";
-import { enqueueTaskEvent } from "../infra/queues";
+import { changeRunPriority, enqueueTaskEvent } from "../infra/queues";
 import { claimFiles, fileIdsOwnedBy, removeFileBytes, type StoredFile } from "../files/files";
 import type { RunFailureKind } from "../runs/run-failures";
 import { getSettings, settingsLocale } from "../settings/settings";
+import { queuePriority } from "./priority";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskStatus = Task["status"];
 export type TaskPriority = Task["priority"];
+export type TaskComment = typeof taskComments.$inferSelect;
+export type TaskMessageKind = TaskComment["kind"];
 
+/**
+ * The statuses a task is set to directly (task_update, the board). `paused` and `cancelled` are not
+ * among them: they stop or put aside its runs and subtasks too, so only tasks/control.ts sets them.
+ */
 export const TASK_STATUSES: TaskStatus[] = ["backlog", "in_progress", "blocked", "review", "done"];
 export const TASK_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -184,6 +191,19 @@ export async function awaitingReportTo(agentId: string, taskIds: string[]): Prom
   return rows.map((r) => r.id);
 }
 
+/**
+ * Whether a question about the task waits for its answer (ask, or a question the platform asked): a run
+ * of it that ends stays in progress, the answer wakes its assignee.
+ */
+export async function awaitsAnswer(taskId: string): Promise<boolean> {
+  const [open] = await db
+    .select({ id: taskComments.id })
+    .from(taskComments)
+    .where(and(eq(taskComments.taskId, taskId), eq(taskComments.kind, "question"), eq(taskComments.questionStatus, "open")))
+    .limit(1);
+  return Boolean(open);
+}
+
 /** Whether the task waits for a wakeup (task_wait): a run of it that ends stays in progress until one fires. */
 export async function awaitsWakeup(taskId: string): Promise<boolean> {
   const [active] = await db
@@ -220,9 +240,10 @@ export const CIRCUIT_BREAKER_FAILURES = 5;
 const SETUP_FAILURES = new Set<RunFailureKind>(["provider_auth", "provider_not_allowed", "no_model"]);
 /**
  * Failures that say nothing about the task or its setup: passing (a provider's rate or usage limit, a
- * worker restart), the user's own stop, or a limit of the run. A run stopped by its step limit, time
- * limit or the loop detector now ends as succeeded with a note; the kinds stay here for the runs that
- * failed with them before, which must not open the breaker either.
+ * worker restart), someone's decision (the user's stop, a manager's cancel or pause), or a limit of the
+ * run. A run stopped by its step limit, time limit or the loop detector, or put aside, ends as succeeded
+ * with its kind; the kinds stay here for the runs that failed with them before, which must not open the
+ * breaker either.
  */
 const UNCOUNTED_FAILURES = new Set<RunFailureKind>([
   "rate_limited",
@@ -231,6 +252,8 @@ const UNCOUNTED_FAILURES = new Set<RunFailureKind>([
   "unqueued",
   "overdue",
   "cancelled_by_user",
+  "cancelled_by_agent",
+  "paused",
   "kill_switch",
   "step_limit",
   "timeout",
@@ -336,6 +359,30 @@ export function isActiveTaskRunConflict(error: unknown): boolean {
  */
 export const leavesBacklog = (status: TaskStatus | undefined): boolean => status !== undefined && status !== "backlog";
 
+/** A sign of life on the task: quiet tasks are followed up from `activityAt`, and the follow-ups count again. */
+const ACTIVE_NOW = () => ({ activityAt: new Date(), followUps: 0 });
+
+/** Marks activity on the task (a comment, a run starting or ending); see ACTIVE_NOW. */
+export async function touchTask(taskId: string, q: Queryable = db): Promise<void> {
+  await q.update(tasks).set(ACTIVE_NOW()).where(eq(tasks.id, taskId));
+}
+
+/**
+ * A new priority reaches the task's queued run: its job moves in the queue (runs.priority with it). A
+ * run already going keeps its place.
+ */
+async function reprioritizeQueuedRun(task: Task): Promise<void> {
+  const [queued] = await db
+    .select({ id: runs.id, trigger: runs.trigger })
+    .from(runs)
+    .where(and(eq(runs.taskId, task.id), eq(runs.status, "queued")))
+    .limit(1);
+  if (!queued) return;
+  const priority = queuePriority({ trigger: queued.trigger, taskPriority: task.priority });
+  await db.update(runs).set({ priority }).where(eq(runs.id, queued.id));
+  await changeRunPriority(queued.id, priority);
+}
+
 export async function updateTask(
   id: string,
   patch: Partial<
@@ -358,8 +405,12 @@ export async function updateTask(
   const [before] = await db.select().from(tasks).where(eq(tasks.id, id));
   if (!before) throw new Error(`Task ${id} not found`);
 
-  const values: Partial<Task> = { ...patch };
+  const values: Partial<Task> = { ...patch, ...ACTIVE_NOW() };
   if (leavesBacklog(patch.status)) values.waitingForSlotSince = null;
+  // A new deadline gets its own reminder, miss and escalation.
+  if (patch.deadline !== undefined && !sameValue(patch.deadline, before.deadline)) {
+    Object.assign(values, { deadlineRemindedAt: null, deadlineMissedAt: null, deadlineEscalatedAt: null });
+  }
   if (patch.status && patch.status !== before.status) {
     values.completedAt = patch.status === "done" ? new Date() : null;
     if (patch.position === undefined) values.position = await nextPosition(before.projectId, patch.status);
@@ -374,6 +425,7 @@ export async function updateTask(
   if (Object.keys(changes).length) {
     await db.insert(taskEvents).values({ taskId: id, type: "updated", actor, data: changes });
   }
+  if ("priority" in changes) await reprioritizeQueuedRun(task);
   if (task.status === "done" && before.status !== "done") await emit(task, "done");
   else {
     await publish({ type: "task.updated", taskId: task.id, projectId: task.projectId });
@@ -383,8 +435,24 @@ export async function updateTask(
   return task;
 }
 
-/** Who writes a comment: the user, an agent, or the platform itself (e.g. a note about a failed run). */
-type CommentAuthor = "user" | "system" | { agentId: string };
+/** Who acts on a task or writes a comment: the user, an agent, or the platform itself (e.g. a note about a failed run). */
+export type Actor = "user" | "system" | { agentId: string };
+
+/** What a comment is besides its text: its kind in the task's message stream, and a question's routing. */
+export type TaskCommentFields = Partial<
+  Pick<
+    typeof taskComments.$inferInsert,
+    | "kind"
+    | "authorRunId"
+    | "addresseeAgentId"
+    | "addressedToUser"
+    | "replyToId"
+    | "questionStatus"
+    | "options"
+    | "escalationLevel"
+    | "escalateAt"
+  >
+>;
 
 /**
  * Ends work a schedule or trigger started whose result needs nobody's attention: done, with its output,
@@ -400,15 +468,27 @@ export async function finishWithNothingNew(taskId: string, output: string | null
   return task;
 }
 
-export async function addTaskComment(taskId: string, body: string, author: CommentAuthor) {
+/**
+ * Adds a comment, a plain note unless `fields` say otherwise. It stores only: delivering an instruction,
+ * a question or an answer to whoever it is for is tasks/task-messages.ts's work. What the user or an
+ * agent writes counts as activity on the task; the platform's own notes do not.
+ */
+export async function addTaskComment(
+  taskId: string,
+  body: string,
+  author: Actor,
+  fields: TaskCommentFields = {},
+): Promise<TaskComment> {
   const [comment] = await db
     .insert(taskComments)
-    .values(
-      typeof author === "string"
-        ? { taskId, body, authorKind: author }
-        : { taskId, body, authorKind: "agent", authorAgentId: author.agentId },
-    )
+    .values({
+      ...fields,
+      taskId,
+      body,
+      ...(typeof author === "string" ? { authorKind: author } : { authorKind: "agent", authorAgentId: author.agentId }),
+    })
     .returning();
+  if (author !== "system") await touchTask(taskId);
   await publish({ type: "task.updated", taskId, projectId: null });
   return comment!;
 }

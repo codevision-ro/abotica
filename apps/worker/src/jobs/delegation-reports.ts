@@ -13,6 +13,8 @@ export function startDelegationReportsWorker() {
   return new Worker<DelegationReportJob>(
     QUEUE.delegationReports,
     async (job) => {
+      // A report of one task without a run ending (reportTask) is not sent from here yet.
+      if (!("runId" in job.data)) return;
       const [run] = await db.select().from(runs).where(eq(runs.id, job.data.runId));
       if (!run) return;
       const report = await reportDelegatedTasks(run);

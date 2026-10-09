@@ -8,6 +8,12 @@ import {
   canLeadProject,
   delegationProjectId,
   kindChangeError,
+  mayAnswer,
+  mayAskColleague,
+  mayControlTask,
+  mayEditTask,
+  mayInstruct,
+  type TeamActor,
   worksIn,
 } from "./team-rules";
 
@@ -171,5 +177,112 @@ describe("worksIn", () => {
 
   it("accepts the super agent, which works outside projects anyway", () => {
     expect(worksIn({ id: "super", kind: "orchestrator" }, project)).toBe(true);
+  });
+});
+
+describe("who may change, instruct and control a task", () => {
+  const authority = { delegatorAgentId: "manager", projectManagerId: "manager" };
+  const task = { assigneeAgentId: "dev" };
+  const as = (id: string, kind: Delegator["kind"] = "specialist"): TeamActor => ({ id, kind });
+
+  it("lets the assignee and those who decide edit it, not a peer", () => {
+    expect(mayEditTask("user", task, authority)).toBe(true);
+    expect(mayEditTask(as("super", "orchestrator"), task, authority)).toBe(true);
+    expect(mayEditTask(as("manager", "manager"), task, authority)).toBe(true);
+    expect(mayEditTask(as("dev"), task, authority)).toBe(true);
+    expect(mayEditTask(as("writer"), task, authority)).toBe(false);
+  });
+
+  it("lets the delegator edit even outside the project's lead", () => {
+    const other = { delegatorAgentId: "writer", projectManagerId: "manager" };
+    expect(mayEditTask(as("writer"), task, other)).toBe(true);
+    expect(mayEditTask(as("other-manager", "manager"), task, other)).toBe(false);
+  });
+
+  it("makes instructions of the user, the super agent, the delegator and the manager only", () => {
+    expect(mayInstruct("user", task, authority)).toBe(true);
+    expect(mayInstruct(as("super", "orchestrator"), task, authority)).toBe(true);
+    expect(mayInstruct(as("manager", "manager"), task, authority)).toBe(true);
+    expect(mayInstruct(as("writer"), task, { delegatorAgentId: "writer", projectManagerId: "manager" })).toBe(true);
+    expect(mayInstruct(as("writer"), task, authority)).toBe(false);
+    // The assignee's own comments are notes, even when it leads the project.
+    expect(mayInstruct(as("dev"), task, authority)).toBe(false);
+    expect(mayInstruct(as("manager", "manager"), { assigneeAgentId: "manager" }, authority)).toBe(false);
+  });
+
+  it("gives control to the user, the super agent and the project's manager", () => {
+    expect(mayControlTask("user", authority)).toBe(true);
+    expect(mayControlTask(as("super", "orchestrator"), { projectManagerId: null })).toBe(true);
+    expect(mayControlTask(as("manager", "manager"), authority)).toBe(true);
+    expect(mayControlTask(as("other-manager", "manager"), authority)).toBe(false);
+    expect(mayControlTask(as("manager", "manager"), { projectManagerId: null })).toBe(false);
+    expect(mayControlTask(as("manager", "specialist"), authority)).toBe(false);
+  });
+});
+
+describe("mayAskColleague", () => {
+  const team = { name: "Site", memberIds: ["dev", "writer", "designer"] };
+  const colleague = (
+    id: string,
+    extra: Partial<{ enabled: boolean; isTemplate: boolean; kind: Delegator["kind"] }> = {},
+  ) => ({
+    id,
+    slug: `${id}-slug`,
+    enabled: true,
+    isTemplate: false,
+    kind: "specialist" as const,
+    ...extra,
+  });
+  const work = { kind: "work" as const, projectId: "p1", openHelpTasks: 0 };
+
+  it("lets a specialist ask another specialist on its team", () => {
+    expect(mayAskColleague({ id: "writer" }, colleague("designer"), team, work)).toEqual({ ok: true, value: null });
+  });
+
+  it("needs a task in a project", () => {
+    expect(mayAskColleague({ id: "writer" }, colleague("designer"), team, null).ok).toBe(false);
+    expect(mayAskColleague({ id: "writer" }, colleague("designer"), null, { ...work, projectId: null }).ok).toBe(false);
+  });
+
+  it("keeps help one level deep", () => {
+    expect(mayAskColleague({ id: "writer" }, colleague("designer"), team, { ...work, kind: "help" }).ok).toBe(false);
+  });
+
+  it("refuses itself, outsiders, managers and disabled agents", () => {
+    expect(mayAskColleague({ id: "writer" }, colleague("writer"), team, work).ok).toBe(false);
+    expect(mayAskColleague({ id: "writer" }, colleague("stranger"), team, work).ok).toBe(false);
+    expect(mayAskColleague({ id: "writer" }, colleague("dev", { kind: "manager" }), team, work).ok).toBe(false);
+    expect(mayAskColleague({ id: "writer" }, colleague("dev", { enabled: false }), team, work).ok).toBe(false);
+  });
+
+  it("allows two open help tasks per task", () => {
+    expect(mayAskColleague({ id: "writer" }, colleague("dev"), team, { ...work, openHelpTasks: 1 }).ok).toBe(true);
+    expect(mayAskColleague({ id: "writer" }, colleague("dev"), team, { ...work, openHelpTasks: 2 }).ok).toBe(false);
+  });
+});
+
+describe("mayAnswer", () => {
+  // The writer asked; its manager, then the super agent above it.
+  const chain = ["manager", "super"];
+  const toManager = { addresseeAgentId: "manager", addressedToUser: false };
+  const as = (id: string, kind: Delegator["kind"] = "manager"): TeamActor => ({ id, kind });
+
+  it("lets the addressee and those above it answer", () => {
+    expect(mayAnswer(as("manager"), toManager, chain)).toBe(true);
+    expect(mayAnswer(as("super", "orchestrator"), toManager, chain)).toBe(true);
+    expect(mayAnswer("user", toManager, chain)).toBe(true);
+  });
+
+  it("refuses the asker, peers and agents below the addressee", () => {
+    expect(mayAnswer(as("writer", "specialist"), toManager, chain)).toBe(false);
+    expect(mayAnswer(as("other-manager"), toManager, chain)).toBe(false);
+    const toSuper = { addresseeAgentId: "super", addressedToUser: false };
+    expect(mayAnswer(as("manager"), toSuper, chain)).toBe(false);
+  });
+
+  it("leaves a question that reached the user to the user", () => {
+    const toUser = { addresseeAgentId: "super", addressedToUser: true };
+    expect(mayAnswer(as("super", "orchestrator"), toUser, chain)).toBe(false);
+    expect(mayAnswer("user", toUser, chain)).toBe(true);
   });
 });

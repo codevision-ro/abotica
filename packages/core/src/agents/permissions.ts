@@ -27,10 +27,17 @@ const BUILTIN_DEFAULT_PERMISSION: ToolPermission = "allow";
 /** Who the permissions are for: the super agent, a manager or a specialist (see agents.kind). */
 export type PermissionSubject = { kind: AgentKind };
 
-/** Orchestrator-only tools are out of reach of everyone else, except the ones managers get too. */
+/**
+ * Orchestrator-only tools are out of reach of everyone else, except the ones managers get too; a tool for
+ * some kinds only is out of reach of the others.
+ */
 function unavailable(tool: ToolInfo, opts: PermissionSubject): boolean {
+  if (tool.kinds && !tool.kinds.includes(opts.kind)) return true;
   return Boolean(tool.orchestratorOnly) && opts.kind !== "orchestrator" && !(tool.managers && opts.kind === "manager");
 }
+
+/** Whether an agent of this kind can have the built-in tool at all (the permissions editor lists only those). */
+export const toolAvailableTo = (tool: ToolInfo, subject: PermissionSubject): boolean => !unavailable(tool, subject);
 
 /**
  * Effective permission of a built-in tool: the agent's entry, else allow. Unknown tools and tools the

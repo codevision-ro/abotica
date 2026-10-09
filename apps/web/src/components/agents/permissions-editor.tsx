@@ -10,6 +10,7 @@ import {
   mcpToolKey,
   mcpToolPermission,
   type PermissionSubject,
+  toolAvailableTo,
   TOOL_PERMISSIONS,
   type ToolPermission,
   type ToolPermissions,
@@ -56,9 +57,8 @@ type Update = (fn: (prev: ToolPermissions) => ToolPermissions) => void;
 
 const GROUPS: ToolInfo["group"][] = ["memory", "tasks", "web", "workspace", "orchestration"];
 
-/** Built-in tools the agent has: the super agent's own are out of reach, except the manager tools for a manager. */
-const toolsFor = ({ kind }: PermissionSubject) =>
-  TOOL_CATALOG.filter((tool) => kind === "orchestrator" || !tool.orchestratorOnly || (tool.managers && kind === "manager"));
+/** Built-in tools the agent can have: the super agent's own are out of reach, except the manager tools for a manager. */
+const toolsFor = (subject: PermissionSubject) => TOOL_CATALOG.filter((tool) => toolAvailableTo(tool, subject));
 
 /** Every choice is stored, denials included: a built-in tool without an entry is allowed. */
 const withBuiltin = (perms: ToolPermissions, tool: ToolInfo, permission: ToolPermission): ToolPermissions => ({

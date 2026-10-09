@@ -40,18 +40,28 @@ export type MaintenanceJob =
   /** Looks for a newer Abotica release and tells the user once per version (platform/updates.ts). */
   | { kind: "updates-check" }
   /** A slice of the re-embedding after the embedding provider changed (memory/embedding-reindex.ts). */
-  | { kind: "embeddings-reindex" };
+  | { kind: "embeddings-reindex" }
+  /**
+   * Every minute: escalates unanswered questions, sends deadline reminders and alerts, follows up quiet
+   * tasks, starts due retries and reminds the user of what waits for them (tasks/followups.ts).
+   */
+  | { kind: "followups" };
 
 /**
  * A task changed, on one queue so the worker handles them one at a time. Created or done: it fires
  * the task's triggers and starts unblocked dependents. Done or another status: it checks the wakeups
  * waiting on the task. `wakeups`: it checks the task's own wakeups (a timer came due, its run ended,
- * its pull request changed).
+ * its pull request changed). `retry`: a run that failed for a passing reason is due to start again
+ * (scheduleRunRetry); the run may have no task.
  */
-export type TaskEventJob = { taskId: string; event: "created" | "done" | "status" | "wakeups" };
+export type TaskEventJob =
+  { taskId: string; event: "created" | "done" | "status" | "wakeups" } | { event: "retry"; runId: string };
 
-/** A run ended: the tasks delegated with its task are reported back to the delegator once all settled. */
-export type DelegationReportJob = { runId: string };
+/**
+ * A run ended: the tasks delegated with its task are reported back to the delegator as they settle.
+ * `taskId`: one task settled without a run ending (cancelled, could not start, out of retries).
+ */
+export type DelegationReportJob = { runId: string } | { taskId: string };
 
 /** Texts for the worker to embed with the built-in model (models/local-embeddings.ts); returns the vectors. */
 export type EmbeddingJob = { texts: string[] };
@@ -120,9 +130,24 @@ const notificationsQueue = () => queue<NotificationJob>(QUEUE.notifications);
 const taskEventsQueue = () => queue<TaskEventJob>(QUEUE.taskEvents);
 const delegationReportsQueue = () => queue<DelegationReportJob>(QUEUE.delegationReports);
 
-export async function enqueueRun(runId: string): Promise<void> {
+/**
+ * Queues a run at `priority`, 1 (served first) to 6 (see tasks/priority.ts). Every run job has one:
+ * BullMQ serves jobs without a priority before all prioritized ones. Equal priorities go first in, first out.
+ */
+export async function enqueueRun(runId: string, priority: number): Promise<void> {
   // Retries are handled inside the runner (provider fallback), so a failed run is not replayed blindly.
-  await runsQueue().add("run", { runId }, { jobId: runId, attempts: 1 });
+  await runsQueue().add("run", { runId }, { jobId: runId, attempts: 1, priority });
+}
+
+/**
+ * Moves a queued run's job to another priority. False when the job is gone; a job already running keeps
+ * going, only its recorded priority changes.
+ */
+export async function changeRunPriority(runId: string, priority: number): Promise<boolean> {
+  const job = await runsQueue().getJob(runId);
+  if (!job) return false;
+  await job.changePriority({ priority });
+  return true;
 }
 
 export type RunJobState = Awaited<ReturnType<Queue["getJobState"]>>;
@@ -156,6 +181,18 @@ export async function scheduleWakeupCheck(taskId: string, wakeupId: string, at: 
 }
 
 /**
+ * Starts the automatic retry of run `runId` at `at`, through the task-events queue. One job per run: the
+ * follow-up sweeper starts a retry whose job was lost, and the retry is claimed once (runs.retryAt).
+ */
+export async function scheduleRunRetry(runId: string, at: Date): Promise<void> {
+  await taskEventsQueue().add(
+    "retry",
+    { event: "retry", runId },
+    { jobId: `retry-${runId}`, delay: Math.max(0, at.getTime() - Date.now()), attempts: 1 },
+  );
+}
+
+/**
  * Reports a run's delegated task through the queue: the report survives a failed delivery (retried with
  * backoff, the claim is released in between) and the run lifecycle does not depend on delegation.
  */
@@ -166,5 +203,14 @@ export async function enqueueDelegationReport(runId: string): Promise<void> {
     "report",
     { runId },
     { jobId: `report-${runId}`, attempts: 5, removeOnComplete: true, removeOnFail: true },
+  );
+}
+
+/** Reports one settled task through the queue, when no run ending does it (see DelegationReportJob). */
+export async function enqueueTaskReport(taskId: string): Promise<void> {
+  await delegationReportsQueue().add(
+    "report",
+    { taskId },
+    { jobId: `report-task-${taskId}`, attempts: 5, removeOnComplete: true, removeOnFail: true },
   );
 }

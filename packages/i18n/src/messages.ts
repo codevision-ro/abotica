@@ -27,6 +27,8 @@ import en_files from "../messages/en/files.json";
 import en_team from "../messages/en/team.json";
 import en_repos from "../messages/en/repos.json";
 import en_previews from "../messages/en/previews.json";
+import en_flow from "../messages/en/flow.json";
+import en_inbox from "../messages/en/inbox.json";
 import ro_common from "../messages/ro/common.json";
 import ro_nav from "../messages/ro/nav.json";
 import ro_shell from "../messages/ro/shell.json";
@@ -54,6 +56,8 @@ import ro_files from "../messages/ro/files.json";
 import ro_team from "../messages/ro/team.json";
 import ro_repos from "../messages/ro/repos.json";
 import ro_previews from "../messages/ro/previews.json";
+import ro_flow from "../messages/ro/flow.json";
+import ro_inbox from "../messages/ro/inbox.json";
 
 export const en = {
   common: en_common,
@@ -83,6 +87,8 @@ export const en = {
   team: en_team,
   repos: en_repos,
   previews: en_previews,
+  flow: en_flow,
+  inbox: en_inbox,
 };
 
 export type Messages = typeof en;
@@ -116,4 +122,6 @@ export const ro: Messages = {
   team: ro_team,
   repos: ro_repos,
   previews: ro_previews,
+  flow: ro_flow,
+  inbox: ro_inbox,
 };

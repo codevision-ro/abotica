@@ -85,6 +85,8 @@ describe("failureStreak (the task's circuit breaker)", () => {
       "unqueued",
       "overdue",
       "cancelled_by_user",
+      "cancelled_by_agent",
+      "paused",
       "kill_switch",
       "step_limit",
       "timeout",

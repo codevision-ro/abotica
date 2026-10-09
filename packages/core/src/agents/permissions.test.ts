@@ -12,6 +12,7 @@ import {
   mcpRunPermission,
   mcpToolPermission,
   sanitizePermissions,
+  toolAvailableTo,
 } from "./permissions";
 import { TOOL_CATALOG, type ToolInfo } from "./tools/tool-catalog";
 
@@ -21,8 +22,10 @@ function pick(predicate: (tool: ToolInfo) => boolean): ToolInfo {
   if (!tool) throw new Error("no catalog tool matches");
   return tool;
 }
-const plain = pick((t) => !t.orchestratorOnly);
-const otherPlain = pick((t) => !t.orchestratorOnly && t.name !== plain.name);
+const plain = pick((t) => !t.orchestratorOnly && !t.kinds);
+const otherPlain = pick((t) => !t.orchestratorOnly && !t.kinds && t.name !== plain.name);
+const specialistOnly = pick((t) => t.kinds?.length === 1 && t.kinds[0] === "specialist");
+const workerTool = pick((t) => t.kinds?.includes("manager") === true && t.kinds.includes("specialist"));
 const orchestratorOnly = pick((t) => !!t.orchestratorOnly && !t.managers);
 const managerTool = pick((t) => !!t.orchestratorOnly && !!t.managers);
 
@@ -58,6 +61,25 @@ describe("builtinPermission", () => {
     expect(builtinPermission({ [orchestratorOnly.name]: "allow" }, orchestratorOnly.name, manager)).toBe("deny");
     expect(builtinPermission({}, managerTool.name, orchestrator)).toBe("allow");
     expect(builtinPermission({ [managerTool.name]: "deny" }, managerTool.name, orchestrator)).toBe("deny");
+  });
+
+  it("gives a tool for some kinds only to agents of those kinds", () => {
+    expect(builtinPermission({}, specialistOnly.name, specialist)).toBe("allow");
+    expect(builtinPermission({ [specialistOnly.name]: "allow" }, specialistOnly.name, manager)).toBe("deny");
+    expect(builtinPermission({}, specialistOnly.name, orchestrator)).toBe("deny");
+    expect(builtinPermission({}, workerTool.name, manager)).toBe("allow");
+    expect(builtinPermission({}, workerTool.name, orchestrator)).toBe("deny");
+  });
+});
+
+describe("toolAvailableTo", () => {
+  it("matches what builtinPermission denies whatever is stored", () => {
+    for (const subject of [specialist, manager, orchestrator]) {
+      for (const tool of TOOL_CATALOG) {
+        const denied = builtinPermission({ [tool.name]: "allow" }, tool.name, subject) === "deny";
+        expect(toolAvailableTo(tool, subject), `${tool.name} for ${subject.kind}`).toBe(!denied);
+      }
+    }
   });
 });
 
@@ -135,7 +157,9 @@ describe("defaultPermissions", () => {
     expect(Object.keys(defaultPermissions(specialist))).not.toContain(managerTool.name);
     expect(Object.keys(defaultPermissions(manager))).toContain(managerTool.name);
     expect(Object.keys(defaultPermissions(manager))).not.toContain(orchestratorOnly.name);
-    expect(Object.keys(defaultPermissions(orchestrator))).toHaveLength(TOOL_CATALOG.length);
+    expect(Object.keys(defaultPermissions(orchestrator))).toHaveLength(
+      TOOL_CATALOG.filter((t) => !t.kinds || t.kinds.includes("orchestrator")).length,
+    );
   });
 
   it("allows every tool", () => {

@@ -236,6 +236,14 @@
       "label": "Cancelled by you",
       "hint": "Run it again when you want it to continue."
     },
+    "cancelled_by_agent": {
+      "label": "Cancelled by a manager",
+      "hint": "A manager or the super agent cancelled its task. The task's history says why."
+    },
+    "paused": {
+      "label": "Paused",
+      "hint": "It stopped at its next step because its task was put aside. It goes on when the task is resumed."
+    },
     "other": {
       "label": "Error",
       "hint": "The error above and the timeline say what went wrong."

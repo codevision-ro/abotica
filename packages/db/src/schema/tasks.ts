@@ -16,7 +16,17 @@ import {
 import { createdAt, id, updatedAt } from "./_shared";
 import { agents } from "./agents";
 import { schedules, triggers } from "./automation";
-import { commentAuthor, taskPriority, taskStatus, taskWakeupKind, taskWakeupPausedReason, taskWakeupStatus } from "./enums";
+import {
+  commentAuthor,
+  questionStatus,
+  taskKind,
+  taskMessageKind,
+  taskPriority,
+  taskStatus,
+  taskWakeupKind,
+  taskWakeupPausedReason,
+  taskWakeupStatus,
+} from "./enums";
 import { projects } from "./projects";
 import { runs } from "./runs";
 
@@ -60,6 +70,30 @@ export const tasks = pgTable(
      * oldest first, once one frees up. Null for every task that is not waiting for one.
      */
     waitingForSlotSince: timestamp({ withTimezone: true }),
+    /** Work, or a colleague's help (ask_colleague): a help task's answer goes straight back to the asker. */
+    kind: taskKind().notNull().default("work"),
+    /**
+     * Tasks delegated from one conversation with the same key are reported together, once none of them is
+     * still open; null reports the task as soon as it settles.
+     */
+    reportGroup: text(),
+    /** Put aside for this (urgent) task: it resumes on its own once that one settles. */
+    pausedForTaskId: uuid().references((): AnyPgColumn => tasks.id, { onDelete: "set null" }),
+    pauseReason: text(),
+    /** Runs that went on by themselves after stopping at the step or time limit; reset on settle and by people. */
+    continuations: integer().notNull().default(0),
+    /** Wakes agents started on the task (instructions, redirects) since the user last stepped in; capped. */
+    agentRounds: integer().notNull().default(0),
+    /** Last sign of life (a comment, a change, a run starting or ending): quiet tasks are followed up from it. */
+    activityAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastProgressAt: timestamp({ withTimezone: true }),
+    /** Follow-ups sent about the task while it stayed quiet; any activity resets them. */
+    followUps: integer().notNull().default(0),
+    followedUpAt: timestamp({ withTimezone: true }),
+    /** The deadline reminder, miss and escalation, each sent once; a new deadline clears them. */
+    deadlineRemindedAt: timestamp({ withTimezone: true }),
+    deadlineMissedAt: timestamp({ withTimezone: true }),
+    deadlineEscalatedAt: timestamp({ withTimezone: true }),
     completedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -75,6 +109,13 @@ export const tasks = pgTable(
     index()
       .on(t.waitingForSlotSince)
       .where(sql`${t.waitingForSlotSince} is not null`),
+    index()
+      .on(t.deadline)
+      .where(sql`${t.deadline} is not null and ${t.completedAt} is null`),
+    index()
+      .on(t.pausedForTaskId)
+      .where(sql`${t.pausedForTaskId} is not null`),
+    index().on(t.status, t.activityAt),
   ],
 );
 
@@ -91,6 +132,21 @@ export const taskDependencies = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.dependsOnTaskId] }), index().on(t.dependsOnTaskId)],
 );
 
+/**
+ * The choices a question offers. `system` marks a question the platform asked (a task that needs more
+ * time, or a loop) rather than an agent.
+ */
+export type QuestionOptions = {
+  options: string[];
+  recommendation?: string;
+  system?: "needs-more-time" | "loop";
+};
+
+/**
+ * A task's message stream: notes, instructions, questions with their answers, progress and notices
+ * (`kind`). A question is addressed to an agent or to the user, and is escalated up the chain of
+ * command while it stays open.
+ */
 export const taskComments = pgTable(
   "task_comments",
   {
@@ -102,9 +158,38 @@ export const taskComments = pgTable(
     /** Set when an agent wrote it. */
     authorAgentId: uuid().references(() => agents.id, { onDelete: "set null" }),
     body: text().notNull(),
+    kind: taskMessageKind().notNull().default("note"),
+    /** The run that wrote it, when an agent did. */
+    authorRunId: uuid().references((): AnyPgColumn => runs.id, { onDelete: "set null" }),
+    /** Who a question is for now: an agent, or the user (addressedToUser). */
+    addresseeAgentId: uuid().references(() => agents.id, { onDelete: "set null" }),
+    addressedToUser: boolean().notNull().default(false),
+    /** The question an answer answers. */
+    replyToId: uuid().references((): AnyPgColumn => taskComments.id, { onDelete: "set null" }),
+    /** Set on questions only. */
+    questionStatus: questionStatus(),
+    options: jsonb().$type<QuestionOptions>(),
+    /** Levels a question went up the chain of command. */
+    escalationLevel: integer().notNull().default(0),
+    /** When an open question goes one level up; null once it reached the user. */
+    escalateAt: timestamp({ withTimezone: true }),
+    /** When the user was last reminded of it. */
+    remindedAt: timestamp({ withTimezone: true }),
+    /** The message (messages.id) that carried it into a conversation, so a brief does not repeat it. */
+    deliveredMessageId: text(),
+    /** The run it was delivered into, when it reached one. */
+    deliveredRunId: uuid().references((): AnyPgColumn => runs.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (t) => [index().on(t.taskId)],
+  (t) => [
+    index().on(t.taskId),
+    index()
+      .on(t.escalateAt)
+      .where(sql`${t.questionStatus} = 'open'`),
+    index()
+      .on(t.addressedToUser)
+      .where(sql`${t.questionStatus} = 'open'`),
+  ],
 );
 
 export const taskEvents = pgTable(

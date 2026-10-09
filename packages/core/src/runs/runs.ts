@@ -19,6 +19,7 @@ import {
 } from "./run-lifecycle";
 import { loadUnsteeredMessages, markUndelivered } from "./run-messages";
 import { isDelegationReport } from "../tasks/delegation-report";
+import { queuePriority } from "../tasks/priority";
 import {
   activeTaskRun,
   assertTaskDependenciesDone,
@@ -32,6 +33,13 @@ import {
 
 export type Run = typeof runs.$inferSelect;
 export type RunTrigger = Run["trigger"];
+
+/**
+ * Why a task goes back to its assignee in the conversation it worked in: its delegator gave it back, an
+ * instruction or an answer arrived, it was resumed, it goes on after a step or time limit, its failed run
+ * is retried, or it is a colleague's help.
+ */
+export type RoundReason = "given-back" | "instruction" | "answer" | "resumed" | "continue" | "retry" | "help";
 
 export async function appendUserMessage(conversationId: string, message: UIMessage | string): Promise<UIMessage> {
   const ui: UIMessage =
@@ -100,6 +108,7 @@ export async function startRun(input: {
   if (input.message) await appendUserMessage(conversationId, input.message);
   else if (text) await appendUserMessage(conversationId, text);
 
+  const priority = queuePriority({ trigger: input.trigger });
   let run: Run | undefined;
   try {
     [run] = await db
@@ -112,6 +121,7 @@ export async function startRun(input: {
         taskId: input.taskId ?? null,
         projectId,
         parentRunId: input.parentRunId ?? null,
+        priority,
       })
       .returning();
   } catch (error) {
@@ -127,7 +137,7 @@ export async function startRun(input: {
     throw error;
   }
   try {
-    await enqueueRun(run!.id);
+    await enqueueRun(run!.id, priority);
   } catch (error) {
     // A queued run no job will execute would hold the conversation's active run slot forever.
     await failRun(run!, error instanceof Error ? error.message : String(error), "unqueued", ["queued"]);

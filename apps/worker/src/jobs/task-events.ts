@@ -17,7 +17,10 @@ export function startTaskEventsWorker() {
   });
 }
 
-async function handleTaskJob({ taskId, event }: TaskEventJob): Promise<void> {
+async function handleTaskJob(job: TaskEventJob): Promise<void> {
+  // Automatic retries of failed runs are not started from here yet.
+  if (job.event === "retry") return;
+  const { taskId, event } = job;
   if (event === "wakeups") return checkTaskWakeups(taskId);
   if (event !== "status") await handleTaskEvent(taskId, event);
   if (event !== "created") await checkWakeupsWaitingOn(taskId);

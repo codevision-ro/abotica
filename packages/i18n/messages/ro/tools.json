@@ -71,6 +71,26 @@
     "description": "Adaugă comentarii pe task-uri",
     "running": "Adaugă un comentariu"
   },
+  "ask": {
+    "label": "Întreabă",
+    "description": "Pune o întrebare celui care a dat munca și continuă cu restul cât așteaptă răspunsul",
+    "running": "Pune o întrebare"
+  },
+  "answer": {
+    "label": "Răspunde la întrebări",
+    "description": "Răspunde la o întrebare despre munca pe care a dat-o sau o trimite mai sus",
+    "running": "Răspunde la o întrebare"
+  },
+  "report_progress": {
+    "label": "Raportează progresul",
+    "description": "Îi spune celui care a dat task-ul cât de departe a ajuns munca",
+    "running": "Raportează progresul"
+  },
+  "ask_colleague": {
+    "label": "Întreabă un coleg",
+    "description": "Cere ajutorul altui specialist din echipă",
+    "running": "Întreabă un coleg"
+  },
   "task_wait": {
     "label": "Așteaptă evenimente",
     "description": "Își încheie rularea și e trezit la o oră, când se termină verificările unui pull request sau se face merge, când sub-task-urile sunt gata sau alt task ajunge într-o stare",
@@ -101,6 +121,11 @@
     "description": "Vede agenții și rolurile lor",
     "running": "Listează agenții"
   },
+  "team_add": {
+    "label": "Adaugă în echipă",
+    "description": "Adaugă un specialist în echipa unui proiect pe care îl conduce",
+    "running": "Adaugă în echipă"
+  },
   "template_list": {
     "label": "Listează șabloane",
     "description": "Vede șabloanele de la care pornesc agenții noi",
@@ -130,6 +155,21 @@
     "label": "Deleagă",
     "description": "Creează un task pentru un agent și îl pornește",
     "running": "Deleagă un task"
+  },
+  "task_control": {
+    "label": "Controlează munca",
+    "description": "Pune pe pauză, reia, anulează sau redirecționează munca în desfășurare",
+    "running": "Controlează un task"
+  },
+  "team_status": {
+    "label": "Starea echipei",
+    "description": "Vede munca deschisă a unui proiect și ce așteaptă fiecare task",
+    "running": "Verifică munca echipei"
+  },
+  "work_in_project": {
+    "label": "Lucrează într-un proiect",
+    "description": "Face singur un pas mic într-un proiect",
+    "running": "Lucrează într-un proiect"
   },
   "run_list": {
     "label": "Vede rulări",

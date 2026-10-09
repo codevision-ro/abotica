@@ -1,7 +1,8 @@
 /**
- * Who may join a project, who may lead one, what an agent's kind may change to and who may hand work
- * to whom. Pure, so the rules are testable without a database; projects.ts, agent-config.ts, the
- * delegate_task tool, schedules and triggers load the rows and apply them.
+ * Who may join a project, who may lead one, what an agent's kind may change to, who may hand work to
+ * whom, and who may change, instruct, control or answer on a task. Pure, so the rules are testable
+ * without a database; projects.ts, agent-config.ts, the task tools, schedules and triggers load the rows
+ * and apply them.
  */
 import type { AgentKind } from "@abotica/db";
 
@@ -144,4 +145,94 @@ export function worksIn(
   project: Pick<DelegationProject, "managerAgentId" | "memberIds">,
 ): boolean {
   return agent.kind === "orchestrator" || project.managerAgentId === agent.id || project.memberIds.includes(agent.id);
+}
+
+/** Who acts on a task: the user (from the web or Telegram), or an agent with its kind. */
+export type TeamActor = "user" | { id: string; kind: AgentKind };
+
+/** Who stands above a task: the agent whose run delegated it, and its project's manager. */
+export type TaskAuthority = { delegatorAgentId: string | null; projectManagerId: string | null };
+
+type TaskRef = { assigneeAgentId: string | null };
+
+/** The user, the super agent, the task's delegator or its project's manager: those who decide on a task. */
+function decides(actor: TeamActor, authority: TaskAuthority): boolean {
+  if (actor === "user" || actor.kind === "orchestrator") return true;
+  return actor.id === authority.delegatorAgentId || actor.id === authority.projectManagerId;
+}
+
+/**
+ * May change the task (task_update): the assignee (its output and status, within the tool's own rules)
+ * and those who decide on it. A peer on the team only comments.
+ */
+export function mayEditTask(actor: TeamActor, task: TaskRef, authority: TaskAuthority): boolean {
+  return decides(actor, authority) || (actor !== "user" && actor.id === task.assigneeAgentId);
+}
+
+/**
+ * Whether what the actor writes on the task is an instruction its assignee gets at once: the user, the
+ * super agent, the task's delegator and its project's manager give instructions. The assignee's own
+ * comments and a peer's are notes.
+ */
+export function mayInstruct(actor: TeamActor, task: TaskRef, authority: TaskAuthority): boolean {
+  if (actor !== "user" && actor.id === task.assigneeAgentId) return false;
+  return decides(actor, authority);
+}
+
+/**
+ * May pause, resume, cancel or redirect the task (task_control): the user and the super agent any task, a
+ * manager the tasks of the projects it leads.
+ */
+export function mayControlTask(actor: TeamActor, authority: Pick<TaskAuthority, "projectManagerId">): boolean {
+  if (actor === "user" || actor.kind === "orchestrator") return true;
+  return actor.kind === "manager" && actor.id === authority.projectManagerId;
+}
+
+/** Open help tasks one task may have at once (ask_colleague). */
+export const MAX_OPEN_HELP_TASKS = 2;
+
+/**
+ * Whether `asker` may ask `target` for help (ask_colleague) while on `askerTask`: work (not itself help,
+ * so help does not chain) in a project, to an enabled specialist on that project's team other than
+ * itself, with fewer than MAX_OPEN_HELP_TASKS help tasks open.
+ */
+export function mayAskColleague(
+  asker: { id: string },
+  target: TeamCandidate & { id: string; slug: string },
+  project: Pick<DelegationProject, "name" | "memberIds"> | null,
+  askerTask: { kind: "work" | "help"; projectId: string | null; openHelpTasks: number } | null,
+): Rule<null> {
+  if (!askerTask || !askerTask.projectId || !project) {
+    return fail("You can ask a colleague only while working on a task in a project.");
+  }
+  if (askerTask.kind === "help") {
+    return fail("You are answering a colleague's question: answer it yourself, or say what you could not find out.");
+  }
+  if (target.id === asker.id) return fail("You cannot ask yourself.");
+  if (!canJoinTeam(target) || !project.memberIds.includes(target.id)) {
+    return fail(`${target.slug} is not a specialist on the ${project.name} team. Ask a member of the team.`);
+  }
+  if (askerTask.openHelpTasks >= MAX_OPEN_HELP_TASKS) {
+    return fail(
+      `Your task already waits for ${askerTask.openHelpTasks} colleagues' answers: wait for them before asking more.`,
+    );
+  }
+  return { ok: true, value: null };
+}
+
+/**
+ * May answer a question: the user, the agent it is addressed to, and the agents above that one in the
+ * asker's chain of command (`chain`: agent ids going up from the asker's task, nearest first). Once the
+ * question reached the user, only the user answers it.
+ */
+export function mayAnswer(
+  actor: TeamActor,
+  question: { addresseeAgentId: string | null; addressedToUser: boolean },
+  chain: readonly string[],
+): boolean {
+  if (actor === "user") return true;
+  if (question.addressedToUser || !question.addresseeAgentId) return false;
+  if (actor.id === question.addresseeAgentId) return true;
+  const addressee = chain.indexOf(question.addresseeAgentId);
+  return addressee >= 0 && chain.indexOf(actor.id) > addressee;
 }

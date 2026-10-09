@@ -263,7 +263,27 @@
     "maxRedelegations": "Redelegări pe task",
     "maxRedelegationsHint": "De câte ori un task delegat poate fi trimis înapoi spre refacere înainte să decizi tu.",
     "maxFixRounds": "Runde de corecturi pe pull request",
-    "maxFixRoundsHint": "Rundele automate de corecturi pe care le primește un pull request pentru verificări eșuate sau comentarii de review."
+    "maxFixRoundsHint": "Rundele automate de corecturi pe care le primește un pull request pentru verificări eșuate sau comentarii de review.",
+    "flowTitle": "Urmărire și escaladare",
+    "flowDescription": "Cum merge munca singură mai departe: continuări, întrebări, task-uri fără activitate, termene și reîncercări.",
+    "maxContinuations": "Continuări după o limită",
+    "maxContinuationsHint": "De câte ori rularea unui task continuă singură după ce s-a oprit la limita de pași sau de timp ({min}-{max}); apoi decide cine a dat task-ul.",
+    "maxAutoRounds": "Treziri de agenți pe task",
+    "maxAutoRoundsHint": "De câte ori pot agenții să trezească executantul unui task cu instrucțiuni sau redirecționări înainte să intervii tu ({min}-{max}).",
+    "questionEscalationMinutes": "Escaladarea întrebărilor",
+    "questionEscalationMinutesHint": "Minutele în care întrebarea unui agent își așteaptă răspunsul înainte să urce un nivel.",
+    "userEscalationMinutes": "Întrebările ajung la tine după",
+    "userEscalationMinutesHint": "Minutele după care o întrebare încă fără răspuns ajunge la tine.",
+    "staleTaskMinutes": "Urmărirea task-urilor fără activitate",
+    "staleTaskMinutesHint": "Minutele în care un task în lucru poate rămâne fără activitate înainte să fie anunțat cine l-a dat.",
+    "deadlineEscalationMinutes": "Escaladarea termenelor ratate",
+    "deadlineEscalationMinutesHint": "Minutele de după un termen ratat până când este anunțat nivelul de deasupra.",
+    "transientRetries": "Reîncercări automate",
+    "transientRetriesHint": "De câte ori o rulare eșuată dintr-un motiv trecător (o limită de rată, o repornire) este reîncercată singură ({min}-{max}).",
+    "progressMinutes": "Minute între rapoartele de progres",
+    "progressMinutesHint": "Cât de des poate un agent să raporteze progresul pe un task; 0: fără limită.",
+    "urgentOverflow": "Munca urgentă are întâietate",
+    "urgentOverflowHint": "Un task urgent pornește chiar dacă locurile conversației sale sunt ocupate, până la dublul limitei de task-uri în paralel."
   },
   "memory": {
     "title": "Memorie",
@@ -671,7 +691,9 @@
       "enabledHint": "Când e oprit, nu se trimite niciun raport săptămânal."
     },
     "weekday": "Ziua",
-    "hour": "Ora"
+    "hour": "Ora",
+    "reminderHours": "Mementouri",
+    "reminderHoursHint": "Orele după care întrebările și aprobările care te așteaptă îți sunt trimise din nou, într-un singur mesaj; 0 oprește mementourile."
   },
   "updates": {
     "checkNow": "Verifică acum",
@@ -755,7 +777,8 @@
     },
     "reports": {
       "hour": "Ora trebuie să fie între {min} și {max}",
-      "weekday": "Ziua trebuie să fie între {min} și {max}, 0 fiind duminica"
+      "weekday": "Ziua trebuie să fie între {min} și {max}, 0 fiind duminica",
+      "reminderHours": "Între {min} și {max} de ore"
     },
     "security": {
       "sessionDays": "Între {min} și {max} de zile"
@@ -777,7 +800,15 @@
       "maxFixRounds": "Între {min} și {max} runde",
       "maxSteps": "Între {min} și {max} de pași",
       "timeoutMinutes": "Între {min} și {max} de minute",
-      "budgetUsd": "Între {min} și {max} USD"
+      "budgetUsd": "Între {min} și {max} USD",
+      "maxContinuations": "Între {min} și {max}",
+      "maxAutoRounds": "Între {min} și {max}",
+      "questionEscalationMinutes": "Între {min} și {max} de minute",
+      "userEscalationMinutes": "Între {min} și {max} de minute",
+      "staleTaskMinutes": "Între {min} și {max} de minute",
+      "deadlineEscalationMinutes": "Între {min} și {max} de minute",
+      "transientRetries": "Între {min} și {max} reîncercări",
+      "progressMinutes": "Între {min} și {max} de minute"
     },
     "memory": {
       "pinnedTokens": "Între {min} și {max} de tokeni",

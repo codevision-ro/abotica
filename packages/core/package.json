@@ -36,6 +36,7 @@
     "./provider-info": "./src/models/provider-info.ts",
     "./skill-md": "./src/skills/skill-md.ts",
     "./slug": "./src/platform/slug.ts",
+    "./task-notices": "./src/tasks/task-notices.ts",
     "./telegram-commands": "./src/telegram/telegram-commands.ts",
     "./telegram-ids": "./src/telegram/telegram-ids.ts",
     "./trigger-events": "./src/automations/trigger-events.ts",
@@ -51,6 +52,7 @@
     "e2e:stack": "tsx --env-file-if-exists=../../.env scripts/e2e-stack.ts",
     "e2e:previews": "tsx --env-file-if-exists=../../.env scripts/e2e-previews.ts",
     "e2e:mcp": "tsx --env-file-if-exists=../../.env scripts/e2e-mcp.ts",
+    "e2e:company": "tsx --env-file-if-exists=../../.env scripts/e2e-company.ts",
     "lint": "eslint"
   },
   "dependencies": {

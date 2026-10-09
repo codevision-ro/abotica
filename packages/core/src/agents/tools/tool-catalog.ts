@@ -1,4 +1,6 @@
 /** Tool metadata, safe to import from client components. */
+import type { AgentKind } from "@abotica/db";
+
 export type ToolInfo = {
   name: string;
   label: string;
@@ -7,6 +9,8 @@ export type ToolInfo = {
   orchestratorOnly?: boolean;
   /** With orchestratorOnly: managers (kind "manager") get it too. */
   managers?: boolean;
+  /** Only agents of these kinds get it (e.g. progress reports, for those who work on a task given to them). */
+  kinds?: AgentKind[];
   /** Offered only in runs of a project with a git repository. */
   needsRepos?: boolean;
   /** Rarely used: left out of the request until the agent loads it with tool_search. */
@@ -62,6 +66,32 @@ export const TOOL_CATALOG: ToolInfo[] = [
     deferred: true,
   },
   { name: "task_comment", label: "Comment", description: "Add comments to tasks", group: "tasks" },
+  {
+    name: "ask",
+    label: "Ask",
+    description: "Ask whoever gave the work a question, and go on with the rest while the answer comes",
+    group: "tasks",
+  },
+  {
+    name: "answer",
+    label: "Answer questions",
+    description: "Answer a question about work it gave, or pass it up",
+    group: "tasks",
+  },
+  {
+    name: "report_progress",
+    label: "Report progress",
+    description: "Tell whoever gave the task how far the work is",
+    group: "tasks",
+    kinds: ["manager", "specialist"],
+  },
+  {
+    name: "ask_colleague",
+    label: "Ask a colleague",
+    description: "Ask another specialist on the team for help; the answer comes back here",
+    group: "tasks",
+    kinds: ["specialist"],
+  },
   {
     name: "task_wait",
     label: "Wait for events",
@@ -146,6 +176,14 @@ export const TOOL_CATALOG: ToolInfo[] = [
     description: "See agents and their roles",
     group: "orchestration",
     orchestratorOnly: true,
+    managers: true,
+  },
+  {
+    name: "team_add",
+    label: "Add to team",
+    description: "Add a specialist to the team of a project it leads",
+    group: "orchestration",
+    kinds: ["manager"],
   },
   {
     name: "template_list",
@@ -196,11 +234,35 @@ export const TOOL_CATALOG: ToolInfo[] = [
     managers: true,
   },
   {
+    name: "task_control",
+    label: "Control work",
+    description: "Pause, resume, cancel or redirect work underway",
+    group: "orchestration",
+    orchestratorOnly: true,
+    managers: true,
+  },
+  {
+    name: "team_status",
+    label: "Team status",
+    description: "A project's open work: who does what, and what each task waits for",
+    group: "orchestration",
+    orchestratorOnly: true,
+    managers: true,
+  },
+  {
+    name: "work_in_project",
+    label: "Work in a project",
+    description: "Do a small step inside a project itself, with the project's workspace and team memory",
+    group: "orchestration",
+    orchestratorOnly: true,
+  },
+  {
     name: "run_list",
     label: "View runs",
     description: "Status and cost of recent runs",
     group: "orchestration",
     orchestratorOnly: true,
+    managers: true,
   },
   {
     name: "run_get",
@@ -208,6 +270,7 @@ export const TOOL_CATALOG: ToolInfo[] = [
     description: "A run's result, error and last steps",
     group: "orchestration",
     orchestratorOnly: true,
+    managers: true,
   },
   {
     name: "run_cancel",

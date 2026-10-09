@@ -71,6 +71,26 @@
     "description": "Adds comments to tasks",
     "running": "Adding a comment"
   },
+  "ask": {
+    "label": "Ask",
+    "description": "Asks whoever gave the work a question and goes on with the rest while the answer comes",
+    "running": "Asking a question"
+  },
+  "answer": {
+    "label": "Answer questions",
+    "description": "Answers a question about work it gave, or passes it up",
+    "running": "Answering a question"
+  },
+  "report_progress": {
+    "label": "Report progress",
+    "description": "Tells whoever gave the task how far the work is",
+    "running": "Reporting progress"
+  },
+  "ask_colleague": {
+    "label": "Ask a colleague",
+    "description": "Asks another specialist on the team for help",
+    "running": "Asking a colleague"
+  },
   "task_wait": {
     "label": "Wait for events",
     "description": "Ends its run and is woken at a time, when a pull request's checks finish or it merges, when subtasks are done or another task reaches a status",
@@ -101,6 +121,11 @@
     "description": "Sees the agents and their roles",
     "running": "Listing agents"
   },
+  "team_add": {
+    "label": "Add to team",
+    "description": "Adds a specialist to the team of a project it leads",
+    "running": "Adding to the team"
+  },
   "template_list": {
     "label": "List templates",
     "description": "Sees the agent templates new agents start from",
@@ -130,6 +155,21 @@
     "label": "Delegate",
     "description": "Creates a task for an agent and starts it",
     "running": "Delegating a task"
+  },
+  "task_control": {
+    "label": "Control work",
+    "description": "Pauses, resumes, cancels or redirects work underway",
+    "running": "Controlling a task"
+  },
+  "team_status": {
+    "label": "Team status",
+    "description": "Sees a project's open work and what each task waits for",
+    "running": "Checking the team's work"
+  },
+  "work_in_project": {
+    "label": "Work in a project",
+    "description": "Does a small step inside a project itself",
+    "running": "Working in a project"
   },
   "run_list": {
     "label": "View runs",

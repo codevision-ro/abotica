@@ -7,8 +7,11 @@ import { builtinPermission } from "../permissions";
 import { redactSecrets } from "../redact";
 import { agentTools } from "./agents";
 import { automationTools } from "./automation";
+import { controlTools } from "./control";
 import { TOOL_CATALOG } from "./tool-catalog";
 import { memoryTools } from "./memory";
+import { messageTools } from "./messages";
+import { peerTools } from "./peers";
 import { previewTools } from "./previews";
 import { projectTools } from "./projects";
 import { repoTools } from "./repos";
@@ -29,6 +32,9 @@ const factories: Record<string, ToolFactory> = {
   ...workspaceTools,
   ...repoTools,
   ...previewTools,
+  ...messageTools,
+  ...controlTools,
+  ...peerTools,
 };
 
 /**

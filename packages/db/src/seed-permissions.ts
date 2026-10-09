@@ -4,7 +4,7 @@
  */
 import type { ToolPermissions } from "./schema";
 
-/** Every tool an agent can have, except the orchestrator's. */
+/** Every tool any agent can have, except the orchestrator's and those for some kinds only. */
 export const AGENT_TOOLS = [
   "memory_search",
   "memory_save",
@@ -19,6 +19,8 @@ export const AGENT_TOOLS = [
   "task_update",
   "task_delete",
   "task_comment",
+  "ask",
+  "answer",
   "task_wait",
   "web_fetch",
   "shell_run",
@@ -43,6 +45,9 @@ export const ORCHESTRATOR_ONLY_TOOLS = [
   "registry_list",
   "registry_assign",
   "delegate_task",
+  "task_control",
+  "team_status",
+  "work_in_project",
   "run_list",
   "run_get",
   "run_cancel",
@@ -51,11 +56,18 @@ export const ORCHESTRATOR_ONLY_TOOLS = [
 ];
 
 /** Orchestrator tools that project managers get too (catalog flag managers). */
-export const MANAGER_TOOLS = ["delegate_task"];
+export const MANAGER_TOOLS = ["agent_list", "delegate_task", "task_control", "team_status", "run_list", "run_get"];
+
+/** Tools only some kinds get (catalog field kinds): those who work on a task given to them report progress. */
+export const KIND_TOOLS = {
+  orchestrator: [],
+  manager: ["report_progress", "team_add"],
+  specialist: ["report_progress", "ask_colleague"],
+} satisfies Record<"orchestrator" | "manager" | "specialist", string[]>;
 
 const allow = (names: string[]): ToolPermissions => Object.fromEntries(names.map((name) => [name, "allow"]));
 
 /** Every agent tool: engineering work, root for system packages and pull requests included. */
-export const AGENT_PERMISSIONS = allow(AGENT_TOOLS);
-export const MANAGER_PERMISSIONS = allow([...AGENT_TOOLS, ...MANAGER_TOOLS]);
-export const ORCHESTRATOR_PERMISSIONS = allow([...AGENT_TOOLS, ...ORCHESTRATOR_ONLY_TOOLS]);
+export const AGENT_PERMISSIONS = allow([...AGENT_TOOLS, ...KIND_TOOLS.specialist]);
+export const MANAGER_PERMISSIONS = allow([...AGENT_TOOLS, ...KIND_TOOLS.manager, ...MANAGER_TOOLS]);
+export const ORCHESTRATOR_PERMISSIONS = allow([...AGENT_TOOLS, ...KIND_TOOLS.orchestrator, ...ORCHESTRATOR_ONLY_TOOLS]);

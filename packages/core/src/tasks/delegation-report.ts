@@ -27,8 +27,8 @@ export type DelegationReportMetadata = {
 
 type TaskStatus = (typeof tasks.$inferSelect)["status"];
 
-/** Statuses a task is left in once its run is over. */
-export const SETTLED_TASK_STATUSES: readonly TaskStatus[] = ["review", "done", "blocked"];
+/** Statuses a task is left in once its run is over, or once it was cancelled. */
+export const SETTLED_TASK_STATUSES: readonly TaskStatus[] = ["review", "done", "blocked", "cancelled"];
 
 /**
  * A run that delegated work while on a task of its own continues that task when the report arrives.

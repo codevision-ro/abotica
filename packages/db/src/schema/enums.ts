@@ -8,7 +8,38 @@ export const agentKind = pgEnum("agent_kind", ["orchestrator", "manager", "speci
 
 export const projectStatus = pgEnum("project_status", ["active", "paused", "archived"]);
 
-export const taskStatus = pgEnum("task_status", ["backlog", "in_progress", "blocked", "review", "done"]);
+/**
+ * `paused`: put aside by its delegator, the user or a manager, and resumed later in the same conversation.
+ * `cancelled`: stopped for good; it counts as settled, like done.
+ */
+export const taskStatus = pgEnum("task_status", [
+  "backlog",
+  "in_progress",
+  "blocked",
+  "review",
+  "done",
+  "paused",
+  "cancelled",
+]);
+
+/** What a work task is, or a colleague's help (ask_colleague) whose answer goes straight back to the asker. */
+export const taskKind = pgEnum("task_kind", ["work", "help"]);
+
+/**
+ * What a task comment is in the task's message stream: a plain note, an instruction to the assignee from
+ * someone who may give one, a question and its answer, a progress report, or a platform notice.
+ */
+export const taskMessageKind = pgEnum("task_message_kind", [
+  "note",
+  "instruction",
+  "question",
+  "answer",
+  "progress",
+  "notice",
+]);
+
+/** Where a question on a task stands: waiting for its answer, answered, or withdrawn (its task ended). */
+export const questionStatus = pgEnum("question_status", ["open", "answered", "withdrawn"]);
 
 export const taskPriority = pgEnum("task_priority", ["low", "medium", "high", "urgent"]);
 
@@ -43,7 +74,8 @@ export const runStatus = pgEnum("run_status", [
 
 /**
  * Why a run ended failed or cancelled, so the platform can act on it (the task's circuit breaker, a hint
- * in the UI) without parsing `runs.error`, which holds the translated text shown to the user.
+ * in the UI) without parsing `runs.error`, which holds the translated text shown to the user. A run that
+ * stopped at a limit (step_limit, timeout, loop) or was put aside (paused) ends succeeded with its kind too.
  */
 export const runFailureKind = pgEnum("run_failure_kind", [
   "kill_switch",
@@ -65,6 +97,10 @@ export const runFailureKind = pgEnum("run_failure_kind", [
   "overdue",
   "cancelled_by_user",
   "other",
+  /** Put aside at its next step (task_control pause): ends succeeded, its task stays paused. */
+  "paused",
+  /** Cancelled by a manager or the super agent with its task (task_control cancel). */
+  "cancelled_by_agent",
 ]);
 
 export const runTrigger = pgEnum("run_trigger", [

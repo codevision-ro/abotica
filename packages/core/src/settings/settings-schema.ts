@@ -38,6 +38,14 @@ export const SETTINGS_LIMITS = {
     timeoutMinutes: { min: 1, max: 24 * 60 },
     budgetUsd: { min: 0.01, max: 1000 },
     instructionsLength: { min: 0, max: 10_000 },
+    maxContinuations: { min: 0, max: 20 },
+    maxAutoRounds: { min: 2, max: 50 },
+    questionEscalationMinutes: { min: 1, max: 24 * 60 },
+    userEscalationMinutes: { min: 2, max: 7 * 24 * 60 },
+    staleTaskMinutes: { min: 2, max: 24 * 60 },
+    deadlineEscalationMinutes: { min: 1, max: 7 * 24 * 60 },
+    transientRetries: { min: 0, max: 20 },
+    progressMinutes: { min: 0, max: 240 },
   },
   models: { chainLength: { min: 0, max: 10 } },
   memory: {
@@ -58,7 +66,7 @@ export const SETTINGS_LIMITS = {
   },
   previews: { liveHours: { min: 1, max: 7 * 24 }, staticDays: { min: 1, max: 90 } },
   telegram: { allowedUsers: { min: 0, max: 50 } },
-  reports: { hour: { min: 0, max: 23 }, weekday: { min: 0, max: 6 } },
+  reports: { hour: { min: 0, max: 23 }, weekday: { min: 0, max: 6 }, reminderHours: { min: 0, max: 7 * 24 } },
   budget: { monthlyUsd: { min: 0.01, max: 1_000_000 }, alertPercent: { min: 1, max: 99 }, alerts: { min: 0, max: 4 } },
   security: { sessionDays: { min: 1, max: 365 } },
   system: { runConcurrency: { min: 1, max: 100 } },
@@ -93,6 +101,24 @@ export type AgentSettings = {
   maxFixRounds: number;
   /** Limits a new agent starts with. */
   defaultLimits: AgentLimits;
+  /** Times a task's run goes on by itself after stopping at its step or time limit; then its delegator decides. */
+  maxContinuations: number;
+  /** Wakes agents may start on one task (instructions, redirects) without the user stepping in. */
+  maxAutoRounds: number;
+  /** Minutes an agent's question waits for its answer before it goes one level up. */
+  questionEscalationMinutes: number;
+  /** Minutes after which a question still unanswered goes to the user. */
+  userEscalationMinutes: number;
+  /** Minutes a task in progress may stay quiet (no run, nothing it waits for) before its delegator is told. */
+  staleTaskMinutes: number;
+  /** Minutes after a missed deadline before the level above the delegator is told. */
+  deadlineEscalationMinutes: number;
+  /** Automatic retries of a run that failed for a passing reason (a rate limit, a worker restart). */
+  transientRetries: number;
+  /** Minutes between two progress reports on a task; 0: no limit. */
+  progressMinutes: number;
+  /** An urgent task starts even when its conversation's places are full (up to twice parallelDelegations). */
+  urgentOverflow: boolean;
 };
 
 export type MemorySettings = {
@@ -154,6 +180,8 @@ export type ReportSettings = {
   daily: { enabled: boolean; hour: number };
   /** The week's summary, on `weekday` (0 = Sunday) at `hour` local time. */
   weekly: { enabled: boolean; weekday: number; hour: number };
+  /** Hours after which what waits for the user (questions, approvals) is brought up again; 0 turns it off. */
+  reminderHours: number;
 };
 
 export type BudgetSettings = {
@@ -221,6 +249,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
     // Room for real work (a build, a crawl, a refactor): cost is held by the monthly budget the user
     // sets, not by a small limit per run, so a run has no budget of its own unless an agent is given one.
     defaultLimits: { maxSteps: 150, timeoutMs: 120 * 60_000, budgetUsd: null },
+    maxContinuations: 3,
+    maxAutoRounds: 10,
+    questionEscalationMinutes: 30,
+    userEscalationMinutes: 120,
+    staleTaskMinutes: 60,
+    deadlineEscalationMinutes: 60,
+    transientRetries: 6,
+    progressMinutes: 10,
+    urgentOverflow: true,
   },
   memory: {
     embeddingProvider: "local",
@@ -246,7 +283,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   previews: { liveHours: 24, staticDays: 7 },
   telegram: { allowedUserIds: [], notifyChatId: null },
-  reports: { daily: { enabled: true, hour: 20 }, weekly: { enabled: true, weekday: 1, hour: 9 } },
+  reports: { daily: { enabled: true, hour: 20 }, weekly: { enabled: true, weekday: 1, hour: 9 }, reminderHours: 4 },
   budget: { monthlyUsd: null, alertPercents: [80] },
   security: { sessionDays: 30 },
   system: { runConcurrency: 4, updateChecks: true },
@@ -354,6 +391,15 @@ export const SETTINGS_SCHEMAS = {
       ),
       budgetUsd: decimal("agents", "budgetUsd", L.agents.budgetUsd).nullable(),
     }),
+    maxContinuations: int("agents", "maxContinuations", L.agents.maxContinuations),
+    maxAutoRounds: int("agents", "maxAutoRounds", L.agents.maxAutoRounds),
+    questionEscalationMinutes: int("agents", "questionEscalationMinutes", L.agents.questionEscalationMinutes),
+    userEscalationMinutes: int("agents", "userEscalationMinutes", L.agents.userEscalationMinutes),
+    staleTaskMinutes: int("agents", "staleTaskMinutes", L.agents.staleTaskMinutes),
+    deadlineEscalationMinutes: int("agents", "deadlineEscalationMinutes", L.agents.deadlineEscalationMinutes),
+    transientRetries: int("agents", "transientRetries", L.agents.transientRetries),
+    progressMinutes: int("agents", "progressMinutes", L.agents.progressMinutes),
+    urgentOverflow: z.boolean(),
   }),
   memory: z.object({
     embeddingProvider: z.enum(EMBEDDING_PROVIDERS),
@@ -397,6 +443,7 @@ export const SETTINGS_SCHEMAS = {
       weekday: int("reports", "weekday", L.reports.weekday),
       hour: int("reports", "hour", L.reports.hour),
     }),
+    reminderHours: int("reports", "reminderHours", L.reports.reminderHours),
   }),
   budget: z.object({
     monthlyUsd: decimal("budget", "monthlyUsd", L.budget.monthlyUsd).nullable(),

@@ -236,6 +236,14 @@
       "label": "Anulată de tine",
       "hint": "Rulează din nou când vrei să continue."
     },
+    "cancelled_by_agent": {
+      "label": "Anulată de un manager",
+      "hint": "Un manager sau super agentul i-a anulat task-ul. Istoricul task-ului spune de ce."
+    },
+    "paused": {
+      "label": "Pusă pe pauză",
+      "hint": "S-a oprit la pasul următor pentru că task-ul ei a fost pus deoparte. Continuă când task-ul este reluat."
+    },
     "other": {
       "label": "Eroare",
       "hint": "Eroarea de mai sus și cronologia arată ce nu a mers."

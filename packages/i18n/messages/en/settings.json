@@ -263,7 +263,27 @@
     "maxRedelegations": "Redelegations per task",
     "maxRedelegationsHint": "Times a delegated task can be sent back to be done again before you decide.",
     "maxFixRounds": "Fix rounds per pull request",
-    "maxFixRoundsHint": "Automatic rounds of fixes a pull request gets for failed checks or review comments."
+    "maxFixRoundsHint": "Automatic rounds of fixes a pull request gets for failed checks or review comments.",
+    "flowTitle": "Follow-ups and escalation",
+    "flowDescription": "How work keeps moving on its own: continuations, questions, quiet tasks, deadlines and retries.",
+    "maxContinuations": "Continuations after a limit",
+    "maxContinuationsHint": "Times a task's run goes on by itself after stopping at its step or time limit ({min}-{max}); then whoever gave the task decides.",
+    "maxAutoRounds": "Agent wake-ups per task",
+    "maxAutoRoundsHint": "Times agents may wake a task's assignee with instructions or redirects before you step in ({min}-{max}).",
+    "questionEscalationMinutes": "Question escalation",
+    "questionEscalationMinutesHint": "Minutes an agent's question waits for its answer before it goes one level up.",
+    "userEscalationMinutes": "Questions reach you after",
+    "userEscalationMinutesHint": "Minutes after which a question still unanswered comes to you.",
+    "staleTaskMinutes": "Quiet task follow-up",
+    "staleTaskMinutesHint": "Minutes a task in progress may stay quiet before whoever gave it is told.",
+    "deadlineEscalationMinutes": "Missed deadline escalation",
+    "deadlineEscalationMinutesHint": "Minutes after a missed deadline before the level above is told.",
+    "transientRetries": "Automatic retries",
+    "transientRetriesHint": "Times a run that failed for a passing reason (a rate limit, a restart) is tried again on its own ({min}-{max}).",
+    "progressMinutes": "Minutes between progress reports",
+    "progressMinutesHint": "How often an agent may report progress on one task; 0: no limit.",
+    "urgentOverflow": "Urgent work goes first",
+    "urgentOverflowHint": "An urgent task starts even when its conversation's places are full, up to twice the parallel limit."
   },
   "memory": {
     "title": "Memory",
@@ -671,7 +691,9 @@
       "enabledHint": "When off, no weekly report is sent."
     },
     "weekday": "Day",
-    "hour": "Time"
+    "hour": "Time",
+    "reminderHours": "Reminders",
+    "reminderHoursHint": "Hours after which the questions and approvals waiting for you are sent again, in one message; 0 turns reminders off."
   },
   "updates": {
     "checkNow": "Check now",
@@ -755,7 +777,8 @@
     },
     "reports": {
       "hour": "The hour must be between {min} and {max}",
-      "weekday": "The day must be between {min} and {max}, 0 being Sunday"
+      "weekday": "The day must be between {min} and {max}, 0 being Sunday",
+      "reminderHours": "Between {min} and {max} hours"
     },
     "security": {
       "sessionDays": "Between {min} and {max} days"
@@ -777,7 +800,15 @@
       "maxFixRounds": "Between {min} and {max} rounds",
       "maxSteps": "Between {min} and {max} steps",
       "timeoutMinutes": "Between {min} and {max} minutes",
-      "budgetUsd": "Between {min} and {max} USD"
+      "budgetUsd": "Between {min} and {max} USD",
+      "maxContinuations": "Between {min} and {max}",
+      "maxAutoRounds": "Between {min} and {max}",
+      "questionEscalationMinutes": "Between {min} and {max} minutes",
+      "userEscalationMinutes": "Between {min} and {max} minutes",
+      "staleTaskMinutes": "Between {min} and {max} minutes",
+      "deadlineEscalationMinutes": "Between {min} and {max} minutes",
+      "transientRetries": "Between {min} and {max} retries",
+      "progressMinutes": "Between {min} and {max} minutes"
     },
     "memory": {
       "pinnedTokens": "Between {min} and {max} tokens",

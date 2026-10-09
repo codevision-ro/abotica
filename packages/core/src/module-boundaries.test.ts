@@ -29,6 +29,7 @@ const CLIENT_SAFE = [
   "settings/settings-schema",
   "skills/skill-md",
   "tasks/delegation-report",
+  "tasks/task-notices",
   "tasks/wakeup-rules",
   "telegram/telegram-commands",
   "telegram/telegram-ids",

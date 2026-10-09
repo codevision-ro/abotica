@@ -18,7 +18,11 @@ describe("DEFAULT_SETTINGS", () => {
 describe("mergeSettings", () => {
   it("merges nested objects field by field", () => {
     const merged = mergeSettings(DEFAULT_SETTINGS.reports, { weekly: { hour: 18 } });
-    expect(merged).toEqual({ daily: { enabled: true, hour: 20 }, weekly: { enabled: true, weekday: 1, hour: 18 } });
+    expect(merged).toEqual({
+      daily: { enabled: true, hour: 20 },
+      weekly: { enabled: true, weekday: 1, hour: 18 },
+      reminderHours: 4,
+    });
   });
 
   it("replaces arrays and skips undefined", () => {
@@ -75,6 +79,54 @@ describe("SETTINGS_SCHEMAS", () => {
     const issue = parsed.error!.issues[0]!;
     expect(issue.message).toBe("sandbox.errors.invalidDomain");
     expect(settingsIssueValues(issue)).toEqual({ domain: "not a domain" });
+  });
+
+  it("fills the company flow settings into a stored agents row that predates them", () => {
+    const stored = { instructions: "", parallelDelegations: 2, maxRedelegations: 5, maxFixRounds: 5 };
+    const merged = mergeSettings(DEFAULT_SETTINGS.agents, stored);
+    expect(SETTINGS_SCHEMAS.agents.safeParse(merged).success).toBe(true);
+    expect(merged.maxContinuations).toBe(3);
+    expect(merged.urgentOverflow).toBe(true);
+    expect(mergeSettings(DEFAULT_SETTINGS.reports, { daily: { hour: 8 } }).reminderHours).toBe(4);
+  });
+
+  it("accepts the lowest timers, so the end-to-end checks run in minutes", () => {
+    const fast = {
+      ...DEFAULT_SETTINGS.agents,
+      maxContinuations: 0,
+      maxAutoRounds: 2,
+      questionEscalationMinutes: 1,
+      userEscalationMinutes: 2,
+      staleTaskMinutes: 2,
+      deadlineEscalationMinutes: 1,
+      transientRetries: 0,
+      progressMinutes: 0,
+    };
+    expect(SETTINGS_SCHEMAS.agents.safeParse(fast).success).toBe(true);
+    expect(SETTINGS_SCHEMAS.reports.safeParse({ ...DEFAULT_SETTINGS.reports, reminderHours: 0 }).success).toBe(true);
+  });
+
+  it.each([
+    ["maxContinuations", 21, { min: 0, max: 20 }],
+    ["maxAutoRounds", 1, { min: 2, max: 50 }],
+    ["questionEscalationMinutes", 0, { min: 1, max: 1440 }],
+    ["userEscalationMinutes", 1, { min: 2, max: 10080 }],
+    ["staleTaskMinutes", 1441, { min: 2, max: 1440 }],
+    ["deadlineEscalationMinutes", 0, { min: 1, max: 10080 }],
+    ["transientRetries", 2.5, { min: 0, max: 20 }],
+    ["progressMinutes", 241, { min: 0, max: 240 }],
+  ] as const)("refuses %s = %s with its range", (field, value, range) => {
+    const parsed = SETTINGS_SCHEMAS.agents.safeParse({ ...DEFAULT_SETTINGS.agents, [field]: value });
+    const issue = parsed.error!.issues[0]!;
+    expect(issue.message).toBe(`settings.validation.agents.${field}`);
+    expect(settingsIssueValues(issue)).toEqual(range);
+  });
+
+  it("refuses a reminder interval past a week", () => {
+    const parsed = SETTINGS_SCHEMAS.reports.safeParse({ ...DEFAULT_SETTINGS.reports, reminderHours: 169 });
+    const issue = parsed.error!.issues[0]!;
+    expect(issue.message).toBe("settings.validation.reports.reminderHours");
+    expect(settingsIssueValues(issue)).toEqual({ min: 0, max: 168 });
   });
 
   it("checks the default agent limits in minutes", () => {

@@ -49,7 +49,9 @@
     "in_progress": "În lucru",
     "blocked": "Blocat",
     "review": "Review",
-    "done": "Gata"
+    "done": "Gata",
+    "paused": "În pauză",
+    "cancelled": "Anulat"
   },
   "priority": {
     "low": "Scăzută",
