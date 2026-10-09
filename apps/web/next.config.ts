@@ -26,6 +26,22 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["bullmq", "ioredis", "@modelcontextprotocol/sdk"],
   // Server action arguments include API keys and secrets; never echo them to the dev log.
   logging: { serverFunctions: false },
+  // Settings pages that moved: old links and bookmarks land where the setting is now (query kept).
+  async redirects() {
+    const moved: [string, string][] = [
+      ["/settings/budget", "/costs#budget"],
+      ["/settings/general", "/settings"],
+      ["/settings/memory", "/settings/agents#memory"],
+      ["/settings/previews", "/settings/system#previews"],
+      ["/settings/reports", "/settings/telegram#reports"],
+      ["/settings/sandbox", "/settings/system#sandbox"],
+      ["/settings/secrets", "/settings/keys"],
+      ["/settings/security", "/settings/account"],
+      ["/settings/updates", "/settings/system"],
+      ["/settings/vault", "/settings/keys"],
+    ];
+    return moved.map(([source, destination]) => ({ source, destination, permanent: true }));
+  },
   // Every response, API routes and static files included. Fixed at build time, so nothing here may
   // depend on APP_URL: the Content-Security-Policy and HSTS are set per request in proxy.ts.
   async headers() {

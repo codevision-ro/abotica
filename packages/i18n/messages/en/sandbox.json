@@ -5,7 +5,7 @@
     "tooManyDomains": "At most {max} domains.",
     "invalidPackage": "\"{name}\" is not a valid package name.",
     "tooManyPackages": "At most {max} packages per language.",
-    "mcpNeedsSandbox": "Stdio MCP servers run in the sandbox, and no sandbox is available. Enable it in Settings > Sandbox, or turn off sandboxing for this server.",
+    "mcpNeedsSandbox": "Stdio MCP servers run in the sandbox, and no sandbox is available. Turn it on in Settings > System, or turn off sandboxing for this server.",
     "fileTooLarge": "The file is larger than {max} MB.",
     "mcpTestTimeout": "The MCP server did not answer within {seconds} seconds. Check that the worker is running."
   },
@@ -47,11 +47,7 @@
     "nodePlaceholder": "sharp or zod@4"
   },
   "settings": {
-    "title": "Sandbox",
-    "description": "Where agents run commands, install packages and create files.",
     "status": {
-      "title": "Status",
-      "description": "Checked by the worker at startup and after every save here.",
       "checkAgain": "Check again",
       "checkFailed": "Could not ask the worker to check",
       "checked": "Checked <time></time>",
@@ -89,19 +85,13 @@
         }
       }
     },
-    "defaults": {
-      "title": "Default policy",
-      "description": "For chats without a project and projects that follow the default."
-    },
     "limits": {
-      "title": "Limits",
-      "description": "How long one command may run.",
       "commandTimeout": "Command timeout",
       "commandTimeoutHint": "Seconds, from {min} to {max}."
     },
     "docker": {
       "title": "Containers",
-      "description": "Resources and runtime of each workspace container.",
+      "description": "Resources of each workspace container and how long one command may run.",
       "memory": "Memory",
       "memoryHint": "MB per container, from {min} to {max}.",
       "cpus": "CPUs",
@@ -124,8 +114,8 @@
       "gvisorMissing": "gVisor is not installed on this Docker host."
     },
     "advanced": {
-      "title": "Advanced",
-      "summary": "{pids} processes, pause after {pause} min, stop after {stop} h, chat workspaces kept {days, plural, one {# day} other {# days}}",
+      "title": "Advanced sandbox settings",
+      "summary": "{policy} · {memory} MB and {cpus} CPUs per container",
       "pids": "Processes",
       "pidsHint": "Most processes per container, from {min} to {max}.",
       "pauseIdle": "Pause when idle",
@@ -140,17 +130,13 @@
       "minutes": "min",
       "hours": "h",
       "days": "days"
+    },
+    "idle": {
+      "title": "When idle",
+      "description": "What happens to workspaces nobody uses."
     }
   },
   "project": {
-    "title": "Sandbox",
-    "description": "Network access and packages of this project's workspace.",
-    "followDefault": "Use the default",
-    "custom": "Custom policy",
-    "customDescription": "Own network access and packages for this project.",
-    "defaultHint": "Change the default in <link>Settings > Sandbox</link>.",
-    "summaryDefault": "Default · {policy}",
-    "summaryCustom": "Custom · {policy}",
     "resetTitle": "Reset workspace",
     "resetDescription": "Deletes the files, installed packages and caches of this project's workspace. The next run starts empty.",
     "reset": "Reset",
@@ -158,13 +144,5 @@
     "resetConfirmDescription": "Every file in the workspace is deleted. Files already shared in chats stay downloadable.",
     "resetConfirm": "Reset workspace",
     "resetDone": "Workspace reset"
-  },
-  "mcp": {
-    "title": "Sandbox",
-    "description": "Where the server process runs and what it can reach.",
-    "sandboxed": "Run in the sandbox",
-    "sandboxedHint": "Isolated from the worker's files, with the network access set below.",
-    "unsandboxedWarning": "The process runs directly in the worker, with the worker user's files and network. Only for trusted servers that need host state, such as a browser cache.",
-    "outside": "Outside the sandbox"
   }
 }

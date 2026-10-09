@@ -60,7 +60,8 @@ export function OwnedMemories({
 }: {
   owner: MemoryOwner;
   memories: MemoryListItem[];
-  pinnedUsage: PinnedUsage;
+  /** How much of the pinned budget its runs use; left out, the line is not shown. */
+  pinnedUsage?: PinnedUsage;
   projects?: { id: string; name: string }[];
 }) {
   const t = useTranslations("memory.owned");
@@ -161,7 +162,7 @@ export function OwnedMemories({
           </div>
         </form>
 
-        <PinnedBudget usage={pinnedUsage} withGlobal />
+        {pinnedUsage && <PinnedBudget usage={pinnedUsage} withGlobal />}
 
         {pendingCount > 0 && (
           <p className="text-sm text-muted-foreground">
@@ -205,7 +206,7 @@ export function OwnedMemories({
                     )}
                     {g.id ? (
                       <Link
-                        href={kind === "agent" ? `/projects/${g.id}?tab=memory` : `/agents/${g.id}?tab=memory`}
+                        href={kind === "agent" ? `/projects/${g.id}?tab=knowledge` : `/agents/${g.id}?tab=memory`}
                         className="truncate text-foreground/80 underline-offset-2 hover:text-primary hover:underline"
                       >
                         {g.name}

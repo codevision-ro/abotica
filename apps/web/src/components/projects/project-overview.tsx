@@ -1,13 +1,4 @@
-import {
-  ActivityIcon,
-  CoinsIcon,
-  ListTodoIcon,
-  type LucideIcon,
-  PlayIcon,
-  SlidersHorizontalIcon,
-  TargetIcon,
-  UsersIcon,
-} from "lucide-react";
+import { ActivityIcon, CoinsIcon, ListTodoIcon, type LucideIcon, PlayIcon, TargetIcon, UsersIcon } from "lucide-react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { AgentAvatar } from "@/components/app/agent-avatar";
@@ -20,11 +11,13 @@ import {
   SectionList,
   SectionRow,
 } from "@/components/app/section-card";
-import { RunStatusBadge, TASK_STATUSES, TaskStatusBadge } from "@/components/app/status-badge";
+import { PreviewList } from "@/components/previews/preview-list";
+import { RunStatusBadge, SETTABLE_TASK_STATUSES, TASK_STATUSES, TaskStatusBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getFormat } from "@/server/format";
+import type { PreviewRow } from "@/server/queries/previews";
 import type { getProjectOverview, ProjectDetail, ProjectTeam } from "@/server/queries/projects";
 import { ManagerBadge } from "./team-parts";
 
@@ -34,10 +27,13 @@ export async function ProjectOverview({
   project,
   overview,
   team,
+  previews,
 }: {
   project: ProjectDetail;
   overview: Overview;
   team: ProjectTeam;
+  /** The project's live previews: their card shows only when there are some. */
+  previews: PreviewRow[];
 }) {
   const [t, tc, tAgent, fmt] = await Promise.all([
     getTranslations("projects.overview"),
@@ -100,7 +96,10 @@ export async function ProjectOverview({
           }
         >
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
-            {TASK_STATUSES.map((s) => (
+            {/* Paused and cancelled only when the project has such tasks: most never do. */}
+            {TASK_STATUSES.filter(
+              (s) => (SETTABLE_TASK_STATUSES as readonly string[]).includes(s) || overview.tasksByStatus[s],
+            ).map((s) => (
               <Link
                 key={s}
                 href={tasksHref}
@@ -119,6 +118,8 @@ export async function ProjectOverview({
             ))}
           </div>
         </SectionCard>
+
+        {previews.length > 0 && <PreviewList previews={previews} showOwner={false} variant="card" />}
 
         <SectionCard
           icon={ActivityIcon}
@@ -199,16 +200,6 @@ export async function ProjectOverview({
           ) : null}
           {!team.manager && <SectionEmpty>{t.rich("noManager", { link: link(teamHref) })}</SectionEmpty>}
         </SectionCard>
-
-        <SectionCard icon={SlidersHorizontalIcon} title={t("config.title")}>
-          <dl className="flex flex-col gap-2.5 text-sm">
-            <Row label={t("config.providers")}>
-              {project.allowedProviders.length ? project.allowedProviders.join(", ") : t("config.allProviders")}
-            </Row>
-            <Row label={t("config.monthlyBudget")}>{budget !== null ? fmt.usd(budget) : t("config.unlimited")}</Row>
-            <Row label={t("config.telegramTopic")}>{project.telegramTopicId ?? t("config.notSet")}</Row>
-          </dl>
-        </SectionCard>
       </div>
     </div>
   );
@@ -242,17 +233,6 @@ function Stat({
         {hint && <p className="truncate text-xs text-muted-foreground">{hint}</p>}
       </div>
       {children}
-    </div>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 truncate text-right font-medium" title={typeof children === "string" ? children : undefined}>
-        {children}
-      </dd>
     </div>
   );
 }

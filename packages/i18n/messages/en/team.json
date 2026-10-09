@@ -57,5 +57,8 @@
     "hireNone": "Hire",
     "added": "{count, plural, one {# agent joined the team} other {# agents joined the team}}",
     "hired": "{name} joined the team"
+  },
+  "help": {
+    "taskTitle": "Help: {question}"
   }
 }

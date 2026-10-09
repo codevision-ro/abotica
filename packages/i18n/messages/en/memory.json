@@ -1,14 +1,15 @@
 {
   "meta": {
-    "title": "Memory",
-    "transcriptTitle": "Conversation transcript"
+    "title": "Memory"
   },
   "page": {
     "title": "Memory",
-    "description": "What agents know long term, by level: global, project and agent.",
+    "description": "What agents know long term, by level, and what each of them did every day.",
     "tabs": {
-      "pending": "Pending",
-      "conversations": "Conversation history"
+      "project": "Projects",
+      "agent": "Agents",
+      "journal": "Journal",
+      "pending": "Pending"
     }
   },
   "scopes": {
@@ -22,10 +23,10 @@
     "consolidation": "consolidation"
   },
   "origins": {
-    "owner": "owner",
+    "owner": "you",
     "agent": "agent",
-    "untrusted": "untrusted",
-    "system": "system"
+    "untrusted": "outside content",
+    "system": "Abotica"
   },
   "retention": {
     "permanent": "permanent",
@@ -40,22 +41,21 @@
   "search": {
     "label": "Search memory",
     "placeholder": "Search all memories",
-    "resultsAria": "Search results",
     "resultsFor": "Results for \"{query}\"",
-    "hybrid": "hybrid search",
-    "keyword": "keyword search (embeddings unavailable)",
     "clear": "Clear search",
     "empty": "No results. Try other words or add the missing memory."
   },
   "filters": {
     "pinned": "Pinned",
+    "menu": "Filters",
     "byProject": "Filter by project",
     "allProjects": "All projects",
     "byAgent": "Filter by agent",
     "allAgents": "All agents",
-    "origin": "Filter by origin",
-    "allOrigins": "All origins",
+    "origin": "Comes from",
+    "allOrigins": "Anywhere",
     "history": "Show history",
+    "historyHint": "Also show the entries newer ones replaced.",
     "neverUsed": "Never used",
     "neverUsedHint": "Entries no run has used in the {days} days since they were written. Nothing is deleted on its own.",
     "byAgentLayer": "Filter by where it holds",
@@ -94,8 +94,7 @@
     "restore": "Restore",
     "restored": "Memory restored: agents read it again",
     "recalls": "{count, plural, =0 {never used} one {used once} other {used # times}}",
-    "recallsHint": "How often runs used this entry: recalled into a run or found by memory search.",
-    "pageLabel": "{total, plural, one {# entry} other {# entries}} · page {page} of {pageCount}"
+    "recallsHint": "How often runs used this entry: recalled into a run or found by memory search."
   },
   "budget": {
     "label": "Pinned memory budget",
@@ -104,7 +103,6 @@
     "pinnedOmitted": "{count, plural, one {# pinned entry does not fit and is left out.} other {# pinned entries do not fit and are left out.}}"
   },
   "pending": {
-    "empty": "Nothing to approve. Memories written by agents wait here when <settings>approval is required</settings>, and always when they look suspicious.",
     "selectAll": "Select all",
     "selected": "{count} selected",
     "reject": "Reject",
@@ -178,7 +176,7 @@
     "created": "Memory saved"
   },
   "priority": {
-    "title": "How memory applies",
+    "title": "How memory works",
     "order": "Priority on conflict, highest first",
     "description": "Team memory holds the project's decisions and exceptions agreed with you. Global memory holds your rules, which beat anything an agent noted for itself. An agent's notes on a project beat its general craft. At the same level, newer beats older.",
     "precedence": {
@@ -215,51 +213,10 @@
       },
       "raw": {
         "name": "Raw history",
-        "what": "Everything, unfiltered (debug and audit)",
-        "who": "Only you, from the UI"
+        "what": "Every conversation as it happened",
+        "who": "Only you, in Chat"
       }
     }
-  },
-  "conversations": {
-    "alertTitle": "Conversation history is separate from memory",
-    "alertDescription": "Agents do not read old conversations as memory. They stay here for audit and debugging; what needs to be remembered goes into memory or the daily journal.",
-    "pageLabel": "{total, plural, one {# conversation} other {# conversations}} · page {page} of {pageCount}",
-    "messageCount": "{count, plural, one {# message} other {# messages}}",
-    "empty": "No conversations yet. Conversations from chat, Telegram and internal runs show up here.",
-    "columns": {
-      "conversation": "Conversation",
-      "agent": "Agent",
-      "channel": "Channel",
-      "messages": "Messages",
-      "updated": "Updated"
-    },
-    "channels": {
-      "web": "Web",
-      "telegram": "Telegram",
-      "internal": "Internal"
-    },
-    "back": "Conversation history",
-    "started": "Started {date}",
-    "readOnly": "Read only",
-    "noMessages": "This conversation has no messages"
-  },
-  "transcript": {
-    "roles": {
-      "user": "User",
-      "system": "System"
-    },
-    "reasoning": "Reasoning",
-    "file": "file",
-    "input": "Input",
-    "output": "Output",
-    "error": "Error",
-    "data": "Data"
-  },
-  "pagination": {
-    "aria": "Pagination",
-    "page": "Page {page}",
-    "previous": "Previous",
-    "next": "Next"
   },
   "validation": {
     "contentRequired": "Content is required",
@@ -271,6 +228,6 @@
     "blockedAddress": "Could not download the page: {host} is a private or internal address",
     "credentialsInUrl": "Links with a user name or password are not allowed",
     "tooManyRedirects": "Could not download the page: too many redirects",
-    "containsSecret": "This looks like a secret (an API key, a token or a private key). Secrets do not belong in memory: keep the value in the Vault and mention only its name."
+    "containsSecret": "This looks like a secret (an API key, a token or a private key). Secrets do not belong in memory: save the value in Keys and mention only its name."
   }
 }

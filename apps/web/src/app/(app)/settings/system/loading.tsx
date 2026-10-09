@@ -1,13 +1,16 @@
 import { sectionCardClass } from "@/components/app/section-card";
-import { SettingsHeaderSkeleton, SettingsSectionSkeleton } from "@/components/settings/settings-skeleton";
+import {
+  SettingsCollapsedSkeleton,
+  SettingsHeaderSkeleton,
+  SettingsSectionSkeleton,
+} from "@/components/settings/settings-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Settings > System while it loads: title, run concurrency, the version card, then automatic checks. */
+/** Settings > System while it loads: the version card and automatic checks, the sandbox, preview links, work at once. */
 export default function Loading() {
   return (
     <>
       <SettingsHeaderSkeleton />
-      <SettingsSectionSkeleton rows={1} />
       <div className={sectionCardClass}>
         <div className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
           <Skeleton className="size-8 rounded-lg" />
@@ -31,6 +34,10 @@ export default function Loading() {
         </div>
       </div>
       <SettingsSectionSkeleton rows={1} />
+      <SettingsSectionSkeleton height="h-40" />
+      <SettingsCollapsedSkeleton />
+      <SettingsSectionSkeleton rows={2} />
+      <SettingsSectionSkeleton rows={3} />
     </>
   );
 }

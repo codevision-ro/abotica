@@ -159,7 +159,8 @@
     "taskCancelled": "Rularea a fost anulată: {reason}",
     "unqueued": "Rularea nu a pornit: jobul ei nu mai este în coadă",
     "overdue": "Rularea și-a depășit limita de timp și a fost oprită",
-    "stoppedAtLimit": "Rularea s-a oprit la o limită înainte ca lucrul să fie terminat: {reason}. Task-ul nu este complet: ce s-a făcut până acum este păstrat, iar restul trebuie încă făcut.",
+    "retryScheduled": "Întrerupt: {reason}. Se reia automat la {time} (reîncercarea {retry} din {retries}).",
+    "retriesExhausted": "Oprit după {retries, plural, one {o reîncercare automată} few {# reîncercări automate} other {# de reîncercări automate}}: {reason}",
     "interrupted": "Rularea a fost întreruptă: {reason}",
     "toolInterrupted": "Întrerupt: worker-ul s-a oprit în timp ce acest tool rula. Este posibil să fi avut efect sau nu; verifică înainte să îl repeți."
   },
@@ -174,7 +175,7 @@
     },
     "budget": {
       "label": "Buget atins",
-      "hint": "Mărește bugetul (limitele agentului, proiectul sau Setări > Buget) sau așteaptă luna următoare."
+      "hint": "Mărește bugetul (limitele agentului, proiectul sau bugetul din Costuri) sau așteaptă luna următoare."
     },
     "no_model": {
       "label": "Niciun model",

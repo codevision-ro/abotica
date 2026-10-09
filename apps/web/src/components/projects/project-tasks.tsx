@@ -14,6 +14,7 @@ type ProjectTask = Awaited<ReturnType<typeof listProjectTasks>>[number];
 export async function ProjectTasks({ projectId, tasks }: { projectId: string; tasks: ProjectTask[] }) {
   const [t, tt, fmt] = await Promise.all([getTranslations("projects.tasks"), getTranslations("tasks"), getFormat()]);
 
+  // Every status, paused and cancelled included, in board order; empty groups are left out.
   const groups = TASK_STATUSES.map((status) => ({
     status,
     tasks: tasks.filter((task) => task.status === status),
@@ -69,7 +70,9 @@ export async function ProjectTasks({ projectId, tasks }: { projectId: string; ta
                     title={
                       <span
                         title={task.title}
-                        className={cn(task.status === "done" && "text-muted-foreground line-through")}
+                        className={cn(
+                          (task.status === "done" || task.status === "cancelled") && "text-muted-foreground line-through",
+                        )}
                       >
                         {task.title}
                       </span>

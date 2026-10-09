@@ -1,6 +1,5 @@
 "use client";
 
-import { kindPrompt } from "@abotica/core/agents/kind-prompts";
 import type { ToolPermissions } from "@abotica/core/agents/permissions";
 import { AGENT_NAME_MAX_LENGTH, AGENT_PROMPT_MAX_LENGTH, AGENT_ROLE_MAX_LENGTH } from "@abotica/core/limits";
 import { modelRole, roleDefaultEffort, roleDefaultModels } from "@abotica/core/models/model-role";
@@ -16,7 +15,6 @@ import {
   PencilIcon,
   PencilLineIcon,
   SaveIcon,
-  ScrollTextIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
   TriangleAlertIcon,
@@ -34,9 +32,9 @@ import { heroFieldVariants } from "@/components/app/hero-fields";
 import { OptionCards } from "@/components/app/option-cards";
 import { chipVariants, SelectableChip } from "@/components/app/selectable-chip";
 import { SummaryItem, SummaryList, type SummaryStatus } from "@/components/app/summary-rail";
+import { SettingsNumberField } from "@/components/settings/settings-number-field";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,7 +46,7 @@ import type { AgentFormOptions } from "@/server/queries/agents";
 import { AvatarPicker } from "./avatar-picker";
 import { chainLabel, ModelChainEditor, type ModelRef } from "./model-chain-editor";
 import { ModelMeta, ModelPicker } from "./model-picker";
-import { effectivePermissions, PermissionsEditor, StateSummary } from "./permissions-editor";
+import { AgentToolsSection } from "./agent-tools-section";
 import { ReasoningEffortControl } from "./reasoning-effort-control";
 
 export type AgentFormInitial = {
@@ -57,7 +55,7 @@ export type AgentFormInitial = {
   avatar: AgentAvatarValue;
   /** Its place in the hierarchy; the form keeps it, the server enforces which changes are allowed. */
   kind: AgentKind;
-  /** A specialist's profession, or additional instructions for a manager or the super agent. */
+  /** A specialist's instructions, or additional instructions for a manager or the super agent. */
   systemPrompt: string;
   /** Null provider and model: the agent follows the default models from settings. */
   provider: string | null;
@@ -76,8 +74,7 @@ type Mode = { kind: "create"; templateSlug?: string } | { kind: "edit"; agentId:
 /** Section ids: scroll targets of the summary rail. */
 const SECTIONS = {
   identity: "agent-identity",
-  kind: "agent-kind",
-  role: "agent-role-in-team",
+  kind: "agent-position",
   instructions: "agent-instructions",
   model: "agent-model",
   tools: "agent-tools",
@@ -85,10 +82,10 @@ const SECTIONS = {
   advanced: "agent-advanced",
 } as const;
 
-/** Permission keys sorted, so undoing a change makes the form clean again. */
 /** Bounds of an agent's limits, the same as those of the default limits in Settings > Agents. */
 const LIMITS = SETTINGS_LIMITS.agents;
 
+/** Permission keys sorted, so undoing a change makes the form clean again. */
 const sortedKeys = (obj: ToolPermissions) => Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)));
 
 const toggle = (list: string[], item: string, on: boolean) =>
@@ -113,12 +110,12 @@ export function AgentForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [v, setValues] = useState(initial);
-  const [maxSteps, setMaxSteps] = useState(String(initial.limits.maxSteps));
-  const [timeoutMin, setTimeoutMin] = useState(String(Math.round(initial.limits.timeoutMs / 60_000)));
-  const [budget, setBudget] = useState(initial.limits.budgetUsd == null ? "" : String(initial.limits.budgetUsd));
+  // NaN while a field does not hold a number; the budget is null for no limit.
+  const [maxSteps, setMaxSteps] = useState(initial.limits.maxSteps);
+  const [timeoutMin, setTimeoutMin] = useState(Math.round(initial.limits.timeoutMs / 60_000));
+  const [budget, setBudget] = useState(initial.limits.budgetUsd);
   const [note, setNote] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
   const snapshot = (n = note) => [{ ...v, permissions: sortedKeys(v.permissions) }, maxSteps, timeoutMin, budget, n];
   const { dirty, markSaved } = useDirtySnapshot(snapshot());
   // Remembers the explicit model chain while "use default" is on, so switching back restores it.
@@ -160,14 +157,16 @@ export function AgentForm({
     inheritedEffort.effort === "default"
       ? te("inheritModel")
       : te("inheritFrom", { source: inheritedEffort.source, effort: te(`options.${inheritedEffort.effort}.label`) });
-  const budgetValue = budget.trim() === "" ? null : budget.trim();
   const advancedSummary = [
     !usesDefault && t("fallbackCount", { count: v.fallbacks.length }),
     t("effortSummary", {
       effort: v.reasoningEffort === "default" ? inheritedLabel : te(`options.${v.reasoningEffort}.label`),
     }),
-    t("limitsSummary", { steps: maxSteps || "?", minutes: timeoutMin || "?" }),
-    budgetValue ? t("budgetSummary", { budget: budgetValue }) : t("noBudget"),
+    t("limitsSummary", {
+      steps: Number.isNaN(maxSteps) ? "?" : maxSteps,
+      minutes: Number.isNaN(timeoutMin) ? "?" : timeoutMin,
+    }),
+    budget !== null ? t("budgetSummary", { budget: Number.isNaN(budget) ? "?" : budget }) : t("noBudget"),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -179,16 +178,15 @@ export function AgentForm({
       ? `${v.provider}/${v.model}`
       : t("noModel");
   const subject = { kind: v.kind };
-  const toolValues = effectivePermissions(v.permissions, {
-    subject,
-    servers: options.mcpServers,
-    mcpServerIds: v.mcpServerIds,
-  });
+  // Integrations the agent gets: the global ones and those assigned to it.
+  const integrationCount = options.mcpServers.filter((s) => s.global || v.mcpServerIds.includes(s.id)).length;
+
+  const editing = mode.kind === "edit";
 
   function submit() {
-    const steps = Number(maxSteps);
-    const minutes = Number(timeoutMin.replace(",", "."));
-    const budgetUsd = budget.trim() === "" ? null : Number(budget.replace(",", "."));
+    const steps = maxSteps;
+    const minutes = timeoutMin;
+    const budgetUsd = budget;
     // Problems in the advanced section open it, so the field in question is visible.
     const advancedError = (message: string) => {
       setAdvancedOpen(true);
@@ -224,7 +222,7 @@ export function AgentForm({
       } else {
         const res = await updateAgent({ ...payload, id: mode.agentId, note: note.trim() || undefined });
         if (!res.ok) return void toast.error(res.error);
-        toast.success(res.data.newVersion ? t("savedVersion", { version: res.data.version }) : t("savedNoVersion"));
+        toast.success(t("saved"));
         setNote("");
         markSaved(snapshot(""));
         router.refresh();
@@ -232,13 +230,12 @@ export function AgentForm({
     });
   }
 
-  const editing = mode.kind === "edit";
-  // A specialist's prompt is its profession; a manager's or the super agent's is optional extra instructions.
+  // A specialist's prompt is required; a manager's or the super agent's is optional extra instructions.
   const profession = v.kind === "specialist";
   const promptTitle = profession ? t("instructionsTitle") : t("additionalTitle");
   const promptDone = Boolean(v.systemPrompt.trim());
-  // The super agent's kind never changes; a template's is part of the blueprint.
-  const choosesKind = v.kind !== "orchestrator";
+  // The position is chosen once, when the agent is created; the super agent is never created here.
+  const choosesKind = !editing && v.kind !== "orchestrator";
   // A manager's projects are the ones it leads, shown here and changed in each project's Team tab.
   const leads = v.kind === "manager" && !isTemplate;
   const ledProjects = editing ? options.projects.filter((p) => p.managerAgentId === mode.agentId) : [];
@@ -279,76 +276,75 @@ export function AgentForm({
         subtitle: v.role.trim() || t("noRole"),
         media: (size) => <AgentAvatar avatar={v.avatar} size={size} />,
       }}
-      // In edit mode the page header already shows who the agent is.
-      identityInRail={!editing}
+      // On edit the page header shows who the agent is and the form is one column; the rail guides a new agent.
       summary={
-        <SummaryList label={t("summaryLabel")}>
-          <SummaryItem
-            target={SECTIONS.identity}
-            status={status(Boolean(v.name.trim()))}
-            statusLabel={statusLabel(Boolean(v.name.trim()))}
-            label={t("identityTitle")}
-          >
-            {v.name.trim() ? null : t("nameMissing")}
-          </SummaryItem>
-          {choosesKind && (
-            <SummaryItem target={SECTIONS.kind} status="info" label={t("kindTitle")}>
-              {t(`kinds.${v.kind}.title`)}
-            </SummaryItem>
-          )}
-          {/* Additional instructions are optional: left empty, nothing is missing. */}
-          {profession ? (
+        editing ? undefined : (
+          <SummaryList label={t("summaryLabel")}>
             <SummaryItem
-              target={SECTIONS.instructions}
-              status={status(promptDone)}
-              statusLabel={statusLabel(promptDone)}
-              label={promptTitle}
+              target={SECTIONS.identity}
+              status={status(Boolean(v.name.trim()))}
+              statusLabel={statusLabel(Boolean(v.name.trim()))}
+              label={t("identityTitle")}
             >
-              {promptDone ? t("characters", { count: v.systemPrompt.length }) : t("promptMissing")}
+              {v.name.trim() ? null : t("nameMissing")}
             </SummaryItem>
-          ) : (
-            <SummaryItem target={SECTIONS.instructions} status="info" label={promptTitle}>
-              {promptDone ? t("characters", { count: v.systemPrompt.length }) : t("additionalNone")}
+            {choosesKind && (
+              <SummaryItem target={SECTIONS.kind} status="info" label={t("kindTitle")}>
+                {t(`kinds.${v.kind}.title`)}
+              </SummaryItem>
+            )}
+            {/* Additional instructions are optional: left empty, nothing is missing. */}
+            {profession ? (
+              <SummaryItem
+                target={SECTIONS.instructions}
+                status={status(promptDone)}
+                statusLabel={statusLabel(promptDone)}
+                label={promptTitle}
+              >
+                {promptDone ? t("characters", { count: v.systemPrompt.length }) : t("promptMissing")}
+              </SummaryItem>
+            ) : (
+              <SummaryItem target={SECTIONS.instructions} status="info" label={promptTitle}>
+                {promptDone ? t("characters", { count: v.systemPrompt.length }) : t("additionalNone")}
+              </SummaryItem>
+            )}
+            <SummaryItem
+              target={SECTIONS.model}
+              status={status(modelDone)}
+              statusLabel={statusLabel(modelDone)}
+              label={t("modelTitle")}
+            >
+              <span className="font-mono" title={modelSummary}>
+                {modelSummary}
+              </span>
             </SummaryItem>
-          )}
-          <SummaryItem
-            target={SECTIONS.model}
-            status={status(modelDone)}
-            statusLabel={statusLabel(modelDone)}
-            label={t("modelTitle")}
-          >
-            <span className="font-mono" title={modelSummary}>
-              {modelSummary}
-            </span>
-          </SummaryItem>
-          <SummaryItem target={SECTIONS.tools} status="info" label={t("toolsTitle")}>
-            <StateSummary values={toolValues} />
-          </SummaryItem>
-          <SummaryItem target={SECTIONS.skills} status="info" label={t("skills")}>
-            {t("selectedCount", { count: v.skillIds.length })}
-          </SummaryItem>
-          {joinsProjects && (
-            <SummaryItem target={SECTIONS.skills} status="info" label={t("projects")}>
-              {t("selectedCount", { count: v.projectIds.length })}
+            <SummaryItem target={SECTIONS.tools} status="info" label={t("toolsTitle")}>
+              {t("integrationCount", { count: integrationCount })}
             </SummaryItem>
-          )}
-          {leads && (
-            <SummaryItem target={SECTIONS.skills} status="info" label={t("ledProjects")}>
-              {t("ledCount", { count: ledProjects.length })}
+            <SummaryItem target={SECTIONS.skills} status="info" label={t("skills")}>
+              {t("selectedCount", { count: v.skillIds.length })}
             </SummaryItem>
-          )}
-          <SummaryItem
-            target={SECTIONS.advanced}
-            status="info"
-            label={t("advancedTitle")}
-            onSelect={() => setAdvancedOpen(true)}
-          >
-            <span title={advancedSummary}>{advancedSummary}</span>
-          </SummaryItem>
-        </SummaryList>
+            {joinsProjects && (
+              <SummaryItem target={SECTIONS.skills} status="info" label={t("projects")}>
+                {t("selectedCount", { count: v.projectIds.length })}
+              </SummaryItem>
+            )}
+            <SummaryItem
+              target={SECTIONS.advanced}
+              status="info"
+              label={t("advancedTitle")}
+              onSelect={() => setAdvancedOpen(true)}
+            >
+              <span title={advancedSummary}>{advancedSummary}</span>
+            </SummaryItem>
+          </SummaryList>
+        )
       }
+      // The note goes with the version a save creates: asked for only once there is something to save.
       versionNote={
-        editing ? { value: note, onChange: setNote, placeholder: t("versionNote"), label: t("versionNoteAria") } : undefined
+        editing && dirty
+          ? { value: note, onChange: setNote, placeholder: t("versionNote"), label: t("versionNoteAria") }
+          : undefined
       }
       submit={submitButton}
       cancel={cancelLink}
@@ -414,18 +410,12 @@ export function AgentForm({
       </section>
 
       {choosesKind && (
-        <FormSection
-          id={SECTIONS.kind}
-          icon={NetworkIcon}
-          title={t("kindTitle")}
-          description={isTemplate ? t("kindTemplateDescription") : t("kindDescription")}
-        >
+        <FormSection id={SECTIONS.kind} icon={NetworkIcon} title={t("kindTitle")} description={t("kindDescription")}>
           <OptionCards
             name="agent-kind"
             label={t("kindTitle")}
             value={v.kind === "manager" ? "manager" : "specialist"}
             onValueChange={(kind) => set("kind", kind)}
-            disabled={isTemplate}
             options={[
               {
                 value: "specialist",
@@ -443,19 +433,6 @@ export function AgentForm({
           />
         </FormSection>
       )}
-
-      <FormSectionCollapsible
-        id={SECTIONS.role}
-        icon={ScrollTextIcon}
-        title={t("roleTitle")}
-        summary={t("roleSummary", { kind: v.kind })}
-        open={roleOpen}
-        onOpenChange={setRoleOpen}
-      >
-        <p className="max-h-[50vh] overflow-y-auto rounded-xl border bg-muted/30 px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
-          {kindPrompt(v.kind)}
-        </p>
-      </FormSectionCollapsible>
 
       <FormSection
         id={SECTIONS.instructions}
@@ -562,7 +539,7 @@ export function AgentForm({
         )}
       </FormSection>
 
-      <PermissionsEditor
+      <AgentToolsSection
         id={SECTIONS.tools}
         permissions={v.permissions}
         setPermissions={(fn) => setValues((prev) => ({ ...prev, permissions: fn(prev.permissions) }))}
@@ -646,45 +623,35 @@ export function AgentForm({
           inherited={inheritedEffort}
         />
         <FormSubsection title={t("limitsTitle")} description={t("limitsDescription")}>
-          <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-3">
-            <Field>
-              <FieldLabel htmlFor="limit-steps">{t("maxSteps")}</FieldLabel>
-              <Input
-                id="limit-steps"
-                type="number"
-                min={LIMITS.maxSteps.min}
-                max={LIMITS.maxSteps.max}
-                step={1}
-                value={maxSteps}
-                onChange={(e) => setMaxSteps(e.target.value)}
-                className="tabular"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="limit-timeout">{t("timeout")}</FieldLabel>
-              <Input
-                id="limit-timeout"
-                type="number"
-                min={LIMITS.timeoutMinutes.min}
-                max={LIMITS.timeoutMinutes.max}
-                step={1}
-                value={timeoutMin}
-                onChange={(e) => setTimeoutMin(e.target.value)}
-                className="tabular"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="limit-budget">{t("budget")}</FieldLabel>
-              <Input
-                id="limit-budget"
-                inputMode="decimal"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder={t("unlimited")}
-                className="tabular"
-              />
-            </Field>
-          </div>
+          <SettingsNumberField
+            id="limit-steps"
+            label={t("maxSteps")}
+            value={maxSteps}
+            onChange={setMaxSteps}
+            min={LIMITS.maxSteps.min}
+            max={LIMITS.maxSteps.max}
+            step={1}
+          />
+          <SettingsNumberField
+            id="limit-timeout"
+            label={t("timeout")}
+            value={timeoutMin}
+            onChange={setTimeoutMin}
+            min={LIMITS.timeoutMinutes.min}
+            max={LIMITS.timeoutMinutes.max}
+            step={1}
+            unit={t("minutesUnit")}
+          />
+          <SettingsNumberField
+            id="limit-budget"
+            nullable
+            decimal
+            label={t("budget")}
+            value={budget}
+            onChange={setBudget}
+            placeholder={t("unlimited")}
+            unit="USD"
+          />
         </FormSubsection>
       </FormSectionCollapsible>
     </FormPage>

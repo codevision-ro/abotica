@@ -136,7 +136,7 @@ try {
   check(topTasks.length > 0, "super agent delegated a task");
   check(
     topTasks.every((t) => t.assigneeAgentId === manager && t.projectId === project.id),
-    "super agent's tasks went to the manager, in the project",
+    `super agent's tasks went to the manager, in the project (${topTasks.map((t) => `${t.title}: ${t.assigneeAgentId === manager ? "manager" : t.assigneeAgentId}, ${t.projectId === project.id ? "in the project" : t.projectId}`).join("; ")})`,
   );
 
   // Level 2: the manager's task runs and what they delegated.
@@ -165,7 +165,7 @@ try {
     console.log(`manager delegated ${subTasks.length} subtask(s)`);
     check(
       subTasks.every((t) => t.assigneeAgentId === specialist.id && t.projectId === project.id),
-      "manager delegated to the specialist, in the project",
+      `manager delegated to the specialist, in the project (${subTasks.map((t) => `${t.title}: ${t.assigneeAgentId === specialist.id ? "specialist" : t.assigneeAgentId}, ${t.projectId === project.id ? "in the project" : t.projectId}`).join("; ")})`,
     );
     const managerMessages = await db.select().from(messages).where(inArray(messages.conversationId, managerConversations));
     check(

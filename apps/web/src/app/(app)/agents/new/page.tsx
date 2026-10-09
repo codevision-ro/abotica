@@ -1,15 +1,15 @@
 import { defaultPermissions } from "@abotica/core";
 import { DEFAULT_AGENT_AVATAR } from "@abotica/db/avatar";
-import { ArrowLeftIcon, FilePlus2Icon } from "lucide-react";
+import { FilePlus2Icon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { BackLink } from "@/components/app/back-link";
 import { AgentForm, type AgentFormInitial } from "@/components/agents/agent-form";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { PageBody } from "@/components/app/page-header";
 import { chipVariants } from "@/components/app/selectable-chip";
-import { Button } from "@/components/ui/button";
 import { getAgentFormOptions, getTemplateBySlug, listTemplates } from "@/server/queries/agents";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -73,11 +73,7 @@ export default async function NewAgentPage(props: PageProps<"/agents/new">) {
 
   return (
     <PageBody>
-      <Button variant="ghost" size="sm" className="-mb-2 self-start" asChild>
-        <Link href="/agents">
-          <ArrowLeftIcon /> {t("back")}
-        </Link>
-      </Button>
+      <BackLink href="/agents">{t("back")}</BackLink>
       {/* The agent's name in the form is the visible title; this one names the page for screen readers. */}
       <h1 className="sr-only">{t("title")}</h1>
       {/* Templates by kind; a blank start is a specialist. */}

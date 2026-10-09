@@ -27,6 +27,7 @@ export default async function TasksPage(props: PageProps<"/tasks">) {
     assignee: str("assignee"),
     priority: str("priority"),
     showAllDone: str("showAllDone") === "1",
+    showCancelled: str("cancelled") === "1",
   };
   const view = str("view") === "list" ? "list" : "board";
   const taskId = str("task");
@@ -37,7 +38,7 @@ export default async function TasksPage(props: PageProps<"/tasks">) {
     isUuid(taskId) ? getTaskDetail(taskId) : null,
     getTranslations("tasks"),
   ]);
-  const filtered = !!(filters.q || filters.project || filters.assignee || filters.priority);
+  const filtered = !!(filters.q || filters.project || filters.assignee || filters.priority || filters.showCancelled);
 
   return (
     <div className="flex h-[calc(100svh-3.5rem-1rem)] min-h-0 flex-col gap-4 p-4 md:p-6">
@@ -64,7 +65,9 @@ export default async function TasksPage(props: PageProps<"/tasks">) {
         ) : (
           <TaskBoard
             tasks={tasks}
+            agents={options.agents}
             showAllDone={filters.showAllDone}
+            showCancelled={filters.showCancelled}
             projectId={isUuid(filters.project) ? filters.project : undefined}
           />
         )}

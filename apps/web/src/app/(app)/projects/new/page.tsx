@@ -1,11 +1,9 @@
 import { PROVIDER_IDS, PROVIDERS } from "@abotica/core";
-import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { BackLink } from "@/components/app/back-link";
 import { PageBody } from "@/components/app/page-header";
 import { ProjectForm } from "@/components/projects/project-form";
-import { Button } from "@/components/ui/button";
 import { listJoinableAgents, listLeadableAgents } from "@/server/queries/projects";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,11 +21,7 @@ export default async function NewProjectPage() {
 
   return (
     <PageBody>
-      <Button variant="ghost" size="sm" className="-mb-2 self-start" asChild>
-        <Link href="/projects">
-          <ArrowLeftIcon /> {t("new.back")}
-        </Link>
-      </Button>
+      <BackLink href="/projects">{t("new.back")}</BackLink>
       {/* The project's name in the form is the visible title; this one names the page for screen readers. */}
       <h1 className="sr-only">{t("new.title")}</h1>
       <ProjectForm specialists={specialists} managers={managers} providers={providers} />

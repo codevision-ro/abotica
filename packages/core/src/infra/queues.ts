@@ -73,6 +73,8 @@ export type NotificationJob =
   | { kind: "text"; text: string; projectId?: string | null }
   | { kind: "approval"; approvalId: string }
   | { kind: "run-finished"; runId: string }
+  /** A question that reached the user (tasks/task-messages.ts): sent with its options as buttons. */
+  | { kind: "question"; questionId: string }
   /** A notice for the user in the conversation's own chat (nothing to send for a web conversation). */
   | { kind: "conversation-notice"; conversationId: string; text: string };
 

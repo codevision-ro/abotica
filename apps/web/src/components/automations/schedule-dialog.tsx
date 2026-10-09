@@ -2,7 +2,15 @@
 
 import type { AgentAvatar } from "@abotica/db/avatar";
 import { isValidCron } from "@abotica/core/cron";
-import { CalendarClockIcon, CalendarDaysIcon, PlusIcon, RepeatIcon, SaveIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CalendarClockIcon,
+  CalendarDaysIcon,
+  CodeIcon,
+  PlusIcon,
+  RepeatIcon,
+  SaveIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -102,7 +110,9 @@ function ScheduleForm({
   const [agentId, setAgentId] = useState(initial.agentId);
   const [projectId, setProjectId] = useState(initial.projectId);
   const [kind, setKind] = useState(initial.kind);
-  const [cron, setCron] = useState(initial.cron ?? "0 9 * * *");
+  const [cron, setCron] = useState(initial.cron ?? CRON_PRESETS[0].cron);
+  // A cron expression is typed only for something the presets do not cover.
+  const [custom, setCustom] = useState(!CRON_PRESETS.some((p) => p.cron === initial.cron) && initial.cron !== null);
   const [timezone, setTimezone] = useState(initial.timezone);
   const [runAt, setRunAt] = useState(initial.runAt ? dateToZonedLocal(initial.runAt, initial.timezone) : "");
   const [prompt, setPrompt] = useState(initial.prompt);
@@ -113,6 +123,8 @@ function ScheduleForm({
   const tz = timezone.trim();
   const tzValid = isTimeZone(tz);
   const next = cronValid && tzValid ? nextRun({ kind: "cron", cron, runAt: null, timezone: tz }, new Date()) : null;
+  // The time zone comes from Settings; it is edited with a custom expression, or when it needs fixing.
+  const showCustom = custom || !tzValid;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,33 +207,50 @@ function ScheduleForm({
         {kind === "cron" ? (
           <>
             <div className="flex flex-wrap gap-2" role="group" aria-label={t("presets")}>
-              {CRON_PRESETS.map((p) => (
-                <button
-                  key={p.cron}
-                  type="button"
-                  aria-pressed={cron === p.cron}
-                  onClick={() => setCron(p.cron)}
-                  className={chipVariants({ selected: cron === p.cron, className: "h-7 px-2.5 text-xs" })}
-                >
-                  {tc(`presets.${p.key}`)}
-                </button>
-              ))}
+              {CRON_PRESETS.map((p) => {
+                const selected = !custom && cron === p.cron;
+                return (
+                  <button
+                    key={p.cron}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      setCron(p.cron);
+                      setCustom(false);
+                    }}
+                    className={chipVariants({ selected, className: "h-7 px-2.5 text-xs" })}
+                  >
+                    {tc(`presets.${p.key}`)}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                aria-pressed={custom}
+                onClick={() => setCustom(true)}
+                className={chipVariants({ selected: custom, className: "h-7 px-2.5 text-xs" })}
+              >
+                <CodeIcon aria-hidden />
+                {t("custom")}
+              </button>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_13rem]">
-              <Field data-invalid={!cronValid || undefined}>
-                <FieldLabel htmlFor="schedule-cron">{t("cron")}</FieldLabel>
-                <Input
-                  id="schedule-cron"
-                  className="font-mono"
-                  value={cron}
-                  onChange={(e) => setCron(e.target.value)}
-                  aria-invalid={!cronValid}
-                  aria-describedby="schedule-cron-preview"
-                  placeholder="0 9 * * 1-5"
-                />
-              </Field>
-              {timezoneField}
-            </div>
+            {showCustom && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_13rem]">
+                <Field data-invalid={!cronValid || undefined}>
+                  <FieldLabel htmlFor="schedule-cron">{t("cron")}</FieldLabel>
+                  <Input
+                    id="schedule-cron"
+                    className="font-mono"
+                    value={cron}
+                    onChange={(e) => setCron(e.target.value)}
+                    aria-invalid={!cronValid}
+                    aria-describedby="schedule-cron-preview"
+                    placeholder="0 9 * * 1-5"
+                  />
+                </Field>
+                {timezoneField}
+              </div>
+            )}
             <div
               id="schedule-cron-preview"
               aria-live="polite"

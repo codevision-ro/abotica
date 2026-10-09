@@ -1,15 +1,13 @@
 import { auditActionKey } from "@abotica/core/audit-actions";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { ListPager, pageHref } from "@/components/app/list-pager";
 import { SectionEmpty, sectionCardClass } from "@/components/app/section-card";
 import { AuditFilters } from "@/components/settings/audit-filters";
 import { AuditSettingsChanges } from "@/components/settings/audit-settings-changes";
 import { SectionHeader } from "@/components/settings/section-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { getFormat } from "@/server/format";
@@ -41,14 +39,7 @@ export default async function AuditPage(props: PageProps<"/settings/audit">) {
   const entityOptions = entityTypes.map((value) => ({ value, label: label("entities", value) ?? value }));
   const pages = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
 
-  const href = (p: number) => {
-    const params = new URLSearchParams();
-    if (actor) params.set("actor", actor);
-    if (entityType) params.set("entity", entityType);
-    if (p > 1) params.set("page", String(p));
-    const qs = params.toString();
-    return qs ? `/settings/audit?${qs}` : "/settings/audit";
-  };
+  const href = (p: number) => pageHref("/settings/audit", { actor, entity: entityType }, p);
   // A page past the end (stale link, fewer rows after filtering) would read as an empty log.
   if (page > pages) redirect(href(pages));
 
@@ -146,37 +137,8 @@ export default async function AuditPage(props: PageProps<"/settings/audit">) {
             </TableBody>
           </Table>
         )}
-        {pages > 1 && (
-          <nav
-            aria-label={t("pagination")}
-            className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 sm:px-5"
-          >
-            <span className="tabular text-sm text-muted-foreground">{t("page", { page, pages })}</span>
-            <div className="flex gap-2">
-              {page > 1 ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={href(page - 1)}>
-                    <ChevronLeft /> {t("previous")}
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" disabled>
-                  <ChevronLeft /> {t("previous")}
-                </Button>
-              )}
-              {page < pages ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={href(page + 1)}>
-                    {t("next")} <ChevronRight />
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" disabled>
-                  {t("next")} <ChevronRight />
-                </Button>
-              )}
-            </div>
-          </nav>
+        {rows.length > 0 && (
+          <ListPager page={page} pageSize={AUDIT_PAGE_SIZE} rowCount={rows.length} total={total} href={href} />
         )}
       </section>
     </>

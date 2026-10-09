@@ -19,6 +19,7 @@ import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
 import { botTranslator } from "./bot";
 import { currentConversation } from "./chat";
+import { answerFromTelegram, questionAskedBy } from "./commands";
 import type { TelegramOrigin } from "./delivery";
 import { incomingFileName, mediaGroupCollector, TELEGRAM_DOWNLOAD_MAX_BYTES } from "./incoming-files";
 import { replyError, TELEGRAM_TEXT_LIMIT } from "./send";
@@ -115,9 +116,27 @@ async function handleUserMessage(bot: Bot, ctx: Context, message: UIMessage, con
   }
 }
 
+/**
+ * A reply to a question's message (commands.ts sendQuestion) is the user's answer to it, not a message
+ * for the super agent. True when the reply was taken as an answer.
+ */
+async function answeredQuestion(ctx: Context): Promise<boolean> {
+  const replied = ctx.message?.reply_to_message;
+  const text = ctx.message?.text?.trim();
+  if (!replied || !text) return false;
+  const questionId = await questionAskedBy(ctx.chat!.id, replied.message_id);
+  if (!questionId) return false;
+  const result = await answerFromTelegram(questionId, text);
+  await ctx.reply(result.ok ? (await botTranslator())("inbox.telegram.question.replySent") : result.text, {
+    reply_parameters: { message_id: ctx.message!.message_id },
+  });
+  return true;
+}
+
 /** Text, voice, photos and documents become user messages for the super agent, in every chat and topic. */
 export function registerMessageHandlers(bot: Bot) {
   bot.on("message:text", async (ctx) => {
+    if (await answeredQuestion(ctx)) return;
     const conversation = await currentConversation(ctx);
     await handleUserMessage(
       bot,

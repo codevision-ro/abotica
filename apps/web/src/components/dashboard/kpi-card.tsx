@@ -11,6 +11,7 @@ export function KpiCard({
   children,
   href,
   tone = "default",
+  className,
 }: {
   label: string;
   value: React.ReactNode;
@@ -18,6 +19,7 @@ export function KpiCard({
   children?: React.ReactNode;
   href: string;
   tone?: "default" | "warning";
+  className?: string;
 }) {
   return (
     <Link
@@ -26,6 +28,7 @@ export function KpiCard({
         sectionCardClass,
         "group flex min-w-0 flex-col gap-3 p-3.5 transition-colors outline-none hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
         tone === "warning" && "border-warning/50 bg-warning/5 hover:bg-warning/10 dark:bg-warning/5",
+        className,
       )}
     >
       <div className="flex items-center gap-2.5">

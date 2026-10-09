@@ -113,7 +113,7 @@ export const memoryTools: Record<string, ToolFactory> = {
         ctx.projectId
           ? "Search memory: global, your craft, this project's team memory and your notes on it."
           : ctx.agent.kind === "orchestrator"
-            ? "Search memory: global and your craft; with a projectId, also your notes on that project."
+            ? "Search memory: global and your craft; with a projectId, also that project's team memory and your notes on it."
             : "Search memory: global and your craft.",
         "Use it before assuming anything. Results carry the ids memory_update and memory_delete need.",
       ].join(" "),
@@ -121,21 +121,20 @@ export const memoryTools: Record<string, ToolFactory> = {
         ctx,
         z.object({
           query: z.string().describe("What you are looking for, in natural language"),
-          projectId: optionalId().describe("Also search your notes on it"),
+          projectId: optionalId().describe("Also search that project's team memory and your notes on it"),
         }),
       ),
       execute: async ({ query, projectId }) => {
-        // Only the super agent names a project here: the others read the run's.
-        const notesProjectId = ctx.agent.kind === "orchestrator" ? (projectId ?? ctx.notesProjectId) : null;
-        if (notesProjectId && notesProjectId !== ctx.notesProjectId) {
-          if (!(await readableProjectIds(ctx)).includes(notesProjectId))
-            return { error: `Project ${projectId} does not exist` };
-          if ((await closedProjects(ctx)).has(notesProjectId)) return { error: `Project ${projectId}: ${WITHHELD_NOTE}` };
+        // Only the super agent names a project here, and reads it as a run in it would: the others read the run's.
+        const named = ctx.agent.kind === "orchestrator" ? projectId : undefined;
+        if (named && named !== ctx.projectId) {
+          if (!(await readableProjectIds(ctx)).includes(named)) return { error: `Project ${named} does not exist` };
+          if ((await closedProjects(ctx)).has(named)) return { error: `Project ${named}: ${WITHHELD_NOTE}` };
         }
         const found = await searchMemories(query, {
           agentId: ctx.agent.id,
-          projectId: ctx.projectId,
-          notesProjectId,
+          projectId: named ?? ctx.projectId,
+          notesProjectId: ctx.agent.kind === "orchestrator" ? ctx.notesProjectId : null,
           limit: 10,
         });
         // What search returns is a use: entries found often, by different queries, are promoted.
@@ -179,7 +178,7 @@ export const memoryTools: Record<string, ToolFactory> = {
         // A run writes only to its own project; the super agent names the project it writes about.
         // In a project's Telegram topic, notes and team entries are about that project unless it names another.
         const pid = isOrchestrator
-          ? (projectId ?? (scope === "mine" || scope === "team" ? (ctx.topicProject?.id ?? null) : null))
+          ? (projectId ?? (scope === "mine" || scope === "team" ? (ctx.projectId ?? ctx.topicProject?.id ?? null) : null))
           : ctx.projectId;
         if ((scope === "mine" || scope === "team") && !pid) {
           return {
@@ -217,13 +216,12 @@ export const memoryTools: Record<string, ToolFactory> = {
           ),
         );
         if ("error" in result) return result;
-        // Another project's team memory is not the run's to read (the super agent's included, whatever the
-        // project's provider restriction), nor its notes on a project closed to its models: the answer
-        // names no entry's content, only ids.
+        // Only the super agent writes to another project than the run's; what it may not read there (a
+        // project closed to its models) the answer names by id only, never by content.
         const blind =
           target.projectId !== null &&
           target.projectId !== ctx.projectId &&
-          (scope === "team" || (await closedProjects(ctx)).has(target.projectId));
+          (await closedProjects(ctx)).has(target.projectId);
         if ("duplicateOf" in result) {
           return {
             saved: false,

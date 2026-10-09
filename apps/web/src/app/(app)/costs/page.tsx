@@ -1,4 +1,4 @@
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Bot, ChartColumn, Cog, Cpu, FolderKanban, Wallet } from "lucide-react";
+import { Activity, Bot, ChartColumn, Cog, Cpu, FolderKanban, Wallet } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
@@ -13,6 +13,7 @@ import { AgentChip } from "@/components/runs/agent-chip";
 import { parseCostPeriod } from "@/lib/cost-periods";
 import { getFormat } from "@/server/format";
 import { getCostReport } from "@/server/queries/costs";
+import { getAppSettings } from "@/server/queries/settings";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("costs");
@@ -22,7 +23,12 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CostsPage(props: PageProps<"/costs">) {
   const sp = await props.searchParams;
   const days = parseCostPeriod(sp.days);
-  const [report, t, fmt] = await Promise.all([getCostReport(days), getTranslations("costs"), getFormat()]);
+  const [report, settings, t, fmt] = await Promise.all([
+    getCostReport(days),
+    getAppSettings(),
+    getTranslations("costs"),
+    getFormat(),
+  ]);
   const { total } = report;
 
   const agentRows: BreakdownRow[] = report.byAgent.map((r) => ({
@@ -87,16 +93,19 @@ export default async function CostsPage(props: PageProps<"/costs">) {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4">
         <CostKpi icon={Wallet} label={t("totals.cost", { days })} value={fmt.usd(total.cost)} />
         <CostKpi
           icon={Activity}
           label={t("totals.runs")}
           value={String(total.runs)}
           hint={total.runs ? t("totals.average", { cost: fmt.usd(total.cost / total.runs) }) : undefined}
+          href="/runs"
         />
-        <CostKpi icon={ArrowDownToLine} label={t("totals.inputTokens")} value={fmt.tokens(total.inputTokens)} />
-        <CostKpi icon={ArrowUpFromLine} label={t("totals.outputTokens")} value={fmt.tokens(total.outputTokens)} />
+      </div>
+
+      <div id="budget" className="scroll-mt-20">
+        <BudgetUsage budgets={report.budgets} settings={settings.budget} />
       </div>
 
       <SectionCard
@@ -134,7 +143,6 @@ export default async function CostsPage(props: PageProps<"/costs">) {
           rows={modelRows}
           total={total.cost}
         />
-        <BudgetUsage budgets={report.budgets} />
       </div>
     </PageBody>
   );

@@ -11,15 +11,15 @@ import { useSettingsForm } from "./use-settings-form";
 
 const L = SETTINGS_LIMITS.previews;
 
-/** Settings > Previews: how long the links of new previews stay open. */
+/** Part of Settings > System: how long the links of new previews stay open. */
 export function PreviewsSettingsForm({ initial }: { initial: AppSettings["previews"] }) {
   const t = useTranslations("settings.previews");
   const form = useSettingsForm("previews", initial);
   const { values, set, error } = form;
 
   return (
-    <div className="flex flex-col gap-6">
-      <FormSection id="previews-links" icon={Link2} title={t("links.title")} description={t("links.description")}>
+    <>
+      <FormSection id="previews" icon={Link2} title={t("links.title")} description={t("links.description")}>
         <FieldGroup>
           <SettingsNumberField
             id="previews-live-hours"
@@ -52,6 +52,6 @@ export function PreviewsSettingsForm({ initial }: { initial: AppSettings["previe
         onSave={form.save}
         onReset={form.reset}
       />
-    </div>
+    </>
   );
 }

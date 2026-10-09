@@ -1,13 +1,14 @@
 "use client";
 
-import type { AppSettings } from "@abotica/core/settings";
-import { CalendarDays, CalendarRange } from "lucide-react";
+import { type AppSettings, SETTINGS_LIMITS } from "@abotica/core/settings";
+import { BellRing, CalendarDays, CalendarRange } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { FormSection } from "@/components/app/form-section";
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SettingsNumberField } from "./settings-number-field";
 import { SettingsSaveBar } from "./settings-save-bar";
 import { useSettingsForm } from "./use-settings-form";
 
@@ -27,11 +28,11 @@ function useCalendarNames() {
   }, [locale]);
 }
 
-/** Settings > Reports: the daily and the weekly summary, each on or off at a time of the configured time zone. */
+/** The reports part of Settings > Telegram: the daily and the weekly summary, each on or off at a time of the configured time zone. */
 export function ReportsSettingsForm({ initial }: { initial: AppSettings["reports"] }) {
   const t = useTranslations("settings.reports");
   const form = useSettingsForm("reports", initial);
-  const { values, set } = form;
+  const { values, set, error } = form;
   const names = useCalendarNames();
   const hours = Array.from({ length: 24 }, (_, h) => h);
 
@@ -120,6 +121,20 @@ export function ReportsSettingsForm({ initial }: { initial: AppSettings["reports
             )}
           </Field>
         </FieldGroup>
+      </FormSection>
+
+      {/* What waits for the user (the inbox), sent again in one message once it has waited this long. */}
+      <FormSection id="reports-reminders" icon={BellRing} title={t("reminderHours")} description={t("reminderHoursHint")}>
+        <SettingsNumberField
+          id="reports-reminder-hours"
+          label={t("reminderAfter")}
+          value={values.reminderHours}
+          onChange={(reminderHours) => set({ reminderHours })}
+          error={error("reminderHours")}
+          min={SETTINGS_LIMITS.reports.reminderHours.min}
+          max={SETTINGS_LIMITS.reports.reminderHours.max}
+          unit={t("hoursUnit")}
+        />
       </FormSection>
 
       <SettingsSaveBar

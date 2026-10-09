@@ -1,14 +1,12 @@
 import { createHash } from "node:crypto";
 import { mcpOAuthRedirectUrl } from "@abotica/core";
-import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { BackLink } from "@/components/app/back-link";
 import { PageBody } from "@/components/app/page-header";
 import { McpBuiltinDetail } from "@/components/mcp/mcp-builtin-detail";
 import { McpForm } from "@/components/mcp/mcp-form";
-import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import { getMcpServer, getMcpServerDetail, listSecretNames } from "@/server/queries/mcp";
 import { getAssignTargets } from "@/server/queries/skills";
@@ -37,13 +35,7 @@ export default async function McpServerPage(props: PageProps<"/mcp/[id]">) {
     getTranslations("mcp.form"),
   ]);
   if (!server) notFound();
-  const back = (
-    <Button variant="ghost" size="sm" className="-mb-2 self-start" asChild>
-      <Link href="/mcp">
-        <ArrowLeftIcon /> {t("back")}
-      </Link>
-    </Button>
-  );
+  const back = <BackLink href="/mcp">{t("back")}</BackLink>;
   if (server.builtin) {
     const values = {
       id: server.id,

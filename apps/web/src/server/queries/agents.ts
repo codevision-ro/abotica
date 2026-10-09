@@ -64,8 +64,10 @@ export type AgentFormOptions = {
     id: string;
     slug: string;
     name: string;
+    /** For its icon. */
+    transport: "http" | "stdio";
     enabled: boolean;
-    /** Offered to every agent: listed for its permissions, never stored as an assignment. */
+    /** Offered to every agent: listed under its tools, never stored as an assignment. */
     global: boolean;
     /** Key of a bundled server, null for one the user added. */
     builtin: string | null;
@@ -77,10 +79,15 @@ export type AgentFormOptions = {
   projects: { id: string; name: string; managerAgentId: string | null }[];
 };
 
+/** The agents (templates are offered on /agents/new), with their recent activity and projects. */
 export const getAgentList = query(async () => {
-  const rows = await db.select().from(agents).orderBy(asc(agents.kind), asc(agents.name));
+  const rows = await db
+    .select()
+    .from(agents)
+    .where(eq(agents.isTemplate, false))
+    .orderBy(asc(agents.kind), asc(agents.name));
   const ids = rows.map((a) => a.id);
-  if (!ids.length) return { agents: [], templates: [] };
+  if (!ids.length) return [];
 
   const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const since30 = new Date(Date.now() - 30 * 86_400_000);
@@ -123,7 +130,7 @@ export const getAgentList = query(async () => {
       .filter((p) => p.agentId === a.id)
       .map((p) => ({ id: p.id, name: p.name })),
   }));
-  return { agents: enriched.filter((a) => !a.isTemplate), templates: enriched.filter((a) => a.isTemplate) };
+  return enriched;
 });
 
 export const getAgentRelations = query(async (agentId: string) => {
@@ -176,6 +183,7 @@ export const getAgentFormOptions = query(async (): Promise<AgentFormOptions> => 
         id: mcpServers.id,
         slug: mcpServers.slug,
         name: mcpServers.name,
+        transport: mcpServers.transport,
         enabled: mcpServers.enabled,
         global: mcpServers.global,
         builtin: mcpServers.builtin,
@@ -373,23 +381,13 @@ export const listAgentRuns = query(async (agentId: string, limit: number = 50) =
     .limit(limit);
 });
 
-export const listAgentSchedules = query(async (agentId: string) => {
-  return db
-    .select({
-      id: schedules.id,
-      name: schedules.name,
-      kind: schedules.kind,
-      cron: schedules.cron,
-      runAt: schedules.runAt,
-      timezone: schedules.timezone,
-      enabled: schedules.enabled,
-      lastRunAt: schedules.lastRunAt,
-      projectName: projects.name,
-    })
+/** How many schedules run the agent: the Activity tab links to them in Automations. */
+export const countAgentSchedules = query(async (agentId: string) => {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(schedules)
-    .leftJoin(projects, eq(projects.id, schedules.projectId))
-    .where(eq(schedules.agentId, agentId))
-    .orderBy(asc(schedules.name));
+    .where(eq(schedules.agentId, agentId));
+  return row?.count ?? 0;
 });
 
 /** Names for skill/MCP ids referenced by snapshots (ids may point to deleted rows). */

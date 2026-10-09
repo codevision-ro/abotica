@@ -1,18 +1,18 @@
 "use client";
 
 import type { ProviderId } from "@abotica/core";
-import { Database, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { SectionCard } from "@/components/app/section-card";
+import { FormSubsection } from "@/components/app/form-section";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { refreshModelCatalog } from "@/server/actions/settings";
 import { ProviderIcon } from "./provider-icon";
 
-/** The model catalog card: models per active provider, with a refresh from models.dev. */
+/** Under Settings > Models > Advanced, the model catalog: models per active provider, with a refresh from models.dev. */
 export function CatalogRefresh({
   labels,
   initialCounts,
@@ -36,8 +36,7 @@ export function CatalogRefresh({
   }
 
   return (
-    <SectionCard
-      icon={Database}
+    <FormSubsection
       title={t("catalogTitle")}
       description={t("catalogDescription")}
       action={
@@ -59,6 +58,6 @@ export function CatalogRefresh({
           </li>
         ))}
       </ul>
-    </SectionCard>
+    </FormSubsection>
   );
 }

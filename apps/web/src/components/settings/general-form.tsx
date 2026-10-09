@@ -8,7 +8,7 @@ import { SettingsSaveBar } from "./settings-save-bar";
 import { TimeZoneSelect } from "./time-zone-select";
 import { useSettingsForm } from "./use-settings-form";
 
-/** Settings > General: the time zone. The language next to it saves on its own (LanguageSelect). */
+/** The general settings page: the time zone. The language next to it saves on its own (LanguageSelect). */
 export function GeneralSettingsForm({ initial }: { initial: GeneralSettings }) {
   const t = useTranslations("settings.general");
   const form = useSettingsForm("general", initial);

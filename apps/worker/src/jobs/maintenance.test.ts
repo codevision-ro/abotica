@@ -72,7 +72,7 @@ vi.mock("./llm", () => ({ systemCompletion: vi.fn() }));
 
 const core = await import("@abotica/core");
 const { systemCompletion } = await import("./llm");
-const { consolidate, writeJournals } = await import("./maintenance");
+const { consolidate, MAINTENANCE_INTERVALS_MS, writeJournals } = await import("./maintenance");
 
 const FACT = JSON.stringify({ fact: "Deploys go to Hetzner.", retention: "durable" });
 
@@ -207,5 +207,11 @@ describe("writeJournals", () => {
 
     await writeJournals();
     expect(state.written).toEqual([expect.objectContaining({ fromUntrusted: false })]);
+  });
+});
+
+describe("the periodic jobs", () => {
+  it("sweep the follow-ups every minute, so questions, deadlines, quiet tasks and retries keep moving", () => {
+    expect(MAINTENANCE_INTERVALS_MS.followups).toBe(60_000);
   });
 });

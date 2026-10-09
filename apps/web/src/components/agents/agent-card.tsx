@@ -6,7 +6,6 @@ import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { ToneBadge } from "@/components/app/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { createFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AgentEnabledSwitch } from "./agent-actions";
@@ -45,7 +44,6 @@ export function KindBadge({ kind }: { kind: AgentKind }) {
 
 type CardAgent = {
   id: string;
-  slug: string;
   name: string;
   role: string;
   avatar: AgentAvatarValue;
@@ -142,30 +140,6 @@ export function AgentCard({ agent }: { agent: CardAgent }) {
             b: (chunks) => <b className="font-medium text-foreground">{chunks}</b>,
           })}
         </span>
-      </div>
-    </div>
-  );
-}
-
-export function TemplateCard({
-  agent,
-}: {
-  agent: Pick<CardAgent, "id" | "slug" | "name" | "role" | "avatar" | "provider" | "model" | "kind">;
-}) {
-  const t = useTranslations("agents.card");
-  return (
-    <div className={cn(CARD, "gap-3")}>
-      <div className="flex items-center gap-3">
-        <CardIdentity href={`/agents/${agent.id}`} agent={agent} noRole={t("noRole")} />
-      </div>
-      <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
-        <div className="flex min-w-0 flex-1 gap-1.5">
-          <KindBadge kind={agent.kind} />
-          <ModelBadge provider={agent.provider} model={agent.model} />
-        </div>
-        <Button size="sm" variant="outline" className="relative z-10 shrink-0" asChild>
-          <Link href={`/agents/new?template=${agent.slug}`}>{t("use")}</Link>
-        </Button>
       </div>
     </div>
   );

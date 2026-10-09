@@ -9,7 +9,7 @@ import type { QueryParams } from "@/hooks/use-query-update";
 import { cn } from "@/lib/utils";
 
 /** Params that belong to one tab and are dropped when switching. */
-const TAB_SCOPED = new Set(["tab", "page", "project", "agent"]);
+const TAB_SCOPED = new Set(["tab", "page", "project", "agent", "from", "to"]);
 
 /**
  * Tab strip stored in `?tab=`: each tab is a real link (prefetched, opens in a new tab), the other

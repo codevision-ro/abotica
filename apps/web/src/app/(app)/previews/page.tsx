@@ -14,7 +14,7 @@ export default async function PreviewsPage() {
   return (
     <PageBody>
       <PageHeader title={t("title")} description={t("intro")} />
-      <PreviewList previews={previews} showOwner />
+      <PreviewList previews={previews} showOwner variant="page" />
     </PageBody>
   );
 }

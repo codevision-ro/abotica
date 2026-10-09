@@ -37,6 +37,7 @@ import {
   settingsLocale,
   startAllWaitingTasks,
   sweepFiles,
+  sweepFollowUps,
   sweepPreviews,
   syncPullRequests,
   syncSettingsSchedules,
@@ -419,6 +420,8 @@ export const MAINTENANCE_INTERVALS_MS = {
   "prs-sync": MINUTE_MS,
   // Picks up a re-embedding after a restart, and tries again after a provider error; idle, one query.
   "embeddings-reindex": MINUTE_MS,
+  // Questions, deadlines, quiet tasks, due retries and the user's reminders (tasks/followups.ts).
+  followups: MINUTE_MS,
   "files-sweep": HOUR_MS,
   "previews-sweep": HOUR_MS,
   "updates-check": 6 * HOUR_MS,
@@ -469,6 +472,8 @@ export function startMaintenanceWorker() {
           return void (await notifyUpdateAvailable(await checkForUpdates()));
         case "embeddings-reindex":
           return reindexEmbeddings();
+        case "followups":
+          return sweepFollowUps();
       }
     },
     { connection: createRedis(), concurrency: WORKER_CONCURRENCY.maintenance },

@@ -1,14 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { agents, db, tasks, triggers } from "@abotica/db";
 import { and, eq } from "@abotica/db/orm";
-import { getTranslator, UserError } from "@abotica/i18n";
+import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
 import { audit } from "../platform/audit";
 import { getSettings, settingsLocale } from "../settings/settings";
-import { loadDelegationProject } from "../tasks/delegation";
+import { loadDelegationProject, reportTask } from "../tasks/delegation";
 import { env } from "../infra/env";
 import type { Run } from "../runs/runs";
 import { startDelegatedTask } from "../tasks/delegation-slots";
-import { TaskCircuitOpenError, unblockedDependents } from "../tasks/tasks";
+import { handOffFiles } from "../tasks/handoffs";
+import { addTaskComment, isActiveTaskRunConflict, type Task, unblockedDependents, updateTask } from "../tasks/tasks";
 import { checkAutomationTarget, type Delegator, worksIn } from "../tasks/team-rules";
 import { usesWebhook, WEBHOOK_RATE_LIMIT_BOUNDS } from "./trigger-events";
 import { encrypt } from "../platform/vault";
@@ -213,7 +214,10 @@ export async function assertWorksIn(agentId: string, projectId: string | null): 
   if (!agent || !project || !worksIn(agent, project)) throw new AgentNotOnTeamError();
 }
 
-/** Fires task.created / task.done triggers and starts tasks whose dependencies just finished. */
+/**
+ * Fires task.created / task.done triggers. On done, hands the task's files to the tasks waiting on it,
+ * then starts those whose dependencies are now all done.
+ */
 export async function handleTaskEvent(taskId: string, event: "created" | "done"): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) return; // deleted since the event was queued
@@ -241,18 +245,54 @@ export async function handleTaskEvent(taskId: string, event: "created" | "done")
   }
 
   if (event === "done") {
+    // Before the dependents start, so their first brief lists the files. A failed copy holds no one back.
+    await handOffFiles(task.id).catch((error: unknown) =>
+      console.error(`[triggers] handing the files of task ${task.id} on failed:`, error),
+    );
     for (const next of await unblockedDependents(task.id)) {
       if (!next.assigneeAgentId || next.status !== "backlog") continue;
       try {
+        await assertAssigneeEnabled(next.assigneeAgentId);
         // A delegated one takes a place of its delegator's conversation, or waits for one.
         await startDelegatedTask(next.id);
       } catch (error) {
-        if (error instanceof TaskCircuitOpenError) {
-          console.warn(`[triggers] task ${next.id} not started after ${task.id}: its runs keep failing`);
-        } else {
-          console.error(`[triggers] starting task ${next.id} after ${task.id} failed:`, error);
-        }
+        if (isActiveTaskRunConflict(error)) continue; // started meanwhile
+        await cannotStart(next, task, error);
       }
     }
+  }
+}
+
+/** A disabled assignee's run would only fail in the worker: the dependent is stopped before that. */
+async function assertAssigneeEnabled(agentId: string): Promise<void> {
+  const [agent] = await db
+    .select({ slug: agents.slug, enabled: agents.enabled })
+    .from(agents)
+    .where(eq(agents.id, agentId));
+  if (agent && !agent.enabled) throw new UserError("errors.run.agentDisabled", { agent: agent.slug });
+}
+
+/**
+ * A dependent whose dependencies are done but which cannot start (its runs keep failing, its assignee is
+ * disabled): blocked with the reason, and reported at once, so its delegator decides instead of the task
+ * waiting unseen.
+ */
+async function cannotStart(next: Task, dependency: Task, error: unknown): Promise<void> {
+  try {
+    const t = getTranslator(settingsLocale(await getSettings()));
+    const reason = isUserError(error)
+      ? translateKey(t, error.key, error.values)
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    await updateTask(next.id, { status: "blocked" }, "system");
+    await addTaskComment(
+      next.id,
+      t("notifications.dependencies.cannotStart", { dependency: dependency.title, reason }),
+      "system",
+    );
+    await reportTask(next.id);
+  } catch (failure) {
+    console.error(`[triggers] blocking task ${next.id}, which could not start after ${dependency.id}, failed:`, failure);
   }
 }

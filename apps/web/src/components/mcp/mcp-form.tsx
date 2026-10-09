@@ -31,7 +31,6 @@ import { SettingsNumberField } from "@/components/settings/settings-number-field
 import type { PickerOption } from "@/components/skills/assignment-picker";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
 import { useDirtySnapshot } from "@/hooks/use-dirty-snapshot";
 import { cn } from "@/lib/utils";
 import {
@@ -45,7 +44,7 @@ import {
 } from "@/server/actions/mcp";
 import type { McpOAuthStatus } from "@/server/queries/mcp";
 import { AssignmentChips } from "./assignment-chips";
-import { McpActiveSwitch, McpGlobalSwitch } from "./mcp-switch-row";
+import { McpActiveSwitch, McpGlobalSwitch, McpSwitchRow } from "./mcp-switch-row";
 import { type KeyValueRow, toRecord, toRows } from "./key-value-editor";
 import { McpFormAuth } from "./mcp-form-auth";
 import {
@@ -144,7 +143,6 @@ export function McpForm({
   const tc = useTranslations("common.actions");
   const tr = useTranslations("mcp.testResult");
   const tOAuth = useTranslations("mcp.oauth");
-  const ts = useTranslations("sandbox.mcp");
   const tn = useTranslations("sandbox.network");
   const te = useTranslations("errors");
   const tv = useTranslations("mcp.validation");
@@ -337,7 +335,7 @@ export function McpForm({
   }
 
   const vaultLink = (chunks: React.ReactNode) => (
-    <Link href="/settings/secrets" className="underline underline-offset-2">
+    <Link href="/settings/keys" className="underline underline-offset-2">
       {chunks}
     </Link>
   );
@@ -406,17 +404,21 @@ export function McpForm({
         ? t("lastSeen", { count: toolCount })
         : t("notTested");
   const routes = routeCount(routeRows);
-  const sandboxSummary = sandboxed
-    ? [
-        workspace === "run" ? t("workspaceRun") : t("workspaceServer"),
-        policySummary.network(network),
-        ...(routes ? [t("credentialRoutes.count", { count: routes })] : []),
-      ].join(" · ")
-    : ts("outside");
-  const advancedSummary = t("advancedSummary", {
-    connect: connectTimeout ?? MCP_TIMEOUTS.connectSec.default,
-    call: callTimeout ?? MCP_TIMEOUTS.callSec.default,
-  });
+  // The sandbox details live under Advanced, so its summary names them while it is closed.
+  const sandboxDetails = transport === "stdio" && sandboxed;
+  const advancedSummary = [
+    ...(sandboxDetails
+      ? [
+          workspace === "run" ? t("workspaceRun") : t("workspaceServer"),
+          policySummary.network(network),
+          ...(routes ? [t("credentialRoutes.count", { count: routes })] : []),
+        ]
+      : []),
+    t("advancedSummary", {
+      connect: connectTimeout ?? MCP_TIMEOUTS.connectSec.default,
+      call: callTimeout ?? MCP_TIMEOUTS.callSec.default,
+    }),
+  ].join(" · ");
   const assignmentSummary = global
     ? t("globalSummary")
     : `${tl("agents", { count: agentIds.length })} · ${tl("projects", { count: projectIds.length })}`;
@@ -452,8 +454,8 @@ export function McpForm({
             <span title={connectionSummary}>{connectionSummary}</span>
           </SummaryItem>
           {transport === "stdio" && (
-            <SummaryItem target={SECTIONS.sandbox} status="info" label={ts("title")}>
-              {sandboxSummary}
+            <SummaryItem target={SECTIONS.sandbox} status="info" label={t("sandboxTitle")}>
+              {sandboxed ? t("sandboxOn") : t("sandboxOff")}
             </SummaryItem>
           )}
           {transport === "http" && (
@@ -566,58 +568,21 @@ export function McpForm({
       </FormSection>
 
       {transport === "stdio" && (
-        <FormSection id={SECTIONS.sandbox} icon={BoxesIcon} title={ts("title")} description={ts("description")}>
-          <label
-            htmlFor="mcp-sandboxed"
-            className="flex cursor-pointer items-center gap-3 rounded-xl border bg-background/60 p-3 dark:bg-input/10"
-          >
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-sm font-medium">{ts("sandboxed")}</span>
-              <span className="text-xs text-muted-foreground">{ts("sandboxedHint")}</span>
-            </span>
-            <Switch id="mcp-sandboxed" checked={sandboxed} onCheckedChange={setSandboxed} />
-          </label>
-          {sandboxed ? (
-            <>
-              <FormSubsection title={t("workspaceLabel")} description={t("workspaceDescription")}>
-                <OptionCards
-                  name="mcp-workspace"
-                  label={t("workspaceLabel")}
-                  value={workspace}
-                  onValueChange={setWorkspace}
-                  options={[
-                    {
-                      value: "server",
-                      icon: BoxIcon,
-                      title: t("workspaceServer"),
-                      description: t("workspaceServerHint"),
-                    },
-                    {
-                      value: "run",
-                      icon: FolderOpenIcon,
-                      title: t("workspaceRun"),
-                      description: t("workspaceRunHint"),
-                    },
-                  ]}
-                />
-              </FormSubsection>
-              <FormSubsection title={tn("label")} description={tn("description")}>
-                <NetworkPolicyEditor name="mcp-network" value={network} onChange={setNetwork} />
-              </FormSubsection>
-              <McpFormCredentialRoutes
-                rows={routeRows}
-                onChange={setRouteRows}
-                secretNames={secretNames}
-                secretsHint={secretsHint}
-              />
-            </>
-          ) : (
+        <FormSection id={SECTIONS.sandbox} icon={BoxesIcon} title={t("sandboxTitle")} description={t("sandboxDescription")}>
+          <McpSwitchRow
+            id="mcp-sandboxed"
+            title={t("sandboxed")}
+            hint={t("sandboxedHint")}
+            checked={sandboxed}
+            onCheckedChange={setSandboxed}
+          />
+          {!sandboxed && (
             <p className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/5 p-3 text-sm text-pretty">
               <TriangleAlertIcon
                 className="mt-0.5 size-4 shrink-0 text-[color-mix(in_oklch,var(--warning),black_35%)] dark:text-warning"
                 aria-hidden
               />
-              {ts("unsandboxedWarning")}
+              {t("unsandboxedWarning")}
             </p>
           )}
         </FormSection>
@@ -677,6 +642,41 @@ export function McpForm({
         open={advancedOpen}
         onOpenChange={setAdvancedOpen}
       >
+        {sandboxDetails && (
+          <>
+            <FormSubsection title={t("workspaceLabel")} description={t("workspaceDescription")}>
+              <OptionCards
+                name="mcp-workspace"
+                label={t("workspaceLabel")}
+                value={workspace}
+                onValueChange={setWorkspace}
+                options={[
+                  {
+                    value: "server",
+                    icon: BoxIcon,
+                    title: t("workspaceServer"),
+                    description: t("workspaceServerHint"),
+                  },
+                  {
+                    value: "run",
+                    icon: FolderOpenIcon,
+                    title: t("workspaceRun"),
+                    description: t("workspaceRunHint"),
+                  },
+                ]}
+              />
+            </FormSubsection>
+            <FormSubsection title={tn("label")} description={tn("description")}>
+              <NetworkPolicyEditor name="mcp-network" value={network} onChange={setNetwork} />
+            </FormSubsection>
+            <McpFormCredentialRoutes
+              rows={routeRows}
+              onChange={setRouteRows}
+              secretNames={secretNames}
+              secretsHint={secretsHint}
+            />
+          </>
+        )}
         <SettingsNumberField
           id="mcp-connect-timeout"
           nullable

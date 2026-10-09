@@ -51,11 +51,8 @@
     "tabs": {
       "overview": "Prezentare",
       "tasks": "Task-uri",
-      "memory": "Memorie",
-      "knowledge": "Knowledge base",
+      "knowledge": "Cunoștințe",
       "repos": "Repository-uri",
-      "previews": "Preview-uri",
-      "secrets": "Credențiale",
       "team": "Echipă"
     },
     "chat": "Discută cu managerul",
@@ -75,15 +72,6 @@
     "recentRuns": "Rulări recente",
     "noRuns": "Nicio rulare încă. Discută cu managerul ca să începi.",
     "noRole": "Fără rol",
-    "config": {
-      "title": "Configurare",
-      "providers": "Provideri",
-      "allProviders": "Toți",
-      "monthlyBudget": "Buget lunar",
-      "unlimited": "Nelimitat",
-      "telegramTopic": "Topic Telegram",
-      "notSet": "Nesetat"
-    },
     "team": "Echipă",
     "manageTeam": "Gestionează echipa",
     "noManager": "Niciun manager încă. <link>Organizează echipa</link>"
@@ -101,14 +89,16 @@
     "goalsDescription": "Agenții le primesc în context la fiecare rulare din proiect.",
     "goalsPlaceholder": "- Creștere vânzări cu 20%\n- Un articol de blog pe săptămână",
     "goalsMissing": "Nesetate încă",
-    "limitsTitle": "Buget și provideri",
+    "budgetTitle": "Buget",
     "budgetLabel": "Buget lunar (USD)",
     "budgetPlaceholder": "Nelimitat",
     "budgetSummary": "{budget} USD/lună",
     "noBudget": "Fără limită de buget",
     "providersLabel": "Provideri permiși",
-    "providersHint": "Niciunul selectat înseamnă toți providerii.",
+    "providersHint": "Doar modelele acestor provideri lucrează la proiect, de exemplu ca datele sensibile să rămână la un singur provider. Niciunul selectat: toți providerii.",
+    "providersSummary": "Doar {providers}",
     "allProviders": "Toți providerii",
+    "advancedTitle": "Avansat",
     "telegramTitle": "Telegram",
     "topicLabel": "Topic id",
     "topicPlaceholder": "ex: 42",
@@ -144,14 +134,14 @@
     "restore": "Reactivează",
     "restored": "Proiect reactivat",
     "deleteTitle": "Șterge proiectul",
-    "deleteDescription": "Șterge definitiv proiectul împreună cu task-urile, memoriile, knowledge base-ul și credențialele lui.",
+    "deleteDescription": "Șterge definitiv proiectul împreună cu task-urile, memoriile, knowledge base-ul și cheile lui.",
     "confirmTitle": "Ștergi proiectul {name}?",
-    "confirmDescription": "Acțiunea nu poate fi anulată. Se șterg și toate task-urile, memoriile, documentele din knowledge base, credențialele, programările și triggerele proiectului. Rulările rămân în istoric, fără legătura cu proiectul.",
+    "confirmDescription": "Acțiunea nu poate fi anulată. Se șterg și toate task-urile, memoriile, documentele din knowledge base, cheile, programările și triggerele proiectului. Rulările rămân în istoric, fără legătura cu proiectul.",
     "confirm": "Șterge definitiv",
     "deleted": "Proiect șters"
   },
   "knowledge": {
-    "intro": "Documente, linkuri și fișiere pe care agenții proiectului le pot căuta. Conținutul este împărțit în fragmente și indexat pentru căutare semantică (fără cheie OpenAI se folosește căutarea text).",
+    "intro": "Documente, linkuri și fișiere în care agenții proiectului pot căuta. Textul este indexat pentru căutare imediat ce este adăugat.",
     "kinds": {
       "document": "Document",
       "link": "Link",
@@ -193,28 +183,6 @@
     "title": "Knowledge base",
     "notSearchable": "păstrat, nu poate fi căutat"
   },
-  "secrets": {
-    "nameExample": "NUME",
-    "intro": "Chei API și tokenuri folosite doar în acest proiect, criptate în vault. Valorile nu sunt afișate niciodată. Agenții le folosesc în configurația serverelor MCP ca <code>{example}</code>.",
-    "empty": "Nicio credențială de proiect încă. Adaugă chei specifice proiectului, ex: <code>{example}</code>.",
-    "updatedAt": "actualizat {date}",
-    "deleted": "Credențială ștearsă",
-    "deleteDescription": "Configurațiile MCP care folosesc {reference} nu vor mai găsi valoarea în vault.",
-    "editLabel": "Editează {name}",
-    "add": "Adaugă credențială",
-    "editTitle": "Actualizează {name}",
-    "newTitle": "Credențială nouă",
-    "dialogDescription": "Valoarea este criptată și nu mai poate fi văzută după salvare.",
-    "nameLabel": "Nume",
-    "nameHint": "Doar litere mari, cifre și _. Numele este unic în toată platforma, de aceea recomandăm prefixul <code>{prefix}</code>.",
-    "valueLabel": "Valoare",
-    "valueKeepPlaceholder": "Lasă gol ca să păstrezi valoarea actuală",
-    "descriptionLabel": "Descriere",
-    "descriptionPlaceholder": "ex: cheie API Shopify pentru magazin",
-    "saved": "Credențială salvată",
-    "updated": "Credențială actualizată",
-    "title": "Credențiale"
-  },
   "tasks": {
     "newTask": "Task nou",
     "empty": "Niciun task în proiect încă. Creează unul sau cere-i managerului de proiect să planifice munca.",
@@ -226,8 +194,7 @@
     "titleRequired": "Titlul este obligatoriu",
     "contentEmpty": "Conținutul este gol",
     "invalidUrl": "URL invalid",
-    "searchRequired": "Scrie o căutare",
-    "secretNameFormat": "Numele poate conține doar litere mari, cifre și _"
+    "searchRequired": "Scrie o căutare"
   },
   "errors": {
     "notFound": "Proiectul nu există",
@@ -239,9 +206,9 @@
     "unsupportedContentType": "Tip de conținut nesuportat: {type}",
     "unknownContentType": "Tip de conținut nesuportat: necunoscut",
     "emptyPage": "Pagina nu conține text",
-    "secretNameTaken": "Numele {name} este deja folosit de alt secret. Alege alt nume.",
+    "secretNameTaken": "Numele {name} este deja folosit de altă cheie. Alege alt nume.",
     "secretValueRequired": "Valoarea este obligatorie",
-    "secretNotSet": "Secretul {name} nu este setat în vault",
-    "secretOtherProject": "Secretul {name} aparține altui proiect și nu poate fi folosit aici"
+    "secretNotSet": "Cheia {name} nu este setată în Chei",
+    "secretOtherProject": "Cheia {name} aparține altui proiect și nu poate fi folosită aici"
   }
 }

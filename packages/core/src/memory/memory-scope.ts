@@ -11,8 +11,9 @@ type Scoped = { scope: "global" | "project" | "agent"; agentId: string | null; p
 
 /**
  * The run asking: its agent and the one project it works in (null outside projects). The super agent
- * never works in one: `notesProjectId` is the project whose notes it reads (the one its Telegram topic
- * belongs to, or the one memory_search names), without that project's team memory.
+ * works outside projects (in one only on a task of its own there): `notesProjectId` is the project whose
+ * notes it reads there (the one its Telegram topic belongs to), without that project's team memory. A
+ * project its memory_search names it reads as `projectId`, team memory included.
  */
 export type MemoryReader = { agentId: string; projectId: string | null; notesProjectId?: string | null };
 

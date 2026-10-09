@@ -8,7 +8,7 @@ import { getSettings, settingsLocale } from "../settings/settings";
 
 /**
  * A monthly budget with what was spent against it since the start of the month (settings timezone).
- * `global` is the one from Settings > Budget, across all projects; `project` a project's own.
+ * `global` is the one set in Costs, across all projects; `project` a project's own.
  */
 export type MonthlyBudget =
   | { scope: "global"; budgetUsd: number; spentUsd: number }

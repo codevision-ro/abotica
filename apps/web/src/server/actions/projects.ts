@@ -13,7 +13,6 @@ import {
   ensureProjectManager as ensureManager,
   fetchPageText,
   indexKnowledgeItem,
-  parseSandboxPolicy,
   PROJECT_STATUSES,
   type ProjectStatus,
   PROVIDER_IDS,
@@ -22,10 +21,7 @@ import {
   searchKnowledge,
   setProjectManager as setManager,
   updateProject as updateProjectRow,
-  upsertSecret,
 } from "@abotica/core";
-import { db, secrets } from "@abotica/db";
-import { and, eq } from "@abotica/db/orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { action } from "../action";
@@ -74,19 +70,12 @@ export const createProject = action(
   },
 );
 
-export const updateProject = action(
-  // The sandbox policy is validated by core's parser, which names the bad domain or package.
-  projectInput.extend({ id: uuid, sandbox: z.unknown().optional() }),
-  async ({ id, sandbox, ...input }) => {
-    await updateProjectRow(id, {
-      ...input,
-      ...(sandbox !== undefined && { sandbox: sandbox === null ? null : parseSandboxPolicy(sandbox) }),
-    });
-    await audit({ actor: "user", action: "project.updated", entityType: "project", entityId: id });
-    revalidateProject(id);
-    return { id };
-  },
-);
+export const updateProject = action(projectInput.extend({ id: uuid }), async ({ id, ...input }) => {
+  await updateProjectRow(id, input);
+  await audit({ actor: "user", action: "project.updated", entityType: "project", entityId: id });
+  revalidateProject(id);
+  return { id };
+});
 
 export const setProjectStatus = action(
   z.object({ id: uuid, status: z.enum(PROJECT_STATUSES as [ProjectStatus, ...ProjectStatus[]]) }),
@@ -219,35 +208,3 @@ export const searchProjectKnowledge = action(
   z.object({ projectId: uuid, query: z.string().trim().min(1, "projects.validation.searchRequired") }),
   async ({ projectId, query }) => searchKnowledge(query, [projectId], 8),
 );
-
-/* Project credentials */
-
-const secretName = z
-  .string()
-  .trim()
-  .min(2)
-  .max(80)
-  .regex(/^[A-Z0-9_]+$/, "projects.validation.secretNameFormat");
-
-export const setProjectSecret = action(
-  z.object({
-    projectId: uuid,
-    name: secretName,
-    value: z.string().default(""),
-    description: z.string().max(500).default(""),
-  }),
-  async ({ projectId, name, value, description }) => {
-    await upsertSecret({ name, value, description, projectId });
-    revalidateProject(projectId);
-  },
-);
-
-export const deleteProjectSecret = action(z.object({ id: uuid, projectId: uuid }), async ({ id, projectId }) => {
-  const [row] = await db
-    .delete(secrets)
-    .where(and(eq(secrets.id, id), eq(secrets.projectId, projectId)))
-    .returning({ name: secrets.name });
-  if (row)
-    await audit({ actor: "user", action: "secret.deleted", entityType: "secret", entityId: row.name, data: { projectId } });
-  revalidateProject(projectId);
-});

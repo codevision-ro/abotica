@@ -39,7 +39,7 @@ import { isActive, NAV } from "./nav";
 type Props = {
   user: { name: string; email: string };
   badges: Partial<Record<string, number>>;
-  /** A newer Abotica release, shown as a quiet link to Settings > Updates. */
+  /** A newer Abotica release, shown as a quiet link to Settings > System. */
   update: string | null;
 };
 
@@ -103,7 +103,7 @@ export function AppSidebar({ user, badges, update }: Props) {
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild
-                      isActive={isActive(pathname, item.href)}
+                      isActive={isActive(pathname, item)}
                       tooltip={count ? t("badgeTooltip", { title, count }) : title}
                       className={NAV_BUTTON}
                     >
@@ -136,7 +136,7 @@ export function AppSidebar({ user, badges, update }: Props) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                isActive={isActive(pathname, "/settings/system")}
+                isActive={isActive(pathname, { href: "/settings/system" })}
                 tooltip={t("updateTooltip", { version: `v${update}` })}
                 className="h-9 gap-2.5 rounded-lg px-2.5 text-sidebar-foreground/80 hover:bg-primary/8 hover:text-sidebar-foreground data-[active=true]:bg-primary/8 data-[active=true]:text-sidebar-foreground dark:hover:bg-primary/15 dark:data-[active=true]:bg-primary/15 [&>svg]:text-primary"
               >
@@ -200,8 +200,8 @@ export function AppSidebar({ user, badges, update }: Props) {
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/settings/security" onClick={closeOnMobile}>
-                    <ShieldCheck /> {t("security")}
+                  <Link href="/settings/account" onClick={closeOnMobile}>
+                    <ShieldCheck /> {t("account")}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem

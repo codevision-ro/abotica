@@ -23,6 +23,8 @@ type SettingsFormOptions<D extends SettingsDomain> = {
    * (the default models); `values` is the whole validated domain. Returns the domain as stored.
    */
   submit?: (patch: SettingsPatch<AppSettings[D]>, values: AppSettings[D]) => Promise<SaveResult<AppSettings[D]>>;
+  /** Runs after a successful save, with the domain as stored (a dialog closes itself). */
+  onSaved?: (next: AppSettings[D]) => void;
 };
 
 /**
@@ -72,6 +74,7 @@ export function useSettingsForm<D extends SettingsDomain>(
       setValues(next);
       setSaved(next);
       markSaved(next);
+      options.onSaved?.(next);
       router.refresh();
     });
 

@@ -1,18 +1,23 @@
 "use server";
 
 import {
-  addTaskComment,
   addTaskDependency,
   attachTaskFiles,
+  cancelTask as cancelTaskTree,
   cancelWakeup,
   createTask as insertTask,
   deleteFile,
   deleteTask as removeTask,
   getFile,
+  pauseTask as pauseTaskRun,
   pendingDependencies,
+  postInstruction,
+  redirectTask as redirectTaskCourse,
+  resumeTask as resumeTaskRun,
   startTaskRun as enqueueTaskRun,
   TASK_PRIORITIES,
   TASK_STATUSES,
+  type TaskStatus,
   updateTask as patchTask,
 } from "@abotica/core";
 import { db, taskDependencies, tasks } from "@abotica/db";
@@ -24,6 +29,10 @@ import { z } from "zod";
 import { action } from "../action";
 
 const STATUS = z.enum(TASK_STATUSES);
+/** What the board and the status select may ask for: paused and cancelled go through the task controls. */
+const ANY_STATUS = z.enum([...TASK_STATUSES, "paused", "cancelled"]);
+/** Why the user put the task aside or stopped it, when they gave no reason: read by its agents. */
+const REASON = z.string().trim().max(2_000).optional();
 const PRIORITY = z.enum(TASK_PRIORITIES);
 /** "user" = assigned to the human, "none" = unassigned, otherwise an agent id. */
 const ASSIGNEE = z.union([z.literal("user"), z.literal("none"), z.uuid()]);
@@ -101,33 +110,103 @@ export const createTask = action(
   },
 );
 
+/**
+ * The user moved the task to `status` by hand. Paused and cancelled stop its runs (and, cancelled, its
+ * subtree), and a paused task taken back to in progress resumes in its conversation: those go through
+ * the task controls. True when it did; the caller then sets nothing else.
+ */
+async function controlByStatus(id: string, status: TaskStatus): Promise<boolean> {
+  const t = getTranslator(await getLocale());
+  if (status === "paused") {
+    await pauseTaskRun(id, { by: "user", reason: t("tasks.control.byYou") });
+    return true;
+  }
+  if (status === "cancelled") {
+    await cancelTaskTree(id, { by: "user", reason: t("tasks.control.byYou"), cascade: true });
+    return true;
+  }
+  if (status !== "in_progress") return false;
+  const [task] = await db.select({ status: tasks.status }).from(tasks).where(eq(tasks.id, id));
+  if (task?.status !== "paused") return false;
+  await resumeTaskRun(id, { by: "user" });
+  return true;
+}
+
 export const updateTask = action(
   z.object({
     id: z.uuid(),
     title: z.string().trim().min(1, "tasks.validation.titleRequired").max(300).optional(),
     description: z.string().max(50_000).optional(),
-    status: STATUS.optional(),
+    status: ANY_STATUS.optional(),
     priority: PRIORITY.optional(),
     deadline: z.iso.datetime({ offset: true }).nullable().optional(),
     assignee: ASSIGNEE.optional(),
     projectId: z.uuid().nullable().optional(),
     output: z.string().max(200_000).nullable().optional(),
   }),
-  async ({ id, assignee, deadline, ...rest }) => {
+  async ({ id, assignee, deadline, status, ...rest }) => {
     const patch: Parameters<typeof patchTask>[1] = { ...rest };
+    if (status && !(await controlByStatus(id, status))) patch.status = status;
     if (deadline !== undefined) patch.deadline = deadline ? new Date(deadline) : null;
     if (assignee !== undefined) Object.assign(patch, assigneeFields(assignee));
-    await patchTask(id, patch, "user");
+    if (Object.keys(patch).length) await patchTask(id, patch, "user");
     revalidateTask(id);
   },
 );
 
 /** Drag and drop on the board: new column and/or new position (midpoint between neighbours). */
 export const moveTask = action(
-  z.object({ id: z.uuid(), status: STATUS, position: z.number().finite() }),
+  z.object({ id: z.uuid(), status: ANY_STATUS, position: z.number().finite() }),
   async ({ id, status, position }) => {
-    await patchTask(id, { status, position }, "user");
+    if (await controlByStatus(id, status)) await patchTask(id, { position }, "user");
+    else await patchTask(id, { status, position }, "user");
     revalidatePath("/tasks");
+  },
+);
+
+/** Puts the task aside: its running run stops at its next step, and it waits until resumed. */
+export const pauseTask = action(z.object({ id: z.uuid(), reason: REASON }), async ({ id, reason }) => {
+  const t = getTranslator(await getLocale());
+  await pauseTaskRun(id, { by: "user", reason: reason || t("tasks.control.byYou") });
+  revalidateTask(id);
+});
+
+/** Goes on with a paused or blocked task, in the conversation it worked in. */
+export const resumeTask = action(z.object({ id: z.uuid(), note: REASON }), async ({ id, note }) => {
+  const { run } = await resumeTaskRun(id, { by: "user", note: note || undefined });
+  revalidateTask(id);
+  return { runId: run?.id ?? null };
+});
+
+/** Stops the task for good, with its subtasks and the work delegated from it unless `cascade` is off. */
+export const cancelTask = action(
+  z.object({ id: z.uuid(), reason: REASON, cascade: z.boolean() }),
+  async ({ id, reason, cascade }) => {
+    const t = getTranslator(await getLocale());
+    const { cancelled } = await cancelTaskTree(id, { by: "user", reason: reason || t("tasks.control.byYou"), cascade });
+    revalidateTask(id);
+    return { count: cancelled.length };
+  },
+);
+
+/** Changes the course of a task underway: new instructions, another agent, its priority or deadline. */
+export const redirectTask = action(
+  z.object({
+    id: z.uuid(),
+    instructions: z.string().trim().max(20_000).optional(),
+    reassignTo: z.uuid().optional(),
+    priority: PRIORITY.optional(),
+    deadline: z.iso.datetime({ offset: true }).nullable().optional(),
+  }),
+  async ({ id, instructions, reassignTo, priority, deadline }) => {
+    await redirectTaskCourse(id, {
+      by: "user",
+      instructions: instructions || undefined,
+      reassignTo,
+      priority,
+      deadline: deadline === undefined ? undefined : deadline ? new Date(deadline) : null,
+    });
+    revalidateTask(id);
   },
 );
 
@@ -150,11 +229,16 @@ export const cancelTaskWakeup = action(z.object({ taskId: z.uuid(), id: z.uuid()
   revalidateTask(taskId);
 });
 
-export const createTaskComment = action(
+/**
+ * The user's message on the task: an instruction for its agent, delivered at once (into its running run,
+ * or waking it). Says what became of it: steered, woke the agent, or only stored.
+ */
+export const sendTaskMessage = action(
   z.object({ taskId: z.uuid(), body: z.string().trim().min(1, "tasks.validation.commentEmpty").max(20_000) }),
   async ({ taskId, body }) => {
-    await addTaskComment(taskId, body, "user");
+    const posted = await postInstruction(taskId, body, "user");
     revalidateTask(taskId);
+    return { delivered: posted.delivered, error: posted.error ?? null };
   },
 );
 

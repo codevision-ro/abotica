@@ -39,5 +39,14 @@
     "general": "Reports"
   },
   "taskBlocked": "⛔ **{agent}**: task \"{task}\" is blocked and needs you.",
-  "openTask": "Open the task"
+  "openTask": "Open the task",
+  "followups": {
+    "quietTask": "💤 Task \"{task}\" has been quiet for {minutes} min: nothing works on it, and whoever gave it did not move it after two follow-ups. Open the task to decide.",
+    "deadlineEscalated": "⏰ Task \"{task}\" is late by {minutes} min, and whoever gave it has not moved it. Extend the deadline, raise its priority, redirect it or cancel it.",
+    "blockedTask": "⛔ Task \"{task}\" has been blocked for {minutes} min, and whoever gave it has not acted on it. Open the task to decide.",
+    "retryNotStarted": "The automatic retry could not start: {reason}. Fix the cause, then start the task again."
+  },
+  "dependencies": {
+    "cannotStart": "Could not start after \"{dependency}\" was done: {reason}. Fix the cause, then start the task again."
+  }
 }

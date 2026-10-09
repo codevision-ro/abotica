@@ -96,7 +96,7 @@ export const setOllamaBaseUrl = action(
  */
 export const setEmbeddingProvider = action(z.object({ provider: z.enum(EMBEDDING_PROVIDERS) }), async ({ provider }) => {
   const reindex = await changeEmbeddingProvider(provider);
-  revalidatePath("/settings/memory");
+  revalidatePath("/settings/agents");
   return { total: reindex?.total ?? 0 };
 });
 

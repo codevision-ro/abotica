@@ -51,7 +51,6 @@ const cached: McpToolInfo[] = [
     name: "web_search",
     description: "Search the web",
     inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
-    annotations: { readOnlyHint: true },
   },
   { name: "web_fetch", description: "Read pages", inputSchema: { type: "object" } },
 ];
@@ -92,15 +91,9 @@ describe("loadMcpTools", () => {
     const onLazyError = vi.fn();
     const mcp = await loadMcpTools([server(cached)], { secrets: GLOBAL_SECRETS, onLazyError });
     expect(Object.keys(mcp.tools)).toEqual(["search_test__web_search", "search_test__web_fetch"]);
-    // Every tool starts at allow whatever its hints; readOnly still records what the server declared.
     expect(mcp.sources).toEqual({
-      search_test__web_search: {
-        serverSlug: "search-test",
-        tool: "web_search",
-        defaultPermission: "allow",
-        readOnly: true,
-      },
-      search_test__web_fetch: { serverSlug: "search-test", tool: "web_fetch", defaultPermission: "allow", readOnly: false },
+      search_test__web_search: { serverSlug: "search-test", tool: "web_search" },
+      search_test__web_fetch: { serverSlug: "search-test", tool: "web_fetch" },
     });
     expect(mcp.errors).toEqual([]);
     expect(onLazyError).not.toHaveBeenCalled();

@@ -159,7 +159,8 @@
     "taskCancelled": "The run was cancelled: {reason}",
     "unqueued": "The run never started: its job is no longer in the queue",
     "overdue": "The run went past its time limit and was stopped",
-    "stoppedAtLimit": "The run stopped at a limit before the work was finished: {reason}. The task is not complete: what was done so far is kept, and the rest still has to be done.",
+    "retryScheduled": "Interrupted: {reason}. It resumes automatically at {time} (retry {retry} of {retries}).",
+    "retriesExhausted": "Gave up after {retries, plural, one {# automatic retry} other {# automatic retries}}: {reason}",
     "interrupted": "The run was interrupted: {reason}",
     "toolInterrupted": "Interrupted: the worker stopped while this tool was running. It may or may not have taken effect; check before repeating it."
   },
@@ -174,7 +175,7 @@
     },
     "budget": {
       "label": "Budget reached",
-      "hint": "Raise the budget (the agent's limits, the project, or Settings > Budget), or wait for next month."
+      "hint": "Raise the budget (the agent's limits, the project, or the budget in Costs), or wait for next month."
     },
     "no_model": {
       "label": "No model",

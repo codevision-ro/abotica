@@ -3,9 +3,11 @@ import {
   CircleDashedIcon,
   CircleDotIcon,
   CircleSlashIcon,
+  CircleXIcon,
   ContrastIcon,
   type LucideIcon,
   OctagonAlertIcon,
+  PauseCircleIcon,
   SignalHighIcon,
   SignalLowIcon,
   SignalMediumIcon,
@@ -18,6 +20,8 @@ const STATUS: Record<string, { icon: LucideIcon; className: string }> = {
   blocked: { icon: CircleSlashIcon, className: "text-destructive" },
   review: { icon: CircleDotIcon, className: "text-[color-mix(in_oklch,var(--warning),black_20%)] dark:text-warning" },
   done: { icon: CircleCheckIcon, className: "text-success" },
+  paused: { icon: PauseCircleIcon, className: "text-[color-mix(in_oklch,var(--warning),black_20%)] dark:text-warning" },
+  cancelled: { icon: CircleXIcon, className: "text-muted-foreground" },
 };
 
 const PRIORITY: Record<string, { icon: LucideIcon; className: string }> = {

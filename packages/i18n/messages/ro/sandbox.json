@@ -5,7 +5,7 @@
     "tooManyDomains": "Cel mult {max} domenii.",
     "invalidPackage": "\"{name}\" nu este un nume de pachet valid.",
     "tooManyPackages": "Cel mult {max} pachete pe limbaj.",
-    "mcpNeedsSandbox": "Serverele MCP stdio rulează în sandbox și niciun sandbox nu este disponibil. Activează-l în Setări > Sandbox sau dezactivează izolarea pentru acest server.",
+    "mcpNeedsSandbox": "Serverele MCP stdio rulează în sandbox și niciun sandbox nu este disponibil. Pornește-l din Setări > Sistem sau dezactivează izolarea pentru acest server.",
     "fileTooLarge": "Fișierul depășește {max} MB.",
     "mcpTestTimeout": "Serverul MCP nu a răspuns în {seconds} secunde. Verifică dacă worker-ul rulează."
   },
@@ -47,11 +47,7 @@
     "nodePlaceholder": "sharp sau zod@4"
   },
   "settings": {
-    "title": "Sandbox",
-    "description": "Unde rulează agenții comenzi, instalează pachete și creează fișiere.",
     "status": {
-      "title": "Stare",
-      "description": "Verificată de worker la pornire și după fiecare salvare de aici.",
       "checkAgain": "Verifică din nou",
       "checkFailed": "Nu am putut cere worker-ului verificarea",
       "checked": "Verificat <time></time>",
@@ -89,19 +85,13 @@
         }
       }
     },
-    "defaults": {
-      "title": "Politica implicită",
-      "description": "Pentru conversațiile fără proiect și proiectele care urmează politica implicită."
-    },
     "limits": {
-      "title": "Limite",
-      "description": "Cât poate rula o singură comandă.",
       "commandTimeout": "Timp maxim per comandă",
       "commandTimeoutHint": "Secunde, de la {min} la {max}."
     },
     "docker": {
       "title": "Containere",
-      "description": "Resursele și runtime-ul fiecărui container de workspace.",
+      "description": "Resursele fiecărui container de workspace și cât poate rula o comandă.",
       "memory": "Memorie",
       "memoryHint": "MB per container, de la {min} la {max}.",
       "cpus": "CPU-uri",
@@ -124,8 +114,8 @@
       "gvisorMissing": "gVisor nu este instalat pe acest host Docker."
     },
     "advanced": {
-      "title": "Avansat",
-      "summary": "{pids} procese, pauză după {pause} min, oprire după {stop} h, workspace-urile din chat păstrate {days, plural, one {# zi} few {# zile} other {# de zile}}",
+      "title": "Setări avansate pentru sandbox",
+      "summary": "{policy} · {memory} MB și {cpus} CPU-uri pe container",
       "pids": "Procese",
       "pidsHint": "Numărul maxim de procese per container, de la {min} la {max}.",
       "pauseIdle": "Pauză la inactivitate",
@@ -140,17 +130,13 @@
       "minutes": "min",
       "hours": "h",
       "days": "zile"
+    },
+    "idle": {
+      "title": "La inactivitate",
+      "description": "Ce se întâmplă cu workspace-urile pe care nu le folosește nimeni."
     }
   },
   "project": {
-    "title": "Sandbox",
-    "description": "Accesul la rețea și pachetele din workspace-ul acestui proiect.",
-    "followDefault": "Folosește politica implicită",
-    "custom": "Politică proprie",
-    "customDescription": "Acces la rețea și pachete proprii pentru acest proiect.",
-    "defaultHint": "Politica implicită se schimbă în <link>Setări > Sandbox</link>.",
-    "summaryDefault": "Implicită · {policy}",
-    "summaryCustom": "Proprie · {policy}",
     "resetTitle": "Resetează workspace-ul",
     "resetDescription": "Șterge fișierele, pachetele instalate și cache-urile din workspace-ul proiectului. Următoarea rulare pornește de la zero.",
     "reset": "Resetează",
@@ -158,13 +144,5 @@
     "resetConfirmDescription": "Toate fișierele din workspace se șterg. Fișierele deja trimise în conversații rămân disponibile pentru descărcare.",
     "resetConfirm": "Resetează workspace-ul",
     "resetDone": "Workspace resetat"
-  },
-  "mcp": {
-    "title": "Sandbox",
-    "description": "Unde rulează procesul serverului și ce poate accesa.",
-    "sandboxed": "Rulează în sandbox",
-    "sandboxedHint": "Izolat de fișierele worker-ului, cu accesul la rețea setat mai jos.",
-    "unsandboxedWarning": "Procesul rulează direct în worker, cu fișierele și rețeaua utilizatorului worker-ului. Doar pentru servere de încredere care au nevoie de starea host-ului, de exemplu un cache de browser.",
-    "outside": "În afara sandbox-ului"
   }
 }

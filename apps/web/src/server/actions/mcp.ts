@@ -283,7 +283,7 @@ export const setBuiltinMcpKey = action(
       await audit({ actor: "user", action: "secret.deleted", entityType: "secret", entityId: name });
     }
     revalidateServer(id);
-    revalidatePath("/settings/secrets");
+    revalidatePath("/settings/keys");
     return value !== null;
   },
 );

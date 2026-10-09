@@ -7,19 +7,16 @@
     "withName": "{greeting}, {name}"
   },
   "kpi": {
-    "activeAgents": "Active agents",
     "activeRuns": "{count, plural, one {# run active or queued} other {# runs active or queued}}",
     "idle": "No agent is working right now",
     "openTasks": "Open tasks",
     "inProgress": "In progress",
     "blocked": "Blocked",
     "review": "Review",
-    "pendingApprovals": "Pending approvals",
-    "awaitingDecision": "Agents are waiting for your decision",
-    "nothingToApprove": "Nothing to approve",
     "monthCost": "Cost this month",
     "lastMonth": "Last month: {amount}",
-    "vsLastMonth": "<highlight>{delta}</highlight> vs last month ({amount})"
+    "vsLastMonth": "<highlight>{delta}</highlight> vs last month ({amount})",
+    "workingNow": "Agents working now"
   },
   "dailyCost": {
     "title": "Daily cost",
@@ -51,17 +48,17 @@
       "cta": "New project"
     }
   },
-  "pendingApprovals": {
-    "title": "Pending approvals",
-    "empty": "All caught up. Sensitive agent actions wait here for your approval.",
-    "openRun": "Open the run"
-  },
   "recentRuns": {
     "title": "Recent runs",
-    "empty": "No runs yet. <link>Message the super agent</link> and the first run shows up here."
+    "empty": "No runs yet. <link>Message the super agent</link> and the first run shows up here.",
+    "seeAll": "See all activity"
   },
   "attention": {
-    "title": "Tasks that need attention",
-    "empty": "Nothing blocked or waiting for your review."
+    "title": "Tasks that need attention"
+  },
+  "needsYou": {
+    "title": "Needs you",
+    "description": "Questions, approvals and tasks waiting for your answer.",
+    "openInbox": "Open inbox"
   }
 }

@@ -13,9 +13,7 @@
   "totals": {
     "cost": "Total cost, last {days} days",
     "runs": "Runs",
-    "average": "{cost} average",
-    "inputTokens": "Input tokens",
-    "outputTokens": "Output tokens"
+    "average": "{cost} average"
   },
   "daily": {
     "title": "Daily cost",
@@ -39,10 +37,27 @@
     "noModelHint": "Runs stopped before the first step"
   },
   "budgets": {
-    "title": "Monthly budgets",
-    "description": "This month's spend against the budget. Runs stop when it is reached.",
-    "empty": "No project has a budget. Set one on the project page to cap monthly spend.",
+    "title": "Monthly budget",
+    "description": "This month's spend against the limit for all projects and each project's own. Runs stop when one is reached.",
     "progressLabel": "{name} budget",
-    "global": "All projects (global budget)"
+    "global": "All projects",
+    "noGlobal": "No monthly limit for all projects. Set one to stop runs once it is reached; a project's own is set on its page."
+  },
+  "budgetDialog": {
+    "set": "Set budget",
+    "edit": "Edit",
+    "title": "Monthly budget",
+    "description": "A limit on spending across all projects, background jobs included, and the warnings before it.",
+    "monthly": "Limit per month",
+    "monthlyHint": "Once reached, runs stop and new ones do not start until next month. Empty: no limit.",
+    "noLimit": "No limit",
+    "alertsTitle": "Warnings on Telegram",
+    "removeAlert": "Remove the {percent}% warning",
+    "newAlert": "Percentage for a new warning",
+    "newAlertPlaceholder": "e.g. 50",
+    "addAlert": "Add",
+    "alertsHint": "At these shares of the limit: between {min}% and {max}%, at most {count}.",
+    "alertsNone": "No warnings before the limit.",
+    "alertsStop": "Reaching 100% always stops runs and sends a warning."
   }
 }

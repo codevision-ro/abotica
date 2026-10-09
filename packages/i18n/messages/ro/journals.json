@@ -1,11 +1,5 @@
 {
-  "meta": {
-    "title": "Jurnale"
-  },
-  "page": {
-    "title": "Jurnale",
-    "description": "Rezumatul zilnic al fiecărui agent: ce a făcut, ce a decis, ce a rămas deschis, ce a învățat."
-  },
+  "description": "Rezumatul zilnic al fiecărui agent: ce a făcut, ce a decis, ce a rămas deschis, ce a învățat.",
   "search": {
     "label": "Caută în jurnale",
     "placeholder": "Caută în jurnale (ex: \"ce a făcut marțea trecută\")",

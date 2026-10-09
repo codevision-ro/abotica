@@ -16,27 +16,41 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { RelativeTime } from "@/components/app/relative-time";
-import { SectionCard, SectionEmpty, SectionList, SectionRow } from "@/components/app/section-card";
+import { SectionCard, sectionCardClass, SectionEmpty, SectionList, SectionRow } from "@/components/app/section-card";
 import { ToneBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { extendPreview, revokePreview, setPreviewPublic } from "@/server/actions/previews";
 import type { PreviewRow } from "@/server/queries/previews";
 
-/** Previews with their actions: open, copy the link, make public or private, extend, take down. */
-export function PreviewList({ previews, showOwner }: { previews: PreviewRow[]; showOwner: boolean }) {
+/**
+ * Previews with their actions: open, copy the link, make public or private, extend, take down.
+ * "page": the list alone, under a page header that already names and explains it; "card": a titled card.
+ */
+export function PreviewList({
+  previews,
+  showOwner,
+  variant,
+}: {
+  previews: PreviewRow[];
+  showOwner: boolean;
+  variant: "page" | "card";
+}) {
   const t = useTranslations("previews");
+  const list = previews.length ? (
+    <SectionList>
+      {previews.map((preview) => (
+        <PreviewItem key={preview.id} preview={preview} showOwner={showOwner} />
+      ))}
+    </SectionList>
+  ) : (
+    <SectionEmpty>{t("empty")}</SectionEmpty>
+  );
+  if (variant === "page") return <section className={cn(sectionCardClass, "min-w-0 overflow-hidden")}>{list}</section>;
   return (
-    <SectionCard icon={AppWindowIcon} title={t("title")} count={previews.length} description={t("intro")} flush>
-      {previews.length ? (
-        <SectionList>
-          {previews.map((preview) => (
-            <PreviewItem key={preview.id} preview={preview} showOwner={showOwner} />
-          ))}
-        </SectionList>
-      ) : (
-        <SectionEmpty>{t("empty")}</SectionEmpty>
-      )}
+    <SectionCard icon={AppWindowIcon} title={t("title")} count={previews.length} flush>
+      {list}
     </SectionCard>
   );
 }

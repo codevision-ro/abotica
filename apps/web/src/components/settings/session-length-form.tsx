@@ -11,7 +11,7 @@ import { useSettingsForm } from "./use-settings-form";
 
 const L = SETTINGS_LIMITS.security;
 
-/** Settings > Security: how long a sign-in stays valid without being used. */
+/** Settings > Account: how long a sign-in stays valid without being used. */
 export function SessionLengthForm({ initial }: { initial: AppSettings["security"] }) {
   const t = useTranslations("settings.security");
   const form = useSettingsForm("security", initial);

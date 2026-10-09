@@ -10,6 +10,7 @@ import { secretValues } from "../platform/vault";
 import { isKillSwitchActive } from "../platform/kill-switch";
 import { RunAbort } from "../runs/run-failures";
 import { conversationUsage, saveCompaction } from "../runs/compactions";
+import { takeSoftStop } from "../tasks/control";
 import { cancelClaimedRun, claimRun, failRun, finishRun, logRunEvent } from "../runs/run-lifecycle";
 import { loadConversation, loadUnsteeredMessages, markSteered, saveMessage } from "../runs/run-messages";
 import { SUMMARY_PREFIX } from "./compaction";
@@ -106,6 +107,7 @@ vi.mock("../runs/compactions", () => ({
 }));
 vi.mock("../platform/vault", () => ({ OWNER_SECRETS: { owner: true }, secretValues: vi.fn() }));
 vi.mock("../tasks/delegation-report", () => ({ isWithheldReport: () => false }));
+vi.mock("../tasks/control", () => ({ takeSoftStop: vi.fn(async () => null) }));
 vi.mock("../memory/memory-recall", () => ({ recallForRun: async (history: unknown) => history }));
 vi.mock("./context", () => ({
   loadRunContext: vi.fn(),
@@ -286,7 +288,7 @@ describe("loop detection in a run", () => {
   it("nudges a model that repeats the same call once, then stops the run as a loop before its step limit", async () => {
     const prompts = useModel(() => callFile("a.txt"));
 
-    // Not a failure: the run ends with its answer so far, noted as unfinished.
+    // Not a failure: the run ends with its answer so far, its stop kind kept.
     expect(await run()).toEqual({ status: "succeeded", output: "" });
 
     // REPEAT identical steps make the loop; the next step gets the nudge and repeats anyway.
@@ -303,7 +305,7 @@ describe("loop detection in a run", () => {
       expect.objectContaining({
         status: "succeeded",
         error: "Stopped: the agent kept repeating the same calls (file_read) after it was told to change approach",
-        unfinished: true,
+        stopKind: "loop",
       }),
     );
     expect(failRun).not.toHaveBeenCalled();
@@ -317,7 +319,7 @@ describe("loop detection in a run", () => {
     expect(await run()).toEqual({ status: "succeeded", output: "Done" });
     // The nudge was added once and stayed in the prompt of the later steps.
     expect(prompts.map((p) => nudges(p).length)).toEqual([...Array(REPEAT).fill(0), 1, 1]);
-    expect(finishRun).toHaveBeenCalledWith(RUN, expect.objectContaining({ error: null, unfinished: false }));
+    expect(finishRun).toHaveBeenCalledWith(RUN, expect.objectContaining({ error: null, stopKind: null }));
     expect(failRun).not.toHaveBeenCalled();
   });
 
@@ -331,7 +333,7 @@ describe("loop detection in a run", () => {
 });
 
 describe("the step limit", () => {
-  it("ends a run that used up its steps while still calling tools as unfinished, not failed", async () => {
+  it("ends a run that used up its steps while still calling tools as stopped at the limit, not failed", async () => {
     useContext({ limits: { maxSteps: 3 } });
     const prompts = useModel((call) => callFile(`${call}.txt`));
 
@@ -342,7 +344,7 @@ describe("the step limit", () => {
       expect.objectContaining({
         status: "succeeded",
         error: "The run used up its 3 steps while still working",
-        unfinished: true,
+        stopKind: "step_limit",
       }),
     );
     expect(failRun).not.toHaveBeenCalled();
@@ -354,6 +356,24 @@ describe("the step limit", () => {
 
     expect(await run()).toEqual({ status: "succeeded", output: "Done" });
     expect(finishRun).toHaveBeenCalledWith(RUN, expect.objectContaining({ status: "succeeded", error: null }));
+  });
+});
+
+describe("a soft stop (the task was put aside)", () => {
+  it("ends the run between steps as succeeded and paused, with the reason, and logs it", async () => {
+    const prompts = useModel((call) => callFile(`${call}.txt`));
+    // Checked after each step: the pause lands while the second one runs.
+    vi.mocked(takeSoftStop).mockResolvedValueOnce(null).mockResolvedValueOnce("Paused by Manager: urgent work");
+
+    expect(await run()).toEqual({ status: "succeeded", output: "" });
+    // The second step's tool call ran to its end; no third step started.
+    expect(prompts).toHaveLength(2);
+    expect(logRunEvent).toHaveBeenCalledWith(RUN.id, "soft-stop", { reason: "Paused by Manager: urgent work" });
+    expect(finishRun).toHaveBeenCalledExactlyOnceWith(
+      RUN,
+      expect.objectContaining({ status: "succeeded", error: "Paused by Manager: urgent work", stopKind: "paused" }),
+    );
+    expect(failRun).not.toHaveBeenCalled();
   });
 });
 
@@ -413,7 +433,7 @@ describe("every way a run ends records why", () => {
     expect(failRun).toHaveBeenCalledExactlyOnceWith(RUN, "Agent not found", "other");
   });
 
-  it("ends a run that goes past its time limit as unfinished, not failed", async () => {
+  it("ends a run that goes past its time limit as stopped at the limit, not failed", async () => {
     useContext({ limits: { timeoutMs: 50 } });
     useModel(
       (_call, { abortSignal }) =>
@@ -425,13 +445,13 @@ describe("every way a run ends records why", () => {
       expect.objectContaining({
         status: "succeeded",
         error: expect.stringContaining("past its time limit"),
-        unfinished: true,
+        stopKind: "timeout",
       }),
     );
     expect(failRun).not.toHaveBeenCalled();
   });
 
-  it("ends a run unfinished when its time limit cuts a later step", async () => {
+  it("ends a run at the time limit when it cuts a later step", async () => {
     useContext({ limits: { timeoutMs: 200 } });
     const prompts = useModel((call, { abortSignal }) =>
       call === 1
@@ -442,7 +462,7 @@ describe("every way a run ends records why", () => {
     expect(prompts).toHaveLength(2);
     expect(finishRun).toHaveBeenCalledExactlyOnceWith(
       RUN,
-      expect.objectContaining({ error: expect.stringContaining("past its time limit"), unfinished: true }),
+      expect.objectContaining({ error: expect.stringContaining("past its time limit"), stopKind: "timeout" }),
     );
   });
 
@@ -968,7 +988,7 @@ describe("messages sent while a run works", () => {
 
 describe("MCP tools in a run", () => {
   const executed: string[] = [];
-  // One server: a tool that declares itself read-only, one that declares nothing and one that fails.
+  // One server with three tools, one of which fails.
   function useMcp() {
     executed.length = 0;
     const mcpTool = (name: string, fails = false) =>
@@ -983,9 +1003,9 @@ describe("MCP tools in a run", () => {
     vi.mocked(loadMcpTools).mockResolvedValue({
       tools: { github__list: mcpTool("list"), github__delete: mcpTool("delete"), github__get: mcpTool("get", true) },
       sources: {
-        github__list: { serverSlug: "github", tool: "list", defaultPermission: "allow", readOnly: true },
-        github__delete: { serverSlug: "github", tool: "delete", defaultPermission: "ask", readOnly: false },
-        github__get: { serverSlug: "github", tool: "get", defaultPermission: "allow", readOnly: true },
+        github__list: { serverSlug: "github", tool: "list" },
+        github__delete: { serverSlug: "github", tool: "delete" },
+        github__get: { serverSlug: "github", tool: "get" },
       },
       errors: [],
       close: async () => {},
@@ -997,7 +1017,8 @@ describe("MCP tools in a run", () => {
       { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage },
     );
 
-  it("runs a read-only tool directly and stops a tool without hints for approval", async () => {
+  it("runs a tool directly and stops for approval one the agent set to ask", async () => {
+    useContext({ permissions: { "mcp:github/delete": "ask" } });
     useMcp();
     useModel((call) => callTool(call === 1 ? "github__list" : "github__delete"));
 
@@ -1006,7 +1027,7 @@ describe("MCP tools in a run", () => {
     expect(approvalRows).toEqual([expect.objectContaining({ toolName: "github__delete" })]);
   });
 
-  it("follows the agent's own setting over what the tools declare", async () => {
+  it("follows the agent's nearest setting", async () => {
     useContext({ permissions: { "mcp:github": "allow", "mcp:github/list": "ask" } });
     useMcp();
     useModel((call) => (call === 1 ? callTool("github__delete") : call === 2 ? callTool("github__list") : answer("Done")));
@@ -1035,5 +1056,38 @@ describe("MCP tools in a run", () => {
     expect(parts).toContainEqual(
       expect.objectContaining({ toolCallId: "call_1", state: "output-error", errorText: "Issue 42 not found" }),
     );
+  });
+});
+
+describe("a tool call the model got wrong", () => {
+  it("gives the model the validation error and lets the run go on", async () => {
+    vi.mocked(loadMcpTools).mockResolvedValue({
+      tools: {
+        site__answer: tool({
+          inputSchema: z.object({ questionId: z.string().uuid() }),
+          execute: async () => "answered",
+        }),
+      },
+      sources: { site__answer: { serverSlug: "site", tool: "answer" } },
+      errors: [],
+      close: async () => {},
+    });
+    const prompts = useModel((call) =>
+      call === 1
+        ? streamOf(
+            {
+              type: "tool-call",
+              toolCallId: "call_bad",
+              toolName: "site__answer",
+              input: JSON.stringify({ questionId: "c2539d1a3efba2df" }),
+            },
+            { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage },
+          )
+        : answer("Fixed"),
+    );
+
+    expect(await run()).toEqual({ status: "succeeded", output: "Fixed" });
+    expect(failRun).not.toHaveBeenCalled();
+    expect(JSON.stringify(prompts[1]!.at(-1))).toContain("Invalid input for tool site__answer");
   });
 });

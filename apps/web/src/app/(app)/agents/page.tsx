@@ -1,9 +1,9 @@
 import { MANAGER_TEMPLATE_SLUG } from "@abotica/core";
-import { CrownIcon, LayoutTemplateIcon, type LucideIcon, PlusIcon, SparklesIcon, UsersIcon } from "lucide-react";
+import { CrownIcon, type LucideIcon, PlusIcon, SparklesIcon, UsersIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { AgentCard, TemplateCard } from "@/components/agents/agent-card";
+import { AgentCard } from "@/components/agents/agent-card";
 import { PageBody, PageHeader } from "@/components/app/page-header";
 import { SectionEmptyLink, SectionIcon } from "@/components/app/section-card";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3";
 
-/** The agents by kind: the super agent, the managers, the specialists, then the templates. */
+/** The agents by kind: the super agent, the managers, then the specialists. */
 export default async function AgentsPage() {
-  const [{ agents, templates }, t] = await Promise.all([getAgentList(), getTranslations("agents.list")]);
+  const [agents, t] = await Promise.all([getAgentList(), getTranslations("agents.list")]);
   const orchestrator = agents.filter((a) => a.kind === "orchestrator");
   const managers = agents.filter((a) => a.kind === "manager");
   const specialists = agents.filter((a) => a.kind === "specialist");
@@ -91,23 +91,6 @@ export default async function AgentsPage() {
           <p className="text-sm text-muted-foreground">
             {t.rich("groups.specialists.empty", { link: emptyLink("/agents/new") })}
           </p>
-        )}
-      </AgentGroup>
-
-      <AgentGroup
-        id="agent-templates"
-        icon={LayoutTemplateIcon}
-        title={t("templates.title")}
-        description={t("templates.description")}
-      >
-        {templates.length ? (
-          <div className={GRID}>
-            {templates.map((tpl) => (
-              <TemplateCard key={tpl.id} agent={tpl} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t("templates.empty")}</p>
         )}
       </AgentGroup>
     </PageBody>

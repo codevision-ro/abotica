@@ -5,7 +5,7 @@ import { Worker } from "bullmq";
 /** One log line: the runtime in use, or why the sandbox is not running. */
 export function describeSandbox(status: SandboxStatus): string {
   if (status.isolation) return `docker (${status.isolation})`;
-  if (!status.enabled) return "off in Settings > Sandbox";
+  if (!status.enabled) return "off in Settings > System";
   return `not running: ${status.docker.reason ?? "Docker is not available"}`;
 }
 

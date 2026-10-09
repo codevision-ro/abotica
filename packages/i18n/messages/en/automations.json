@@ -58,6 +58,7 @@
     "updated": "Schedule updated",
     "when": "When",
     "presets": "Common schedules",
+    "custom": "Custom",
     "nextRun": "Next run: {date}",
     "create": "Create schedule"
   },

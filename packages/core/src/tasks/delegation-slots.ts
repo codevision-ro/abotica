@@ -1,22 +1,37 @@
 import { agents, db, runs, tasks } from "@abotica/db";
-import { and, asc, count, eq, inArray, isNotNull, isNull, notExists, or } from "@abotica/db/orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, notExists, or, sql } from "@abotica/db/orm";
 import { getTranslator, isUserError, translateKey, UserError } from "@abotica/i18n";
 import { withLock } from "../infra/redis";
 import { getSettings, settingsLocale } from "../settings/settings";
-import { type Run, startTaskRun } from "../runs/runs";
-import { addTaskComment, isActiveTaskRunConflict, type Task, updateTask } from "./tasks";
+import { type Run, startTaskRun, type StartTaskRunOptions } from "../runs/runs";
+import { addTaskComment, isActiveTaskRunConflict, type Task, type TaskPriority, updateTask } from "./tasks";
 
 /**
  * Places for delegated work. The tasks delegated from one conversation run at most
  * `parallelDelegations` at a time, so a round of delegations cannot spend a plan's limit at once. A
  * place is held by a queued or running run of one of them. A task delegated while every place is taken
- * waits in the backlog (tasks.waitingForSlotSince) and starts, oldest first, once one frees up: when a
- * run of the conversation's delegated tasks ends (reportDelegatedTasks), or from the reaper. Decisions
- * for one conversation are taken under a lock, so two of them at once cannot give out the same place.
+ * waits in the backlog (tasks.waitingForSlotSince) and starts once one frees up, the most urgent first
+ * and, among equals, the one waiting longest: when a run of the conversation's delegated tasks ends
+ * (reportDelegatedTasks), or from the reaper. Urgent work does not wait behind the cap: with
+ * agents.urgentOverflow it takes a place over it (see mayTakePlace). Decisions for one conversation are
+ * taken under a lock, so two of them at once cannot give out the same place.
  */
 
-/** Free places, never below zero: lowering the setting leaves the runs going and only holds new starts. */
-export const freePlaces = (limit: number, busy: number): number => Math.max(0, limit - busy);
+/** Places of a conversation: its cap, the places taken, and how many of those urgent tasks hold. */
+export type Places = { limit: number; busy: number; urgent: number };
+
+/**
+ * Whether a task of `priority` may take a place now: a free one under the cap, or, for urgent work with
+ * `urgentOverflow` on, one over the cap while fewer than `limit` urgent runs already went over it. So the
+ * ceiling is twice the cap, and only urgent work reaches it. Lowering the cap leaves the runs going and
+ * only holds new starts.
+ */
+export function mayTakePlace(priority: TaskPriority, places: Places, urgentOverflow: boolean): boolean {
+  if (places.busy < places.limit) return true;
+  if (priority !== "urgent" || !urgentOverflow) return false;
+  const overCap = Math.min(places.urgent, places.busy - places.limit);
+  return overCap < places.limit;
+}
 
 const lockKey = (conversationId: string) => `abotica:conv:${conversationId}:delegation-slots`;
 
@@ -24,37 +39,41 @@ const lockKey = (conversationId: string) => `abotica:conv:${conversationId}:dele
 const runsOf = (conversationId: string) =>
   db.select({ id: runs.id }).from(runs).where(eq(runs.conversationId, conversationId));
 
-/** Places taken in the conversation. */
-async function busyPlaces(conversationId: string): Promise<number> {
+/** Places taken in the conversation, with the cap from the settings. */
+async function places(conversationId: string, limit: number): Promise<Places> {
   const [row] = await db
-    .select({ busy: count() })
+    .select({ busy: count(), urgent: count(sql`case when ${tasks.priority} = 'urgent' then 1 end`) })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.taskId))
     .where(and(inArray(runs.status, ["queued", "running"]), inArray(tasks.delegatedByRunId, runsOf(conversationId))));
-  return row?.busy ?? 0;
+  return { limit, busy: row?.busy ?? 0, urgent: row?.urgent ?? 0 };
 }
 
-/** The conversation whose places a task takes: the one of the run that delegated it. */
-async function delegatingConversation(taskId: string): Promise<string | null> {
+/** The conversation whose places a task takes (the one of the run that delegated it), and the task's priority. */
+async function delegatingConversation(
+  taskId: string,
+): Promise<{ conversationId: string | null; priority: TaskPriority } | null> {
   const [row] = await db
-    .select({ conversationId: runs.conversationId })
+    .select({ conversationId: runs.conversationId, priority: tasks.priority })
     .from(tasks)
     .innerJoin(runs, eq(runs.id, tasks.delegatedByRunId))
     .where(eq(tasks.id, taskId));
-  return row?.conversationId ?? null;
+  return row ?? null;
 }
 
 /**
- * Starts a delegated task when its conversation has a free place; otherwise it waits for one, in the
- * backlog, and this returns null. A task no conversation delegated has no places to share: it starts.
- * startTaskRun's refusals reach the caller as they are.
+ * Starts a delegated task when its conversation has a place for it (mayTakePlace); otherwise it waits for
+ * one, in the backlog, and this returns null. A task no conversation delegated has no places to share: it
+ * starts. `opts` go to startTaskRun as they are; its refusals reach the caller as they are.
  */
-export async function startDelegatedTask(taskId: string, opts: { parentRunId?: string | null } = {}): Promise<Run | null> {
-  const conversationId = await delegatingConversation(taskId);
-  if (!conversationId) return startTaskRun(taskId, opts);
+export async function startDelegatedTask(taskId: string, opts: StartTaskRunOptions = {}): Promise<Run | null> {
+  const origin = await delegatingConversation(taskId);
+  const conversationId = origin?.conversationId;
+  if (!origin || !conversationId) return startTaskRun(taskId, opts);
   return withLock(lockKey(conversationId), async () => {
-    const { parallelDelegations } = (await getSettings()).agents;
-    if (freePlaces(parallelDelegations, await busyPlaces(conversationId))) return startTaskRun(taskId, opts);
+    const { parallelDelegations, urgentOverflow } = (await getSettings()).agents;
+    const taken = await places(conversationId, parallelDelegations);
+    if (mayTakePlace(origin.priority, taken, urgentOverflow)) return startTaskRun(taskId, opts);
     await db.update(tasks).set({ waitingForSlotSince: new Date() }).where(eq(tasks.id, taskId));
     await updateTask(taskId, { status: "backlog" }, "system");
     return null;
@@ -62,11 +81,12 @@ export async function startDelegatedTask(taskId: string, opts: { parentRunId?: s
 }
 
 /**
- * Takes the oldest task waiting for a place in the conversation, or one whose delegating conversation
- * is gone (`conversationId` null). Clearing the mark is the claim: a task is taken once, however many
- * look at the same time.
+ * Takes the next task waiting for a place in the conversation, or one whose delegating conversation is
+ * gone (`conversationId` null): the most urgent first, then the one waiting longest; `urgentOnly` for a
+ * place over the cap. Clearing the mark is the claim: a task is taken once, however many look at the
+ * same time.
  */
-async function claimOldestWaiting(conversationId: string | null): Promise<Task | null> {
+async function claimNextWaiting(conversationId: string | null, urgentOnly = false): Promise<Task | null> {
   const delegatedThere = conversationId
     ? inArray(tasks.delegatedByRunId, runsOf(conversationId))
     : or(
@@ -78,17 +98,18 @@ async function claimOldestWaiting(conversationId: string | null): Promise<Task |
             .where(and(eq(runs.id, tasks.delegatedByRunId), isNotNull(runs.conversationId))),
         ),
       );
-  const oldest = db
+  // The enum is ordered low < medium < high < urgent.
+  const next = db
     .select({ id: tasks.id })
     .from(tasks)
-    .where(and(isNotNull(tasks.waitingForSlotSince), delegatedThere))
-    .orderBy(asc(tasks.waitingForSlotSince))
+    .where(and(isNotNull(tasks.waitingForSlotSince), delegatedThere, urgentOnly ? eq(tasks.priority, "urgent") : undefined))
+    .orderBy(desc(tasks.priority), asc(tasks.waitingForSlotSince))
     .limit(1)
     .for("update", { skipLocked: true });
   const [task] = await db
     .update(tasks)
     .set({ waitingForSlotSince: null })
-    .where(and(inArray(tasks.id, oldest), isNotNull(tasks.waitingForSlotSince)))
+    .where(and(inArray(tasks.id, next), isNotNull(tasks.waitingForSlotSince)))
     .returning();
   return task ?? null;
 }
@@ -134,20 +155,24 @@ async function startClaimed(task: Task): Promise<StartOutcome> {
 }
 
 /**
- * Starts the conversation's waiting tasks, oldest first, while it has free places. Called when a run of
- * one of its delegated tasks ends, before the round is checked for a report. Returns how many started.
+ * Starts the conversation's waiting tasks, the most urgent first, while it has places for them: free ones
+ * for any task, places over the cap for urgent ones (mayTakePlace). Called when a run of one of its
+ * delegated tasks ends, before the round is checked for a report. Returns how many started.
  */
 export async function startWaitingTasks(conversationId: string): Promise<number> {
   return withLock(lockKey(conversationId), async () => {
-    const { parallelDelegations } = (await getSettings()).agents;
-    let free = freePlaces(parallelDelegations, await busyPlaces(conversationId));
+    const { parallelDelegations, urgentOverflow } = (await getSettings()).agents;
+    const taken = await places(conversationId, parallelDelegations);
     let started = 0;
-    while (free > 0) {
-      const task = await claimOldestWaiting(conversationId);
+    for (;;) {
+      const free = taken.busy < taken.limit;
+      if (!free && !mayTakePlace("urgent", taken, urgentOverflow)) break;
+      const task = await claimNextWaiting(conversationId, !free);
       if (!task) break;
       const outcome = await startClaimed(task);
       if (outcome === "not-started") continue;
-      free -= 1;
+      taken.busy += 1;
+      if (task.priority === "urgent") taken.urgent += 1;
       if (outcome === "started") started += 1;
     }
     return started;
@@ -171,7 +196,7 @@ export async function startAllWaitingTasks(): Promise<number> {
       started += await startWaitingTasks(conversationId);
       continue;
     }
-    for (let task = await claimOldestWaiting(null); task; task = await claimOldestWaiting(null)) {
+    for (let task = await claimNextWaiting(null); task; task = await claimNextWaiting(null)) {
       if ((await startClaimed(task)) === "started") started += 1;
     }
   }

@@ -1,32 +1,35 @@
-import { Bot, CircleDashed, FolderKanban, Globe, History, MessagesSquare, Pin, Plus, Search } from "lucide-react";
+import { parseISO } from "date-fns";
+import { Bot, FolderKanban, Globe, Pin, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { ListPager, pageHref } from "@/components/app/list-pager";
 import { PageBody, PageHeader } from "@/components/app/page-header";
-import { sectionCardClass } from "@/components/app/section-card";
-import { ConversationTable } from "@/components/memory/conversation-table";
+import { sectionCardClass, SectionEmpty } from "@/components/app/section-card";
+import { JournalDateRange } from "@/components/journals/journal-date-range";
+import { JournalEntryCard } from "@/components/journals/journal-entry";
 import { ORIGINS } from "@/components/memory/memory-badges";
 import { CreateMemoryDialog } from "@/components/memory/memory-dialogs";
-import { ParamSelect, ParamToggle } from "@/components/memory/memory-filter";
+import { FiltersMenu, ParamSelect, ParamToggle } from "@/components/memory/memory-filter";
+import { MemoryHelp } from "@/components/memory/memory-help";
 import { MemoryList } from "@/components/memory/memory-list";
-import { MemoryPanel, PanelEmpty } from "@/components/memory/memory-panel";
+import { MemoryPanel } from "@/components/memory/memory-panel";
 import { QuerySearch } from "@/components/memory/memory-search";
-import { PageLinks } from "@/components/memory/page-links";
 import { PendingList } from "@/components/memory/pending-list";
-import { PinnedBudget } from "@/components/memory/pinned-budget";
-import { PriorityCard } from "@/components/memory/priority-card";
 import { UrlTabs } from "@/components/memory/url-tabs";
 import { Button } from "@/components/ui/button";
+import { isDay } from "@/lib/day";
 import { isUuid } from "@/lib/uuid";
+import { getFormat } from "@/server/format";
 import {
   AGENT_GLOBAL_ONLY,
-  getConversationPage,
+  getJournalDays,
   getMemoryCounts,
   getMemoryOptions,
   getMemoryPage,
   getMemorySearchResults,
-  getPinnedUsage,
+  listJournalSearchResults,
   listPendingMemories,
+  MEMORY_PAGE_SIZE,
 } from "@/server/queries/memory";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -34,8 +37,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("meta.title") };
 }
 
-const TABS = ["global", "project", "agent", "pending", "conversations"] as const;
+const TABS = ["global", "project", "agent", "journal", "pending"] as const;
 type Tab = (typeof TABS)[number];
+type Scope = "global" | "project" | "agent";
+type Options = Awaited<ReturnType<typeof getMemoryOptions>>;
 
 const SCOPE_ICON = { global: Globe, project: FolderKanban, agent: Bot } as const;
 
@@ -45,39 +50,69 @@ const inlineLink = "font-medium text-foreground underline underline-offset-2 hov
 
 export default async function MemoryPage(props: PageProps<"/memory">) {
   const sp = await props.searchParams;
-  const t = await getTranslations("memory");
-  const rawTab = one(sp.tab);
-  const tab: Tab = (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "global";
-  const q = one(sp.q)?.trim() || undefined;
-  const rawProject = one(sp.project);
-  // On the agent level the project filter can also keep only the agents' global memory.
-  const project = isUuid(rawProject) || (tab === "agent" && rawProject === AGENT_GLOBAL_ONLY) ? rawProject : undefined;
-  const dialogProject = isUuid(project) ? project : undefined;
-  const agent = isUuid(one(sp.agent)) ? one(sp.agent) : undefined;
-  const origin = ORIGINS.find((o) => o === one(sp.origin));
-  const pinned = one(sp.pinned) === "1" ? "1" : undefined;
-  const history = one(sp.history) === "1" ? "1" : undefined;
-  const neverUsed = one(sp.neverUsed) === "1" ? "1" : undefined;
-  const page = Math.max(1, Number(one(sp.page)) || 1);
-  const params = { tab: tab === "global" ? undefined : tab, q, project, agent, origin, pinned, history, neverUsed };
-
-  const [options, counts, search] = await Promise.all([
+  const [t, tj, options, counts] = await Promise.all([
+    getTranslations("memory"),
+    getTranslations("journals"),
     getMemoryOptions(),
     getMemoryCounts(),
-    q ? getMemorySearchResults(q) : Promise.resolve(null),
   ]);
+  const rawTab = one(sp.tab);
+  // Pending is a tab only while something waits there.
+  const requested = (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "global";
+  const tab: Tab = requested === "pending" && counts.pending === 0 ? "global" : requested;
+  const q = one(sp.q)?.trim() || undefined;
+  const agent = isUuid(one(sp.agent)) ? one(sp.agent) : undefined;
+  const page = Math.max(1, Number(one(sp.page)) || 1);
 
   const tabs = [
     { value: "global", label: t("scopes.global"), count: counts.global },
-    { value: "project", label: t("scopes.project"), count: counts.project },
-    { value: "agent", label: t("scopes.agent"), count: counts.agent },
-    { value: "pending", label: t("page.tabs.pending"), count: counts.pending, tone: "warning" as const },
-    { value: "conversations", label: t("page.tabs.conversations") },
+    { value: "project", label: t("page.tabs.project"), count: counts.project },
+    { value: "agent", label: t("page.tabs.agent"), count: counts.agent },
+    { value: "journal", label: t("page.tabs.journal") },
+    ...(counts.pending > 0
+      ? [{ value: "pending", label: t("page.tabs.pending"), count: counts.pending, tone: "warning" as const }]
+      : []),
   ];
 
-  const defaultScope = tab === "project" || tab === "agent" ? tab : "global";
+  let body: React.ReactNode;
+  let params: Record<string, string | undefined>;
+  if (tab === "journal") {
+    const from = isDay(one(sp.from)) ? one(sp.from) : undefined;
+    const to = isDay(one(sp.to)) ? one(sp.to) : undefined;
+    params = { tab, q, agent, from, to };
+    body = <JournalTab q={q} agent={agent} from={from} to={to} page={page} params={params} options={options} />;
+  } else {
+    const rawProject = one(sp.project);
+    // On the agent level the project filter can also keep only the agents' global memory.
+    const project = isUuid(rawProject) || (tab === "agent" && rawProject === AGENT_GLOBAL_ONLY) ? rawProject : undefined;
+    const origin = ORIGINS.find((o) => o === one(sp.origin));
+    const flag = (key: string) => (one(sp[key]) === "1" ? "1" : undefined);
+    params = {
+      tab: tab === "global" ? undefined : tab,
+      q,
+      project,
+      agent,
+      origin,
+      pinned: flag("pinned"),
+      history: flag("history"),
+      neverUsed: flag("neverUsed"),
+    };
+    body = (
+      <>
+        {q && <MemorySearchResults q={q} />}
+        {tab === "pending" ? (
+          <PendingList items={await listPendingMemories()} />
+        ) : (
+          <ScopeTab scope={tab} page={page} params={params} options={options} />
+        )}
+      </>
+    );
+  }
+
+  const defaultScope: Scope = tab === "project" || tab === "agent" ? tab : "global";
+  const dialogProject = isUuid(params.project) ? params.project : undefined;
   // The approval queue brings its own primary button, so the header one steps back there.
-  const reviewing = tab === "pending" && counts.pending > 0;
+  const reviewing = tab === "pending";
 
   return (
     <PageBody>
@@ -85,137 +120,91 @@ export default async function MemoryPage(props: PageProps<"/memory">) {
         title={t("page.title")}
         description={t("page.description")}
         actions={
-          <CreateMemoryDialog
-            agents={options.agents}
-            projects={options.projects}
-            defaultScope={defaultScope}
-            defaultProjectId={dialogProject}
-            defaultAgentId={agent}
-            trigger={
-              reviewing ? (
-                <Button variant="outline">
-                  <Plus /> {t("dialog.add")}
-                </Button>
-              ) : undefined
-            }
-          />
+          <>
+            <MemoryHelp />
+            <CreateMemoryDialog
+              agents={options.agents}
+              projects={options.projects}
+              defaultScope={defaultScope}
+              defaultProjectId={dialogProject}
+              defaultAgentId={tab === "journal" ? undefined : agent}
+              trigger={
+                reviewing ? (
+                  <Button variant="outline">
+                    <Plus /> {t("dialog.add")}
+                  </Button>
+                ) : undefined
+              }
+            />
+          </>
         }
       />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-col-reverse gap-3 md:flex-row md:items-center">
-            <UrlTabs value={tab} tabs={tabs} params={params} />
-            <QuerySearch
-              key={q ?? ""}
-              params={params}
-              label={t("search.label")}
-              placeholder={t("search.placeholder")}
-              className="min-w-0 md:flex-1"
-            />
-          </div>
-
-          {search && (
-            <MemoryPanel
-              icon={Search}
-              title={t("search.resultsFor", { query: q ?? "" })}
-              description={search.mode === "hybrid" ? t("search.hybrid") : t("search.keyword")}
-            >
-              {search.rows.length ? (
-                <MemoryList items={search.rows} showScope flush />
-              ) : (
-                <PanelEmpty>{t("search.empty")}</PanelEmpty>
-              )}
-            </MemoryPanel>
-          )}
-
-          {(tab === "global" || tab === "project" || tab === "agent") && (
-            <ScopeTab
-              scope={tab}
-              project={project}
-              agent={agent}
-              origin={origin}
-              page={page}
-              params={params}
-              options={options}
-            />
-          )}
-          {tab === "pending" && <PendingTab />}
-          {tab === "conversations" && <ConversationsTab page={page} params={params} />}
-        </div>
-
-        <aside className="lg:sticky lg:top-6">
-          <PriorityCard />
-        </aside>
+      <div className="flex flex-col-reverse gap-3 md:flex-row md:items-center">
+        <UrlTabs value={tab} tabs={tabs} params={params} />
+        <QuerySearch
+          key={`${tab === "journal"}${q ?? ""}`}
+          params={params}
+          label={tab === "journal" ? tj("search.label") : t("search.label")}
+          placeholder={tab === "journal" ? tj("search.placeholder") : t("search.placeholder")}
+          className="min-w-0 md:flex-1"
+        />
       </div>
+
+      {body}
     </PageBody>
+  );
+}
+
+async function MemorySearchResults({ q }: { q: string }) {
+  const [t, search] = await Promise.all([getTranslations("memory.search"), getMemorySearchResults(q)]);
+  return (
+    <MemoryPanel icon={Search} title={t("resultsFor", { query: q })}>
+      {search.rows.length ? (
+        <MemoryList items={search.rows} showScope flush />
+      ) : (
+        <SectionEmpty className="py-5">{t("empty")}</SectionEmpty>
+      )}
+    </MemoryPanel>
   );
 }
 
 async function ScopeTab({
   scope,
-  project,
-  agent,
-  origin,
   page,
   params,
   options,
 }: {
-  scope: "global" | "project" | "agent";
-  project?: string;
-  agent?: string;
-  origin?: string;
+  scope: Scope;
   page: number;
   params: Record<string, string | undefined>;
-  options: Awaited<ReturnType<typeof getMemoryOptions>>;
+  options: Options;
 }) {
-  const data = await getMemoryPage({
-    scope,
-    projectId: project,
-    agentId: agent,
-    origin,
-    pinned: params.pinned === "1",
-    history: params.history === "1",
-    neverUsed: params.neverUsed === "1",
-    page,
-  });
-  const rows = data.rows;
-  // What every run of the level takes of the pinned budget: one project's or agent's runs add the global entries.
-  const usage =
-    scope === "global"
-      ? await getPinnedUsage()
-      : scope === "project" && project
-        ? await getPinnedUsage({ projectId: project })
-        : scope === "agent" && agent
-          ? await getPinnedUsage({ agentId: agent })
-          : null;
-  const t = await getTranslations("memory");
-  const originFilter = (
-    <ParamSelect
-      param="origin"
-      params={params}
-      label={t("filters.origin")}
-      allLabel={t("filters.allOrigins")}
-      options={ORIGINS.map((o) => ({ id: o, name: t(`origins.${o}`) }))}
-      icon="origin"
-      className="sm:w-44"
-    />
-  );
+  const [t, data] = await Promise.all([
+    getTranslations("memory"),
+    getMemoryPage({
+      scope,
+      projectId: params.project,
+      agentId: params.agent,
+      origin: params.origin,
+      pinned: params.pinned === "1",
+      history: params.history === "1",
+      neverUsed: params.neverUsed === "1",
+      page,
+    }),
+  ]);
   return (
     <MemoryPanel
       icon={SCOPE_ICON[scope]}
       footer={
-        (usage || data.pageCount > 1) && (
-          <div className="flex flex-col gap-3">
-            {usage && <PinnedBudget usage={usage} withGlobal={scope !== "global"} />}
-            <PageLinks
-              basePath="/memory"
-              params={params}
-              page={data.page}
-              hasNext={data.page < data.pageCount}
-              label={t("list.pageLabel", { total: data.total, page: data.page, pageCount: data.pageCount })}
-            />
-          </div>
+        data.pageCount > 1 && (
+          <ListPager
+            page={data.page}
+            pageSize={MEMORY_PAGE_SIZE}
+            rowCount={data.rows.length}
+            total={data.total}
+            href={(p) => pageHref("/memory", params, p)}
+          />
         )
       }
       description={t(`dialog.scopeHelp.${scope}`)}
@@ -253,31 +242,25 @@ async function ScopeTab({
               />
             </>
           ) : null}
-          {originFilter}
           <ParamToggle param="pinned" params={params}>
             <Pin /> {t("filters.pinned")}
           </ParamToggle>
-          <ParamToggle param="neverUsed" params={params} title={t("filters.neverUsedHint", { days: options.unusedDays })}>
-            <CircleDashed /> {t("filters.neverUsed")}
-          </ParamToggle>
-          <ParamToggle param="history" params={params}>
-            <History /> {t("filters.history")}
-          </ParamToggle>
+          <FiltersMenu params={params} unusedDays={options.unusedDays} />
         </>
       }
     >
-      {rows.length ? (
-        <MemoryList items={rows} flush />
+      {data.rows.length ? (
+        <MemoryList items={data.rows} flush />
       ) : (
-        <PanelEmpty>
+        <SectionEmpty className="py-5">
           {t.rich("empty", {
             add: (chunks) => (
               <CreateMemoryDialog
                 agents={options.agents}
                 projects={options.projects}
                 defaultScope={scope}
-                defaultProjectId={isUuid(project) ? project : undefined}
-                defaultAgentId={agent}
+                defaultProjectId={isUuid(params.project) ? params.project : undefined}
+                defaultAgentId={params.agent}
                 trigger={
                   <button type="button" className={inlineLink}>
                     {chunks}
@@ -286,54 +269,112 @@ async function ScopeTab({
               />
             ),
           })}
-        </PanelEmpty>
+        </SectionEmpty>
       )}
     </MemoryPanel>
   );
 }
 
-async function PendingTab() {
-  const rows = await listPendingMemories();
-  const t = await getTranslations("memory.pending");
-  if (!rows.length) {
-    return (
-      <div className={sectionCardClass}>
-        <PanelEmpty>
-          {t.rich("empty", {
-            settings: (chunks) => (
-              <Link href="/settings/memory" className={inlineLink}>
-                {chunks}
-              </Link>
-            ),
-          })}
-        </PanelEmpty>
-      </div>
-    );
-  }
-  return <PendingList items={rows} />;
-}
+/** Each agent's daily summary, newest day first, with its own agent and date filters. */
+async function JournalTab({
+  q,
+  agent,
+  from,
+  to,
+  page,
+  params,
+  options,
+}: {
+  q?: string;
+  agent?: string;
+  from?: string;
+  to?: string;
+  page: number;
+  params: Record<string, string | undefined>;
+  options: Options;
+}) {
+  const [t, f, locale, timeline, results] = await Promise.all([
+    getTranslations("journals"),
+    getFormat(),
+    getLocale(),
+    getJournalDays({ agentId: agent, from, to, page }),
+    q ? listJournalSearchResults(q, agent) : Promise.resolve(null),
+  ]);
+  const dayLabel = (day: string) => {
+    const label = f.date(parseISO(day), "EEEE, d MMMM yyyy");
+    return label.charAt(0).toLocaleUpperCase(locale) + label.slice(1);
+  };
+  const filtered = Boolean(agent || from || to);
 
-async function ConversationsTab({ page, params }: { page: number; params: Record<string, string | undefined> }) {
-  const data = await getConversationPage(page);
-  const t = await getTranslations("memory.conversations");
   return (
-    <MemoryPanel
-      icon={MessagesSquare}
-      title={t("alertTitle")}
-      description={t("alertDescription")}
-      footer={
-        data.page > 1 || data.page < data.pageCount ? (
-          <PageLinks
-            basePath="/memory"
-            params={params}
-            page={data.page}
-            hasNext={data.page < data.pageCount}
-            label={t("pageLabel", { total: data.total, page: data.page, pageCount: data.pageCount })}
-          />
-        ) : undefined
-      }
-    >
-      {data.rows.length ? <ConversationTable rows={data.rows} page={data.page} /> : <PanelEmpty>{t("empty")}</PanelEmpty>}
-    </MemoryPanel>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <ParamSelect
+          param="agent"
+          params={params}
+          label={t("filters.byAgent")}
+          allLabel={t("filters.allAgents")}
+          options={options.agents}
+          icon="agent"
+        />
+        <JournalDateRange params={params} />
+        <p className="text-sm text-pretty text-muted-foreground sm:ml-auto sm:text-right">{t("description")}</p>
+      </div>
+
+      {results && (
+        <section className="flex flex-col gap-3" aria-label={t("search.resultsAria")}>
+          <h2 className="flex items-center gap-2 text-sm font-medium">
+            <Search className="size-4 text-muted-foreground" aria-hidden />
+            {t("search.resultsFor", { query: q ?? "" })}
+          </h2>
+          {results.length ? (
+            results.map((r) => (
+              <JournalEntryCard
+                key={`${r.agentId}-${r.day}`}
+                agentName={r.agentName ?? t("entry.deletedAgent")}
+                agentAvatar={r.agentAvatar}
+                summary={r.summary}
+                day={dayLabel(r.day)}
+                dayValue={r.day}
+              />
+            ))
+          ) : (
+            <div className={sectionCardClass}>
+              <SectionEmpty className="py-5">{t("search.empty")}</SectionEmpty>
+            </div>
+          )}
+        </section>
+      )}
+
+      {timeline.days.length ? (
+        <ol className="flex flex-col gap-3">
+          {timeline.days.flatMap(({ day, entries }) =>
+            entries.map((e) => (
+              <li key={e.id}>
+                <JournalEntryCard
+                  agentName={e.agentName}
+                  agentAvatar={e.agentAvatar}
+                  summary={e.summary}
+                  consolidated={e.consolidated}
+                  day={dayLabel(day)}
+                  dayValue={day}
+                />
+              </li>
+            )),
+          )}
+        </ol>
+      ) : (
+        <div className={sectionCardClass}>
+          <SectionEmpty className="py-5">{filtered ? t("empty.filtered") : t("empty.none")}</SectionEmpty>
+        </div>
+      )}
+
+      <ListPager
+        page={timeline.page}
+        hasNext={timeline.hasNext}
+        href={(p) => pageHref("/memory", params, p)}
+        className="border-t-0 px-0 sm:px-0"
+      />
+    </div>
   );
 }

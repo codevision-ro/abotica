@@ -6,10 +6,7 @@ import {
   MCP_DEFAULT_PERMISSION,
   mcpServerKey,
   mcpServerPermission,
-  mcpToolHint,
   mcpToolKey,
-  mcpToolDefault,
-  mcpRunPermission,
   mcpToolPermission,
   sanitizePermissions,
   toolAvailableTo,
@@ -98,46 +95,19 @@ describe("MCP permissions", () => {
   });
 });
 
-describe("mcpToolDefault", () => {
-  it("allows every tool whatever its hints, unless a bundled server sets its own", () => {
+describe("MCP tool permissions", () => {
+  it("allow a tool nothing was set for", () => {
     expect(MCP_DEFAULT_PERMISSION).toBe("allow");
-    for (const annotations of [{ readOnlyHint: true }, { destructiveHint: true }, { readOnlyHint: false }, {}, undefined]) {
-      expect(mcpToolDefault(annotations, null)).toBe("allow");
-      expect(mcpToolDefault(annotations, "context7")).toBe("allow");
-      expect(mcpToolDefault(annotations, "unknown-key")).toBe("allow");
-    }
-    expect(mcpToolDefault({ destructiveHint: true }, "playwright")).toBe("allow");
-  });
-});
-
-describe("MCP tool hints", () => {
-  it.each([
-    [{ readOnlyHint: true }, "readOnly"],
-    [{ readOnlyHint: true, destructiveHint: true }, "readOnly"],
-    [{ destructiveHint: false }, "nonDestructive"],
-    [{ readOnlyHint: false, destructiveHint: false }, "nonDestructive"],
-    [{ destructiveHint: true }, "destructive"],
-    // Not read-only and no destructiveHint: destructive under the MCP defaults.
-    [{ readOnlyHint: false }, "destructive"],
-    [{ readOnlyHint: false, openWorldHint: true }, "destructive"],
-    [{}, "none"],
-    [undefined, "none"],
-    [{ title: "Search", openWorldHint: false }, "none"],
-    [{ readOnlyHint: "true" }, "none"],
-    [{ readOnlyHint: 1, destructiveHint: "false" }, "none"],
-    [{ destructiveHint: null }, "none"],
-  ])("reads %j as %s", (annotations, hint) => {
-    expect(mcpToolHint(annotations)).toBe(hint);
+    expect(mcpToolPermission({}, "github", "x")).toBe("allow");
+    expect(mcpServerPermission({}, "github")).toBe("allow");
   });
 
-  it("never win over an entry the user set, at any level", () => {
+  it("follow the nearest entry the user set, at any level", () => {
     for (const permission of ["allow", "ask", "deny"] as const) {
-      for (const toolDefault of ["allow", "ask", undefined] as const) {
-        expect(mcpToolPermission({ [MCP_ALL_KEY]: permission }, "github", "x", toolDefault)).toBe(permission);
-        expect(mcpToolPermission({ [mcpServerKey("github")]: permission }, "github", "x", toolDefault)).toBe(permission);
-        expect(mcpToolPermission({ [mcpToolKey("github", "x")]: permission }, "github", "x", toolDefault)).toBe(permission);
-        expect(mcpServerPermission({ [mcpServerKey("github")]: permission }, "github", toolDefault)).toBe(permission);
-      }
+      expect(mcpToolPermission({ [MCP_ALL_KEY]: permission }, "github", "x")).toBe(permission);
+      expect(mcpToolPermission({ [mcpServerKey("github")]: permission }, "github", "x")).toBe(permission);
+      expect(mcpToolPermission({ [mcpToolKey("github", "x")]: permission }, "github", "x")).toBe(permission);
+      expect(mcpServerPermission({ [mcpServerKey("github")]: permission }, "github")).toBe(permission);
     }
     // The nearest entry still wins over the farther ones.
     const permissions = {
@@ -203,15 +173,5 @@ describe("sanitizePermissions", () => {
       "mcp:my-server": "ask",
       "mcp:my-server/some tool": "allow",
     });
-  });
-});
-
-describe("mcpRunPermission", () => {
-  const source = (tool: string) => ({ serverSlug: "site", tool, defaultPermission: "allow" }) as const;
-
-  it("gives every tool of a server, its entries winning over the default", () => {
-    expect(mcpRunPermission({}, source("update"))).toBe("allow");
-    expect(mcpRunPermission({ "mcp:site": "ask" }, source("update"))).toBe("ask");
-    expect(mcpRunPermission({ "mcp:site/update": "deny" }, source("update"))).toBe("deny");
   });
 });

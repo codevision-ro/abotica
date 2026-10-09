@@ -7,19 +7,16 @@
     "withName": "{greeting}, {name}"
   },
   "kpi": {
-    "activeAgents": "Agenți activi acum",
     "activeRuns": "{count, plural, one {# rulare în curs sau în coadă} few {# rulări în curs sau în coadă} other {# de rulări în curs sau în coadă}}",
     "idle": "Niciun agent nu lucrează acum",
     "openTasks": "Task-uri deschise",
     "inProgress": "În lucru",
     "blocked": "Blocate",
     "review": "Review",
-    "pendingApprovals": "Aprobări în așteptare",
-    "awaitingDecision": "Agenții așteaptă decizia ta",
-    "nothingToApprove": "Nimic de aprobat",
     "monthCost": "Cost luna curentă",
     "lastMonth": "Luna trecută: {amount}",
-    "vsLastMonth": "<highlight>{delta}</highlight> față de luna trecută ({amount})"
+    "vsLastMonth": "<highlight>{delta}</highlight> față de luna trecută ({amount})",
+    "workingNow": "Agenți care lucrează acum"
   },
   "dailyCost": {
     "title": "Cost pe zile",
@@ -51,17 +48,17 @@
       "cta": "Proiect nou"
     }
   },
-  "pendingApprovals": {
-    "title": "Aprobări în așteptare",
-    "empty": "Totul e decis. Acțiunile sensibile ale agenților așteaptă aici aprobarea ta.",
-    "openRun": "Deschide rularea"
-  },
   "recentRuns": {
     "title": "Rulări recente",
-    "empty": "Nicio rulare încă. <link>Scrie-i super agentului</link> și prima rulare apare aici."
+    "empty": "Nicio rulare încă. <link>Scrie-i super agentului</link> și prima rulare apare aici.",
+    "seeAll": "Toată activitatea"
   },
   "attention": {
-    "title": "Task-uri care cer atenție",
-    "empty": "Nimic blocat sau în așteptarea review-ului tău."
+    "title": "Task-uri care cer atenție"
+  },
+  "needsYou": {
+    "title": "Te așteaptă",
+    "description": "Întrebări, aprobări și task-uri care așteaptă răspunsul tău.",
+    "openInbox": "Deschide inboxul"
   }
 }

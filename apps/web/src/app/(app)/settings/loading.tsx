@@ -2,7 +2,7 @@ import { sectionCardClass } from "@/components/app/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-/** Settings > General while it loads: its title, then the language and time zone rows. */
+/** Settings (the general page) while it loads: its title, then the language and time zone rows. */
 export default function Loading() {
   return (
     <>

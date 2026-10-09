@@ -1,6 +1,6 @@
 import "server-only";
 import { getSettings, pinnedUsage, searchAllMemories, searchJournals } from "@abotica/core";
-import { agents, conversations, db, journals, memories, memoryOrigin, messages, projects } from "@abotica/db";
+import { agents, db, journals, memories, memoryOrigin, projects } from "@abotica/db";
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "@abotica/db/orm";
 import { isDay } from "@/lib/day";
 import { isUuid } from "@/lib/uuid";
@@ -50,7 +50,7 @@ const memoryColumns = {
 };
 
 /**
- * Entries agents can read that no run has used since they were written `days` ago (Settings > Memory),
+ * Entries agents can read that no run has used since they were written `days` ago (the memory part of Settings > Agents),
  * for manual cleanup. Pinned entries are in every run's prompt, so they are left out.
  */
 const neverUsed = (days: number) =>
@@ -83,7 +83,7 @@ const isMemoryOrigin = (value: string | undefined): value is MemoryOrigin =>
 /** `projectId` on the agent level that keeps only the agents' global memory (their craft), no project notes. */
 export const AGENT_GLOBAL_ONLY = "global";
 
-const MEMORY_PAGE_SIZE = 100;
+export const MEMORY_PAGE_SIZE = 100;
 
 /**
  * One page of the active entries of one level, newest first. Entries a newer one replaced are left out
@@ -194,7 +194,7 @@ export const getMemoryCounts = query(async () => {
 
 /** Hybrid search across every memory (all scopes and owners), keyword only without embeddings. */
 export const getMemorySearchResults = query(async (search: string, limit: number = 20) => {
-  const { mode, rows } = await searchAllMemories(search, limit);
+  const { rows } = await searchAllMemories(search, limit);
   const projectIds = [...new Set(rows.flatMap((r) => (r.projectId ? [r.projectId] : [])))];
   const agentIds = [...new Set(rows.flatMap((r) => (r.agentId ? [r.agentId] : [])))];
   const [projectRows, agentRows] = await Promise.all([
@@ -211,7 +211,6 @@ export const getMemorySearchResults = query(async (search: string, limit: number
   const projectById = new Map(projectRows.map((p) => [p.id, p]));
   const agentById = new Map(agentRows.map((a) => [a.id, a]));
   return {
-    mode,
     rows: rows.map((r) => {
       const agent = r.agentId ? agentById.get(r.agentId) : undefined;
       return {
@@ -222,62 +221,6 @@ export const getMemorySearchResults = query(async (search: string, limit: number
       };
     }),
   };
-});
-
-const CONVERSATIONS_PAGE_SIZE = 50;
-
-export const getConversationPage = query(async (page: number = 1) => {
-  const p = Math.max(1, page);
-  const messageCount = db
-    .select({ conversationId: messages.conversationId, n: count().as("n") })
-    .from(messages)
-    .groupBy(messages.conversationId)
-    .as("message_count");
-  const [rows, [total]] = await Promise.all([
-    db
-      .select({
-        id: conversations.id,
-        title: conversations.title,
-        channel: conversations.channel,
-        updatedAt: conversations.updatedAt,
-        agentName: agents.name,
-        agentAvatar: agents.avatar,
-        messageCount: sql<number>`coalesce(${messageCount.n}, 0)`.mapWith(Number),
-      })
-      .from(conversations)
-      .innerJoin(agents, eq(agents.id, conversations.agentId))
-      .leftJoin(messageCount, eq(messageCount.conversationId, conversations.id))
-      .orderBy(desc(conversations.updatedAt))
-      .limit(CONVERSATIONS_PAGE_SIZE)
-      .offset((p - 1) * CONVERSATIONS_PAGE_SIZE),
-    db.select({ n: count() }).from(conversations),
-  ]);
-  const n = total?.n ?? 0;
-  return { rows, page: p, pageCount: Math.max(1, Math.ceil(n / CONVERSATIONS_PAGE_SIZE)), total: n };
-});
-
-export const getConversationTranscript = query(async (id: string) => {
-  if (!isUuid(id)) return null;
-  const [conversation] = await db
-    .select({
-      id: conversations.id,
-      title: conversations.title,
-      channel: conversations.channel,
-      createdAt: conversations.createdAt,
-      updatedAt: conversations.updatedAt,
-      agentName: agents.name,
-      agentAvatar: agents.avatar,
-    })
-    .from(conversations)
-    .innerJoin(agents, eq(agents.id, conversations.agentId))
-    .where(eq(conversations.id, id));
-  if (!conversation) return null;
-  const rows = await db
-    .select({ id: messages.id, role: messages.role, parts: messages.parts, createdAt: messages.createdAt })
-    .from(messages)
-    .where(eq(messages.conversationId, id))
-    .orderBy(asc(messages.createdAt));
-  return { conversation, messages: rows };
 });
 
 const JOURNAL_DAYS_PER_PAGE = 14;

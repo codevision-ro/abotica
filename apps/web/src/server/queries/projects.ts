@@ -11,7 +11,6 @@ import {
   projectAgents,
   projects,
   runs,
-  secrets,
   tasks,
 } from "@abotica/db";
 import { and, asc, count, countDistinct, desc, eq, gte, inArray, max, ne, sql, sum } from "@abotica/db/orm";
@@ -289,17 +288,6 @@ export const listKnowledgeItems = query(async (id: string) => {
 });
 
 export type KnowledgeItemRow = Awaited<ReturnType<typeof listKnowledgeItems>>[number];
-
-/** Never selects the encrypted value. */
-export const listProjectSecrets = query(async (id: string) => {
-  return db
-    .select({ id: secrets.id, name: secrets.name, description: secrets.description, updatedAt: secrets.updatedAt })
-    .from(secrets)
-    .where(eq(secrets.projectId, id))
-    .orderBy(asc(secrets.name));
-});
-
-export type ProjectSecret = Awaited<ReturnType<typeof listProjectSecrets>>[number];
 
 /** The project's repositories as the Repos tab shows them (no tokens). */
 export const listProjectRepos = query((projectId: string) => listRepos(projectId));

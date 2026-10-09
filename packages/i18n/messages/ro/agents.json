@@ -6,7 +6,7 @@
   },
   "list": {
     "title": "Agenți",
-    "description": "Echipa ta de agenți: model, tool-uri, permisiuni și activitate.",
+    "description": "Echipa ta: super agentul cu care vorbești, managerii care conduc proiecte și specialiștii care fac munca.",
     "newAgent": "Agent nou",
     "groups": {
       "orchestrator": {
@@ -21,13 +21,8 @@
       "specialists": {
         "title": "Specialiști",
         "description": "Ei fac munca, cu aceeași profesie în fiecare proiect din care fac parte.",
-        "empty": "Niciun specialist încă. <link>Creează unul</link> de la zero sau pornește de la un template de mai jos."
+        "empty": "Niciun specialist încă. <link>Creează unul</link>, de la zero sau dintr-un template."
       }
-    },
-    "templates": {
-      "title": "Template-uri",
-      "description": "Puncte de plecare pentru agenți noi.",
-      "empty": "Niciun template definit."
     }
   },
   "card": {
@@ -39,7 +34,6 @@
     "leadsNone": "Nu conduce încă niciun proiect",
     "runs7d": "<b>{count}</b> {count, plural, one {rulare} few {rulări} other {de rulări}} în 7 zile",
     "cost30d": "<b>{cost}</b> în 30 de zile",
-    "use": "Folosește",
     "defaultModel": "Model implicit",
     "kinds": {
       "orchestrator": "Super agent",
@@ -63,16 +57,14 @@
     "chat": "Chat",
     "tabs": {
       "config": "Configurare",
-      "versions": "Versiuni",
-      "journal": "Jurnal",
+      "activity": "Activitate",
       "memory": "Memorie",
-      "runs": "Rulări",
-      "schedules": "Programări",
       "projects": "Proiecte"
     },
     "useTemplate": "Folosește template-ul",
-    "model": "Model",
-    "version": "Versiunea curentă"
+    "history": "Istoric",
+    "backToConfig": "Configurare",
+    "model": "Model"
   },
   "actions": {
     "active": "Activ",
@@ -136,9 +128,8 @@
     "namePlaceholder": "Numele agentului",
     "role": "Rol",
     "rolePlaceholder": "Ce face, ex: Research și sinteză",
-    "kindTitle": "Tip",
-    "kindDescription": "Locul lui în echipă. Îl poți schimba cât timp nu face parte din nicio echipă și nu conduce niciun proiect.",
-    "kindTemplateDescription": "Locul lui în echipă. Tipul unui template e fix; un agent creat din el îl poate schimba.",
+    "kindTitle": "Poziție",
+    "kindDescription": "Locul lui în echipă. Se alege la crearea agentului.",
     "kinds": {
       "orchestrator": {
         "title": "Super agent",
@@ -153,11 +144,9 @@
         "description": "Face munca, cu profesia lui, în fiecare proiect din care face parte. Nu deleagă."
       }
     },
-    "roleTitle": "Rolul în echipă: stabilit de Abotica",
-    "roleSummary": "Ce îi spune Abotica {kind, select, orchestrator {super agentului} manager {fiecărui manager} other {fiecărui specialist}} despre locul lui în echipă și cum lucrează",
-    "instructionsTitle": "Profesie",
-    "instructionsDescription": "Cine este agentul ca profesionist și cum își face treaba, la fel în fiecare proiect. Cum lucrează cu managerul și cu echipa vine de la platformă.",
-    "systemPrompt": "Promptul profesiei",
+    "instructionsTitle": "Instrucțiuni",
+    "instructionsDescription": "Cine este agentul ca profesionist și cum își face treaba, la fel în fiecare proiect. Cum lucrează cu managerul și cu echipa vine de la Abotica.",
+    "systemPrompt": "Instrucțiuni",
     "promptPlaceholder": "Ești un [profesie]: [ce acoperi].\n\nCum lucrezi: metode, surse, standard de calitate și formatul rezultatului.\nLimite: ce nu faci și nu decizi niciodată singur.",
     "additionalTitle": "Instrucțiuni suplimentare (opțional)",
     "additionalDescription": "Abotica îi spune deja acestui agent cine este în echipă și cum lucrează; adaugă doar ce ții tu să facă altfel.",
@@ -179,6 +168,7 @@
     "model": "Model",
     "outsideCatalog": "Model în afara catalogului",
     "toolsTitle": "Tool-uri",
+    "integrationCount": "{count, plural, =0 {Nicio integrare} one {O integrare} few {# integrări} other {# de integrări}}",
     "skillsProjectsTitle": "Skill-uri și proiecte",
     "skillsProjectsDescription": "Instrucțiuni reutilizabile pe care le urmează și proiectele în care poate lucra.",
     "skillsLedDescription": "Instrucțiuni reutilizabile pe care le urmează și proiectele pe care le conduce.",
@@ -190,7 +180,6 @@
     "noProjects": "Niciun proiect. <link>Creează un proiect</link>",
     "ledProjects": "Proiecte conduse",
     "ledProjectsDescription": "Cine conduce un proiect se schimbă în tabul Echipă al proiectului.",
-    "ledCount": "{count, plural, =0 {Niciunul} one {# proiect} few {# proiecte} other {# de proiecte}}",
     "ledNone": "Nu conduce încă niciun proiect. Alege-l ca manager în tabul Echipă al unui proiect (<link>vezi proiectele</link>).",
     "advancedTitle": "Avansat",
     "fallbackChain": "Lanț de fallback",
@@ -203,8 +192,9 @@
     "limitsTitle": "Limite",
     "limitsDescription": "Plafoane aplicate fiecărei rulări.",
     "maxSteps": "Max pași",
-    "timeout": "Timeout (minute)",
-    "budget": "Buget pe rulare (USD)",
+    "timeout": "Timeout",
+    "minutesUnit": "min",
+    "budget": "Buget pe rulare",
     "unlimited": "nelimitat",
     "summaryLabel": "Rezumatul configurației",
     "untitled": "Agent fără nume",
@@ -222,72 +212,43 @@
     "versionNoteAria": "Notă versiune",
     "create": "Creează agentul",
     "created": "Agent creat",
-    "savedVersion": "Salvat ca v{version}",
-    "savedNoVersion": "Salvat, fără modificări de versiune",
+    "saved": "Salvat",
     "pickModel": "Alege un model sau folosește modelul implicit",
     "fallbackModel": "Completează modelul pentru fiecare fallback",
     "managesProject": "Conduce acest proiect. Alege mai întâi alt manager în tabul Echipă al proiectului."
   },
-  "permissions": {
-    "title": "Tool-uri și permisiuni",
-    "description": "Alege ce poate face agentul singur, ce așteaptă aprobarea ta și ce nu poate folosi deloc.",
+  "tools": {
+    "title": "Tool-uri",
+    "description": "Agentul își folosește singur tool-urile incluse (memorie, task-uri, web, fișiere) și integrările de mai jos, oricând munca le cere.",
+    "integrations": "Integrări",
+    "add": "Adaugă integrare",
+    "allAgents": "Toți agenții",
+    "disabled": "dezactivată",
+    "offForAgent": "oprită pentru acest agent",
+    "remove": "Elimină {name}",
+    "none": "Nicio integrare pentru acest agent încă.",
+    "noRegistry": "Nicio integrare încă. <link>Adaugă una</link>",
+    "advancedTitle": "Avansat: oprește anumite tool-uri sau cere aprobarea ta pentru ele",
+    "advancedDescription": "Fiecare tool rulează singur, dacă nu alegi altceva aici.",
+    "restricted": "{count, plural, =0 {Totul rulează singur} one {O modificare} few {# modificări} other {# de modificări}}",
+    "reset": "Pornește tot la loc",
+    "groupControlFor": "Setare pentru toate tool-urile din {group}",
+    "controlFor": "Setare pentru {name}",
+    "toolsNotLoaded": "Lista lui de tool-uri nu a fost încărcată încă.",
+    "noTools": "Nu expune niciun tool.",
+    "loadTools": "Încarcă tool-urile",
+    "reloadTools": "Reîncarcă",
+    "toolsLoaded": "{count, plural, one {Un tool încărcat} few {# tool-uri încărcate} other {# de tool-uri încărcate}}",
     "options": {
-      "allow": "Permite",
-      "ask": "Întreabă",
-      "deny": "Blochează"
+      "allow": "Pornit",
+      "ask": "Întreabă întâi",
+      "deny": "Oprit"
     },
     "legend": {
-      "allow": "Rulează fără să întrebe",
-      "ask": "Așteaptă aprobarea ta",
+      "allow": "Rulează singur",
+      "ask": "Așteaptă de fiecare dată aprobarea ta",
       "deny": "Agentul nu îl poate folosi"
-    },
-    "summary": {
-      "allow": "{count, plural, one {# permis} few {# permise} other {# de permise}}",
-      "ask": "{count, plural, one {# cere aprobare} other {# cer aprobare}}",
-      "deny": "{count, plural, one {# blocat} few {# blocate} other {# de blocate}}"
-    },
-    "setAll": "Setează tot",
-    "setAllHint": "Se aplică tuturor tool-urilor incluse și tuturor serverelor MCP de mai jos",
-    "setAllOptions": {
-      "allow": "Permite tot",
-      "ask": "Întreabă pentru tot",
-      "deny": "Blochează tot"
-    },
-    "builtinTitle": "Tool-uri incluse",
-    "orchestratorGroup": "{group} (doar super agent)",
-    "managerGroup": "{group} (uneltele unui manager)",
-    "controlFor": "Permisiune pentru {name}",
-    "groupControlFor": "Permisiune pentru toate tool-urile din {group}",
-    "mcpTitle": "Servere MCP",
-    "mcpDescription": "Tool-uri de pe servere externe. Implicitul se aplică serverelor fără setare proprie, inclusiv celor pe care agentul le primește prin proiecte.",
-    "mcpDefault": "Implicit pentru serverele MCP",
-    "noServersAssigned": "Niciun server MCP atribuit acestui agent.",
-    "noRegistry": "Niciun server MCP încă. <link>Adaugă un server</link>",
-    "addServer": "Adaugă server MCP",
-    "disabled": "dezactivat",
-    "overrides": "{count, plural, one {# tool modificat} few {# tool-uri modificate} other {# de tool-uri modificate}}",
-    "ownSetting": "setare proprie",
-    "remove": "Elimină",
-    "removeServer": "Elimină {name}",
-    "toolsNotLoaded": "Lista de tool-uri a acestui server nu a fost încărcată încă.",
-    "loadTools": "Încarcă tool-urile",
-    "toolsLoaded": "{count, plural, one {Un tool încărcat} few {# tool-uri încărcate} other {# de tool-uri încărcate}}",
-    "noTools": "Serverul nu expune niciun tool.",
-    "syncedAt": "Încărcate",
-    "refresh": "Reîncarcă",
-    "refreshAria": "Reîncarcă tool-urile pentru {name}",
-    "globalBadge": "Toți agenții",
-    "builtinBadge": "Inclus",
-    "offForAgent": "oprit pentru acest agent",
-    "globalNote": "Îl primește fiecare agent. Blochează îl oprește pentru acesta.",
-    "mcpDefaultFromHints": "Fiecare tool rulează, dacă nu alegi altceva pentru el sau pentru serverul lui",
-    "useHints": "Folosește în schimb implicitul",
-    "hintReadOnly": "Doar citire",
-    "hintNonDestructive": "Nedistructiv",
-    "hintDestructive": "Distructiv",
-    "hintNone": "Fără indicii",
-    "bundledDefault": "Implicit pentru acest server inclus: {permission}",
-    "hintDefault": "Implicit: {permission}. Indiciile descriu tool-ul, nu îi stabilesc permisiunea"
+    }
   },
   "effort": {
     "label": "Efort de raționament",
@@ -350,7 +311,7 @@
     }
   },
   "versions": {
-    "title": "Versiuni",
+    "title": "Istoric",
     "description": "Fiecare salvare cu modificări păstrează configurația anterioară.",
     "emptyState": "Nicio versiune salvată încă: configurația actuală (v{version}) se păstrează la prima salvare cu modificări.",
     "openConfig": "Deschide configurarea",
@@ -375,18 +336,18 @@
       "model": "Model",
       "fallbacks": "Fallback-uri",
       "reasoningEffort": "Efort de raționament",
-      "permissions": "Permisiuni tool-uri",
+      "permissions": "Setări tool-uri",
       "limits": "Limite",
       "skillIds": "Skill-uri",
-      "mcpServerIds": "Servere MCP"
+      "mcpServerIds": "Integrări"
     },
     "hideCompare": "Ascunde comparația",
     "permission": {
-      "allow": "Permise: {tools}",
-      "ask": "Cer aprobare: {tools}",
-      "deny": "Blocate: {tools}"
+      "allow": "Pornite: {tools}",
+      "ask": "Întreabă întâi: {tools}",
+      "deny": "Oprite: {tools}"
     },
-    "mcpAll": "toate serverele MCP"
+    "mcpAll": "toate integrările"
   },
   "journal": {
     "title": "Jurnal",
@@ -417,15 +378,11 @@
     "when": "Când",
     "open": "Deschide rularea"
   },
-  "schedules": {
-    "title": "Programări",
-    "description": "Rulează agentul automat, recurent sau o singură dată.",
-    "empty": "Nicio programare încă.",
-    "manage": "Gestionează în Automatizări",
-    "disabled": "Dezactivată",
-    "once": "O singură dată: {date}",
-    "lastRun": "Ultima rulare {time}",
-    "never": "Nu a rulat încă"
+  "activity": {
+    "schedules": "{count, plural, =0 {Nicio programare nu rulează acest agent} one {O programare rulează acest agent} few {# programări rulează acest agent} other {# de programări rulează acest agent}}",
+    "openAutomations": "Automatizări",
+    "onlyAgent": "Doar {name}",
+    "showAll": "Arată toate programările"
   },
   "versionNotes": {
     "initial": "Versiune inițială",

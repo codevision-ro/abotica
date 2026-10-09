@@ -4,14 +4,14 @@
   },
   "page": {
     "title": "Approvals",
-    "description": "Sensitive agent actions wait for your decision before they run."
+    "description": "Actions an agent stopped to check with you first. Agents act on their own unless a tool is set to ask."
   },
   "tabs": {
     "pending": "Pending",
     "history": "History"
   },
   "pending": {
-    "empty": "Nothing to approve. When an agent asks permission for a sensitive action, it shows up here and on Telegram."
+    "empty": "Nothing to approve. When an agent needs your approval for a tool, it shows up here, in the inbox and on Telegram."
   },
   "history": {
     "decidedAt": "Decided {time}",

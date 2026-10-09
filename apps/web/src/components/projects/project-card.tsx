@@ -36,9 +36,6 @@ export async function ProjectCard({ project }: { project: ProjectListItem }) {
           >
             {project.name}
           </Link>
-          <p className="truncate font-mono text-xs text-muted-foreground" title={project.slug}>
-            {project.slug}
-          </p>
         </div>
         <ProjectStatusBadge status={project.status} />
       </div>

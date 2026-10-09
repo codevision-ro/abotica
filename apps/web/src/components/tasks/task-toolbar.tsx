@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { AgentAvatar } from "@/components/app/agent-avatar";
-import { chipVariants } from "@/components/app/selectable-chip";
+import { chipVariants, SelectableChip } from "@/components/app/selectable-chip";
 import { PRIORITIES, useStatusLabels } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -47,6 +47,7 @@ export function NewTaskLink({ children }: { children: React.ReactNode }) {
 
 export function TaskToolbar({ options }: { options: TaskOptions }) {
   const t = useTranslations("tasks.toolbar");
+  const tControl = useTranslations("tasks.control");
   const labels = useStatusLabels();
   const { searchParams, setParams } = useTaskParams();
   const urlQuery = searchParams.get("q") ?? "";
@@ -78,11 +79,13 @@ export function TaskToolbar({ options }: { options: TaskOptions }) {
   const project = searchParams.get("project") ?? ALL;
   const assignee = searchParams.get("assignee") ?? ALL;
   const priority = searchParams.get("priority") ?? ALL;
+  const cancelled = searchParams.get("cancelled") === "1";
   const hasFilters = !!(
     urlQuery ||
     searchParams.get("project") ||
     searchParams.get("assignee") ||
-    searchParams.get("priority")
+    searchParams.get("priority") ||
+    cancelled
   );
 
   const select = (key: string) => (value: string) => setParams({ [key]: value === ALL ? null : value }, "replace");
@@ -157,6 +160,11 @@ export function TaskToolbar({ options }: { options: TaskOptions }) {
         </SelectContent>
       </Select>
 
+      {/* Cancelled tasks are over: hidden unless asked for. */}
+      <SelectableChip selected={cancelled} onSelectedChange={(on) => setParams({ cancelled: on ? "1" : null }, "replace")}>
+        {tControl("showCancelled")}
+      </SelectableChip>
+
       {hasFilters && (
         <Button
           variant="ghost"
@@ -165,7 +173,7 @@ export function TaskToolbar({ options }: { options: TaskOptions }) {
           onClick={() => {
             pushed.current = "";
             setQuery("");
-            setParams({ q: null, project: null, assignee: null, priority: null }, "replace");
+            setParams({ q: null, project: null, assignee: null, priority: null, cancelled: null }, "replace");
           }}
         >
           <XIcon />

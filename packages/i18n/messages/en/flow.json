@@ -1,1 +1,45 @@
-{}
+{
+  "notices": {
+    "toUser": "{kind, select, question {❓ Question} answer {💬 Answer} progress {📈 Progress} alert {⚠️ Alert} reminder {⏰ Reminder} other {📌 Notice}} from {from} on \"{task}\":\n{text}\n{url}",
+    "withheld": "📋 A notice about task \"{task}\" was not given to {agent}: the AI providers allowed in its project include none of the models {agent} works with. Look at the task yourself: {url}",
+    "noticeWakesLimit": "⚠️ {agent} got more than {count} notices in one conversation within an hour, so the next ones wait there for its next run instead of waking it.",
+    "roundsLimit": "⚠️ Agents woke task \"{task}\" {count} times since you last stepped in, so it is not woken again: the latest instruction is stored. Look at the task and decide how it goes on: {url}"
+  },
+  "messages": {
+    "errors": {
+      "questionNotFound": "Question not found.",
+      "questionClosed": "The question was already answered or withdrawn.",
+      "mayNotAnswer": "Only whoever the question is for, someone above them, or the user can answer it.",
+      "atUser": "The question already waits for the user: only they can answer it now.",
+      "putAside": "The task is paused or cancelled: nothing more goes on it until it is resumed.",
+      "duplicate": "The same question is already open on this task: wait for its answer.",
+      "tooManyOpen": "This task already has {max} open questions: wait for their answers before asking more.",
+      "askRate": "This task asked {max} questions in the last hour: go on with what you can decide yourself.",
+      "progressRate": "Progress was reported {minutes, plural, one {# minute} other {# minutes}} ago; report again at the next real milestone, at most every {every} minutes, or with needsAttention when it changes the outcome or a date.",
+      "attentionRate": "Progress that needs attention was sent {max} times in the last hour: go on with the work and report the rest with the result."
+    }
+  },
+  "control": {
+    "user": "the user",
+    "system": "Abotica",
+    "paused": "Put aside by {by}: {reason}. Stop where you are and end your turn; you go on here when the task is resumed.",
+    "pausedFor": "Put aside by {by} for the more urgent task \"{task}\": {reason}. Stop where you are and end your turn; you go on here once that task is settled.",
+    "runPaused": "Paused by {by}: {reason}",
+    "resumed": "Resumed by {by}: go on from where you stopped.",
+    "resumedNote": "Resumed by {by}: {note}",
+    "autoResumed": "\"{task}\" is settled, so the work put aside for it goes on.",
+    "autoResumeFailed": "This task was put aside for \"{task}\", which is settled, and could not go on: {reason}",
+    "cancelled": "Cancelled by {by}: {reason}",
+    "cancelledWith": "Cancelled by {by} together with \"{task}\": {reason}",
+    "runCancelled": "Cancelled by {by}: {reason}",
+    "runReassigned": "Reassigned by {by} to {agent}: {reason}",
+    "errors": {
+      "notPausable": "Only a task that waits to start or is in progress can be paused.",
+      "waitingApproval": "The task's run waits for an approval: decide it first, or cancel the task.",
+      "notResumable": "Only a paused or blocked task, or one left in progress with no run, can be resumed.",
+      "over": "The task is already done or cancelled.",
+      "noAgent": "The agent to hand the task to does not exist or is disabled.",
+      "reassign": "The task cannot go to {agent}: {error}"
+    }
+  }
+}

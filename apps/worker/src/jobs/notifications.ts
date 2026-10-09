@@ -4,6 +4,7 @@ import { and, desc, eq } from "@abotica/db/orm";
 import { Worker } from "bullmq";
 import { InlineKeyboard } from "grammy";
 import { botTranslator, getBot, notifyChatId } from "../telegram/bot";
+import { sendQuestion } from "../telegram/commands";
 import { sendTelegramNotice } from "../telegram/delivery";
 import { runFinishedNotice } from "../telegram/routing";
 import { sendMarkdown, type Target } from "../telegram/send";
@@ -52,6 +53,18 @@ async function handle(job: NotificationJob) {
   if (job.kind === "conversation-notice") {
     const [conversation] = await db.select().from(conversations).where(eq(conversations.id, job.conversationId));
     if (conversation?.channel === "telegram") await sendTelegramNotice(conversation, job.text);
+    return;
+  }
+
+  // A question that reached the user: in the project's topic, with its options as buttons.
+  if (job.kind === "question") {
+    const [row] = await db
+      .select({ projectId: tasks.projectId })
+      .from(taskComments)
+      .innerJoin(tasks, eq(tasks.id, taskComments.taskId))
+      .where(eq(taskComments.id, job.questionId));
+    const target = row && (await targetFor(row.projectId));
+    if (target) await sendQuestion(bot, job.questionId, target);
     return;
   }
 

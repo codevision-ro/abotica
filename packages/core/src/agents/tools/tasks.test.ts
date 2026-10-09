@@ -18,7 +18,14 @@ vi.mock("@abotica/db", () => ({
   taskComments: {},
   taskDependencies: {},
   tasks: {},
-  db: { select: () => ({ from: () => ({ where: async () => subtasks }) }) },
+  db: {
+    select: () => ({
+      from: () => ({ where: async () => subtasks, innerJoin: () => ({ where: async () => subtasks }) }),
+    }),
+  },
+}));
+vi.mock("../../tasks/task-messages", () => ({
+  postInstruction: vi.fn(async () => ({ comment: { kind: "note" }, delivered: "stored" })),
 }));
 vi.mock("../../platform/audit", () => ({ audit: vi.fn() }));
 vi.mock("../../files/files", () => ({ listFiles: vi.fn() }));
@@ -94,5 +101,27 @@ describe("task_wait on delegated work", () => {
     subtasks.push({ id: "sub-1", status: "in_progress" }, { id: "mine", status: "backlog" });
     vi.mocked(awaitingReportTo).mockResolvedValue(["sub-1"]);
     expect(await wait({ kind: "subtasks_done" })).toMatchObject({ ok: true });
+  });
+});
+
+describe("task_comment on its own task", () => {
+  const comment = (taskId: string) => {
+    const tool = taskTools.task_comment!(ctx as never);
+    return tool.execute!({ taskId, body: "Every name must start with K.", deliver: "now" } as never, {
+      toolCallId: "call_1",
+      messages: [],
+      context: {},
+    }) as Promise<Record<string, unknown>>;
+  };
+
+  it("says the agents working on its subtasks do not see it, and where they read", async () => {
+    subtasks.push({ taskId: SUBTASK.id, title: "Ten names", assignee: "writer" } as never);
+    const result = await comment(OWN.id);
+    expect(result.next).toContain("do not see it");
+    expect(result.subtasks).toEqual([{ taskId: SUBTASK.id, title: "Ten names", assignee: "writer" }]);
+  });
+
+  it("adds nothing on a task with nobody working under it", async () => {
+    expect((await comment(OWN.id)).next).toBeUndefined();
   });
 });

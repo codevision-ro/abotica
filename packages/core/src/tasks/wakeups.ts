@@ -365,7 +365,8 @@ async function consumeWakeups(firing: Firing[], now: Date): Promise<void> {
 /**
  * Checks a task's active wakeups and applies what they decide (decideWakeup): fingerprints kept current,
  * stopped ones paused or expired, the ones that hold woken together in one run. A task with a run going
- * is checked again when it ends; a done task waits for nothing, so its wakeups go.
+ * is checked again when it ends, a paused one when it is resumed; a done or cancelled task waits for
+ * nothing, so its wakeups go.
  */
 export async function checkTaskWakeups(taskId: string, now = new Date()): Promise<void> {
   const [task] = await db
@@ -373,11 +374,12 @@ export async function checkTaskWakeups(taskId: string, now = new Date()): Promis
     .from(tasks)
     .where(eq(tasks.id, taskId));
   if (!task) return;
-  if (task.status === "done") {
+  if (task.status === "done" || task.status === "cancelled") {
     const ended = await db.delete(taskWakeups).where(eq(taskWakeups.taskId, taskId)).returning({ id: taskWakeups.id });
     if (ended.length) await publish({ type: "task.updated", taskId, projectId: task.projectId });
     return;
   }
+  if (task.status === "paused") return;
   const rules = await db
     .select()
     .from(taskWakeups)

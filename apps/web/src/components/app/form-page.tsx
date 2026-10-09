@@ -12,8 +12,12 @@ import { UnsavedChangesGuard } from "./unsaved-changes-guard";
 export const formPageGridClass =
   "grid grid-cols-1 gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]";
 
-const barClass = (layout: string) =>
-  `sticky bottom-0 z-10 -mx-4 flex ${layout} gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur md:-mx-6 md:px-6 lg:hidden`;
+/** The bottom bar; without a rail it is the only place of the actions, so it shows at every width. */
+const barClass = (layout: string, rail: boolean) =>
+  cn(
+    `sticky bottom-0 z-10 -mx-4 flex ${layout} gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur md:-mx-6 md:px-6`,
+    rail && "lg:hidden",
+  );
 
 /** Who or what the form is about, at the top of the rail and in the bottom bar. */
 type FormPageIdentity = {
@@ -53,8 +57,8 @@ export function FormPage({
   identity: FormPageIdentity;
   /** False where the page header already names the item. */
   identityInRail?: boolean;
-  /** The rail's `SummaryList`. */
-  summary: React.ReactNode;
+  /** The rail's `SummaryList`; without one the form is a single column with the actions in the bottom bar. */
+  summary?: React.ReactNode;
   /** Form-level error above the actions; when given, the bottom bar stacks it over its row. */
   alert?: React.ReactNode;
   /** Optional note saved with the new version; replaces the name in the bottom bar. */
@@ -66,6 +70,8 @@ export function FormPage({
   children: React.ReactNode;
 }) {
   const { name, untitled, subtitle, subtitleClassName, media } = identity;
+  const rail = summary !== undefined;
+  const gridClass = rail ? formPageGridClass : "flex flex-col gap-y-6";
   const note = (className?: string) =>
     versionNote && (
       <Input
@@ -95,7 +101,16 @@ export function FormPage({
   );
   const barRow = (
     <>
-      {versionNote ? note("min-w-0 flex-1") : barName}
+      {versionNote ? (
+        note("min-w-0 flex-1")
+      ) : !rail && status !== undefined ? (
+        // Without a rail the page header names the item: the bar says whether there is anything to save.
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" aria-live="polite">
+          {status}
+        </span>
+      ) : (
+        barName
+      )}
       {cancel}
       {submit()}
     </>
@@ -107,52 +122,54 @@ export function FormPage({
 
       <div className="flex min-w-0 flex-col gap-5">{children}</div>
 
-      <aside className="hidden lg:block">
-        <SummaryRail className="sticky top-20 max-h-[calc(100svh-6rem)] overflow-y-auto">
-          {identityInRail && (
-            <>
-              {media ? (
-                <div className="flex min-w-0 items-center gap-3">
-                  {media("xl")}
-                  <div className="min-w-0 flex-1">{lines}</div>
-                </div>
-              ) : (
-                <div className="min-w-0">{lines}</div>
-              )}
-              <Separator />
-            </>
-          )}
-          {summary}
-          <Separator />
-          <div className="flex flex-col gap-2">
-            {alert}
-            {note()}
-            {submit("w-full")}
-            {cancel}
-            {status !== undefined && (
-              <p className="text-center text-xs text-muted-foreground" aria-live="polite">
-                {status}
-              </p>
+      {rail && (
+        <aside className="hidden lg:block">
+          <SummaryRail className="sticky top-20 max-h-[calc(100svh-6rem)] overflow-y-auto">
+            {identityInRail && (
+              <>
+                {media ? (
+                  <div className="flex min-w-0 items-center gap-3">
+                    {media("xl")}
+                    <div className="min-w-0 flex-1">{lines}</div>
+                  </div>
+                ) : (
+                  <div className="min-w-0">{lines}</div>
+                )}
+                <Separator />
+              </>
             )}
-          </div>
-        </SummaryRail>
-      </aside>
+            {summary}
+            <Separator />
+            <div className="flex flex-col gap-2">
+              {alert}
+              {note()}
+              {submit("w-full")}
+              {cancel}
+              {status !== undefined && (
+                <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+                  {status}
+                </p>
+              )}
+            </div>
+          </SummaryRail>
+        </aside>
+      )}
 
       {alert !== undefined ? (
-        <div className={barClass("flex-col")}>
+        <div className={barClass("flex-col", rail)}>
           {alert}
           <div className="flex items-center gap-2">{barRow}</div>
         </div>
       ) : (
-        <div className={barClass("items-center")}>{barRow}</div>
+        <div className={barClass("items-center", rail)}>{barRow}</div>
       )}
     </>
   );
 
   return as === "div" ? (
-    <div className={formPageGridClass}>{content}</div>
+    <div className={gridClass}>{content}</div>
   ) : (
-    <form className={formPageGridClass} {...formProps}>
+    <form className={gridClass} {...formProps}>
       {content}
     </form>
   );

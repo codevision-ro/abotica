@@ -102,7 +102,7 @@ async function ProjectCard({
 
       <div className="mt-auto flex justify-end gap-1 border-t border-border/60 pt-3">
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`/agents/${agentId}?tab=journal&project=${project.id}`}>
+          <Link href={`/agents/${agentId}?tab=activity&project=${project.id}`}>
             <BookOpenIcon /> {t("openJournal")}
           </Link>
         </Button>

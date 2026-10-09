@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { createTask, moveTask } from "@/server/actions/tasks";
-import type { BoardTask } from "@/server/queries/tasks";
+import type { BoardTask, TaskOptions } from "@/server/queries/tasks";
 import { SortableTaskCard, TaskCard } from "./task-card";
 import { TaskStatusIcon } from "./task-icons";
 import { TASK_STATUS_ORDER, type TaskStatusValue, useTaskParams } from "./task-meta";
@@ -38,11 +38,17 @@ function sortByPosition(list: BoardTask[]) {
 
 export function TaskBoard({
   tasks,
+  agents,
   showAllDone,
+  showCancelled,
   projectId,
 }: {
   tasks: BoardTask[];
+  /** For the cards' Redirect. */
+  agents: TaskOptions["agents"];
   showAllDone: boolean;
+  /** Shows the cancelled column (the toolbar's Cancelled filter). */
+  showCancelled: boolean;
   projectId?: string;
 }) {
   const t = useTranslations("tasks.board");
@@ -156,6 +162,7 @@ export function TaskBoard({
   }
 
   const active = activeId ? items.find((t) => t.id === activeId) : undefined;
+  const columnStatuses = TASK_STATUS_ORDER.filter((s) => s !== "cancelled" || showCancelled);
 
   return (
     <DndContext
@@ -176,11 +183,12 @@ export function TaskBoard({
           }
         }}
       >
-        {TASK_STATUS_ORDER.map((status) => (
+        {columnStatuses.map((status) => (
           <BoardColumn
             key={status}
             status={status}
             tasks={columns[status]}
+            agents={agents}
             hrefFor={(id) => hrefWith({ task: id, new: null })}
             projectId={projectId}
             footer={
@@ -205,12 +213,14 @@ export function TaskBoard({
 function BoardColumn({
   status,
   tasks,
+  agents,
   hrefFor,
   footer,
   projectId,
 }: {
   status: TaskStatusValue;
   tasks: BoardTask[];
+  agents: TaskOptions["agents"];
   hrefFor: (id: string) => string;
   footer: React.ReactNode;
   projectId?: string;
@@ -234,24 +244,29 @@ function BoardColumn({
         <span className="rounded-full bg-background/80 px-1.5 text-xs leading-5 text-muted-foreground tabular shadow-[inset_0_0_0_1px_var(--border)] dark:bg-background/40">
           {tasks.length}
         </span>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="ml-auto text-muted-foreground"
-          aria-label={t("addToColumn", { status: label })}
-          aria-expanded={adding}
-          // Keep focus in the open quick-add input: its blur would close it and this click would reopen it.
-          onMouseDown={(e) => adding && e.preventDefault()}
-          onClick={() => setAdding((v) => !v)}
-        >
-          <PlusIcon />
-        </Button>
+        {/* A new task is never paused or cancelled: those columns take tasks moved there. */}
+        {status !== "paused" && status !== "cancelled" && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="ml-auto text-muted-foreground"
+            aria-label={t("addToColumn", { status: label })}
+            aria-expanded={adding}
+            // Keep focus in the open quick-add input: its blur would close it and this click would reopen it.
+            onMouseDown={(e) => adding && e.preventDefault()}
+            onClick={() => setAdding((v) => !v)}
+          >
+            <PlusIcon />
+          </Button>
+        )}
       </header>
-      {adding && <QuickAdd status={status} projectId={projectId} onDone={() => setAdding(false)} />}
+      {adding && status !== "paused" && status !== "cancelled" && (
+        <QuickAdd status={status} projectId={projectId} onDone={() => setAdding(false)} />
+      )}
       <div ref={setNodeRef} className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
-            <SortableTaskCard key={task.id} task={task} href={hrefFor(task.id)} />
+            <SortableTaskCard key={task.id} task={task} href={hrefFor(task.id)} agents={agents} />
           ))}
         </SortableContext>
         {tasks.length === 0 && !adding && (
@@ -270,7 +285,15 @@ function BoardColumn({
   );
 }
 
-function QuickAdd({ status, projectId, onDone }: { status: TaskStatusValue; projectId?: string; onDone: () => void }) {
+function QuickAdd({
+  status,
+  projectId,
+  onDone,
+}: {
+  status: Exclude<TaskStatusValue, "paused" | "cancelled">;
+  projectId?: string;
+  onDone: () => void;
+}) {
   const t = useTranslations("tasks.board");
   const [title, setTitle] = useState("");
   const [pending, startTransition] = useTransition();

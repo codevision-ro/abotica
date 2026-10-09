@@ -1,11 +1,5 @@
 {
-  "meta": {
-    "title": "Journals"
-  },
-  "page": {
-    "title": "Journals",
-    "description": "Each agent's daily summary: what it did, what it decided, what is still open, what it learned."
-  },
+  "description": "Each agent's daily summary: what it did, what it decided, what is still open, what it learned.",
   "search": {
     "label": "Search journals",
     "placeholder": "Search journals (e.g. \"what did it do last Tuesday\")",

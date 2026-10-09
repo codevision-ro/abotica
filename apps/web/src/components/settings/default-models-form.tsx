@@ -2,9 +2,9 @@
 
 import type { ModelRole, ModelSettings } from "@abotica/core/settings";
 import type { ReasoningEffort } from "@abotica/core/models/reasoning";
-import { CrownIcon, Layers, type LucideIcon, PlusIcon, SparklesIcon, Undo2Icon, UsersIcon } from "lucide-react";
+import { CrownIcon, Layers, type LucideIcon, PlusIcon, SparklesIcon, Undo2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { FormSection } from "@/components/app/form-section";
+import { FormSection, FormSubsection } from "@/components/app/form-section";
 import { chainLabel, ModelChainEditor, type ModelRef } from "@/components/agents/model-chain-editor";
 import { type InheritedEffort, ReasoningEffortControl } from "@/components/agents/reasoning-effort-control";
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,7 @@ export type ChainOptions = Pick<AgentFormOptions, "providers" | "models">;
 
 type RoleDefaults = Pick<ModelSettings, "chains" | "reasoningEffort">;
 
-/**
- * The defaults by role (see modelRole), from the widest to the narrowest: the specialists' chain and effort
- * are required, and the managers and the super agent follow them while theirs are empty. Controlled: the
- * models form saves them with the rest of the page (ModelsSettingsForm).
- */
-export function DefaultModelsSection({
-  value,
-  onChange,
-  errors,
-  options,
-  inheritingAgents,
-}: {
+type SectionProps = {
   value: RoleDefaults;
   onChange: (patch: {
     chains?: Partial<ModelSettings["chains"]>;
@@ -37,9 +26,15 @@ export function DefaultModelsSection({
   options: ChainOptions;
   /** Agents on "default" per role. */
   inheritingAgents: Record<ModelRole, number>;
-}) {
+};
+
+/**
+ * The default model, up front: what every agent without a model of its own runs on (the specialists'
+ * chain, which the managers and the super agent follow while theirs are empty). Controlled: the models
+ * form saves it with the rest of the page (ModelsSettingsForm).
+ */
+export function DefaultModelSection({ value, onChange, errors, options, inheritingAgents }: SectionProps) {
   const t = useTranslations("settings.defaultModels");
-  const firstConfigured = options.providers.find((p) => p.configured)?.id ?? "";
   const { chains, reasoningEffort } = value;
   const agentsChain = chains.agent.filter((m) => m.model.trim());
   // The specialists' default also serves the roles whose chain is empty.
@@ -47,54 +42,64 @@ export function DefaultModelsSection({
     inheritingAgents.agent +
     (chains.manager.length ? 0 : inheritingAgents.manager) +
     (chains.orchestrator.length ? 0 : inheritingAgents.orchestrator);
-  const describe = (text: string, count: number) => (count > 0 ? `${text} ${t("inheriting", { count })}` : text);
-  const agentsEffort: InheritedEffort = { effort: reasoningEffort.agent, source: t("roles.agent.title") };
+  const description = agentsUsing > 0 ? `${t("description")} ${t("inheriting", { count: agentsUsing })}` : t("description");
 
   return (
-    <FormSection id="default-models" icon={Layers} title={t("title")} description={t("description")}>
-      <RoleCard
-        icon={UsersIcon}
-        title={t("roles.agent.title")}
-        description={describe(t("roles.agent.description"), agentsUsing)}
-      >
-        <ModelChainEditor
-          value={chains.agent}
-          onChange={(agent) => onChange({ chains: { agent } })}
-          options={options}
-          primaryFirst
-          addLabel={t("addModel")}
-        />
-        {errors.agent && <FieldError>{errors.agent}</FieldError>}
-        <EffortFor
-          chain={agentsChain}
-          options={options}
-          value={reasoningEffort.agent}
-          onChange={(next) => onChange({ reasoningEffort: { agent: next ?? "default" } })}
-          inherited={{ effort: "default" }}
-        />
-      </RoleCard>
-      {(["manager", "orchestrator"] as const).map((role) => (
-        <RoleDefault
-          key={role}
-          icon={role === "manager" ? CrownIcon : SparklesIcon}
-          title={t(`roles.${role}.title`)}
-          description={describe(t(`roles.${role}.description`), inheritingAgents[role])}
-          chain={chains[role]}
-          onChainChange={(next) => onChange({ chains: { [role]: next } })}
-          effort={reasoningEffort[role]}
-          onEffortChange={(next) => onChange({ reasoningEffort: { [role]: next } })}
-          error={errors[role]}
-          agentsChain={agentsChain}
-          agentsEffort={agentsEffort}
-          firstConfigured={firstConfigured}
-          options={options}
-        />
-      ))}
+    <FormSection id="default-models" icon={Layers} title={t("title")} description={description}>
+      <ModelChainEditor
+        value={chains.agent}
+        onChange={(agent) => onChange({ chains: { agent } })}
+        options={options}
+        primaryFirst
+        addLabel={t("addModel")}
+      />
+      {errors.agent && <FieldError>{errors.agent}</FieldError>}
+      <EffortFor
+        chain={agentsChain}
+        options={options}
+        value={reasoningEffort.agent}
+        onChange={(next) => onChange({ reasoningEffort: { agent: next ?? "default" } })}
+        inherited={{ effort: "default" }}
+      />
     </FormSection>
   );
 }
 
-/** One role's defaults in a card of their own: icon, title and description, then the model chain and the effort. */
+/** Own models for the managers and the super agent, each optional: an empty one follows the default model. */
+export function RoleOverrides({ value, onChange, errors, options, inheritingAgents }: SectionProps) {
+  const t = useTranslations("settings.defaultModels");
+  const firstConfigured = options.providers.find((p) => p.configured)?.id ?? "";
+  const { chains, reasoningEffort } = value;
+  const agentsChain = chains.agent.filter((m) => m.model.trim());
+  const agentsEffort: InheritedEffort = { effort: reasoningEffort.agent, source: t("title") };
+  const describe = (text: string, count: number) => (count > 0 ? `${text} ${t("inheriting", { count })}` : text);
+
+  return (
+    <FormSubsection title={t("rolesTitle")} description={t("rolesDescription")}>
+      <div className="flex flex-col gap-3">
+        {(["manager", "orchestrator"] as const).map((role) => (
+          <RoleDefault
+            key={role}
+            icon={role === "manager" ? CrownIcon : SparklesIcon}
+            title={t(`roles.${role}.title`)}
+            description={describe(t(`roles.${role}.description`), inheritingAgents[role])}
+            chain={chains[role]}
+            onChainChange={(next) => onChange({ chains: { [role]: next } })}
+            effort={reasoningEffort[role]}
+            onEffortChange={(next) => onChange({ reasoningEffort: { [role]: next } })}
+            error={errors[role]}
+            agentsChain={agentsChain}
+            agentsEffort={agentsEffort}
+            firstConfigured={firstConfigured}
+            options={options}
+          />
+        ))}
+      </div>
+    </FormSubsection>
+  );
+}
+
+/** One role's models in a card of their own: icon, title and description, then the model chain and the effort. */
 function RoleCard({
   icon: Icon,
   title,

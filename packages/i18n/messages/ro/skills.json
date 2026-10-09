@@ -133,7 +133,7 @@
     "invalidUrl": "Lipește un link GitHub (repository sau folder), un link skills.sh sau owner/repo",
     "noSkillMd": "Nu există niciun SKILL.md acolo",
     "githubNotFound": "Nu l-am găsit pe GitHub. Verifică linkul sau dacă repository-ul e public.",
-    "githubRateLimited": "GitHub a refuzat cererea (limită de request-uri). Adaugă un secret GITHUB_TOKEN în vault și încearcă din nou.",
+    "githubRateLimited": "GitHub a refuzat cererea (limită de request-uri). Adaugă o cheie GITHUB_TOKEN în Chei și încearcă din nou.",
     "githubFailed": "GitHub a răspuns cu o eroare ({status})",
     "tooManyFiles": "Folderul are mai mult de {max} fișiere"
   },
@@ -250,8 +250,6 @@
       "config": "Configurare",
       "versions": "Versiuni"
     },
-    "version": "Versiunea curentă",
-    "files": "{count, plural, one {# fișier} few {# fișiere} other {# de fișiere}}",
     "noDescription": "Fără descriere",
     "installedFrom": "Instalat din {url}"
   },

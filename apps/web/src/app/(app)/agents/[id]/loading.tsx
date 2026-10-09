@@ -20,7 +20,7 @@ export default function Loading() {
         </div>
       </div>
       <div className="flex gap-4 overflow-hidden border-b border-border/70 pb-3">
-        {Array.from({ length: 6 }, (_, i) => (
+        {Array.from({ length: 4 }, (_, i) => (
           <Skeleton key={i} className="h-4 w-20 shrink-0" />
         ))}
       </div>

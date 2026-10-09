@@ -27,7 +27,7 @@ export type PreviewKind = Preview["kind"];
 const HOUR_MS = 3600_000;
 
 /**
- * How long a preview lives (Settings > Previews), renewed by "extend" and, for a static one, by
+ * How long a preview lives (the previews part of Settings > System), renewed by "extend" and, for a static one, by
  * publishing it again. A change applies from the next renewal; links already open keep their expiry.
  */
 export function previewTtlMs(kind: PreviewKind, settings: PreviewSettings): number {

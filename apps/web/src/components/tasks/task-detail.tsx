@@ -15,6 +15,7 @@ import {
   Link2Icon,
   ListChecksIcon,
   MessagesSquareIcon,
+  PauseIcon,
   PaperclipIcon,
   PencilIcon,
   PlayIcon,
@@ -37,7 +38,15 @@ import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { heroFieldVariants } from "@/components/app/hero-fields";
 import { RelativeTime } from "@/components/app/relative-time";
 import { SectionCard, SectionEmpty, SectionList } from "@/components/app/section-card";
-import { PRIORITIES, RunStatusBadge, TASK_STATUSES, TaskStatusBadge, useStatusLabels } from "@/components/app/status-badge";
+import {
+  PRIORITIES,
+  RunStatusBadge,
+  SETTABLE_TASK_STATUSES,
+  type Tone,
+  ToneBadge,
+  TaskStatusBadge,
+  useStatusLabels,
+} from "@/components/app/status-badge";
 import { UntrustedText } from "@/components/chat/untrusted-text";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -51,12 +60,12 @@ import { type UploadedFile, uploadFiles } from "@/lib/upload-files";
 import { cn } from "@/lib/utils";
 import {
   createTask,
-  createTaskComment,
   createTaskDependency,
   createTaskFiles,
   deleteTask,
   deleteTaskDependency,
   deleteTaskFile,
+  sendTaskMessage,
   startTaskRun,
   updateTask,
 } from "@/server/actions/tasks";
@@ -71,7 +80,9 @@ import {
   toLocalInput,
   useTaskParams,
 } from "./task-meta";
+import { canResume, PauseResumeButton, TaskControlMenu } from "./task-controls";
 import { TaskPicker } from "./task-picker";
+import { QuestionAnswer } from "./task-question";
 import { PullRequestBadge } from "./task-pull-request";
 import { TaskWakeups } from "./task-wakeups";
 
@@ -167,12 +178,16 @@ export function TaskDetail({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <RunButton
-              label={task.failures.open ? t("startAnyway") : t("runNow")}
-              reason={runBlockedReason}
-              pending={running || deleting}
-              onRun={run}
-            />
+            {/* A paused task goes on with Resume, in the conversation it worked in. */}
+            {!canResume(task.status) && (
+              <RunButton
+                label={task.failures.open ? t("startAnyway") : t("runNow")}
+                reason={runBlockedReason}
+                pending={running || deleting}
+                onRun={run}
+              />
+            )}
+            <PauseResumeButton task={task} disabled={deleting} />
             {mode === "sheet" && (
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/tasks/${task.id}`}>
@@ -181,27 +196,33 @@ export function TaskDetail({
                 </Link>
               </Button>
             )}
-            <ConfirmDialog
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="ml-auto text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  aria-label={tc("actions.delete")}
-                >
-                  <Trash2Icon />
-                </Button>
-              }
-              tooltip={tc("actions.delete")}
-              title={t("deleteTitle")}
-              description={t("deleteDescription")}
-              confirm={tc("actions.delete")}
-              destructive
-              onConfirm={remove}
-            />
+            <div className="ml-auto flex items-center gap-1">
+              <TaskControlMenu task={task} agents={options.agents} size="icon-sm" />
+              <ConfirmDialog
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={tc("actions.delete")}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                }
+                tooltip={tc("actions.delete")}
+                title={t("deleteTitle")}
+                description={t("deleteDescription")}
+                confirm={tc("actions.delete")}
+                destructive
+                onConfirm={remove}
+              />
+            </div>
           </div>
           {task.failures.open && <FailingRunsNotice failures={task.failures.failures} reason={task.failures.reason} />}
           {task.waitingForSlotSince && <WaitingForSlotNotice />}
+          {task.status === "paused" && (
+            <PausedNotice reason={task.pauseReason} forTask={task.pausedForTaskId && taskHref(task.pausedForTaskId)} />
+          )}
         </header>
 
         <div className="grid items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_20rem] @3xl:grid-rows-[auto_auto_1fr]">
@@ -292,6 +313,32 @@ function WaitingForSlotNotice() {
       <HourglassIcon />
       <AlertTitle>{t("waiting")}</AlertTitle>
       <AlertDescription>{t("waitingHint")}</AlertDescription>
+    </Alert>
+  );
+}
+
+/** Put aside: why, and whether it resumes by itself once the task it made room for settles. */
+function PausedNotice({ reason, forTask }: { reason: string | null; forTask: string | null }) {
+  const t = useTranslations("tasks.control");
+  return (
+    <Alert>
+      <PauseIcon />
+      <AlertTitle>{reason ? t("pausedNotice", { reason }) : t("paused")}</AlertTitle>
+      <AlertDescription>
+        {forTask ? (
+          <p>
+            {t.rich("pausedFor", {
+              link: (chunks) => (
+                <Link href={forTask} className="underline underline-offset-2 hover:text-foreground">
+                  {chunks}
+                </Link>
+              ),
+            })}
+          </p>
+        ) : (
+          <p>{t("pausedHint")}</p>
+        )}
+      </AlertDescription>
     </Alert>
   );
 }
@@ -457,12 +504,22 @@ function Properties({
     <SectionCard icon={SlidersHorizontalIcon} title={t("detail.details")} className={className}>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-1 @lg:grid-cols-2 @3xl:grid-cols-1">
         <Property label={t("detail.fields.status")} htmlFor="meta-status">
-          <Select value={task.status} onValueChange={(v) => onSave({ status: v as (typeof TASK_STATUSES)[number] })}>
+          <Select
+            value={task.status}
+            onValueChange={(v) => onSave({ status: v as (typeof SETTABLE_TASK_STATUSES)[number] })}
+          >
             <SelectTrigger id="meta-status" className={cn(PROPERTY_CONTROL, SELECT_WITH_MEDIA)}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TASK_STATUSES.map((s) => (
+              {/* Paused and cancelled are set with the task's controls; shown here only as its current status. */}
+              {!(SETTABLE_TASK_STATUSES as readonly string[]).includes(task.status) && (
+                <SelectItem value={task.status} disabled>
+                  <TaskStatusIcon status={task.status} />
+                  {labels.task(task.status)}
+                </SelectItem>
+              )}
+              {SETTABLE_TASK_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
                   <TaskStatusIcon status={s} />
                   {labels.task(s)}
@@ -899,14 +956,30 @@ type TimelineItem =
   | { kind: "comment"; at: number; comment: TaskDetailData["comments"][number] }
   | { kind: "event"; at: number; event: TaskDetailData["events"][number]; lines: string[] };
 
-/** Comments and history in one timeline, oldest first, with the comment box at the end. */
+/** Control events with their own history line; the reason, when the event carries one, follows it. */
+const CONTROL_EVENTS = ["paused", "resumed", "cancelled", "redirected"] as const;
+
+/** Message kinds shown with a chip in the timeline; plain notes have none. */
+const MESSAGE_TONE: Record<string, Tone> = {
+  instruction: "primary",
+  question: "warning",
+  answer: "success",
+  progress: "muted",
+  notice: "muted",
+};
+
+/** Comments, messages and history in one timeline, oldest first, with the box to write to the agent at the end. */
 function Activity({ task, options }: { task: TaskDetailData; options: TaskOptions }) {
   const t = useTranslations("tasks");
   const th = useTranslations("tasks.detail.history");
+  const tm = useTranslations("tasks.messages");
+  const tControl = useTranslations("tasks.control.history");
   const labels = useStatusLabels();
   const fmt = useFormat();
   const [body, setBody] = useState("");
   const [pending, startTransition] = useTransition();
+  // The user's messages reach an agent; on a task without one they are comments.
+  const toAgent = Boolean(task.assigneeAgentId);
 
   const agentName = (id: unknown) => options.agents.find((a) => a.id === id)?.name ?? th("values.nobody");
   const projectName = (id: unknown) => options.projects.find((p) => p.id === id)?.name ?? th("values.noProject");
@@ -915,9 +988,14 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
     e?.preventDefault();
     if (!body.trim() || pending) return;
     startTransition(async () => {
-      const res = await createTaskComment({ taskId: task.id, body });
+      const res = await sendTaskMessage({ taskId: task.id, body });
       if (!res.ok) return void toast.error(res.error);
       setBody("");
+      const { delivered, error } = res.data;
+      if (!toAgent) toast.success(tm("commented"));
+      else if (delivered === "refused" || delivered === "withheld") {
+        toast.warning(error ? tm("deliveredWithReason", { reason: error }) : tm(`delivered.${delivered}`));
+      } else toast.success(tm(`delivered.${delivered}`));
     });
   }
 
@@ -959,6 +1037,11 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
   /** One line per change, never a raw field or event name: unknown fields get a generic line, unknown events none. */
   function describe(type: string, data: Record<string, unknown>): string[] {
     if (type === "created") return [th("created")];
+    if ((CONTROL_EVENTS as readonly string[]).includes(type)) {
+      const reason = typeof data.reason === "string" && data.reason.trim() ? data.reason.trim() : null;
+      const line = tControl(type as (typeof CONTROL_EVENTS)[number]);
+      return [reason ? tControl("withReason", { line, reason }) : line];
+    }
     if (type !== "updated") return [];
     const lines = Object.entries(data).flatMap(([field, change]) => {
       const { from, to } = (change ?? {}) as { from?: unknown; to?: unknown };
@@ -994,6 +1077,7 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
                     : c.authorKind === "agent"
                       ? (c.author?.name ?? t("detail.comments.deletedAgent"))
                       : t("assignee.you");
+                const openQuestion = c.kind === "question" && c.questionStatus === "open";
                 return (
                   <li key={`c-${c.id}`} className="relative flex flex-col gap-1.5">
                     <div className="flex min-w-0 items-center gap-2.5 text-sm">
@@ -1007,6 +1091,13 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
                       <span className="truncate font-medium" title={c.author?.name}>
                         {name}
                       </span>
+                      {c.kind !== "note" && (
+                        <ToneBadge tone={openQuestion ? "warning" : (MESSAGE_TONE[c.kind] ?? "muted")}>
+                          {c.kind === "question" && c.questionStatus
+                            ? tm(`question.${c.questionStatus}`)
+                            : tm(`kinds.${c.kind}`)}
+                        </ToneBadge>
+                      )}
                       <RelativeTime date={c.createdAt} className="shrink-0 text-xs text-muted-foreground" />
                     </div>
                     <div className="ml-8.5 min-w-0 rounded-xl border border-border/70 bg-background/60 px-3 py-2 dark:bg-background/30">
@@ -1019,6 +1110,14 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
                         <MessageResponse breaks className="text-sm">
                           {c.body}
                         </MessageResponse>
+                      )}
+                      {openQuestion && (
+                        <QuestionAnswer
+                          questionId={c.id}
+                          taskId={task.id}
+                          choices={c.options}
+                          className="mt-2.5 border-t border-border/60 pt-2.5"
+                        />
                       )}
                     </div>
                   </li>
@@ -1052,13 +1151,13 @@ function Activity({ task, options }: { task: TaskDetailData; options: TaskOption
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
             }}
-            placeholder={t("detail.comments.placeholder")}
-            aria-label={t("detail.comments.label")}
+            placeholder={toAgent ? tm("placeholder") : t("detail.comments.placeholder")}
+            aria-label={toAgent ? tm("label") : t("detail.comments.label")}
             className="min-h-20 bg-background dark:bg-input/30"
           />
           <Button type="submit" size="sm" variant="outline" className="self-end" disabled={pending || !body.trim()}>
             {pending && <Spinner />}
-            {t("detail.comments.submit")}
+            {toAgent ? tm("send") : t("detail.comments.submit")}
           </Button>
         </form>
       </div>

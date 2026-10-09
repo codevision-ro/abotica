@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useStartConversation } from "@/components/chat/start-conversation";
-import { SETTINGS_GROUPS, type SettingsPage } from "@/components/settings/settings-pages";
+import { SETTINGS_PAGES } from "@/components/settings/settings-pages";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -97,9 +97,9 @@ export function CommandMenu() {
         <span className="truncate">{tNav(`items.${item.key}`)}</span>
       </CommandItem>
     ));
-  // Each settings page on its own, so "time zone" or "budget" finds where it is set.
-  const settingsItems = (pages: SettingsPage[]) =>
-    pages.map((page) => (
+  // Each settings page on its own, so "time zone" or "sandbox" finds where it is set.
+  const settingsItems = () =>
+    SETTINGS_PAGES.map((page) => (
       <CommandItem
         key={`settings:${page.href}`}
         value={`${tSettings("label")} ${tSettings(page.key)} ${page.href}`}
@@ -141,7 +141,7 @@ export function CommandMenu() {
               <CommandGroup>
                 {actionItems}
                 {navItems(NAV.flatMap((group) => group.items))}
-                {settingsItems(SETTINGS_GROUPS.flatMap((group) => group.pages))}
+                {settingsItems()}
               </CommandGroup>
             ) : (
               <>
@@ -152,9 +152,7 @@ export function CommandMenu() {
                     {navItems(group.items)}
                   </CommandGroup>
                 ))}
-                <CommandGroup heading={tSettings("label")}>
-                  {settingsItems(SETTINGS_GROUPS.flatMap((group) => group.pages))}
-                </CommandGroup>
+                <CommandGroup heading={tSettings("label")}>{settingsItems()}</CommandGroup>
               </>
             )}
           </CommandList>

@@ -1,1 +1,73 @@
-{}
+{
+  "meta": {
+    "title": "Inbox"
+  },
+  "page": {
+    "title": "Inbox",
+    "description": "Întrebări, aprobări și task-uri care te așteaptă.",
+    "approvalHistory": "Istoric aprobări",
+    "empty": "Nimic nu te așteaptă. Aici apar întrebările agenților, aprobările și task-urile pentru tine."
+  },
+  "sections": {
+    "question": "Întrebări",
+    "questionDescription": "Răspunsul ajunge imediat la agent, chiar în timpul rulării.",
+    "approval": "Aprobări",
+    "task": "Task-urile tale",
+    "blocked": "Task-uri blocate",
+    "blockedDescription": "Task-uri date de tine care nu pot continua fără tine."
+  },
+  "kinds": {
+    "question": "Întrebare",
+    "approval": "Aprobare",
+    "task": "Task pentru tine",
+    "blocked": "Blocat"
+  },
+  "question": {
+    "from": "{name} întreabă",
+    "system": "Abotica întreabă",
+    "recommended": "Recomandat",
+    "label": "Răspunsul tău",
+    "placeholder": "Sau răspunde cu cuvintele tale",
+    "send": "Trimite",
+    "sent": "Răspuns trimis",
+    "systemOptions": {
+      "continue": "Continuă",
+      "redirect": "Redirecționează",
+      "cancel": "Anulează"
+    }
+  },
+  "task": {
+    "open": "Deschide",
+    "markDone": "Marchează gata",
+    "marked": "Marcat ca gata",
+    "resume": "Reia",
+    "resumed": "Reluat"
+  },
+  "age": {
+    "minutes": "{count} min",
+    "hours": "{count} h",
+    "days": "{count, plural, one {# zi} few {# zile} other {# de zile}}"
+  },
+  "reminder": {
+    "reminder": "⏳ *{count, plural, one {# lucru încă te așteaptă} few {# lucruri încă te așteaptă} other {# de lucruri încă te așteaptă}}*",
+    "list": "*{count, plural, one {# lucru te așteaptă} few {# lucruri te așteaptă} other {# de lucruri te așteaptă}}*",
+    "open": "Deschide inboxul"
+  },
+  "telegram": {
+    "empty": "Nimic nu te așteaptă.",
+    "question": {
+      "title": "❓ {from} întreabă",
+      "system": "Abotica",
+      "task": "Task: {task}",
+      "recommended": "Recomandat: {option}",
+      "hint": "Apasă un răspuns sau răspunde la acest mesaj cu cuvintele tale.",
+      "sent": "Răspuns trimis",
+      "replySent": "✅ Răspuns trimis.",
+      "verdict": "✅ Răspuns: {answer}",
+      "closed": "Această întrebare nu mai este deschisă."
+    }
+  },
+  "validation": {
+    "answerEmpty": "Scrie un răspuns"
+  }
+}

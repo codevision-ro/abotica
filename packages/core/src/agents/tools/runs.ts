@@ -1,5 +1,5 @@
 import path from "node:path";
-import { agents, approvals, db, files, runEvents, runs, tasks } from "@abotica/db";
+import { agents, approvals, db, files, projects, runEvents, runs, tasks } from "@abotica/db";
 import { isUserError } from "@abotica/i18n";
 import { type Experimental_SandboxSession, tool } from "ai";
 import { and, desc, eq, gte, inArray, isNull, ne, or } from "@abotica/db/orm";
@@ -9,6 +9,7 @@ import { FILE_MAX_BYTES } from "../../platform/limits";
 import { answersUser, loadDelegationProject, redelegateTask } from "../../tasks/delegation";
 import { deleteFile, readFileBytes, saveFile } from "../../files/files";
 import { cancelRun } from "../../runs/runs";
+import { pauseTask } from "../../tasks/control";
 import { startDelegatedTask } from "../../tasks/delegation-slots";
 import {
   activeTaskRun,
@@ -18,12 +19,14 @@ import {
   pendingDependencies,
   type Task,
   TaskCircuitOpenError,
+  type TaskPriority,
   taskFailureStreak,
   TASK_PRIORITIES,
   updateTask,
 } from "../../tasks/tasks";
 import { checkDelegationTarget, delegationProjectId } from "../../tasks/team-rules";
 import type { RunContext } from "../context";
+import { inControl } from "./control";
 import { planHandover } from "./delegate-files";
 import {
   actorOf,
@@ -37,6 +40,7 @@ import {
   errorResult,
   runContentClosed,
   type ToolFactory,
+  visibleProjects,
 } from "./shared";
 import { withhold, withholdClosed } from "./withheld";
 import { readWorkspaceBytes } from "./workspace";
@@ -46,10 +50,14 @@ const STEP_LIMIT = 8;
 
 type StepEvent = { step?: number; text?: string; toolCalls?: { name: string }[] };
 
-type Handover = { path: string; name: string; data: Uint8Array };
+/** A file read from the workspace of the agent handing it over. */
+export type Handover = { path: string; name: string; data: Uint8Array };
 
-/** Reads the files to hand over from the delegating agent's workspace; any problem fails them all. */
-async function readHandover(
+/**
+ * Reads the files to hand over from the delegating agent's workspace; any problem fails them all.
+ * delegate_task and ask_colleague (peers.ts) hand files to the task they create this way.
+ */
+export async function readHandover(
   paths: string[],
   sandbox: Experimental_SandboxSession | undefined,
   abortSignal: AbortSignal | undefined,
@@ -73,7 +81,7 @@ async function readHandover(
 }
 
 /** Files delegating agents handed to the task before, with these names (not what its own runs produced). */
-async function handedOverBefore(taskId: string, names: string[]) {
+async function detailsBefore(taskId: string, names: string[]) {
   if (!names.length) return [];
   const rows = await db
     .select({ id: files.id, name: files.name })
@@ -91,7 +99,7 @@ async function handedOverBefore(taskId: string, names: string[]) {
 }
 
 /** Stores the handed-over files for the task, then drops the earlier versions they replace. */
-async function storeHandover(ctx: RunContext, taskId: string, plan: { save: Handover[]; replace: string[] }) {
+export async function storeHandover(ctx: RunContext, taskId: string, plan: { save: Handover[]; replace: string[] }) {
   for (const file of plan.save) {
     await saveFile({
       name: file.name,
@@ -105,14 +113,86 @@ async function storeHandover(ctx: RunContext, taskId: string, plan: { save: Hand
   for (const id of plan.replace) await deleteFile(id);
 }
 
+/** The task the delegating run works on, if any. */
+async function ownTask(ctx: RunContext): Promise<Pick<Task, "id" | "projectId" | "priority"> | null> {
+  const id = ctx.run.taskId;
+  if (!id) return null;
+  const [own] = await db
+    .select({ projectId: tasks.projectId, priority: tasks.priority })
+    .from(tasks)
+    .where(eq(tasks.id, id));
+  return own ? { ...own, id } : null;
+}
+
 /**
  * A run working on a task of its own delegates parts of it: the new task is a subtask of that one, so the
  * work shows under it. Only within the same project, where a subtask belongs (see task_create).
  */
-async function ownTaskParent(ctx: RunContext, projectId: string | null): Promise<string | null> {
-  if (!ctx.run.taskId) return null;
-  const [own] = await db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, ctx.run.taskId));
-  return own && own.projectId === projectId ? ctx.run.taskId : null;
+const ownTaskParent = (own: Pick<Task, "id" | "projectId"> | null, projectId: string | null): string | null =>
+  own && own.projectId === projectId ? own.id : null;
+
+const rank = (priority: TaskPriority) => TASK_PRIORITIES.indexOf(priority);
+
+/** What the assignee works on besides the task delegated now. */
+async function assigneeWork(agentId: string, exceptTaskId: string) {
+  return db
+    .select({
+      taskId: tasks.id,
+      title: tasks.title,
+      priority: tasks.priority,
+      projectId: tasks.projectId,
+      project: projects.name,
+      managerAgentId: projects.managerAgentId,
+    })
+    .from(tasks)
+    .leftJoin(projects, eq(projects.id, tasks.projectId))
+    .where(and(eq(tasks.assigneeAgentId, agentId), eq(tasks.status, "in_progress"), ne(tasks.id, exceptTaskId)));
+}
+
+/** Said about work the delegator cannot put aside (another manager's project). */
+const BUSY_ELSEWHERE = "It runs in parallel with this task; ask the super agent if the assignee's capacity matters.";
+
+/**
+ * Before urgent or high work starts: the assignee's other work underway (assigneeBusy), and with
+ * `putAside` its work of lower priority that the delegator controls paused for the new task, to resume
+ * on its own once that one settles. Lower-priority work it cannot control is listed as busyElsewhere.
+ */
+async function makeRoom(
+  ctx: RunContext,
+  task: { id: string; title: string; priority: TaskPriority },
+  agentId: string,
+  putAside: boolean,
+) {
+  if (!putAside && rank(task.priority) < rank("high")) return {};
+  const parked: { taskId: string; title: string }[] = [];
+  const elsewhere: { taskId: string; title: string; project: string | null }[] = [];
+  const busy = [];
+  for (const work of await assigneeWork(agentId, task.id)) {
+    const controllable = inControl(ctx, work.projectId, work.managerAgentId);
+    if (putAside && rank(work.priority) < rank(task.priority)) {
+      if (!controllable) elsewhere.push({ taskId: work.taskId, title: work.title, project: work.project });
+      else {
+        try {
+          await pauseTask(work.taskId, {
+            by: { agentId: ctx.agent.id },
+            reason: "it goes first",
+            pausedForTaskId: task.id,
+          });
+          parked.push({ taskId: work.taskId, title: work.title });
+          continue;
+        } catch (error) {
+          // Its run waits for an approval, or it settled meanwhile: it stays as it is.
+          if (!isUserError(error)) throw error;
+        }
+      }
+    }
+    busy.push({ taskId: work.taskId, title: work.title, priority: work.priority, project: work.project, controllable });
+  }
+  return {
+    ...(rank(task.priority) >= rank("high") && busy.length ? { assigneeBusy: busy } : {}),
+    ...(parked.length ? { putAside: parked } : {}),
+    ...(elsewhere.length ? { busyElsewhere: elsewhere, hint: BUSY_ELSEWHERE } : {}),
+  };
 }
 
 /** The task's runs keep failing: the delegator reports it instead of trying again (see failureStreak). */
@@ -122,7 +202,7 @@ const circuitOpen = (taskId: string, streak: FailureStreak) => ({
 
 /** The mechanics of delegating; whom to delegate to and what a brief holds is in the kind prompts. */
 const DELEGATE =
-  "Hand a task to an agent; it starts now, or once its dependencies are done or a place frees up. The agent sees neither your conversation nor your workspace: the description holds what it needs, files the files. To retry or reassign a task, send its taskId instead of a title and description. Its result comes back here as an automatic notice: do not poll.";
+  "Hand a task to an agent; it starts now, or once its dependencies are done or a place frees up (urgent work first). The agent sees neither your conversation nor your workspace: the description holds what it needs, files the files. To retry or reassign a task, send its taskId instead of a title and description. Priority defaults to your own task's. For urgent or high work the result lists the assignee's other work; putAside pauses its lower-priority work you control, which resumes on its own once this task settles. Its result comes back here as an automatic notice as soon as it settles: do not poll.";
 
 /**
  * Said with every started delegation, at the moment the model decides what to do next: agents kept
@@ -145,9 +225,18 @@ export const runTools: Record<string, ToolFactory> = {
         title: optionalText().describe("Required for a new task"),
         description: optionalText().describe("Required for a new task; for an existing one, add notes with task_comment"),
         projectId: optionalId(),
-        priority: z.enum(TASK_PRIORITIES).default("medium"),
+        priority: z
+          .preprocess(blankToUndefined, z.enum(TASK_PRIORITIES).optional())
+          .describe("Left out: your own task's priority, or medium"),
         deadline: optionalDateTime(),
         dependsOnTaskIds: z.array(z.string().uuid()).default([]),
+        putAside: z
+          .boolean()
+          .default(false)
+          .describe("Pause the assignee's lower-priority work you control until this task settles"),
+        reportTogether: optionalText().describe(
+          "A key shared by tasks whose results make sense only together: they are reported in one notice once all settled",
+        ),
         userAsked: z
           .boolean()
           .default(false)
@@ -158,17 +247,26 @@ export const runTools: Record<string, ToolFactory> = {
             `Workspace paths of files the agent needs (e.g. inputs/1a2b3c4d/contract.pdf), at most ${FILE_MAX_BYTES / (1024 * 1024)} MB each; it finds them in its inputs. With taskId, a file of the same name replaces the one handed over before.`,
           ),
       }),
-      execute: async (input, { abortSignal, experimental_sandbox: sandbox }) => {
-        const agent = await agentBySlug(input.agentSlug);
+      execute: async (given, { abortSignal, experimental_sandbox: sandbox }) => {
+        const agent = await agentBySlug(given.agentSlug);
         if (!agent || agent.isTemplate || !agent.enabled) {
-          return { error: `Agent ${input.agentSlug} does not exist or is disabled. Use agent_list.` };
+          return { error: `Agent ${given.agentSlug} does not exist or is disabled. Use agent_list.` };
         }
-        const [existing] = input.taskId ? await db.select().from(tasks).where(eq(tasks.id, input.taskId)) : [];
-        if (input.taskId && !existing) return { error: `Task ${input.taskId} does not exist. Use task_list.` };
-        // Handing on its own task would cut the report to whoever gave it; parts of it go as new tasks.
-        if (existing?.assigneeAgentId === ctx.agent.id) {
-          return { error: "This task is yours: delegate parts of it as new tasks and finish it yourself." };
-        }
+        const [found] = given.taskId ? await db.select().from(tasks).where(eq(tasks.id, given.taskId)) : [];
+        if (given.taskId && !found) return { error: `Task ${given.taskId} does not exist. Use task_list.` };
+        // Its own task handed on would cut the report to whoever gave it: it goes out as a new task under it,
+        // with the brief sent (or the task's own), and the delegator still finishes its task with the result.
+        const handsOnOwn = found?.assigneeAgentId === ctx.agent.id;
+        const existing = handsOnOwn ? undefined : found;
+        const input = handsOnOwn
+          ? {
+              ...given,
+              taskId: undefined,
+              title: given.title ?? found.title,
+              description: given.description ?? found.description,
+              projectId: given.projectId ?? found.projectId ?? undefined,
+            }
+          : given;
         // Who may hand what to whom: the super agent reaches a project through its manager, a manager its team.
         const delegator = {
           id: ctx.agent.id,
@@ -194,6 +292,8 @@ export const runTools: Record<string, ToolFactory> = {
 
         let taskId: string;
         let plan: { save: Handover[]; replace: string[] };
+        const own = await ownTask(ctx);
+        let delegated: { id: string; title: string; priority: TaskPriority };
         if (existing) {
           const task = existing;
           const active = await activeTaskRun(task.id);
@@ -213,7 +313,7 @@ export const runTools: Record<string, ToolFactory> = {
           }
           const planned = planHandover(
             handover,
-            await handedOverBefore(
+            await detailsBefore(
               task.id,
               handover.map((f) => f.name),
             ),
@@ -221,7 +321,11 @@ export const runTools: Record<string, ToolFactory> = {
           if ("error" in planned) return planned;
           plan = planned;
           await redelegateTask(task.id, agent.id, ctx.run.id, { actor: actorOf(ctx), userAsked });
+          if (input.priority && input.priority !== task.priority) {
+            await updateTask(task.id, { priority: input.priority }, actorOf(ctx));
+          }
           taskId = task.id;
+          delegated = { id: task.id, title: task.title, priority: input.priority ?? task.priority };
         } else {
           if (!input.title || input.title.trim().length < 3)
             return { error: "A new task needs a title (at least 3 characters)" };
@@ -231,7 +335,7 @@ export const runTools: Record<string, ToolFactory> = {
           const planned = planHandover(handover, []);
           if ("error" in planned) return planned;
           plan = planned;
-          const parentId = await ownTaskParent(ctx, resolved.value);
+          const parentId = ownTaskParent(own, resolved.value);
           let task: Task;
           try {
             task = await createTask(
@@ -240,7 +344,7 @@ export const runTools: Record<string, ToolFactory> = {
                 description: input.description,
                 projectId: resolved.value,
                 parentId,
-                priority: input.priority,
+                priority: input.priority ?? own?.priority ?? "medium",
                 deadline: input.deadline ? new Date(input.deadline) : null,
                 assigneeAgentId: agent.id,
                 dependsOn: input.dependsOnTaskIds,
@@ -253,20 +357,27 @@ export const runTools: Record<string, ToolFactory> = {
             throw error;
           }
           taskId = task.id;
+          delegated = task;
         }
         await storeHandover(ctx, taskId, plan);
-        const handedOver = handover.length ? { files: handover.map((f) => f.name) } : {};
+        if (input.reportTogether) {
+          await db.update(tasks).set({ reportGroup: input.reportTogether }).where(eq(tasks.id, taskId));
+        }
+        const details = {
+          ...(handover.length ? { files: handover.map((f) => f.name) } : {}),
+          ...(await makeRoom(ctx, delegated, agent.id, input.putAside)),
+        };
 
         const open = await pendingDependencies(taskId);
         if (open.length) {
           // Backlog is what starts on its own once the dependencies are done.
           if (input.taskId) await updateTask(taskId, { status: "backlog" }, actorOf(ctx));
-          return { taskId, started: false, waitingFor: open.map((o) => o.id), ...handedOver };
+          return { taskId, started: false, waitingFor: open.map((o) => o.id), ...details };
         }
         try {
           const run = await startDelegatedTask(taskId, { parentRunId: ctx.run.id });
-          if (!run) return { taskId, started: false, queued: QUEUED, ...handedOver };
-          return { taskId, runId: run.id, started: true, next: REPORT_COMES_BACK, ...handedOver };
+          if (!run) return { taskId, started: false, queued: QUEUED, ...details };
+          return { taskId, runId: run.id, started: true, next: REPORT_COMES_BACK, ...details };
         } catch (error) {
           // A parallel call started the same task first.
           if (isActiveTaskRunConflict(error)) {
@@ -280,7 +391,8 @@ export const runTools: Record<string, ToolFactory> = {
 
   run_list: (ctx) =>
     tool({
-      description: "Recent runs: status, agent, cost, errors. Use it for progress reports; run_get has a run's result.",
+      description:
+        "Recent runs (a manager: of the projects it leads): status, agent, cost, errors. Use it for progress reports; run_get has a run's result.",
       inputSchema: z.object({
         sinceHours: z
           .number()
@@ -292,6 +404,8 @@ export const runTools: Record<string, ToolFactory> = {
       }),
       execute: async ({ sinceHours, status, agentSlug }) => {
         const closed = await closedProjects(ctx);
+        // The super agent sees every run, a manager the runs of the projects it leads.
+        const visible = visibleProjects(ctx);
         const rows = await db
           .select({
             id: runs.id,
@@ -311,6 +425,7 @@ export const runTools: Record<string, ToolFactory> = {
               gte(runs.createdAt, new Date(Date.now() - sinceHours * 3600_000)),
               status ? eq(runs.status, status) : undefined,
               agentSlug ? eq(agents.slug, agentSlug) : undefined,
+              visible ? inArray(runs.projectId, visible) : undefined,
             ),
           )
           .orderBy(desc(runs.createdAt))
@@ -331,7 +446,9 @@ export const runTools: Record<string, ToolFactory> = {
           .leftJoin(agents, eq(agents.id, runs.agentId))
           .leftJoin(tasks, eq(tasks.id, runs.taskId))
           .where(eq(runs.id, runId));
-        if (!row) return { error: `Run ${runId} does not exist. Use run_list.` };
+        const visible = visibleProjects(ctx);
+        const inScope = !visible || (row?.run.projectId != null && visible.includes(row.run.projectId));
+        if (!row || !inScope) return { error: `Run ${runId} does not exist or is not visible to you. Use run_list.` };
         const { run } = row;
         const [closed, children, pending, steps] = await Promise.all([
           runContentClosed(ctx, run),

@@ -58,6 +58,7 @@
     "updated": "Programare actualizată",
     "when": "Când",
     "presets": "Programări uzuale",
+    "custom": "Personalizat",
     "nextRun": "Următoarea rulare: {date}",
     "create": "Creează programarea"
   },

@@ -36,12 +36,7 @@ export function MemoryPanel({
       </div>
       <div aria-hidden className="h-px bg-linear-to-r from-border via-border/50 to-transparent" />
       <div className="overflow-hidden rounded-b-2xl">{children}</div>
-      {footer && <div className="border-t border-border/60 px-4 py-3 sm:px-5">{footer}</div>}
+      {footer}
     </section>
   );
-}
-
-/** One-line empty state inside a panel, optionally followed by an action. */
-export function PanelEmpty({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <p className={cn("px-4 py-5 text-sm text-muted-foreground sm:px-5", className)}>{children}</p>;
 }

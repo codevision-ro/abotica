@@ -191,6 +191,9 @@ export function responseMessageStream({
         new TransformStream<TextStreamPart<ToolSet>, TextStreamPart<ToolSet>>({
           transform(part, controller) {
             if (part.type === "tool-error") toolErrors.add(part.error);
+            // A call whose input failed its schema carries the error itself (shown as a tool-input-error):
+            // the model reads it and tries again, the run goes on.
+            if (part.type === "tool-call" && part.invalid) toolErrors.add(part.error);
             controller.enqueue(part);
           },
         }),

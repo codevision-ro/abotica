@@ -53,7 +53,8 @@
     "e2e:previews": "tsx --env-file-if-exists=../../.env scripts/e2e-previews.ts",
     "e2e:mcp": "tsx --env-file-if-exists=../../.env scripts/e2e-mcp.ts",
     "e2e:company": "tsx --env-file-if-exists=../../.env scripts/e2e-company.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "e2e:company:sweep": "tsx --env-file-if-exists=../../.env scripts/e2e-company-sweep.ts"
   },
   "dependencies": {
     "@abotica/db": "workspace:*",

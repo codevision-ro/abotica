@@ -135,12 +135,12 @@ export async function AgentVersionsTab({
                       <>
                         <Button variant={isSelected ? "secondary" : "ghost"} size="sm" asChild>
                           {isSelected ? (
-                            <Link href={`/agents/${agentId}?tab=versions`} scroll={false} aria-label={t("hideCompare")}>
+                            <Link href={`/agents/${agentId}?tab=history`} scroll={false} aria-label={t("hideCompare")}>
                               <XIcon /> <span className="hidden sm:inline">{t("hideCompare")}</span>
                             </Link>
                           ) : (
                             <Link
-                              href={`/agents/${agentId}?tab=versions&v=${v.version}#version-diff`}
+                              href={`/agents/${agentId}?tab=history&v=${v.version}#version-diff`}
                               aria-label={t("compare")}
                             >
                               <GitCompareIcon /> <span className="hidden sm:inline">{t("compare")}</span>

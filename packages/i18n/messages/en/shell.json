@@ -6,7 +6,7 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
-    "security": "Security",
+    "account": "Account",
     "signOut": "Sign out",
     "updateAvailable": "Update available",
     "updateTooltip": "Abotica {version} is available"

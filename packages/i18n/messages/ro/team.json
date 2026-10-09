@@ -57,5 +57,8 @@
     "hireNone": "Angajează",
     "added": "{count, plural, one {# agent a intrat în echipă} few {# agenți au intrat în echipă} other {# de agenți au intrat în echipă}}",
     "hired": "{name} a intrat în echipă"
+  },
+  "help": {
+    "taskTitle": "Ajutor: {question}"
   }
 }

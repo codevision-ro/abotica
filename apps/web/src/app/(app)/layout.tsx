@@ -8,17 +8,17 @@ import { TimeZoneDetect } from "@/components/settings/time-zone-detect";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { getPendingApprovalCount } from "@/server/queries/dashboard";
+import { getInboxCount } from "@/server/queries/inbox";
 import { getKillSwitchState, getTimeZoneUnset } from "@/server/queries/settings";
 import { getAvailableUpdate } from "@/server/queries/updates";
 import { requireUser } from "@/server/session";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const [t, killed, pending, update, timeZoneUnset, cookieStore] = await Promise.all([
+  const [t, killed, waiting, update, timeZoneUnset, cookieStore] = await Promise.all([
     getTranslations("shell.header"),
     getKillSwitchState(),
-    getPendingApprovalCount(),
+    getInboxCount(),
     getAvailableUpdate(),
     getTimeZoneUnset(),
     cookies(),
@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <LiveUpdates>
       {timeZoneUnset && <TimeZoneDetect />}
       <SidebarProvider defaultOpen={sidebarOpen}>
-        <AppSidebar user={{ name: user.name, email: user.email }} badges={{ "/approvals": pending }} update={update} />
+        <AppSidebar user={{ name: user.name, email: user.email }} badges={{ "/inbox": waiting }} update={update} />
         <SidebarInset className="min-w-0 md:border md:border-border/60">
           {/* The kill switch state lives in the header (fixed height), so full-height pages like chat keep fitting. */}
           <header

@@ -295,8 +295,8 @@ function UserCard({ server: s, toggle, test, results, testing }: CardProps) {
         server={s}
         toggle={toggle}
         subtitle={
-          <p className="truncate font-mono text-sm text-muted-foreground" title={s.slug}>
-            {s.slug}
+          <p className="truncate font-mono text-xs text-muted-foreground" title={target || undefined}>
+            {target || t("notConfigured")}
           </p>
         }
       />
@@ -321,10 +321,6 @@ function UserCard({ server: s, toggle, test, results, testing }: CardProps) {
           </Badge>
         )}
       </div>
-
-      <p className="truncate font-mono text-xs text-muted-foreground" title={target || undefined}>
-        {target || t("notConfigured")}
-      </p>
 
       {result && (
         <div className="relative z-10">

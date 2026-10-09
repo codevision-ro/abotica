@@ -6,7 +6,7 @@ import {
 } from "@/components/settings/settings-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Settings > Models while it loads: title and "Add provider", provider cards, the defaults, then the rest. */
+/** Settings > Models while it loads: title and "Add provider", provider cards, the default model, then Advanced. */
 export default function Loading() {
   return (
     <>
@@ -27,7 +27,6 @@ export default function Loading() {
           </div>
         ))}
       </div>
-      <SettingsSectionSkeleton height="h-80" />
       <SettingsSectionSkeleton height="h-40" />
       <SettingsCollapsedSkeleton />
     </>

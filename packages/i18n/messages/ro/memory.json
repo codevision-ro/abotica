@@ -1,14 +1,15 @@
 {
   "meta": {
-    "title": "Memorie",
-    "transcriptTitle": "Transcript conversație"
+    "title": "Memorie"
   },
   "page": {
     "title": "Memorie",
-    "description": "Ce știu agenții pe termen lung, pe niveluri: global, proiect și agent.",
+    "description": "Ce știu agenții pe termen lung, pe niveluri, și ce a făcut fiecare în fiecare zi.",
     "tabs": {
-      "pending": "În așteptare",
-      "conversations": "Istoric conversații"
+      "project": "Proiecte",
+      "agent": "Agenți",
+      "journal": "Jurnal",
+      "pending": "În așteptare"
     }
   },
   "scopes": {
@@ -22,10 +23,10 @@
     "consolidation": "consolidare"
   },
   "origins": {
-    "owner": "proprietar",
+    "owner": "tu",
     "agent": "agent",
-    "untrusted": "date externe",
-    "system": "sistem"
+    "untrusted": "conținut din afară",
+    "system": "Abotica"
   },
   "retention": {
     "permanent": "permanentă",
@@ -40,22 +41,21 @@
   "search": {
     "label": "Caută în memorie",
     "placeholder": "Caută în toate memoriile",
-    "resultsAria": "Rezultate căutare",
     "resultsFor": "Rezultate pentru \"{query}\"",
-    "hybrid": "căutare hibridă",
-    "keyword": "căutare după cuvinte (embeddings indisponibile)",
     "clear": "Șterge căutarea",
     "empty": "Niciun rezultat. Încearcă alte cuvinte sau adaugă memoria care lipsește."
   },
   "filters": {
     "pinned": "Fixate",
+    "menu": "Filtre",
     "byProject": "Filtrează după proiect",
     "allProjects": "Toate proiectele",
     "byAgent": "Filtrează după agent",
     "allAgents": "Toți agenții",
-    "origin": "Filtrează după origine",
-    "allOrigins": "Toate originile",
+    "origin": "Provine de la",
+    "allOrigins": "Oriunde",
     "history": "Arată istoricul",
+    "historyHint": "Arată și intrările înlocuite de altele mai noi.",
     "neverUsed": "Nefolosite",
     "neverUsedHint": "Intrări pe care nicio rulare nu le-a folosit în cele {days} zile de când au fost scrise. Nimic nu se șterge singur.",
     "byAgentLayer": "Filtrează după unde se aplică",
@@ -94,8 +94,7 @@
     "restore": "Restaurează",
     "restored": "Memorie restaurată: agenții o citesc din nou",
     "recalls": "{count, plural, =0 {nefolosită} one {folosită o dată} few {folosită de # ori} other {folosită de # de ori}}",
-    "recallsHint": "De câte ori au folosit-o rulările: adusă în context sau găsită prin căutarea în memorie.",
-    "pageLabel": "{total, plural, one {# intrare} few {# intrări} other {# de intrări}} · pagina {page} din {pageCount}"
+    "recallsHint": "De câte ori au folosit-o rulările: adusă în context sau găsită prin căutarea în memorie."
   },
   "budget": {
     "label": "Bugetul memoriei fixate",
@@ -104,7 +103,6 @@
     "pinnedOmitted": "{count, plural, one {# intrare fixată nu încape și este lăsată deoparte.} few {# intrări fixate nu încap și sunt lăsate deoparte.} other {# de intrări fixate nu încap și sunt lăsate deoparte.}}"
   },
   "pending": {
-    "empty": "Nimic de aprobat. Memoriile scrise de agenți așteaptă aici când <settings>aprobarea este obligatorie</settings> și mereu când par suspecte.",
     "selectAll": "Selectează tot",
     "selected": "{count} selectate",
     "reject": "Respinge",
@@ -178,7 +176,7 @@
     "created": "Memorie salvată"
   },
   "priority": {
-    "title": "Cum se aplică memoria",
+    "title": "Cum funcționează memoria",
     "order": "Prioritate la conflict, de la cea mai mare",
     "description": "Memoria echipei conține deciziile și excepțiile proiectului stabilite cu tine. Memoria globală conține regulile tale, care bat orice a notat un agent pentru sine. Notițele unui agent pe un proiect bat experiența lui generală. La același nivel, informația mai nouă bate informația mai veche.",
     "precedence": {
@@ -215,51 +213,10 @@
       },
       "raw": {
         "name": "Istoric brut",
-        "what": "Tot, nefiltrat (debug și audit)",
-        "who": "Doar tu, din UI"
+        "what": "Fiecare conversație, așa cum a avut loc",
+        "who": "Doar tu, în Chat"
       }
     }
-  },
-  "conversations": {
-    "alertTitle": "Istoricul conversațiilor e separat de memorie",
-    "alertDescription": "Agenții nu citesc conversațiile vechi ca memorie. Ele rămân aici pentru audit și debug; ce trebuie reținut ajunge în memorie sau în jurnalul zilnic.",
-    "pageLabel": "{total, plural, one {# conversație} few {# conversații} other {# de conversații}} · pagina {page} din {pageCount}",
-    "messageCount": "{count, plural, one {# mesaj} few {# mesaje} other {# de mesaje}}",
-    "empty": "Nicio conversație încă. Conversațiile din chat, Telegram și rulările interne apar aici.",
-    "columns": {
-      "conversation": "Conversație",
-      "agent": "Agent",
-      "channel": "Canal",
-      "messages": "Mesaje",
-      "updated": "Actualizată"
-    },
-    "channels": {
-      "web": "Web",
-      "telegram": "Telegram",
-      "internal": "Intern"
-    },
-    "back": "Istoric conversații",
-    "started": "Începută {date}",
-    "readOnly": "Doar citire",
-    "noMessages": "Conversația nu are mesaje"
-  },
-  "transcript": {
-    "roles": {
-      "user": "Utilizator",
-      "system": "Sistem"
-    },
-    "reasoning": "Raționament",
-    "file": "fișier",
-    "input": "Input",
-    "output": "Output",
-    "error": "Eroare",
-    "data": "Date"
-  },
-  "pagination": {
-    "aria": "Paginare",
-    "page": "Pagina {page}",
-    "previous": "Înapoi",
-    "next": "Înainte"
   },
   "validation": {
     "contentRequired": "Conținutul e obligatoriu",
@@ -271,6 +228,6 @@
     "blockedAddress": "Pagina nu a putut fi descărcată: {host} este o adresă privată sau internă",
     "credentialsInUrl": "Linkurile cu nume de utilizator sau parolă nu sunt permise",
     "tooManyRedirects": "Pagina nu a putut fi descărcată: prea multe redirecționări",
-    "containsSecret": "Conținutul pare să includă un secret (o cheie API, un token sau o cheie privată). Secretele nu se păstrează în memorie: salvează valoarea în Vault și menționează doar numele ei."
+    "containsSecret": "Conținutul pare să includă un secret (o cheie API, un token sau o cheie privată). Secretele nu se păstrează în memorie: salvează valoarea în Chei și menționează doar numele ei."
   }
 }

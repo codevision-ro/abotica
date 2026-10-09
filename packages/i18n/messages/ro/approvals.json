@@ -4,14 +4,14 @@
   },
   "page": {
     "title": "Aprobări",
-    "description": "Acțiunile sensibile ale agenților așteaptă decizia ta înainte să ruleze."
+    "description": "Acțiunile pe care un agent s-a oprit să le verifice întâi cu tine. Agenții lucrează singuri, în afară de uneltele setate să întrebe."
   },
   "tabs": {
     "pending": "În așteptare",
     "history": "Istoric"
   },
   "pending": {
-    "empty": "Nimic de aprobat. Când un agent cere permisiunea pentru o acțiune sensibilă, cererea apare aici și pe Telegram."
+    "empty": "Nimic de aprobat. Când un agent are nevoie de aprobarea ta pentru o unealtă, cererea apare aici, în inbox și pe Telegram."
   },
   "history": {
     "decidedAt": "Decisă {time}",

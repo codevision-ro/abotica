@@ -29,7 +29,7 @@ export async function AgentJournalTab({
     listAgentJournals(agentId, { query: query || undefined, projectId }),
     listAgentJournalProjects(agentId),
   ]);
-  const base = `/agents/${agentId}?tab=journal${project ? `&project=${project}` : ""}`;
+  const base = `/agents/${agentId}?tab=activity${project ? `&project=${project}` : ""}`;
 
   return (
     <SectionCard
@@ -41,11 +41,11 @@ export async function AgentJournalTab({
       action={
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <JournalProjectFilter
-            params={{ tab: "journal", q: query || undefined, project: project || undefined }}
+            params={{ tab: "activity", q: query || undefined, project: project || undefined }}
             projects={projects}
           />
           <form role="search" className="flex items-center gap-1.5" action={`/agents/${agentId}`}>
-            <input type="hidden" name="tab" value="journal" />
+            <input type="hidden" name="tab" value="activity" />
             {project && <input type="hidden" name="project" value={project} />}
             <div className="relative">
               <SearchIcon
@@ -110,7 +110,7 @@ export async function AgentJournalTab({
           ) : project ? (
             <>
               {t("emptyFiltered")}{" "}
-              <SectionEmptyLink href={`/agents/${agentId}?tab=journal`}>{t("allProjectsLink")}</SectionEmptyLink>
+              <SectionEmptyLink href={`/agents/${agentId}?tab=activity`}>{t("allProjectsLink")}</SectionEmptyLink>
             </>
           ) : (
             t("empty")

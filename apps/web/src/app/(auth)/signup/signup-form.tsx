@@ -33,7 +33,7 @@ export function SignupForm({ setupCode }: { setupCode: { header: string; initial
     setPending(false);
     if (error) return void toast.error(errorMessage(error, t("signup.failed")));
     toast.success(t("signup.created"));
-    router.replace("/settings/security");
+    router.replace("/settings/account");
     router.refresh();
   }
 

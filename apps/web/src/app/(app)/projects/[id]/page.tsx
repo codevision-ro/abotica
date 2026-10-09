@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
-  AppWindowIcon,
-  ArrowLeftIcon,
-  BrainIcon,
   CrownIcon,
   FolderGitIcon,
   FolderKanbanIcon,
-  KeyRoundIcon,
   LayoutDashboardIcon,
   LibraryIcon,
   ListTodoIcon,
@@ -16,6 +12,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import { BackLink } from "@/components/app/back-link";
 import { PageBody } from "@/components/app/page-header";
 import { TabNav } from "@/components/app/tab-nav";
 import { StartConversationButton } from "@/components/chat/start-conversation";
@@ -24,15 +21,13 @@ import { ProjectStatusBadge } from "@/components/projects/project-badges";
 import { ProjectKnowledge } from "@/components/projects/project-knowledge";
 import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectRepos } from "@/components/projects/project-repos";
-import { PreviewList } from "@/components/previews/preview-list";
-import { ProjectSecrets } from "@/components/projects/project-secrets";
 import { ProjectStatusMenu } from "@/components/projects/project-status-menu";
 import { ProjectTasks } from "@/components/projects/project-tasks";
 import { ProjectTeamTab } from "@/components/projects/project-team";
 import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import { listPreviewRows } from "@/server/queries/previews";
-import { getPinnedUsage, listOwnerMemories } from "@/server/queries/memory";
+import { listOwnerMemories } from "@/server/queries/memory";
 import {
   getProject,
   getProjectOverview,
@@ -41,25 +36,28 @@ import {
   listKnowledgeItems,
   listLeadableAgents,
   listProjectRepos,
-  listProjectSecrets,
   listProjectTasks,
   listTeamCandidates,
   type ProjectDetail,
 } from "@/server/queries/projects";
 
-const TABS = ["overview", "team", "tasks", "memory", "knowledge", "repos", "previews", "secrets"] as const;
+const TABS = ["overview", "tasks", "team", "knowledge", "repos"] as const;
 
 type Tab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
   overview: <LayoutDashboardIcon />,
-  team: <UsersIcon />,
   tasks: <ListTodoIcon />,
-  memory: <BrainIcon />,
+  team: <UsersIcon />,
   knowledge: <LibraryIcon />,
   repos: <FolderGitIcon />,
-  previews: <AppWindowIcon />,
-  secrets: <KeyRoundIcon />,
+};
+
+/** Tabs that moved: old links land where their content lives now (the project's keys are in Settings > Keys). */
+const MOVED_TABS: Record<string, (id: string) => string> = {
+  memory: (id) => `/projects/${id}?tab=knowledge`,
+  previews: (id) => `/projects/${id}`,
+  secrets: (id) => `/settings/keys?project=${id}`,
 };
 
 async function load(id: string) {
@@ -79,17 +77,15 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
   const project = await load(id);
   if (!project) notFound();
 
+  const moved = typeof sp.tab === "string" && Object.hasOwn(MOVED_TABS, sp.tab) ? MOVED_TABS[sp.tab] : undefined;
+  if (moved) redirect(moved(project.id));
   const tab: Tab = TABS.some((t) => t === sp.tab) ? (sp.tab as Tab) : "overview";
   const t = await getTranslations("projects");
   const tc = await getTranslations("common");
 
   return (
     <PageBody>
-      <Button variant="ghost" size="sm" className="-mb-2 self-start" asChild>
-        <Link href="/projects">
-          <ArrowLeftIcon /> {t("detail.back")}
-        </Link>
-      </Button>
+      <BackLink href="/projects">{t("detail.back")}</BackLink>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <span className="flex size-14 shrink-0 items-center justify-center self-start rounded-2xl bg-primary/8 text-primary sm:self-center dark:bg-primary/15">
@@ -103,9 +99,6 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
             </h1>
             <ProjectStatusBadge status={project.status} />
           </div>
-          <p className="truncate font-mono text-xs text-muted-foreground" title={project.slug}>
-            {project.slug}
-          </p>
           {project.description && (
             <p
               className="line-clamp-2 max-w-3xl text-sm text-pretty text-muted-foreground wrap-anywhere"
@@ -152,26 +145,30 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
       {tab === "overview" && <OverviewTab project={project} />}
       {tab === "team" && <TeamTab project={project} />}
       {tab === "tasks" && <ProjectTasks projectId={project.id} tasks={await listProjectTasks(project.id)} />}
-      {tab === "memory" && (
-        <OwnedMemories
-          owner={{ projectId: project.id }}
-          memories={await listOwnerMemories({ projectId: project.id })}
-          pinnedUsage={await getPinnedUsage({ projectId: project.id })}
-        />
-      )}
-      {tab === "knowledge" && <ProjectKnowledge projectId={project.id} items={await listKnowledgeItems(project.id)} />}
+      {tab === "knowledge" && <KnowledgeTab projectId={project.id} />}
       {tab === "repos" && <ProjectRepos projectId={project.id} repos={await listProjectRepos(project.id)} />}
-      {tab === "previews" && <PreviewList previews={await listPreviewRows(project.id)} showOwner={false} />}
-      {tab === "secrets" && (
-        <ProjectSecrets projectId={project.id} projectSlug={project.slug} secrets={await listProjectSecrets(project.id)} />
-      )}
     </PageBody>
   );
 }
 
 async function OverviewTab({ project }: { project: ProjectDetail }) {
-  const [overview, team] = await Promise.all([getProjectOverview(project.id), getProjectTeam(project)]);
-  return <ProjectOverview project={project} overview={overview} team={team} />;
+  const [overview, team, previews] = await Promise.all([
+    getProjectOverview(project.id),
+    getProjectTeam(project),
+    listPreviewRows(project.id),
+  ]);
+  return <ProjectOverview project={project} overview={overview} team={team} previews={previews} />;
+}
+
+/** What the team knows: the project's memory, then the documents its agents can search. */
+async function KnowledgeTab({ projectId }: { projectId: string }) {
+  const [memories, items] = await Promise.all([listOwnerMemories({ projectId }), listKnowledgeItems(projectId)]);
+  return (
+    <div className="flex flex-col gap-6">
+      <OwnedMemories owner={{ projectId }} memories={memories} />
+      <ProjectKnowledge projectId={projectId} items={items} />
+    </div>
+  );
 }
 
 async function TeamTab({ project }: { project: ProjectDetail }) {

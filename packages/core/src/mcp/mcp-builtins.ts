@@ -7,7 +7,7 @@
  * one Chromium: the revision Scrapling's patchright is built for, because its stealth only works on
  * that one. Playwright MCP is pinned to the release on the same revision; bump them together.
  */
-import type { NetworkPolicy, ToolPermission } from "@abotica/db";
+import type { NetworkPolicy } from "@abotica/db";
 
 export type BuiltinMcpKey = "parallel-search" | "context7" | "playwright" | "scrapling";
 
@@ -17,11 +17,6 @@ type BuiltinBase = {
   name: string;
   /** Where its documentation lives, shown on its card. */
   docsUrl: string;
-  /**
-   * What its tools start at for an agent that set nothing for them, instead of the default from each
-   * tool's hints (agents/permissions.ts `mcpToolDefault`).
-   */
-  defaultPermission?: ToolPermission;
   /**
    * Tools of the server no agent gets. Only for what would cross the one line Abotica keeps: a tool that
    * runs code as the MCP user could read the other MCP servers' credentials from their processes.
@@ -76,9 +71,6 @@ export const BUILTIN_MCP_SERVERS: readonly BuiltinMcp[] = [
     slug: "playwright",
     name: "Playwright",
     docsUrl: "https://github.com/microsoft/playwright-mcp",
-    // Browsing is clicks and typing, which Playwright MCP declares destructive: asking for each would
-    // make the browser unusable. It runs in the sandbox with a fresh profile per run (--isolated).
-    defaultPermission: "allow",
     // Runs JavaScript in the server's own Node process (its description says "RCE-equivalent"): as the
     // MCP user it could read the other MCP servers' environments, where their keys are. Page scripts
     // (browser_evaluate) run in the browser and stay available.

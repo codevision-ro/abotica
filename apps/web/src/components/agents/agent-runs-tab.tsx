@@ -9,8 +9,9 @@ import { getFormat } from "@/server/format";
 import { listAgentRuns } from "@/server/queries/agents";
 
 export async function AgentRunsTab({ agentId }: { agentId: string }) {
+  // The latest few; the rest are one click away in Runs.
   const [runs, t, tr, fmt] = await Promise.all([
-    listAgentRuns(agentId),
+    listAgentRuns(agentId, 10),
     getTranslations("agents.runs"),
     getTranslations("common.trigger"),
     getFormat(),
@@ -24,7 +25,6 @@ export async function AgentRunsTab({ agentId }: { agentId: string }) {
     <SectionCard
       icon={ActivityIcon}
       title={t("title")}
-      count={runs.length}
       description={t("description")}
       flush
       action={

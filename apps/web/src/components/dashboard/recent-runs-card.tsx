@@ -30,7 +30,7 @@ export async function RecentRunsCard({ runs, className }: { runs: RunRow[]; clas
       action={
         runs.length > 0 && (
           <Button asChild variant="ghost" size="sm">
-            <Link href="/runs">{tCommon("actions.viewAll")}</Link>
+            <Link href="/runs">{t("seeAll")}</Link>
           </Button>
         )
       }

@@ -249,6 +249,7 @@
     "notes": "Note: {notes}",
     "expires": "Expiră {time}",
     "fires": "Declanșată de {fires} din {maxFires} ori",
+    "firesUnlimited": "{fires, plural, one {Declanșată o dată} few {Declanșată de # ori} other {Declanșată de # de ori}}",
     "cancel": "Anulează așteptarea",
     "remove": "Elimină așteptarea",
     "cancelled": "Așteptare anulată",
@@ -272,5 +273,75 @@
     "payloadReference": "(datele primite de declanșator, în comentariul de mai jos)",
     "nothingNew": "Nimic nou: rezultatul nu are nevoie de atenția nimănui, așa că nu a fost anunțat nimeni. Rămâne aici, în rezultat.",
     "reviewDescription": "Verifică ce a livrat {agent} pentru această programare sau acest declanșator (subtask-ul), apoi raportează rezultatul."
+  },
+  "control": {
+    "pause": "Pune pe pauză",
+    "resume": "Reia",
+    "redirect": "Redirecționează",
+    "cancel": "Anulează task-ul",
+    "more": "Acțiuni task",
+    "byYou": "De către utilizator",
+    "paused": "Task pus pe pauză",
+    "resumed": "Task reluat",
+    "redirected": "Task redirecționat",
+    "cancelled": "{count, plural, one {Task anulat} few {# task-uri anulate} other {# de task-uri anulate}}",
+    "pausedNotice": "Pe pauză: {reason}",
+    "pausedFor": "Pus deoparte pentru un <link>task urgent</link>; se reia singur după ce acela se încheie.",
+    "pausedHint": "Rularea s-a oprit la ultimul pas. Reia-l când trebuie să continue.",
+    "showCancelled": "Anulate",
+    "cancelTitle": "Anulezi acest task?",
+    "cancelDescription": "Rulările lui se opresc și nimeni nu mai lucrează la el. Cel care l-a dat este anunțat.",
+    "reason": "Motiv (opțional)",
+    "reasonPlaceholder": "De ce, pentru cel care a dat task-ul",
+    "cascade": "Anulează și subtask-urile lui și munca delegată din el",
+    "keep": "Păstrează-l",
+    "confirmCancel": "Anulează task-ul",
+    "redirectTitle": "Redirecționează task-ul",
+    "redirectDescription": "Schimbă-i direcția cât timp e în lucru. Se aplică doar ce modifici.",
+    "instructions": "Instrucțiuni noi",
+    "instructionsPlaceholder": "Ce trebuie să se schimbe",
+    "instructionsHint": "Ajung imediat la agent, chiar în timpul rulării.",
+    "reassign": "Responsabil",
+    "keepAssignee": "Păstrează responsabilul actual",
+    "priority": "Prioritate",
+    "deadline": "Termen",
+    "submitRedirect": "Redirecționează",
+    "nothingChanged": "Nimic de schimbat",
+    "history": {
+      "paused": "a pus task-ul pe pauză",
+      "resumed": "a reluat task-ul",
+      "cancelled": "a anulat task-ul",
+      "redirected": "a redirecționat task-ul",
+      "withReason": "{line}: {reason}"
+    }
+  },
+  "messages": {
+    "send": "Trimite agentului",
+    "label": "Mesaj pentru agent",
+    "placeholder": "Spune-i agentului ce să schimbe; îl citește imediat, chiar în timpul rulării (Ctrl+Enter pentru trimitere)",
+    "commented": "Comentariu adăugat",
+    "deliveredWithReason": "Salvat, nelivrat: {reason}",
+    "delivered": {
+      "steered": "Livrat în rularea în curs: agentul îl citește la pasul următor",
+      "follow-up": "Livrat: agentul îl citește imediat după pasul curent",
+      "woke": "Agentul a fost trezit ca să se ocupe de el",
+      "slot": "Salvat: agentul se apucă de el imediat ce se eliberează un loc",
+      "stored": "Salvat: agentul îl citește la următoarea rulare",
+      "withheld": "Salvat, nelivrat: providerii AI ai proiectului nu îl lasă să ajungă la acest agent",
+      "refused": "Salvat, nelivrat"
+    },
+    "kinds": {
+      "instruction": "Instrucțiune",
+      "question": "Întrebare",
+      "answer": "Răspuns",
+      "progress": "Progres",
+      "notice": "Notificare",
+      "note": "Notă"
+    },
+    "question": {
+      "open": "Așteaptă un răspuns",
+      "answered": "Cu răspuns",
+      "withdrawn": "Retrasă"
+    }
   }
 }

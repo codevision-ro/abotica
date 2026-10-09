@@ -63,6 +63,8 @@ export async function createTask(
     delegatedByRunId?: string | null;
     /** Work a schedule or trigger fired: the task reports up the hierarchy on its own (tasks.reportsUp). */
     automation?: { scheduleId?: string | null; triggerId?: string | null };
+    /** help: a colleague's question (ask_colleague), settled and reported as an answer. */
+    kind?: Task["kind"];
   },
   actor = "user",
 ): Promise<Task> {
@@ -92,6 +94,7 @@ export async function createTask(
         reportsUp: Boolean(input.automation),
         scheduleId: input.automation?.scheduleId ?? null,
         triggerId: input.automation?.triggerId ?? null,
+        kind: input.kind ?? "work",
       })
       .returning();
     if (!row) throw new Error("Task insert failed");

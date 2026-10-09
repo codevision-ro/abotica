@@ -20,7 +20,7 @@ type ProjectFields = Pick<
   "name" | "description" | "goals" | "status" | "budgetUsd" | "allowedProviders" | "telegramTopicId" | "sandbox"
 >;
 
-/** Null follows the default policy from Settings > Sandbox; anything else must be a valid policy. */
+/** Null follows the default sandbox policy (Settings > System); anything else must be a valid policy. */
 const validSandbox = <T extends { sandbox?: unknown }>(fields: T): T =>
   fields.sandbox == null ? fields : { ...fields, sandbox: parseSandboxPolicy(fields.sandbox) };
 
@@ -203,17 +203,18 @@ async function newManager(before: Project, opts: TeamOptions): Promise<Project> 
   return project;
 }
 
-/** Adds specialists to the team; agents already on it are skipped. */
-export async function addProjectMembers(projectId: string, agentIds: string[], opts: TeamOptions = {}): Promise<void> {
+/** Adds specialists to the team; agents already on it are skipped. Returns the ids of the ones that joined. */
+export async function addProjectMembers(projectId: string, agentIds: string[], opts: TeamOptions = {}): Promise<string[]> {
   await projectById(projectId);
   const members = await teamMembers(agentIds);
-  if (!members.length) return;
+  if (!members.length) return [];
   const added = await db
     .insert(projectAgents)
     .values(members.map((a) => ({ projectId, agentId: a.id })))
     .onConflictDoNothing()
     .returning({ id: projectAgents.agentId });
   if (added.length) await teamChanged(projectId, opts.actor, { added: added.map((a) => a.id) });
+  return added.map((a) => a.id);
 }
 
 /** Takes an agent off the team. The manager stays until another one is chosen. */

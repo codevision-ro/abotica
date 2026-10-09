@@ -46,7 +46,7 @@ function CommandBlock({ label, command }: { label: string; command: string }) {
 }
 
 /**
- * Settings > Updates, when a newer release exists: the command to run, and what happens to the data
+ * The updates part of Settings > System, when a newer release exists: the command to run, and what happens to the data
  * and to the runs in progress (`runningRuns`), which the restart stops.
  */
 export function UpdateCommand({ repo, runningRuns }: { repo: string; runningRuns: number }) {

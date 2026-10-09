@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_WAKES_PER_HOUR, type WakeupView, wakeupCondition } from "@abotica/core/wakeup-rules";
+import { MAX_FIRES_LIMIT, MAX_WAKES_PER_HOUR, type WakeupView, wakeupCondition } from "@abotica/core/wakeup-rules";
 import { HourglassIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTransition } from "react";
@@ -49,7 +49,14 @@ export function TaskWakeups({ taskId, wakeups, className }: { taskId: string; wa
               : w.status === "expired"
                 ? [t("stopped.expired")]
                 : [
-                    w.maxFires > 1 ? t("fires", { fires: w.fires, maxFires: w.maxFires }) : null,
+                    // The default for repeats is the hard limit, which means no maximum: only the count shows.
+                    w.maxFires >= MAX_FIRES_LIMIT
+                      ? w.fires > 0
+                        ? t("firesUnlimited", { fires: w.fires })
+                        : null
+                      : w.maxFires > 1
+                        ? t("fires", { fires: w.fires, maxFires: w.maxFires })
+                        : null,
                     w.expiresAt ? t("expires", { time: fmt.dateTime(w.expiresAt) }) : null,
                   ].filter((line) => line !== null);
           const action = w.status === "active" ? t("cancel") : t("remove");

@@ -1,13 +1,21 @@
-import { agents, approvals, db, runEvents, runs, tasks } from "@abotica/db";
-import { and, eq, inArray } from "@abotica/db/orm";
+import { agents, approvals, db, runEvents, runs, taskEvents, tasks } from "@abotica/db";
+import { and, eq, inArray, isNull } from "@abotica/db/orm";
 import { getTranslator, type Translator } from "@abotica/i18n";
 import { publish } from "../infra/events";
-import { enqueueDelegationReport, enqueueTaskEvent, notify, runJobState, type RunJobState } from "../infra/queues";
+import {
+  enqueueDelegationReport,
+  enqueueTaskEvent,
+  notify,
+  runJobState,
+  type RunJobState,
+  scheduleRunRetry,
+} from "../infra/queues";
 import { redis } from "../infra/redis";
 import { getSettings, settingsLocale } from "../settings/settings";
-import { addTaskComment, awaitsDelegatedWork, awaitsWakeup, updateTask } from "../tasks/tasks";
+import { addTaskComment, awaitsAnswer, awaitsDelegatedWork, awaitsWakeup, touchTask, updateTask } from "../tasks/tasks";
 import type { RunFailureKind } from "./run-failures";
 import { interruptRunMessage } from "./run-messages";
+import { isRetryable, retryPlan } from "./retry-rules";
 
 /**
  * Every status change of a run goes through here: the worker claims and ends the runs it executes,
@@ -87,7 +95,10 @@ async function transition(
   return run;
 }
 
-/** Reports the run's delegated task (with the others of its round) back to the delegator, through the queue. */
+/**
+ * Reports the run's delegated task back to the delegator, through the queue. The report job first asks
+ * tasks/followups.ts onRunEnded whether the task goes on (a continuation, a question, a retry) instead.
+ */
 const reportBack = (run: Run) => attempt(run.id, "queueing its delegation report", () => enqueueDelegationReport(run.id));
 
 /** A task left in progress by a run that ended without settling it is blocked with the reason. */
@@ -97,6 +108,74 @@ async function blockTask(run: Run, comment: (t: Translator) => string) {
   if (task?.status !== "in_progress") return;
   await updateTask(run.taskId, { status: "blocked" }, "system");
   await addTaskComment(run.taskId, comment(await translator()), "system");
+}
+
+/**
+ * The run's own limits (steps, time, the loop detector) stopped it before its task was finished. Not a
+ * failure: the run ended succeeded with the kind, its task stays in progress, and onRunEnded
+ * (tasks/followups.ts) has it go on by itself or asks its delegator.
+ */
+export const isLimitStop = (kind: RunFailureKind | null): boolean =>
+  kind === "step_limit" || kind === "timeout" || kind === "loop";
+
+/**
+ * The comment on the task of a run that ended for `reason` and will not be retried: a run whose
+ * automatic retries ran out says so, with how many there were.
+ */
+const endedComment =
+  (run: Run, reason: string, key: "errors.run.taskComment" | "runs.lifecycle.taskCancelled") => (t: Translator) =>
+    isRetryable(run.failureKind) && run.attempt > 1
+      ? t("runs.lifecycle.retriesExhausted", { retries: run.attempt - 1, reason })
+      : key === "errors.run.taskComment"
+        ? t(key, { error: reason })
+        : t(key, { reason });
+
+/**
+ * Schedules the automatic retry of a run that ended for a passing reason (retry-rules.ts): runs.retryAt,
+ * a comment on its task saying when it resumes, and a delayed "retry" task event (the follow-up sweeper
+ * starts the retries whose job was lost). Its task is not blocked and nothing is counted: the circuit
+ * breaker skips these kinds, and redelegations, continuations and agent rounds stay as they are. A run
+ * without a task is a conversation's run (a chat cut by a restart): it is retried in that conversation.
+ * False when the run is not retried.
+ */
+async function scheduleRetry(run: Run, reason: string): Promise<boolean> {
+  if (!run.taskId && (!run.conversationId || !run.agentId)) return false;
+  const settings = await getSettings();
+  const plan = retryPlan(run.failureKind, run.attempt, settings.agents);
+  if (!plan) return false;
+  const [marked] = await db
+    .update(runs)
+    .set({ retryAt: plan.at })
+    .where(and(eq(runs.id, run.id), isNull(runs.retriedByRunId)))
+    .returning({ id: runs.id });
+  if (!marked) return false;
+  const retry = { at: plan.at.toISOString(), attempt: run.attempt + 1 };
+  await attempt(run.id, "logging its retry", () => logRunEvent(run.id, "retry-scheduled", retry));
+  if (run.taskId) {
+    const taskId = run.taskId;
+    const locale = settingsLocale(settings);
+    const time = new Intl.DateTimeFormat(locale, {
+      timeZone: settings.general.timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(plan.at);
+    const comment = getTranslator(locale)("runs.lifecycle.retryScheduled", {
+      reason,
+      time,
+      retry: run.attempt,
+      retries: settings.agents.transientRetries,
+    });
+    await attempt(run.id, "noting its retry on the task", async () => {
+      await addTaskComment(taskId, comment, "system");
+      await db
+        .insert(taskEvents)
+        .values({ taskId, type: "retry-scheduled", actor: "system", data: { runId: run.id, ...retry } });
+    });
+  }
+  // Lost, the job is made up for by the sweeper, which starts every retry that is due.
+  await attempt(run.id, "queueing its retry", () => scheduleRunRetry(run.id, plan.at));
+  return true;
 }
 
 /** The pending approvals of a run that will not continue: expired, so a stale call is never approved and run. */
@@ -112,14 +191,19 @@ const expireApprovals = (runId: string) =>
  * Takes a queued run for execution. Null when it is gone or no longer queued (cancelled meanwhile, or
  * taken by another worker): it must not run.
  */
-export function claimRun(id: string): Promise<Run | null> {
-  return transition(id, ["queued"], { status: "running", startedAt: new Date() });
+export async function claimRun(id: string): Promise<Run | null> {
+  const run = await transition(id, ["queued"], { status: "running", startedAt: new Date() });
+  if (run?.taskId) {
+    const { taskId } = run;
+    await attempt(id, "touching its task", () => touchTask(taskId));
+  }
+  return run;
 }
 
 /**
  * Ends a running run that answered (or waits for approvals); `actor` moves its task to review.
- * `unfinished`: a limit of the run stopped it (`error` says which), so its task gets a comment saying
- * the work is not finished, which its delegator and the user read before marking it done.
+ * `stopKind`: what stopped the run before its answer (a limit, a budget, the kill switch, a pause), kept
+ * as its failure kind next to the reason in `error`. A limit of the run leaves its task in progress.
  */
 export async function finishRun(
   run: Run,
@@ -127,7 +211,7 @@ export async function finishRun(
     status: "succeeded" | "waiting_approval";
     output: string;
     error?: string | null;
-    unfinished?: boolean;
+    stopKind?: RunFailureKind | null;
     actor: string;
   },
 ): Promise<Run | null> {
@@ -135,28 +219,26 @@ export async function finishRun(
     status: end.status,
     output: end.output,
     error: end.error ?? null,
+    failureKind: end.stopKind ?? null,
     finishedAt: new Date(),
   });
   if (!finished) return null;
   if (finished.status === "waiting_approval") return settleIfDecided(finished);
   if (finished.status === "succeeded") {
-    const { taskId } = finished;
-    if (end.unfinished && taskId) {
-      const reason = end.error ?? "";
-      await attempt(run.id, "noting the limit on its task", async () =>
-        addTaskComment(taskId, (await translator())("runs.lifecycle.stoppedAtLimit", { reason }), "system"),
-      );
-    }
-    await attempt(run.id, "moving its task to review", async () => {
+    await attempt(run.id, "moving its task on", async () => {
       if (!finished.taskId) return;
       const [task] = await db.select().from(tasks).where(eq(tasks.id, finished.taskId));
-      if (task?.status !== "in_progress") return;
+      if (!task) return;
+      await touchTask(task.id);
+      if (task.status !== "in_progress") return;
       // A task waiting for a wakeup stays in progress: checked now, a condition already true fires.
       if (await awaitsWakeup(task.id)) return enqueueTaskEvent({ taskId: task.id, event: "wakeups" });
-      // A task whose work was handed on stays in progress until that work is reported back here.
-      if (!(await awaitsDelegatedWork(finished.conversationId))) {
-        await updateTask(task.id, { status: "review", output: task.output ?? end.output }, end.actor);
-      }
+      // It also stays in progress while a question about it waits for its answer (which wakes it), while
+      // work it handed on is still to be reported back here, and after a limit stopped its run.
+      if (await awaitsAnswer(task.id)) return;
+      if (await awaitsDelegatedWork(finished.conversationId)) return;
+      if (isLimitStop(finished.failureKind)) return;
+      await updateTask(task.id, { status: "review", output: task.output ?? end.output }, end.actor);
     });
     if (finished.trigger !== "chat" && finished.trigger !== "telegram") {
       await attempt(run.id, "notifying", () => notify({ kind: "run-finished", runId: run.id }));
@@ -190,9 +272,10 @@ async function settleIfDecided(run: Run): Promise<Run> {
 
 /**
  * Ends a run as failed: the error and its kind are stored and logged, its pending approvals expire (a
- * worker that dies after asking leaves some), its task is blocked with the error, the user notified and
- * the delegator told. Never throws: a failure that cannot be recorded is logged, and the reaper ends the
- * run later.
+ * worker that dies after asking leaves some). A passing failure is retried later (scheduleRetry), with
+ * its task left in progress; otherwise its task is blocked with the error and the user notified. The
+ * delegator is told either way (the report skips a task that goes on). Never throws: a failure that
+ * cannot be recorded is logged, and the reaper ends the run later.
  */
 export async function failRun(
   run: Run,
@@ -206,16 +289,26 @@ export async function failRun(
   if (!failed) return null;
   await attempt(run.id, "logging the error", () => logRunEvent(run.id, "error", { message: error, kind }));
   await expireApprovals(run.id);
-  await attempt(run.id, "blocking its task", () => blockTask(failed, (t) => t("errors.run.taskComment", { error })));
-  await attempt(run.id, "notifying", () => notify({ kind: "run-finished", runId: run.id }));
+  if (!(await attempt(run.id, "scheduling its retry", () => scheduleRetry(failed, error)))) {
+    await attempt(run.id, "blocking its task", () =>
+      blockTask(failed, endedComment(failed, error, "errors.run.taskComment")),
+    );
+    await attempt(run.id, "notifying", () => notify({ kind: "run-finished", runId: run.id }));
+  }
   await reportBack(failed);
   return failed;
 }
 
-/** Blocks the tasks of cancelled runs, then reports them: tasks cancelled together are reported together. */
+/**
+ * Settles the tasks of cancelled runs, then reports them: tasks cancelled together are reported together.
+ * A run cut by a worker restart is retried (scheduleRetry); the task of any other is blocked.
+ */
 async function settleCancelled(cancelled: Run[], reason: string): Promise<void> {
   for (const run of cancelled) {
-    await attempt(run.id, "blocking its task", () => blockTask(run, (t) => t("runs.lifecycle.taskCancelled", { reason })));
+    if (await attempt(run.id, "scheduling its retry", () => scheduleRetry(run, reason))) continue;
+    await attempt(run.id, "blocking its task", () =>
+      blockTask(run, endedComment(run, reason, "runs.lifecycle.taskCancelled")),
+    );
   }
   for (const run of cancelled) await reportBack(run);
 }
@@ -301,8 +394,8 @@ export function staleRunReason(
  * Runs an active job owns are left to it, so this stays correct with several workers. An overdue or
  * orphaned run may still be executing somewhere (a worker that lost its job lock keeps going): its
  * worker is asked to abort it and finds it already ended. The answer of a run that started keeps its
- * finished steps; its interrupted tool calls are closed and a note says why it stopped. Nothing is run
- * again: a retry is the user's call, and the next run sees what was done. Returns how many runs it failed.
+ * finished steps; its interrupted tool calls are closed and a note says why it stopped. failRun retries
+ * it a little later (these failures pass), and the retry sees what was done. Returns how many runs it failed.
  */
 export async function recoverRuns(now = new Date()): Promise<number> {
   const active = await db

@@ -1,16 +1,29 @@
 "use client";
 
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
-import { Bot, FolderKanban, Globe, ShieldCheck } from "lucide-react";
+import { Bot, CircleDashed, FolderKanban, Globe, History, ListFilter } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/app/agent-avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { type QueryParams, useQueryUpdate } from "@/hooks/use-query-update";
 import { cn } from "@/lib/utils";
+import { ORIGINS } from "./memory-badges";
 
 const ALL = "__all";
 
-const ICONS = { agent: Bot, project: FolderKanban, global: Globe, origin: ShieldCheck } as const;
+const ICONS = { agent: Bot, project: FolderKanban, global: Globe } as const;
 
 /** Compact filter stored in one query param; it is tinted while a value is chosen. */
 export function ParamSelect({
@@ -95,5 +108,66 @@ export function ParamToggle({
     >
       {children}
     </Toggle>
+  );
+}
+
+/**
+ * The less used filters of a memory level in one menu: where entries come from, entries no run has used,
+ * and the replaced entries (history). The button shows how many are on.
+ */
+export function FiltersMenu({ params, unusedDays }: { params: QueryParams; unusedDays: number }) {
+  const t = useTranslations("memory");
+  const { update } = useQueryUpdate(params);
+  const active = [params.origin, params.neverUsed, params.history].filter(Boolean).length;
+  const set = (patch: Record<string, string | null>) => update({ ...patch, page: null });
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn(
+            "bg-background font-normal dark:bg-input/30",
+            active && "border-primary/40 bg-primary/5 dark:bg-primary/10",
+          )}
+        >
+          <ListFilter className="text-muted-foreground" /> {t("filters.menu")}
+          {active > 0 && <span className="tabular text-xs font-semibold text-primary">{active}</span>}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">{t("filters.origin")}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={params.origin ?? ALL} onValueChange={(v) => set({ origin: v === ALL ? null : v })}>
+          <DropdownMenuRadioItem value={ALL}>{t("filters.allOrigins")}</DropdownMenuRadioItem>
+          {ORIGINS.map((o) => (
+            <DropdownMenuRadioItem key={o} value={o} className="first-letter:uppercase">
+              {t(`origins.${o}`)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={params.neverUsed === "1"}
+          onCheckedChange={(on) => set({ neverUsed: on ? "1" : null })}
+          className="items-start"
+        >
+          <CircleDashed className="mt-0.5 text-muted-foreground" />
+          <span className="flex flex-col">
+            {t("filters.neverUsed")}
+            <span className="text-xs text-muted-foreground">{t("filters.neverUsedHint", { days: unusedDays })}</span>
+          </span>
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem
+          checked={params.history === "1"}
+          onCheckedChange={(on) => set({ history: on ? "1" : null })}
+          className="items-start"
+        >
+          <History className="mt-0.5 text-muted-foreground" />
+          <span className="flex flex-col">
+            {t("filters.history")}
+            <span className="text-xs text-muted-foreground">{t("filters.historyHint")}</span>
+          </span>
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

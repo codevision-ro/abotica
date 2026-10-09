@@ -157,5 +157,21 @@
     "title": "Nicio conversație în {project} încă",
     "description": "Începe una cu managerul proiectului. El lucrează cu fișierele, memoria și knowledge base-ul proiectului.",
     "start": "Discută cu managerul"
+  },
+  "taskNotice": {
+    "kinds": {
+      "instruction": "Instrucțiuni noi",
+      "question": "Întrebare",
+      "answer": "Răspuns",
+      "progress": "Progres",
+      "control": "Control task",
+      "reminder": "Memento",
+      "alert": "Alertă",
+      "help-answer": "Un coleg a răspuns"
+    },
+    "from": "De la {from}",
+    "urgent": "Urgent",
+    "showMessage": "Vezi mesajul",
+    "openTask": "Deschide task-ul"
   }
 }

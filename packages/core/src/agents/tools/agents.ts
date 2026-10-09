@@ -57,8 +57,11 @@ async function managedAgent(slug: string) {
 export const agentTools: Record<string, ToolFactory> = {
   agent_list: (ctx) =>
     tool({
-      description:
-        "List the available agents with their kind (orchestrator, manager, specialist), roles, models, projects (manager: true where they lead it), skills and MCP servers. Use it before delegating.",
+      description: `List the available agents with their kind (orchestrator, manager, specialist), roles, models, projects (manager: true where they lead it), skills and MCP servers. ${
+        ctx.agent.kind === "manager"
+          ? "Use it to find a specialist your team lacks, then add it with team_add."
+          : "Use it before delegating."
+      }`,
       inputSchema: z.object({}),
       execute: async () => {
         const rows = await db.query.agents.findMany({

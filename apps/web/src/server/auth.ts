@@ -136,7 +136,7 @@ type Auth = ReturnType<typeof createAuth>;
 let current: { sessionDays: number; auth: Auth } | undefined;
 
 /**
- * The better-auth instance for the current Settings > Security session length. better-auth reads
+ * The better-auth instance for the current session length (Settings > Account). better-auth reads
  * session.expiresIn once, at creation, and uses it for the session row's expiry, the cookie's
  * Max-Age and the renewal on use, so the instance is rebuilt when the setting changes instead of
  * patching expiresAt in hooks (which would leave the cookie and the renewal on the old length).

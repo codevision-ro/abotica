@@ -1,11 +1,9 @@
 import { SKILL_MD } from "@abotica/core/skill-md";
-import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { BackLink } from "@/components/app/back-link";
 import { PageBody } from "@/components/app/page-header";
 import { SkillForm } from "@/components/skills/skill-form";
-import { Button } from "@/components/ui/button";
 import { getAssignTargets } from "@/server/queries/skills";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -17,11 +15,7 @@ export default async function NewSkillPage() {
   const [targets, t] = await Promise.all([getAssignTargets(), getTranslations("skills")]);
   return (
     <PageBody>
-      <Button variant="ghost" size="sm" className="-mb-2 self-start" asChild>
-        <Link href="/skills">
-          <ArrowLeftIcon /> {t("form.back")}
-        </Link>
-      </Button>
+      <BackLink href="/skills">{t("form.back")}</BackLink>
       {/* The skill name in the form is the visible title; this one names the page for screen readers. */}
       <h1 className="sr-only">{t("meta.new")}</h1>
       <SkillForm

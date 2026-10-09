@@ -133,7 +133,7 @@
     "invalidUrl": "Paste a GitHub link (repository or folder), a skills.sh link or owner/repo",
     "noSkillMd": "No SKILL.md found there",
     "githubNotFound": "Not found on GitHub. Check the link, or that the repository is public.",
-    "githubRateLimited": "GitHub refused the request (rate limit). Add a GITHUB_TOKEN secret in the vault and try again.",
+    "githubRateLimited": "GitHub refused the request (rate limit). Add a GITHUB_TOKEN key in Keys and try again.",
     "githubFailed": "GitHub answered with an error ({status})",
     "tooManyFiles": "The folder has more than {max} files"
   },
@@ -250,8 +250,6 @@
       "config": "Configuration",
       "versions": "Versions"
     },
-    "version": "Current version",
-    "files": "{count, plural, one {# file} other {# files}}",
     "noDescription": "No description",
     "installedFrom": "Installed from {url}"
   },

@@ -39,5 +39,14 @@
     "general": "Rapoarte"
   },
   "taskBlocked": "⛔ **{agent}**: task-ul \"{task}\" e blocat și are nevoie de tine.",
-  "openTask": "Deschide task-ul"
+  "openTask": "Deschide task-ul",
+  "followups": {
+    "quietTask": "💤 Task-ul \"{task}\" stă de {minutes} min: nimeni nu lucrează la el, iar cine l-a dat nu l-a mișcat după două reveniri. Deschide task-ul ca să decizi.",
+    "deadlineEscalated": "⏰ Task-ul \"{task}\" are o întârziere de {minutes} min, iar cine l-a dat nu a făcut nimic. Prelungește termenul, crește-i prioritatea, redirecționează-l sau anulează-l.",
+    "blockedTask": "⛔ Task-ul \"{task}\" e blocat de {minutes} min, iar cine l-a dat nu s-a ocupat de el. Deschide task-ul ca să decizi.",
+    "retryNotStarted": "Reîncercarea automată nu a putut porni: {reason}. Rezolvă cauza, apoi pornește task-ul din nou."
+  },
+  "dependencies": {
+    "cannotStart": "Nu a putut porni după ce \"{dependency}\" a fost terminat: {reason}. Rezolvă cauza, apoi pornește task-ul din nou."
+  }
 }

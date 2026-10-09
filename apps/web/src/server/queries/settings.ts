@@ -21,7 +21,7 @@ import {
   TELEGRAM_TOKEN_SECRET,
 } from "@abotica/core";
 import { agents, auditLogs, db, projects, secrets } from "@abotica/db";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "@abotica/db/orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "@abotica/db/orm";
 import { publicQuery, query } from "@/server/query";
 
 /** The app-wide settings, every domain with its defaults filled in. */
@@ -150,19 +150,13 @@ export const getAuditLogPage = query(async (filter: { actor?: string; entityType
 
 /** Settings > Telegram: the stored configuration (never the token itself) and what the worker's bot reports. */
 export const getTelegramStatus = query(async () => {
-  const [[token], current, bot, topics, [all]] = await Promise.all([
+  const [[token], current, bot] = await Promise.all([
     db
       .select({ projectId: secrets.projectId, updatedAt: secrets.updatedAt })
       .from(secrets)
       .where(eq(secrets.name, TELEGRAM_TOKEN_SECRET)),
     getSettings(),
     getTelegramBotStatus().catch(() => null),
-    db
-      .select({ id: projects.id, name: projects.name, status: projects.status, topicId: projects.telegramTopicId })
-      .from(projects)
-      .where(isNotNull(projects.telegramTopicId))
-      .orderBy(asc(projects.name)),
-    db.select({ n: count() }).from(projects),
   ]);
   // A token bound to a project is not the bot's (see getSecret).
   const tokenUpdatedAt = token?.projectId === null ? token.updatedAt : null;
@@ -173,8 +167,6 @@ export const getTelegramStatus = query(async () => {
     notifyChatId: current.telegram.notifyChatId,
     /** What the worker's bot reports; null while it starts, or when no worker runs it. */
     bot,
-    topics,
-    projectCount: all?.n ?? 0,
   };
 });
 

@@ -1,12 +1,13 @@
 {
   "accessDenied": "Access denied. Your Telegram ID: {id}",
-  "start": "Hi! Tell me what you need, or send a voice message. A project's topic also gets that project's notifications.\n\n/status - what is happening now\n/tasks - open tasks\n/new - new conversation\n/stop - stop all agents\n/resume - turn off the kill switch",
+  "start": "Hi! Tell me what you need, or send a voice message. A project's topic also gets that project's notifications.\n\n/status - what is happening now\n/waiting - what waits for you\n/tasks - open tasks\n/new - new conversation\n/stop - stop all agents\n/resume - turn off the kill switch",
   "commands": {
     "status": "What is happening now",
     "tasks": "Open tasks",
     "new": "New conversation",
     "stop": "Stop all agents",
-    "resume": "Turn off the kill switch"
+    "resume": "Turn off the kill switch",
+    "waiting": "What waits for you"
   },
   "newConversation": "New conversation started.",
   "conversationTitle": "Telegram",

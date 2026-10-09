@@ -32,7 +32,10 @@ export function ToneBadge({
 }
 
 export const RUN_STATUSES = ["queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"] as const;
-export const TASK_STATUSES = ["backlog", "in_progress", "blocked", "review", "done"] as const;
+/** Every task status, in board order. */
+export const TASK_STATUSES = ["backlog", "in_progress", "paused", "blocked", "review", "done", "cancelled"] as const;
+/** The statuses set by hand (the status select); paused and cancelled go through the task controls. */
+export const SETTABLE_TASK_STATUSES = ["backlog", "in_progress", "blocked", "review", "done"] as const;
 export const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export const TRIGGERS = ["chat", "telegram", "task", "schedule", "webhook", "event", "delegation", "system"] as const;
 

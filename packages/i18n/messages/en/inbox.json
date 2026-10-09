@@ -1,1 +1,73 @@
-{}
+{
+  "meta": {
+    "title": "Inbox"
+  },
+  "page": {
+    "title": "Inbox",
+    "description": "Questions, approvals and tasks that wait for you.",
+    "approvalHistory": "Approval history",
+    "empty": "Nothing waits for you. Questions from your agents, approvals and tasks for you show up here."
+  },
+  "sections": {
+    "question": "Questions",
+    "questionDescription": "The answer reaches the agent at once, even mid-run.",
+    "approval": "Approvals",
+    "task": "Your tasks",
+    "blocked": "Blocked tasks",
+    "blockedDescription": "Tasks you gave that cannot go on without you."
+  },
+  "kinds": {
+    "question": "Question",
+    "approval": "Approval",
+    "task": "Task for you",
+    "blocked": "Blocked"
+  },
+  "question": {
+    "from": "{name} asks",
+    "system": "Abotica asks",
+    "recommended": "Recommended",
+    "label": "Your answer",
+    "placeholder": "Or answer in your own words",
+    "send": "Send",
+    "sent": "Answer sent",
+    "systemOptions": {
+      "continue": "Continue",
+      "redirect": "Redirect",
+      "cancel": "Cancel"
+    }
+  },
+  "task": {
+    "open": "Open",
+    "markDone": "Mark done",
+    "marked": "Marked done",
+    "resume": "Resume",
+    "resumed": "Resumed"
+  },
+  "age": {
+    "minutes": "{count} min",
+    "hours": "{count} h",
+    "days": "{count, plural, one {# day} other {# days}}"
+  },
+  "reminder": {
+    "reminder": "⏳ *{count, plural, one {# thing still waits for you} other {# things still wait for you}}*",
+    "list": "*{count, plural, one {# thing waits for you} other {# things wait for you}}*",
+    "open": "Open the inbox"
+  },
+  "telegram": {
+    "empty": "Nothing waits for you.",
+    "question": {
+      "title": "❓ {from} asks",
+      "system": "Abotica",
+      "task": "Task: {task}",
+      "recommended": "Recommended: {option}",
+      "hint": "Tap an answer, or reply to this message with your own.",
+      "sent": "Answer sent",
+      "replySent": "✅ Answer sent.",
+      "verdict": "✅ Answered: {answer}",
+      "closed": "This question is no longer open."
+    }
+  },
+  "validation": {
+    "answerEmpty": "Write an answer"
+  }
+}

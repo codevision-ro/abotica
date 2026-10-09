@@ -249,6 +249,7 @@
     "notes": "Notes: {notes}",
     "expires": "Expires {time}",
     "fires": "Fired {fires} of {maxFires} times",
+    "firesUnlimited": "{fires, plural, one {Fired once} other {Fired # times}}",
     "cancel": "Cancel this wait",
     "remove": "Remove this wait",
     "cancelled": "Wait cancelled",
@@ -272,5 +273,75 @@
     "payloadReference": "(the data the trigger received, in the comment below)",
     "nothingNew": "Nothing new: the result needs nobody's attention, so nobody was told. It stays here, in the output.",
     "reviewDescription": "Check what {agent} delivered for this schedule or trigger (the subtask), then report the outcome."
+  },
+  "control": {
+    "pause": "Pause",
+    "resume": "Resume",
+    "redirect": "Redirect",
+    "cancel": "Cancel task",
+    "more": "Task actions",
+    "byYou": "By the user",
+    "paused": "Task paused",
+    "resumed": "Task resumed",
+    "redirected": "Task redirected",
+    "cancelled": "{count, plural, one {Task cancelled} other {# tasks cancelled}}",
+    "pausedNotice": "Paused: {reason}",
+    "pausedFor": "Put aside for an <link>urgent task</link>; it resumes by itself once that one is settled.",
+    "pausedHint": "Its run stopped at its last step. Resume it when it should go on.",
+    "showCancelled": "Cancelled",
+    "cancelTitle": "Cancel this task?",
+    "cancelDescription": "Its runs stop and nobody works on it again. Whoever gave it is told.",
+    "reason": "Reason (optional)",
+    "reasonPlaceholder": "Why, for whoever gave the task",
+    "cascade": "Also cancel its subtasks and the work delegated from it",
+    "keep": "Keep it",
+    "confirmCancel": "Cancel task",
+    "redirectTitle": "Redirect the task",
+    "redirectDescription": "Change its course while it is underway. Only what you change is applied.",
+    "instructions": "New instructions",
+    "instructionsPlaceholder": "What should change",
+    "instructionsHint": "They reach the agent at once, even mid-run.",
+    "reassign": "Assignee",
+    "keepAssignee": "Keep the current assignee",
+    "priority": "Priority",
+    "deadline": "Deadline",
+    "submitRedirect": "Redirect",
+    "nothingChanged": "Nothing to change",
+    "history": {
+      "paused": "paused the task",
+      "resumed": "resumed the task",
+      "cancelled": "cancelled the task",
+      "redirected": "redirected the task",
+      "withReason": "{line}: {reason}"
+    }
+  },
+  "messages": {
+    "send": "Send to agent",
+    "label": "Message to the agent",
+    "placeholder": "Tell the agent what to change; it reads it at once, even mid-run (Ctrl+Enter to send)",
+    "commented": "Comment added",
+    "deliveredWithReason": "Stored, not delivered: {reason}",
+    "delivered": {
+      "steered": "Delivered into the running run: the agent reads it at its next step",
+      "follow-up": "Delivered: the agent reads it right after its current step",
+      "woke": "The agent was woken to act on it",
+      "slot": "Stored: the agent starts on it as soon as a place frees up",
+      "stored": "Stored: the agent reads it at its next run",
+      "withheld": "Stored, not delivered: the project's AI providers keep it from this agent",
+      "refused": "Stored, not delivered"
+    },
+    "kinds": {
+      "instruction": "Instruction",
+      "question": "Question",
+      "answer": "Answer",
+      "progress": "Progress",
+      "notice": "Notice",
+      "note": "Note"
+    },
+    "question": {
+      "open": "Waiting for an answer",
+      "answered": "Answered",
+      "withdrawn": "Withdrawn"
+    }
   }
 }

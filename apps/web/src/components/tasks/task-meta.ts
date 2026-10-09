@@ -3,7 +3,8 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
-export const TASK_STATUS_ORDER = ["backlog", "in_progress", "blocked", "review", "done"] as const;
+/** The board's columns; cancelled is shown only on request (?cancelled=1). */
+export const TASK_STATUS_ORDER = ["backlog", "in_progress", "paused", "blocked", "review", "done", "cancelled"] as const;
 export type TaskStatusValue = (typeof TASK_STATUS_ORDER)[number];
 export type TaskPriorityValue = "low" | "medium" | "high" | "urgent";
 
@@ -17,7 +18,7 @@ export function assigneeValue(task: { assigneeAgentId?: string | null; agentId?:
 }
 
 export function isOverdue(deadline: Date | string | null, status: string) {
-  return !!deadline && status !== "done" && new Date(deadline).getTime() < Date.now();
+  return !!deadline && status !== "done" && status !== "cancelled" && new Date(deadline).getTime() < Date.now();
 }
 
 /** Converts a Date to the value expected by <input type="datetime-local"> in local time. */

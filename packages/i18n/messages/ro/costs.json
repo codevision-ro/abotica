@@ -13,9 +13,7 @@
   "totals": {
     "cost": "Cost total, ultimele {days} zile",
     "runs": "Rulări",
-    "average": "{cost} în medie",
-    "inputTokens": "Tokeni input",
-    "outputTokens": "Tokeni output"
+    "average": "{cost} în medie"
   },
   "daily": {
     "title": "Cost pe zile",
@@ -39,10 +37,27 @@
     "noModelHint": "Rulări oprite înainte de primul pas"
   },
   "budgets": {
-    "title": "Bugete lunare",
-    "description": "Cheltuiala din luna curentă față de bugetul setat. La atingere, rulările se opresc.",
-    "empty": "Niciun proiect nu are buget. Setează unul din pagina proiectului ca să limitezi cheltuiala lunară.",
+    "title": "Buget lunar",
+    "description": "Cheltuiala din luna curentă față de limita pentru toate proiectele și față de cea a fiecărui proiect. La atingere, rulările se opresc.",
     "progressLabel": "Buget {name}",
-    "global": "Toate proiectele (buget global)"
+    "global": "Toate proiectele",
+    "noGlobal": "Nicio limită lunară pentru toate proiectele. Setează una ca rulările să se oprească la atingerea ei; limita unui proiect se setează din pagina lui."
+  },
+  "budgetDialog": {
+    "set": "Setează bugetul",
+    "edit": "Modifică",
+    "title": "Buget lunar",
+    "description": "O limită a cheltuielilor pe toate proiectele, inclusiv joburile de fundal, și avertismentele dinaintea ei.",
+    "monthly": "Limită pe lună",
+    "monthlyHint": "Când este atinsă, rulările se opresc și altele noi nu mai pornesc până luna viitoare. Gol: fără limită.",
+    "noLimit": "Fără limită",
+    "alertsTitle": "Avertismente pe Telegram",
+    "removeAlert": "Elimină avertismentul de {percent}%",
+    "newAlert": "Procent pentru un avertisment nou",
+    "newAlertPlaceholder": "ex: 50",
+    "addAlert": "Adaugă",
+    "alertsHint": "La aceste procente din limită: între {min}% și {max}%, cel mult {count}.",
+    "alertsNone": "Niciun avertisment înainte de limită.",
+    "alertsStop": "La 100% rulările se opresc mereu și primești un avertisment."
   }
 }

@@ -30,7 +30,7 @@ export class MemorySecretError extends UserError {
 
 /** What the agent tools return for a refused write: where the value belongs instead. */
 export const SECRET_REFUSED =
-  "Not saved: the content contains what looks like a secret (an API key, a token, a password or a private key). Never store secrets in memory: the user keeps the value in the vault (Settings > Secrets); save only the secret's name.";
+  "Not saved: the content contains what looks like a secret (an API key, a token, a password or a private key). Never store secrets in memory: the user keeps the value in Settings > Keys; save only the secret's name.";
 
 /**
  * The write as it is stored. `status` is undefined when the caller keeps the current one (an edit)

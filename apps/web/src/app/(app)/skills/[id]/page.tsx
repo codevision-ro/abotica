@@ -1,8 +1,8 @@
-import { ArrowLeftIcon, FilesIcon, HistoryIcon, SlidersHorizontalIcon } from "lucide-react";
+import { HistoryIcon, SlidersHorizontalIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { BackLink } from "@/components/app/back-link";
 import { PageBody } from "@/components/app/page-header";
 import { ToneBadge } from "@/components/app/status-badge";
 import { TabNav } from "@/components/app/tab-nav";
@@ -10,7 +10,6 @@ import { SkillForm } from "@/components/skills/skill-form";
 import { SkillIcon } from "@/components/skills/skill-icon";
 import { SkillVersionsTab } from "@/components/skills/skill-versions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { isUuid } from "@/lib/uuid";
 import { getAssignTargets, getSkill } from "@/server/queries/skills";
 
@@ -44,11 +43,7 @@ export default async function SkillPage(props: PageProps<"/skills/[id]">) {
 
   return (
     <PageBody>
-      <Button variant="ghost" size="sm" className="-mb-2 self-start" asChild>
-        <Link href="/skills">
-          <ArrowLeftIcon /> {t("form.back")}
-        </Link>
-      </Button>
+      <BackLink href="/skills">{t("form.back")}</BackLink>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <SkillIcon size="2xl" />
@@ -67,18 +62,6 @@ export default async function SkillPage(props: PageProps<"/skills/[id]">) {
           <p className="line-clamp-2 text-sm text-muted-foreground wrap-anywhere" title={skill.description || undefined}>
             {skill.description || t("detail.noDescription")}
           </p>
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="truncate font-mono" title={t("form.slug")}>
-              {skill.slug}
-            </span>
-            <span className="tabular inline-flex items-center gap-1.5" title={t("detail.version")}>
-              <HistoryIcon className="size-3.5" aria-hidden />v{skill.version}
-            </span>
-            <span className="tabular inline-flex items-center gap-1.5">
-              <FilesIcon className="size-3.5" aria-hidden />
-              {t("detail.files", { count: skill.files.length })}
-            </span>
-          </div>
         </div>
         <ToneBadge tone={skill.enabled ? "success" : "muted"}>
           {skill.enabled ? t("form.active") : t("form.inactive")}

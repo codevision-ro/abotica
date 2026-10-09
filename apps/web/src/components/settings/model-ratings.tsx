@@ -1,9 +1,9 @@
 "use client";
 
-import { Gauge } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
-import { SectionCard, SectionEmpty } from "@/components/app/section-card";
+import { FormSubsection } from "@/components/app/form-section";
+import { SectionEmpty } from "@/components/app/section-card";
 import { ModelConsumptionMeter } from "@/components/agents/model-consumption";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -18,7 +18,7 @@ const COLUMNS = "@2xl:grid @2xl:grid-cols-[minmax(0,1fr)_8.5rem_7.5rem_4.5rem_9r
 const percent = (rate: number) => Math.round(rate * 100);
 
 /**
- * The models with what they consume, how they did on our runs and where they fit. Starts on the models
+ * Under Settings > Models > Advanced: the models with what they consume, how they did on our runs and where they fit. Starts on the models
  * in use (every model when none is), with a switch to every available one.
  */
 export function ModelRatings({ models, windowDays, minSuccessRate }: ModelRatingsData) {
@@ -29,19 +29,17 @@ export function ModelRatings({ models, windowDays, minSuccessRate }: ModelRating
   const visible = showAll ? models : inUse;
 
   return (
-    <SectionCard
-      icon={Gauge}
+    <FormSubsection
       title={t("title")}
       description={t("description", { days: windowDays })}
       action={
-        <label htmlFor={switchId} className="flex cursor-pointer items-center gap-2 text-sm">
+        <label htmlFor={switchId} className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
           <Switch id={switchId} size="sm" checked={showAll} onCheckedChange={setShowAll} />
           {t("showAll")}
         </label>
       }
-      flush
     >
-      <div className="@container">
+      <div className="@container overflow-hidden rounded-xl border border-border/70 bg-background/60 dark:bg-background/30">
         {visible.length === 0 ? (
           <SectionEmpty>{t("empty")}</SectionEmpty>
         ) : (
@@ -49,7 +47,7 @@ export function ModelRatings({ models, windowDays, minSuccessRate }: ModelRating
             <div
               aria-hidden
               className={cn(
-                "hidden border-b border-border/60 bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground sm:px-5",
+                "hidden border-b border-border/60 bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground",
                 COLUMNS,
               )}
             >
@@ -67,7 +65,7 @@ export function ModelRatings({ models, windowDays, minSuccessRate }: ModelRating
           </>
         )}
       </div>
-    </SectionCard>
+    </FormSubsection>
   );
 }
 
@@ -86,7 +84,7 @@ function ModelRatingItem({ row, minSuccessRate }: { row: ModelRatingRow; minSucc
   const format = useFormat();
   const { rating } = row;
   return (
-    <li className={cn("flex flex-col gap-3 px-4 py-3 sm:px-5", COLUMNS)}>
+    <li className={cn("flex flex-col gap-3 px-4 py-3", COLUMNS)}>
       <div className="flex min-w-0 items-center gap-3">
         <ProviderIcon provider={row.provider} size="xs" />
         <div className="min-w-0">

@@ -1,8 +1,19 @@
-import { readdirSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { agents, conversations, db, type ModelRef, runs, settings as settingsTable, tasks } from "@abotica/db";
-import { and, eq, gte, inArray, or } from "@abotica/db/orm";
+import {
+  agents,
+  conversations,
+  db,
+  messages,
+  type ModelRef,
+  runs,
+  settings as settingsTable,
+  taskComments,
+  tasks,
+} from "@abotica/db";
+import { and, asc, eq, gte, inArray, or } from "@abotica/db/orm";
 import {
   announceSettings,
   type AppSettings,
@@ -104,6 +115,7 @@ function scenarioFile(id: string | undefined): string {
 
 const argIndex = process.argv.indexOf("--scenario");
 const file = scenarioFile(argIndex >= 0 ? process.argv[argIndex + 1] : undefined);
+const scenarioName = (argIndex >= 0 ? process.argv[argIndex + 1] : undefined) ?? "s00";
 
 const startedAt = new Date();
 const failures: string[] = [];
@@ -118,13 +130,17 @@ const expectedFailures = new Set<string>();
 const savedSettings = new Map<SettingsDomain, unknown>();
 let projectId: string | null = null;
 
-/** The company's runs since the start: its agents' and the ones in the conversations it made. */
+/**
+ * The company's runs since the start: its agents', the ones in the conversations it made, and any agent's
+ * in its project (a manager may add an agent of the install to the team and give it work).
+ */
 async function companyRuns(): Promise<Run[]> {
   const agentIds = [...created.agents];
   const conversationIds = [...created.conversations];
   const mine = [
     ...(agentIds.length ? [inArray(runs.agentId, agentIds)] : []),
     ...(conversationIds.length ? [inArray(runs.conversationId, conversationIds)] : []),
+    ...(projectId ? [eq(runs.projectId, projectId)] : []),
   ];
   if (!mine.length) return [];
   return db
@@ -196,13 +212,91 @@ async function restoreSettings(): Promise<void> {
   }
 }
 
+const clip = (text: string, max = 600) => (text.length > max ? `${text.slice(0, max)} [...]` : text);
+
+/** One message part as a line of the transcript: text, or a tool call with its input and result in short. */
+function partLine(part: Record<string, unknown>): string | null {
+  if (part.type === "text") return String(part.text ?? "").trim() || null;
+  if (typeof part.type === "string" && (part.type.startsWith("tool-") || part.type === "dynamic-tool")) {
+    const name = part.type === "dynamic-tool" ? String(part.toolName) : part.type.slice(5);
+    const output = part.output === undefined ? "" : ` -> ${clip(JSON.stringify(part.output), 300)}`;
+    return `[tool ${name}] ${clip(JSON.stringify(part.input ?? {}), 300)}${output}`;
+  }
+  return null;
+}
+
+/**
+ * The agents' conversations and the task comments, in order, written to a file for a person to read: what
+ * they asked each other, what they answered, what reached whom. E2E_OUT sets the folder.
+ */
+async function writeTranscript(scenario: string): Promise<void> {
+  const agentIds = [...created.agents];
+  const rows = agentIds.length
+    ? await db
+        .select({ id: conversations.id, agentId: conversations.agentId, title: conversations.title })
+        .from(conversations)
+        .where(or(inArray(conversations.agentId, agentIds), inArray(conversations.id, [...created.conversations])))
+    : [];
+  const names = new Map(
+    (await db.select({ id: agents.id, slug: agents.slug }).from(agents)).map((a) => [a.id, a.slug] as const),
+  );
+  const lines: string[] = [`# Transcript of ${scenario}`, ""];
+  for (const conversation of rows) {
+    const list = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversation.id))
+      .orderBy(asc(messages.createdAt));
+    if (!list.length) continue;
+    lines.push(`## ${names.get(conversation.agentId) ?? conversation.agentId}: ${conversation.title}`, "");
+    for (const message of list) {
+      const body = (message.parts as Record<string, unknown>[]).map(partLine).filter(Boolean).join("\n");
+      if (body) lines.push(`**${message.role}** ${message.createdAt.toISOString().slice(11, 19)}`, clip(body, 2000), "");
+    }
+  }
+  const taskIds = projectId
+    ? (await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, projectId))).map((t) => t.id)
+    : [];
+  const allTasks = [...new Set([...taskIds, ...created.tasks])];
+  if (allTasks.length) {
+    lines.push("## Task comments", "");
+    const comments = await db
+      .select()
+      .from(taskComments)
+      .where(inArray(taskComments.taskId, allTasks))
+      .orderBy(asc(taskComments.createdAt));
+    for (const c of comments) {
+      const author = c.authorAgentId ? names.get(c.authorAgentId) : c.authorKind;
+      lines.push(
+        `- ${c.createdAt.toISOString().slice(11, 19)} ${c.kind} by ${author} on ${c.taskId.slice(0, 8)}: ${clip(c.body, 400)}`,
+      );
+    }
+  }
+  const folder = process.env.E2E_OUT ?? join(tmpdir(), "abotica-e2e");
+  mkdirSync(folder, { recursive: true });
+  const file = join(folder, `${scenario}-${Date.now()}.md`);
+  writeFileSync(file, lines.join("\n"));
+  console.log(`transcript: ${file}`);
+}
+
 /** Stops what still runs, then deletes the tasks, project, runs, conversations and agents it created. */
 async function cleanup(): Promise<void> {
   const agentIds = [...created.agents];
   const agentConversations = agentIds.length
     ? await db.select({ id: conversations.id }).from(conversations).where(inArray(conversations.agentId, agentIds))
     : [];
-  const conversationIds = [...new Set([...created.conversations, ...agentConversations.map((c) => c.id)])];
+  // The conversations other agents of the install opened for the project are the scenario's too: only
+  // ones made since it started, never a conversation that was there before.
+  const touched = [...new Set((await companyRuns()).flatMap((r) => (r.conversationId ? [r.conversationId] : [])))];
+  const borrowed = touched.length
+    ? (
+        await db
+          .select({ id: conversations.id })
+          .from(conversations)
+          .where(and(inArray(conversations.id, touched), gte(conversations.createdAt, startedAt)))
+      ).map((c) => c.id)
+    : [];
+  const conversationIds = [...new Set([...created.conversations, ...agentConversations.map((c) => c.id), ...borrowed])];
   for (const id of conversationIds) await cancelConversationRuns(id, "E2E cleanup", "cancelled_by_user");
   // A running run ends in the worker; deleting it under the worker's feet only makes noise in its log.
   await waitFor(
@@ -212,7 +306,10 @@ async function cleanup(): Promise<void> {
       timeoutMs: 60_000,
       allowFailures: true,
     },
-  ).catch((error: unknown) => console.warn(String(error)));
+  ).catch(async (error: unknown) => {
+    const going = (await companyRuns()).filter((r) => ["queued", "running"].includes(r.status));
+    console.warn(String(error), going.map((r) => `${r.id} ${r.status} ${r.trigger} agent ${r.agentId}`).join("; "));
+  });
 
   const ownRuns = await companyRuns();
   const runIds = ownRuns.map((r) => r.id);
@@ -317,10 +414,14 @@ try {
   failures.push(String(error));
   console.error(error);
 } finally {
-  await cleanup().catch((error: unknown) => {
-    failures.push(`cleanup: ${String(error)}`);
-    console.error(error);
-  });
+  await writeTranscript(scenarioName).catch((error: unknown) => console.warn(`transcript: ${String(error)}`));
+  // E2E_KEEP=1 leaves everything in place to look at; the next run cleans nothing of it.
+  if (process.env.E2E_KEEP === "1") console.log(`kept: project ${projectId}`);
+  else
+    await cleanup().catch((error: unknown) => {
+      failures.push(`cleanup: ${String(error)}`);
+      console.error(error);
+    });
   console.log(failures.length ? `\n${failures.length} check(s) failed` : "\nall checks passed");
   process.exit(failures.length ? 1 : 0);
 }

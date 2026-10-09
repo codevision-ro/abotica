@@ -1,12 +1,13 @@
 {
   "accessDenied": "Acces interzis. ID-ul tău Telegram: {id}",
-  "start": "Salut! Scrie-mi ce ai nevoie, sau trimite un mesaj vocal. Topicul unui proiect primește și notificările proiectului.\n\n/status - ce se întâmplă acum\n/tasks - task-uri deschise\n/new - conversație nouă\n/stop - oprește toți agenții\n/resume - dezactivează kill switch-ul",
+  "start": "Salut! Scrie-mi ce ai nevoie, sau trimite un mesaj vocal. Topicul unui proiect primește și notificările proiectului.\n\n/status - ce se întâmplă acum\n/waiting - ce te așteaptă\n/tasks - task-uri deschise\n/new - conversație nouă\n/stop - oprește toți agenții\n/resume - dezactivează kill switch-ul",
   "commands": {
     "status": "Ce se întâmplă acum",
     "tasks": "Task-uri deschise",
     "new": "Conversație nouă",
     "stop": "Oprește toți agenții",
-    "resume": "Dezactivează kill switch-ul"
+    "resume": "Dezactivează kill switch-ul",
+    "waiting": "Ce te așteaptă"
   },
   "newConversation": "Conversație nouă pornită.",
   "conversationTitle": "Telegram",

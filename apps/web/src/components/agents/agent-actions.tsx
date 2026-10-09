@@ -139,7 +139,7 @@ export function RestoreVersionButton({ id, version }: { id: string; version: num
           const res = await restoreAgentVersion({ id, version });
           if (!res.ok) return void toast.error(res.error);
           toast.success(t("restored", { version: res.data.version }));
-          router.push(`/agents/${id}?tab=versions`);
+          router.push(`/agents/${id}?tab=history`);
         })
       }
     />

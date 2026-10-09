@@ -6,7 +6,7 @@
   },
   "list": {
     "title": "Agents",
-    "description": "Your agent team: model, tools, permissions and activity.",
+    "description": "Your team: the super agent you talk to, the managers who lead projects and the specialists who do the work.",
     "newAgent": "New agent",
     "groups": {
       "orchestrator": {
@@ -21,13 +21,8 @@
       "specialists": {
         "title": "Specialists",
         "description": "They do the work, with the same profession in every project they are on.",
-        "empty": "No specialists yet. <link>Create one</link> from scratch or start from a template below."
+        "empty": "No specialists yet. <link>Create one</link>, from scratch or from a template."
       }
-    },
-    "templates": {
-      "title": "Templates",
-      "description": "Starting points for new agents.",
-      "empty": "No templates defined."
     }
   },
   "card": {
@@ -39,7 +34,6 @@
     "leadsNone": "Leads no project yet",
     "runs7d": "<b>{count}</b> {count, plural, one {run} other {runs}} in 7 days",
     "cost30d": "<b>{cost}</b> in 30 days",
-    "use": "Use",
     "defaultModel": "Default model",
     "kinds": {
       "orchestrator": "Super agent",
@@ -63,16 +57,14 @@
     "chat": "Chat",
     "tabs": {
       "config": "Configuration",
-      "versions": "Versions",
-      "journal": "Journal",
+      "activity": "Activity",
       "memory": "Memory",
-      "runs": "Runs",
-      "schedules": "Schedules",
       "projects": "Projects"
     },
     "useTemplate": "Use template",
-    "model": "Model",
-    "version": "Current version"
+    "history": "History",
+    "backToConfig": "Configuration",
+    "model": "Model"
   },
   "actions": {
     "active": "Active",
@@ -136,9 +128,8 @@
     "namePlaceholder": "Agent name",
     "role": "Role",
     "rolePlaceholder": "What it does, e.g. Research and synthesis",
-    "kindTitle": "Kind",
-    "kindDescription": "Where it sits in the team. You can change it while it is on no team and leads no project.",
-    "kindTemplateDescription": "Where it sits in the team. A template's kind is fixed; an agent made from it can change it.",
+    "kindTitle": "Position",
+    "kindDescription": "Where it sits in the team. It is chosen when the agent is created.",
     "kinds": {
       "orchestrator": {
         "title": "Super agent",
@@ -153,11 +144,9 @@
         "description": "Does the work, with its profession, in every project it is on. Never delegates."
       }
     },
-    "roleTitle": "Role in the team: set by Abotica",
-    "roleSummary": "What Abotica tells {kind, select, orchestrator {the super agent} manager {every manager} other {every specialist}} about its place in the team and how it works",
-    "instructionsTitle": "Profession",
-    "instructionsDescription": "Who the agent is professionally and how it does its work, the same in every project. How it works with its manager and the team comes from the platform.",
-    "systemPrompt": "Profession prompt",
+    "instructionsTitle": "Instructions",
+    "instructionsDescription": "Who the agent is professionally and how it does its work, the same in every project. How it works with its manager and the team comes from Abotica.",
+    "systemPrompt": "Instructions",
     "promptPlaceholder": "You are a [profession]: [what you cover].\n\nHow you work: methods, sources, quality bar and output format.\nLimits: what you never do or decide on your own.",
     "additionalTitle": "Additional instructions (optional)",
     "additionalDescription": "Abotica already tells this agent who it is in the team and how it works; add only what is specific to how you want it to work.",
@@ -179,6 +168,7 @@
     "model": "Model",
     "outsideCatalog": "Model outside the catalog",
     "toolsTitle": "Tools",
+    "integrationCount": "{count, plural, =0 {No integrations} one {# integration} other {# integrations}}",
     "skillsProjectsTitle": "Skills and projects",
     "skillsProjectsDescription": "Reusable instructions it follows and the projects it can work in.",
     "skillsLedDescription": "Reusable instructions it follows and the projects it leads.",
@@ -190,7 +180,6 @@
     "noProjects": "No projects. <link>Create a project</link>",
     "ledProjects": "Projects it leads",
     "ledProjectsDescription": "Who leads a project is changed in the project's Team tab.",
-    "ledCount": "{count, plural, =0 {None} one {# project} other {# projects}}",
     "ledNone": "Leads no project yet. Choose it as the manager in a project's Team tab (<link>see projects</link>).",
     "advancedTitle": "Advanced",
     "fallbackChain": "Fallback chain",
@@ -203,8 +192,9 @@
     "limitsTitle": "Limits",
     "limitsDescription": "Caps applied to every run.",
     "maxSteps": "Max steps",
-    "timeout": "Timeout (minutes)",
-    "budget": "Budget per run (USD)",
+    "timeout": "Timeout",
+    "minutesUnit": "min",
+    "budget": "Budget per run",
     "unlimited": "unlimited",
     "summaryLabel": "Configuration summary",
     "untitled": "Untitled agent",
@@ -222,72 +212,43 @@
     "versionNoteAria": "Version note",
     "create": "Create agent",
     "created": "Agent created",
-    "savedVersion": "Saved as v{version}",
-    "savedNoVersion": "Saved, no version change",
+    "saved": "Saved",
     "pickModel": "Choose a model or use the default model",
     "fallbackModel": "Fill in the model for each fallback",
     "managesProject": "Manages this project. Choose another manager in the project's Team tab first."
   },
-  "permissions": {
-    "title": "Tools and permissions",
-    "description": "Choose what the agent can do on its own, what waits for your approval and what it cannot use at all.",
+  "tools": {
+    "title": "Tools",
+    "description": "The agent uses its built-in tools (memory, tasks, web, files) and the integrations below on its own, whenever the work needs them.",
+    "integrations": "Integrations",
+    "add": "Add integration",
+    "allAgents": "All agents",
+    "disabled": "disabled",
+    "offForAgent": "off for this agent",
+    "remove": "Remove {name}",
+    "none": "No integrations for this agent yet.",
+    "noRegistry": "No integrations yet. <link>Add one</link>",
+    "advancedTitle": "Advanced: turn off or require approval for specific tools",
+    "advancedDescription": "Every tool runs on its own unless you choose otherwise here.",
+    "restricted": "{count, plural, =0 {Everything runs on its own} one {# change} other {# changes}}",
+    "reset": "Turn everything back on",
+    "groupControlFor": "Setting for every tool in {group}",
+    "controlFor": "Setting for {name}",
+    "toolsNotLoaded": "Its tool list has not been loaded yet.",
+    "noTools": "It exposes no tools.",
+    "loadTools": "Load tools",
+    "reloadTools": "Reload",
+    "toolsLoaded": "{count, plural, one {# tool loaded} other {# tools loaded}}",
     "options": {
-      "allow": "Allow",
-      "ask": "Ask",
-      "deny": "Deny"
+      "allow": "On",
+      "ask": "Ask first",
+      "deny": "Off"
     },
     "legend": {
-      "allow": "Runs without asking",
-      "ask": "Waits for your approval",
+      "allow": "Runs on its own",
+      "ask": "Waits for your approval each time",
       "deny": "The agent cannot use it"
-    },
-    "summary": {
-      "allow": "{count} allowed",
-      "ask": "{count, plural, one {# asks} other {# ask}}",
-      "deny": "{count} denied"
-    },
-    "setAll": "Set all",
-    "setAllHint": "Applies to every built-in tool and every MCP server below",
-    "setAllOptions": {
-      "allow": "Allow all",
-      "ask": "Ask for all",
-      "deny": "Deny all"
-    },
-    "builtinTitle": "Built-in tools",
-    "orchestratorGroup": "{group} (super agent only)",
-    "managerGroup": "{group} (a manager's tools)",
-    "controlFor": "Permission for {name}",
-    "groupControlFor": "Permission for every tool in {group}",
-    "mcpTitle": "MCP servers",
-    "mcpDescription": "Tools from external servers. The default applies to servers without their own setting, including those the agent gets through its projects.",
-    "mcpDefault": "Default for MCP servers",
-    "noServersAssigned": "No MCP servers assigned to this agent.",
-    "noRegistry": "No MCP servers yet. <link>Add a server</link>",
-    "addServer": "Add MCP server",
-    "disabled": "disabled",
-    "overrides": "{count, plural, one {# tool changed} other {# tools changed}}",
-    "ownSetting": "own setting",
-    "remove": "Remove",
-    "removeServer": "Remove {name}",
-    "toolsNotLoaded": "The tool list of this server has not been loaded yet.",
-    "loadTools": "Load tools",
-    "toolsLoaded": "{count, plural, one {# tool loaded} other {# tools loaded}}",
-    "noTools": "This server exposes no tools.",
-    "syncedAt": "Loaded",
-    "refresh": "Refresh",
-    "refreshAria": "Reload the tools of {name}",
-    "globalBadge": "All agents",
-    "builtinBadge": "Built-in",
-    "offForAgent": "off for this agent",
-    "globalNote": "Every agent gets it. Deny turns it off for this one.",
-    "mcpDefaultFromHints": "Every tool runs unless you choose otherwise for it or its server",
-    "useHints": "Use the default instead",
-    "hintReadOnly": "Read-only",
-    "hintNonDestructive": "Non-destructive",
-    "hintDestructive": "Destructive",
-    "hintNone": "No hints",
-    "bundledDefault": "Default for this bundled server: {permission}",
-    "hintDefault": "Default: {permission}. The hints describe the tool, they do not set its permission"
+    }
   },
   "effort": {
     "label": "Reasoning effort",
@@ -350,7 +311,7 @@
     }
   },
   "versions": {
-    "title": "Versions",
+    "title": "History",
     "description": "Every save with changes keeps the previous configuration.",
     "emptyState": "No saved versions yet: the current configuration (v{version}) is kept the first time you save changes.",
     "openConfig": "Open configuration",
@@ -375,18 +336,18 @@
       "model": "Model",
       "fallbacks": "Fallbacks",
       "reasoningEffort": "Reasoning effort",
-      "permissions": "Tool permissions",
+      "permissions": "Tool settings",
       "limits": "Limits",
       "skillIds": "Skills",
-      "mcpServerIds": "MCP servers"
+      "mcpServerIds": "Integrations"
     },
     "hideCompare": "Hide comparison",
     "permission": {
-      "allow": "Allow: {tools}",
-      "ask": "Ask: {tools}",
-      "deny": "Deny: {tools}"
+      "allow": "On: {tools}",
+      "ask": "Ask first: {tools}",
+      "deny": "Off: {tools}"
     },
-    "mcpAll": "all MCP servers"
+    "mcpAll": "all integrations"
   },
   "journal": {
     "title": "Journal",
@@ -417,15 +378,11 @@
     "when": "When",
     "open": "Open run"
   },
-  "schedules": {
-    "title": "Schedules",
-    "description": "Run the agent automatically, on repeat or once.",
-    "empty": "No schedules yet.",
-    "manage": "Manage in Automations",
-    "disabled": "Disabled",
-    "once": "Once: {date}",
-    "lastRun": "Last run {time}",
-    "never": "Has not run yet"
+  "activity": {
+    "schedules": "{count, plural, =0 {No schedules run this agent} one {# schedule runs this agent} other {# schedules run this agent}}",
+    "openAutomations": "Automations",
+    "onlyAgent": "Only {name}",
+    "showAll": "Show all schedules"
   },
   "versionNotes": {
     "initial": "Initial version",

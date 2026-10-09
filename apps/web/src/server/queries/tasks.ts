@@ -1,7 +1,7 @@
 import "server-only";
 import { listFiles, listTaskWakeups, TASK_PRIORITIES, taskFailureStreak, type TaskPriority } from "@abotica/core";
 import { agents, db, projects, runs, taskPullRequests, tasks } from "@abotica/db";
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, or, sql, type SQL } from "@abotica/db/orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, notInArray, or, sql, type SQL } from "@abotica/db/orm";
 import { isUuid } from "@/lib/uuid";
 import { query } from "@/server/query";
 
@@ -13,6 +13,8 @@ type TaskFilters = {
   assignee?: string;
   priority?: string;
   showAllDone?: boolean;
+  /** Cancelled tasks are left out unless asked for. */
+  showCancelled?: boolean;
 };
 
 export type BoardTask = Awaited<ReturnType<typeof listBoardTasks>>[number];
@@ -43,6 +45,7 @@ export const listBoardTasks = query(async (filters: TaskFilters) => {
   if (filters.priority && (TASK_PRIORITIES as string[]).includes(filters.priority)) {
     conds.push(eq(tasks.priority, filters.priority as TaskPriority));
   }
+  if (!filters.showCancelled) conds.push(ne(tasks.status, "cancelled"));
   if (!filters.showAllDone) {
     const cutoff = new Date(Date.now() - DONE_WINDOW_DAYS * 86_400_000);
     conds.push(or(ne(tasks.status, "done"), isNull(tasks.completedAt), gte(tasks.completedAt, cutoff))!);
@@ -113,7 +116,7 @@ export const getTaskOptions = query(async () => {
     db
       .select({ id: tasks.id, title: tasks.title, status: tasks.status, parentId: tasks.parentId })
       .from(tasks)
-      .where(ne(tasks.status, "done"))
+      .where(notInArray(tasks.status, ["done", "cancelled"]))
       .orderBy(desc(tasks.createdAt)),
   ]);
   return { projects: projectRows, agents: agentRows, openTasks };

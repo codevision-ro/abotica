@@ -10,7 +10,8 @@ import { AgentAvatar } from "@/components/app/agent-avatar";
 import { PriorityBadge, ToneBadge } from "@/components/app/status-badge";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
-import type { BoardTask } from "@/server/queries/tasks";
+import type { BoardTask, TaskOptions } from "@/server/queries/tasks";
+import { TaskControlMenu } from "./task-controls";
 import { isOverdue, rememberOverlayBase } from "./task-meta";
 import { PullRequestBadge } from "./task-pull-request";
 
@@ -114,11 +115,14 @@ export function TaskAssigneeAvatar({
 export function TaskCard({
   task,
   href,
+  agents,
   dragging,
   overlay,
 }: {
   task: BoardTask;
   href: string;
+  /** For the card's controls (Redirect); none on the drag overlay. */
+  agents?: TaskOptions["agents"];
   dragging?: boolean;
   overlay?: boolean;
 }) {
@@ -182,13 +186,21 @@ export function TaskCard({
               {task.commentCount}
             </span>
           )}
+          {agents && !overlay && (
+            <TaskControlMenu
+              task={{ ...task, assigneeAgentId: task.agentId }}
+              agents={agents}
+              withPause
+              className="-my-1 -mr-1 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:has-data-[state=open]:opacity-100"
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-export function SortableTaskCard({ task, href }: { task: BoardTask; href: string }) {
+export function SortableTaskCard({ task, href, agents }: { task: BoardTask; href: string; agents: TaskOptions["agents"] }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: "task", status: task.status },
@@ -201,7 +213,7 @@ export function SortableTaskCard({ task, href }: { task: BoardTask; href: string
       {...attributes}
       {...listeners}
     >
-      <TaskCard task={task} href={href} dragging={isDragging} />
+      <TaskCard task={task} href={href} agents={agents} dragging={isDragging} />
     </div>
   );
 }

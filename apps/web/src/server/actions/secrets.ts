@@ -9,7 +9,7 @@ import { action } from "../action";
 
 /** Pages that show a secret by name: provider keys on Models, the bot token on Telegram. */
 function revalidateSecretPages() {
-  revalidatePath("/settings/secrets");
+  revalidatePath("/settings/keys");
   revalidatePath("/settings/models");
   revalidatePath("/settings/telegram");
 }

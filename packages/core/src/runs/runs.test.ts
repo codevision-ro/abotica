@@ -3,7 +3,7 @@ import { activeTaskRun, resetFixRounds, taskFailureStreak, TaskCircuitOpenError,
 import { clearHeldReplies, countHeldReply, takeResumeRequest } from "./run-lifecycle";
 import { loadUnsteeredMessages, markUndelivered } from "./run-messages";
 import { createConversation } from "./conversations";
-import { holdStaleReply, type Run, startFollowUpIfQueued, startTaskRun } from "./runs";
+import { holdStaleReply, noticeText, type Run, roundIntro, startFollowUpIfQueued, startTaskRun } from "./runs";
 import { listFiles } from "../files/files";
 
 /**
@@ -25,9 +25,10 @@ const TASK = {
  * A database that answers each query by its table: `rows[table]` holds the answers in the order the
  * queries come (tasks default to TASK, the rest to nothing). Inserts are recorded in `inserted`.
  */
-const { rows, inserted } = vi.hoisted(() => ({
+const { rows, inserted, updated } = vi.hoisted(() => ({
   rows: {} as Record<string, unknown[][]>,
   inserted: [] as { table: string; values: Record<string, unknown> }[],
+  updated: [] as { table: string; values: Record<string, unknown> }[],
 }));
 vi.mock("@abotica/db", () => {
   const table = (name: string) => ({ name });
@@ -41,9 +42,10 @@ vi.mock("@abotica/db", () => {
         return Promise.resolve(answer).then(ok, fail);
       },
     };
-    for (const m of ["where", "innerJoin", "leftJoin", "orderBy", "limit", "set", "returning", "onConflictDoNothing"]) {
+    for (const m of ["where", "innerJoin", "leftJoin", "orderBy", "limit", "returning", "onConflictDoNothing"]) {
       q[m] = () => q;
     }
+    q.set = (v: Record<string, unknown>) => (updated.push({ table: name, values: v }), q);
     q.from = (t: { name: string }) => ((name = t.name), q);
     q.values = (v: Record<string, unknown>) => ((values = v), q);
     return q;
@@ -73,6 +75,7 @@ vi.mock("@abotica/db/orm", () => ({
   sql: vi.fn(),
 }));
 vi.mock("../infra/events", () => ({ publish: vi.fn() }));
+vi.mock("../settings/settings", () => ({ getSettings: vi.fn(async () => ({ agents: { maxContinuations: 3 } })) }));
 vi.mock("../infra/queues", () => ({ enqueueRun: vi.fn() }));
 vi.mock("../files/files", () => ({ listFiles: vi.fn() }));
 vi.mock("./run-lifecycle", () => ({
@@ -115,6 +118,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   for (const key of Object.keys(rows)) delete rows[key];
   inserted.length = 0;
+  updated.length = 0;
   vi.mocked(activeTaskRun).mockResolvedValue(undefined);
   vi.mocked(taskFailureStreak).mockResolvedValue(OPEN);
 });
@@ -170,8 +174,22 @@ describe("startTaskRun and the pull requests' fix rounds", () => {
   });
 });
 
+const since = new Date("2026-10-08T09:00:00Z");
+
+/** A comment as the briefs load it: a note by the user, after the previous round started. */
+const comment = (over: Record<string, unknown>) => ({
+  id: "c1",
+  body: "A comment",
+  author: "user",
+  agent: null,
+  kind: "note",
+  authorAgentId: null,
+  createdAt: new Date(since.getTime() + 60_000),
+  deliveredMessageId: null,
+  ...over,
+});
+
 describe("startTaskRun for a task the assignee worked on before", () => {
-  const since = new Date("2026-10-08T09:00:00Z");
   const textOf = (values: Record<string, unknown>) => (values.parts as { text: string }[])[0]!.text;
 
   beforeEach(() => {
@@ -183,7 +201,7 @@ describe("startTaskRun for a task the assignee worked on before", () => {
     // Its latest run there, then nothing going in the conversation and no compaction.
     rows.runs = [[{ conversationId: "c-old", createdAt: since }], []];
     rows.messages = [[]];
-    rows.taskComments = [[{ body: "Use the 2025 figures", kind: "user", agent: null }]];
+    rows.taskComments = [[comment({ body: "Use the 2025 figures" })]];
     const run = await startTaskRun("t1", { parentRunId: "manager-run" });
 
     expect(createConversation).not.toHaveBeenCalled();
@@ -209,6 +227,21 @@ describe("startTaskRun for a task the assignee worked on before", () => {
     const run = await startTaskRun("t1");
     expect(run.conversationId).toBe("c-new");
     expect(textOf(inserted.find((i) => i.table === "messages")!.values)).toContain(`# Task: ${TASK.title}`);
+  });
+
+  it("ends a specialist's brief with delivering, a manager's with delegating", async () => {
+    rows.agents = Array.from({ length: 5 }, () => [{ kind: "specialist" }]);
+    await startTaskRun("t1", { parentRunId: "manager-run" });
+    const specialist = textOf(inserted.find((i) => i.table === "messages")!.values);
+    expect(specialist).toContain("When you finish, call task_update with status 'review'");
+    expect(specialist).not.toContain("This is your team's work");
+
+    inserted.length = 0;
+    rows.agents = Array.from({ length: 5 }, () => [{ kind: "manager" }]);
+    await startTaskRun("t1", { parentRunId: "super-run" });
+    const manager = textOf(inserted.find((i) => i.table === "messages")!.values);
+    expect(manager).toContain("This is your team's work: plan it and delegate each piece");
+    expect(manager).toContain("Do not produce the deliverable yourself.");
   });
 });
 
@@ -281,6 +314,140 @@ describe("holdStaleReply", () => {
       expect(await holdStaleReply({ ...FINISHED, status })).toBe(false);
     }
     expect(loadUnsteeredMessages).not.toHaveBeenCalled();
+    expect(markUndelivered).not.toHaveBeenCalled();
+  });
+});
+
+describe("roundIntro", () => {
+  const counts = { continuation: 2, continuations: 3, attempt: 3 };
+
+  it("gives every reason its own intro", () => {
+    const reasons = ["given-back", "instruction", "answer", "resumed", "continue", "retry", "help"] as const;
+    const intros = reasons.map((reason) => roundIntro(reason, counts));
+    expect(new Set(intros).size).toBe(reasons.length);
+    expect(roundIntro("given-back", counts)).toContain("The task was given back to you.");
+    expect(roundIntro("instruction", counts)).toContain("the latest instruction wins over the brief");
+  });
+
+  it("counts the continuation and the attempt", () => {
+    expect(roundIntro("continue", counts)).toContain("continuation 2 of 3");
+    expect(roundIntro("continue", counts)).toContain("report_progress");
+    expect(roundIntro("retry", counts)).toContain("attempt 3");
+  });
+});
+
+describe("noticeText", () => {
+  it("opens with the platform's header and says what, from whom and about which task", () => {
+    const text = noticeText({ id: "t1", title: "Write the report" }, { kind: "instruction", text: "Use K", from: "Ana" });
+    expect(text).toBe(
+      '[Automatic notice from Abotica, not written by the user]\nNew instruction from Ana about the task "Write the report" (t1):\nUse K\n\nApply this to the work underway now, in this run: where it differs from your brief or from what you planned, it wins. Your output must reflect it.',
+    );
+  });
+
+  it("adds nothing to a notice that only informs", () => {
+    const text = noticeText({ id: "t1", title: "Write the report" }, { kind: "progress", text: "Half done", from: "Ana" });
+    expect(text.endsWith("Half done")).toBe(true);
+    const fyi = { kind: "answer" as const, text: "FYI: it was answered. Nothing to do.", from: "Abotica", fyi: true };
+    expect(noticeText({ id: "t1", title: "Write the report" }, fyi).endsWith("Nothing to do.")).toBe(true);
+  });
+});
+
+describe("startTaskRun brought back by a notice", () => {
+  const textOf = (values: Record<string, unknown>) => (values.parts as { text: string }[])[0]!.text;
+  const notice = { kind: "instruction" as const, text: "Include PINEAPPLE", commentId: "c-new", from: "the user" };
+
+  beforeEach(() => {
+    vi.mocked(taskFailureStreak).mockResolvedValue({ failures: 0, reason: null, open: false });
+    vi.mocked(listFiles).mockResolvedValue([]);
+    rows.runs = [[{ conversationId: "c-old", createdAt: since }], []];
+    rows.messages = [[]];
+  });
+
+  it("leads with the notice and its reason's intro, and leaves out what was delivered already", async () => {
+    rows.taskComments = [
+      [
+        comment({ id: "c-new", body: "Include PINEAPPLE", kind: "instruction" }),
+        comment({ id: "c-seen", body: "Steered in earlier", kind: "instruction", deliveredMessageId: "m0" }),
+        comment({ id: "c-q", body: "Which year?", kind: "question", author: "agent", agent: "manager" }),
+      ],
+    ];
+    await startTaskRun("t1", { parentRunId: "manager-run", reason: "instruction", notice });
+
+    const message = inserted.find((i) => i.table === "messages")!.values;
+    const text = textOf(message);
+    expect(text.startsWith("[Automatic notice from Abotica, not written by the user]\nNew instruction from the user")).toBe(
+      true,
+    );
+    expect(text).toContain("A new instruction about the task came for you");
+    expect(text).toContain("- manager (question): Which year?");
+    expect(text).not.toContain("Steered in earlier");
+    // The notice's own comment leads; it is not listed again.
+    expect(text.match(/Include PINEAPPLE/g)).toHaveLength(1);
+    expect(message.metadata).toMatchObject({
+      kind: "task-notice",
+      notice: "instruction",
+      taskId: "t1",
+      commentId: "c-new",
+    });
+    expect(updated).toContainEqual({
+      table: "taskComments",
+      values: { deliveredMessageId: message.id, deliveredRunId: "run-1" },
+    });
+  });
+
+  it("queues the run at its task's priority, with its attempt", async () => {
+    rows.tasks = [[{ ...TASK, priority: "urgent" }], [{ ...TASK, priority: "urgent" }]];
+    await startTaskRun("t1", { parentRunId: "manager-run", reason: "retry", attempt: 2 });
+    expect(inserted.find((i) => i.table === "runs")!.values).toMatchObject({ priority: 2, attempt: 2 });
+  });
+});
+
+describe("startFollowUpIfQueued and the task's state", () => {
+  const notice = {
+    message: {
+      id: "n1",
+      role: "user" as const,
+      parts: [],
+      metadata: { kind: "task-notice", notice: "instruction", taskId: "t1", taskTitle: "T", projectId: null, from: "x" },
+    },
+    createdAt: new Date("2026-10-08T10:00:05Z"),
+  };
+  const onTask = { ...FINISHED, taskId: "t1" } as Run;
+
+  it("starts none for a task put aside, cancelled or done", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue([notice]);
+    for (const status of ["paused", "cancelled", "done"]) {
+      rows.tasks = [[{ status }]];
+      expect(await startFollowUpIfQueued(onTask)).toBeNull();
+    }
+    expect(inserted.some((i) => i.table === "runs")).toBe(false);
+  });
+
+  it("reopens a task that settled while a notice arrived during the last step", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue([notice]);
+    rows.tasks = [[{ status: "review" }]];
+    await startFollowUpIfQueued(onTask);
+    expect(updateTask).toHaveBeenCalledWith("t1", { status: "in_progress" }, "system");
+    expect(updated).toContainEqual({ table: "tasks", values: { reportedAt: null } });
+  });
+
+  it("leaves a task in review alone when only the user wrote", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue(arrived);
+    rows.tasks = [[{ status: "review" }]];
+    await startFollowUpIfQueued(onTask);
+    expect(updateTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("holdStaleReply and task notices", () => {
+  it("does not hold for a task notice: the user did not write", async () => {
+    vi.mocked(loadUnsteeredMessages).mockResolvedValue([
+      {
+        message: { id: "n1", role: "user" as const, parts: [], metadata: { kind: "task-notice", notice: "progress" } },
+        createdAt: new Date("2026-10-08T10:00:06Z"),
+      },
+    ]);
+    expect(await holdStaleReply(FINISHED)).toBe(false);
     expect(markUndelivered).not.toHaveBeenCalled();
   });
 });

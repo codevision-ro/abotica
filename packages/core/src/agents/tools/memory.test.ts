@@ -223,7 +223,7 @@ describe("memory_search", () => {
     expect(found.map((m) => m.scope)).toEqual(["global", "craft", "mine", "team"]);
   });
 
-  it("searches the super agent's notes on the project it names, unless the project is closed to its models", async () => {
+  it("searches the team memory and the super agent's notes of the project it names, unless it is closed to its models", async () => {
     const { memoryTools } = await load();
     const orchestrator = {
       ...runContext(),
@@ -235,13 +235,29 @@ describe("memory_search", () => {
     state.closed = new Set(["p2"]);
     const search = memoryTools.memory_search!(orchestrator);
     expect(await search.execute!({ query: "style", projectId: "p1" }, call)).toEqual([]);
-    expect(state.searchedWith).toMatchObject({ agentId: "orch", projectId: null, notesProjectId: "p1" });
+    expect(state.searchedWith).toMatchObject({ agentId: "orch", projectId: "p1", notesProjectId: null });
     expect(await search.execute!({ query: "style", projectId: "p2" }, call)).toEqual({
       error: expect.stringMatching(/^Project p2: /),
     });
     expect(await search.execute!({ query: "style", projectId: "p3" }, call)).toEqual({
       error: "Project p3 does not exist",
     });
+  });
+
+  it("reads the project of the super agent's own task in it, and its topic's notes outside projects", async () => {
+    const { memoryTools } = await load();
+    const orchestrator = (over: object) =>
+      ({ ...runContext(), agent: { id: "orch", slug: "super", kind: "orchestrator" }, ...over }) as unknown as RunContext;
+    await memoryTools.memory_search!(orchestrator({ projectId: "p1", notesProjectId: null })).execute!(
+      { query: "style" },
+      call,
+    );
+    expect(state.searchedWith).toMatchObject({ projectId: "p1", notesProjectId: null });
+    await memoryTools.memory_search!(orchestrator({ projectId: null, notesProjectId: "p2" })).execute!(
+      { query: "style" },
+      call,
+    );
+    expect(state.searchedWith).toMatchObject({ projectId: null, notesProjectId: "p2" });
   });
 
   it("ignores a projectId from another agent: it reads its run's project", async () => {
@@ -433,18 +449,45 @@ describe("memory_save", () => {
       expect(state.inserted).toEqual([expect.objectContaining({ scope: "agent", agentId: "orch", projectId: "p2" })]);
     });
 
-    it("gets the id of the entry a duplicate restates, never its content", async () => {
+    it("sees the team entry a duplicate restates, and only its id when the project is closed to its models", async () => {
       state.owned = [{ id: "m1", content: "The staging password hint is Rex.", source: "agent" }];
+      expect(await saveInto("p2", "The staging password hint is Rex")).toMatchObject({
+        saved: false,
+        duplicateOf: "m1",
+        content: "The staging password hint is Rex.",
+      });
+      state.closed = new Set(["p2"]);
       const result = await saveInto("p2", "The staging password hint is Rex");
       expect(result).toMatchObject({ saved: false, duplicateOf: "m1" });
       expect(JSON.stringify(result)).not.toContain("Rex");
     });
 
-    it("gets the id of what it saved, never the related entries", async () => {
+    it("gets the id of what it saved, and the related entries only when the project is open to its models", async () => {
       state.nearest = [{ row: { id: "m1", content: "Deploys go to AWS.", source: "manual" }, distance: 0.2 }];
-      const result = await saveInto("p2", "Deploys go to Hetzner.");
-      expect(result).toEqual({ saved: true, id: "new1", scope: "team", pendingApproval: false });
+      expect(await saveInto("p2", "Deploys go to Hetzner.")).toMatchObject({
+        saved: true,
+        id: "new1",
+        related: [{ id: "m1", content: "Deploys go to AWS." }],
+      });
       expect(state.inserted).toEqual([expect.objectContaining({ scope: "project", projectId: "p2", agentId: "orch" })]);
+      state.closed = new Set(["p2"]);
+      expect(await saveInto("p2", "Deploys go to Hetzner.")).toEqual({
+        saved: true,
+        id: "new2",
+        scope: "team",
+        pendingApproval: false,
+      });
+    });
+
+    it("saves its notes to the project of its own task in it by default", async () => {
+      state.projectIds = ["p1", "p2"];
+      const { memoryTools } = await load();
+      const ctx = { ...orchestrator(), projectId: "p1" } as unknown as RunContext;
+      expect(await memoryTools.memory_save!(ctx).execute!({ content: "Builds take ten minutes." }, call)).toMatchObject({
+        saved: true,
+        scope: "mine",
+      });
+      expect(state.inserted).toEqual([expect.objectContaining({ scope: "agent", agentId: "orch", projectId: "p1" })]);
     });
 
     it("saves its own notes on a project, and sees what they restate unless the project is closed to its models", async () => {

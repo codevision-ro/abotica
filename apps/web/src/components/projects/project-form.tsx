@@ -1,8 +1,6 @@
 "use client";
 
-import type { SandboxPolicy } from "@abotica/core/sandbox-policy";
 import {
-  BoxesIcon,
   CheckIcon,
   CrownIcon,
   GaugeIcon,
@@ -10,23 +8,20 @@ import {
   SaveIcon,
   SendIcon,
   SlidersHorizontalIcon,
-  SparklesIcon,
   TargetIcon,
   UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { AgentAvatar } from "@/components/app/agent-avatar";
 import { FormPage } from "@/components/app/form-page";
 import { FormSection, FormSectionCollapsible, FormSubsection, scrollToSection } from "@/components/app/form-section";
 import { heroFieldVariants } from "@/components/app/hero-fields";
-import { OptionCards } from "@/components/app/option-cards";
 import { chipVariants, SelectableChip } from "@/components/app/selectable-chip";
 import { SummaryItem, SummaryList, type SummaryStatus } from "@/components/app/summary-rail";
-import { SandboxPolicyEditor, usePolicySummary } from "@/components/sandbox/sandbox-policy-editor";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -45,8 +40,6 @@ type ProjectFormValues = {
   budgetUsd: number | null;
   allowedProviders: string[];
   telegramTopicId: number | null;
-  /** Own sandbox policy; null follows the default from Settings > Sandbox. */
-  sandbox?: SandboxPolicy | null;
 };
 
 /** The submit buttons sit in the rail and the bottom bar, outside the form, and point at it by id. */
@@ -57,9 +50,9 @@ const SECTIONS = {
   identity: "project-identity",
   goals: "project-goals",
   team: "project-team",
-  limits: "project-limits",
-  sandbox: "project-sandbox",
+  budget: "project-budget-section",
   telegram: "project-telegram",
+  advanced: "project-advanced",
 } as const;
 
 type FormError = { field: "budget" | "topic" | null; message: string };
@@ -70,7 +63,6 @@ export function ProjectForm({
   specialists = [],
   managers = [],
   providers,
-  sandboxDefault,
   footer,
 }: {
   projectId?: string;
@@ -80,16 +72,12 @@ export function ProjectForm({
   /** New project only: managers that can lead it; none chosen creates one from the template. */
   managers?: LeadableAgent[];
   providers: { id: string; label: string }[];
-  /** Default sandbox policy; the Sandbox section shows only when it is given (editing). */
-  sandboxDefault?: SandboxPolicy;
   /** Rendered after the sections, outside the form, e.g. the danger zone. */
   footer?: React.ReactNode;
 }) {
   const router = useRouter();
   const t = useTranslations("projects.form");
   const tc = useTranslations("common");
-  const ts = useTranslations("sandbox.project");
-  const policySummary = usePolicySummary();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -100,12 +88,9 @@ export function ProjectForm({
   const [allowed, setAllowed] = useState<string[]>(initial?.allowedProviders ?? []);
   const [topic, setTopic] = useState(initial?.telegramTopicId != null ? String(initial.telegramTopicId) : "");
   const [error, setError] = useState<FormError | null>(null);
-  const [limitsOpen, setLimitsOpen] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
-  const [sandbox, setSandbox] = useState<SandboxPolicy | null>(initial?.sandbox ?? null);
-  const [sandboxOpen, setSandboxOpen] = useState(false);
-  // Remembers the custom policy while "use the default" is picked, so switching back restores it.
-  const customSandbox = useRef<SandboxPolicy | null>(initial?.sandbox ?? null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   // Lists sorted, so toggling something back makes the form clean again.
   const { dirty, markSaved } = useDirtySnapshot([
     name,
@@ -116,7 +101,6 @@ export function ProjectForm({
     budget,
     [...allowed].sort(),
     topic,
-    sandbox,
   ]);
 
   function toggle(list: string[], value: string, on: boolean) {
@@ -126,9 +110,9 @@ export function ProjectForm({
   /** Shows a field error with its section open and in view. */
   function fieldError(field: "budget" | "topic", message: string) {
     setError({ field, message });
-    if (field === "budget") setLimitsOpen(true);
+    if (field === "budget") setBudgetOpen(true);
     else setTelegramOpen(true);
-    requestAnimationFrame(() => scrollToSection(field === "budget" ? SECTIONS.limits : SECTIONS.telegram));
+    requestAnimationFrame(() => scrollToSection(field === "budget" ? SECTIONS.budget : SECTIONS.telegram));
   }
 
   function submit(e: React.FormEvent) {
@@ -143,7 +127,7 @@ export function ProjectForm({
     const input = { name, description, goals, budgetUsd, allowedProviders: allowed, telegramTopicId };
     startTransition(async () => {
       const res = projectId
-        ? await updateProject({ id: projectId, ...input, ...(sandboxDefault && { sandbox }) })
+        ? await updateProject({ id: projectId, ...input })
         : await createProject({ ...input, memberIds, managerAgentId: managerId ?? undefined });
       if (!res.ok) {
         setError({ field: null, message: res.error });
@@ -172,27 +156,16 @@ export function ProjectForm({
     ", ",
   );
   const budgetValue = budget.trim();
-  const limitsSummary = [
-    budgetValue ? t("budgetSummary", { budget: budgetValue }) : t("noBudget"),
-    allowed.length
-      ? providers
+  const budgetSummary = budgetValue ? t("budgetSummary", { budget: budgetValue }) : t("noBudget");
+  const telegramSummary = topic.trim() ? t("topicSummary", { topic: topic.trim() }) : t("topicNotSet");
+  const providersSummary = allowed.length
+    ? t("providersSummary", {
+        providers: providers
           .filter((p) => allowed.includes(p.id))
           .map((p) => p.label)
-          .join(", ")
-      : t("allProviders"),
-  ].join(" · ");
-  const telegramSummary = topic.trim() ? t("topicSummary", { topic: topic.trim() }) : t("topicNotSet");
-  const sandboxSummary = sandboxDefault
-    ? sandbox
-      ? ts("summaryCustom", { policy: policySummary.policy(sandbox) })
-      : ts("summaryDefault", { policy: policySummary.policy(sandboxDefault) })
-    : "";
-  function setSandboxSource(source: "default" | "custom") {
-    if (source === "default") {
-      if (sandbox) customSandbox.current = sandbox;
-      setSandbox(null);
-    } else if (!sandbox && sandboxDefault) setSandbox(customSandbox.current ?? sandboxDefault);
-  }
+          .join(", "),
+      })
+    : t("allProviders");
 
   const submitButton = (className?: string) => (
     <Button type="submit" form={FORM_ID} disabled={pending} className={className}>
@@ -241,14 +214,9 @@ export function ProjectForm({
               <span title={teamSummary}>{teamSummary}</span>
             </SummaryItem>
           )}
-          <SummaryItem target={SECTIONS.limits} status="info" label={t("limitsTitle")} onSelect={() => setLimitsOpen(true)}>
-            <span title={limitsSummary}>{limitsSummary}</span>
+          <SummaryItem target={SECTIONS.budget} status="info" label={t("budgetTitle")} onSelect={() => setBudgetOpen(true)}>
+            {budgetSummary}
           </SummaryItem>
-          {sandboxDefault && (
-            <SummaryItem target={SECTIONS.sandbox} status="info" label={ts("title")} onSelect={() => setSandboxOpen(true)}>
-              <span title={sandboxSummary}>{sandboxSummary}</span>
-            </SummaryItem>
-          )}
           <SummaryItem
             target={SECTIONS.telegram}
             status="info"
@@ -256,6 +224,14 @@ export function ProjectForm({
             onSelect={() => setTelegramOpen(true)}
           >
             {telegramSummary}
+          </SummaryItem>
+          <SummaryItem
+            target={SECTIONS.advanced}
+            status="info"
+            label={t("advancedTitle")}
+            onSelect={() => setAdvancedOpen(true)}
+          >
+            <span title={providersSummary}>{providersSummary}</span>
           </SummaryItem>
         </SummaryList>
       }
@@ -354,12 +330,12 @@ export function ProjectForm({
         )}
 
         <FormSectionCollapsible
-          id={SECTIONS.limits}
+          id={SECTIONS.budget}
           icon={GaugeIcon}
-          title={t("limitsTitle")}
-          summary={limitsSummary}
-          open={limitsOpen}
-          onOpenChange={setLimitsOpen}
+          title={t("budgetTitle")}
+          summary={budgetSummary}
+          open={budgetOpen}
+          onOpenChange={setBudgetOpen}
         >
           <Field data-invalid={error?.field === "budget" || undefined}>
             <FieldLabel htmlFor="project-budget">{t("budgetLabel")}</FieldLabel>
@@ -374,65 +350,7 @@ export function ProjectForm({
             />
             {error?.field === "budget" && <FieldError>{error.message}</FieldError>}
           </Field>
-          <FormSubsection title={t("providersLabel")} description={t("providersHint")}>
-            <div role="group" aria-label={t("providersLabel")} className="flex flex-wrap gap-2">
-              {providers.map((p) => (
-                <SelectableChip
-                  key={p.id}
-                  selected={allowed.includes(p.id)}
-                  onSelectedChange={(on) => setAllowed((l) => toggle(l, p.id, on))}
-                >
-                  {p.label}
-                </SelectableChip>
-              ))}
-            </div>
-          </FormSubsection>
         </FormSectionCollapsible>
-
-        {sandboxDefault && (
-          <FormSectionCollapsible
-            id={SECTIONS.sandbox}
-            icon={BoxesIcon}
-            title={ts("title")}
-            summary={sandboxSummary}
-            open={sandboxOpen}
-            onOpenChange={setSandboxOpen}
-          >
-            <OptionCards
-              name="project-sandbox-source"
-              label={ts("title")}
-              value={sandbox ? "custom" : "default"}
-              onValueChange={setSandboxSource}
-              options={[
-                {
-                  value: "default",
-                  icon: SparklesIcon,
-                  title: ts("followDefault"),
-                  description: policySummary.policy(sandboxDefault),
-                },
-                {
-                  value: "custom",
-                  icon: SlidersHorizontalIcon,
-                  title: ts("custom"),
-                  description: ts("customDescription"),
-                },
-              ]}
-            />
-            {sandbox ? (
-              <SandboxPolicyEditor name="project-sandbox" value={sandbox} onChange={setSandbox} />
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {ts.rich("defaultHint", {
-                  link: (chunks) => (
-                    <Link href="/settings/sandbox" className="underline underline-offset-2">
-                      {chunks}
-                    </Link>
-                  ),
-                })}
-              </p>
-            )}
-          </FormSectionCollapsible>
-        )}
 
         <FormSectionCollapsible
           id={SECTIONS.telegram}
@@ -459,6 +377,29 @@ export function ProjectForm({
               <FieldDescription>{t("topicHint")}</FieldDescription>
             )}
           </Field>
+        </FormSectionCollapsible>
+
+        <FormSectionCollapsible
+          id={SECTIONS.advanced}
+          icon={SlidersHorizontalIcon}
+          title={t("advancedTitle")}
+          summary={providersSummary}
+          open={advancedOpen}
+          onOpenChange={setAdvancedOpen}
+        >
+          <FormSubsection title={t("providersLabel")} description={t("providersHint")}>
+            <div role="group" aria-label={t("providersLabel")} className="flex flex-wrap gap-2">
+              {providers.map((p) => (
+                <SelectableChip
+                  key={p.id}
+                  selected={allowed.includes(p.id)}
+                  onSelectedChange={(on) => setAllowed((l) => toggle(l, p.id, on))}
+                >
+                  {p.label}
+                </SelectableChip>
+              ))}
+            </div>
+          </FormSubsection>
         </FormSectionCollapsible>
       </form>
       {footer}

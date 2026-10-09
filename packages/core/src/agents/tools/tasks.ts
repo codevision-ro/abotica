@@ -1,19 +1,19 @@
-import { agents, db, runs, taskComments, taskDependencies, tasks } from "@abotica/db";
+import { agents, db, projects, runs, taskComments, taskDependencies, tasks } from "@abotica/db";
 import { tool } from "ai";
-import { and, asc, desc, eq, ilike, inArray, isNull, or } from "@abotica/db/orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, notInArray, or } from "@abotica/db/orm";
 import { z } from "zod";
 import { audit } from "../../platform/audit";
 import { fileUrl } from "../../files/file-types";
 import { listFiles } from "../../files/files";
 import {
   activeTaskRun,
-  addTaskComment,
   awaitingReportTo,
   createTask,
   deleteTask,
   finishWithNothingNew,
   TASK_PRIORITIES,
   TASK_STATUSES,
+  type Task,
   updateTask,
 } from "../../tasks/tasks";
 import { listTaskPullRequests } from "../../tasks/pull-requests";
@@ -28,12 +28,15 @@ import { armWakeup, listTaskWakeups, type WakeupRequest } from "../../tasks/wake
 import { SETTLED_TASK_STATUSES } from "../../tasks/delegation-report";
 import { nothingNewRefusal } from "../../tasks/automation-rules";
 import { reportTargetAgent } from "../../tasks/automation-target";
+import { postInstruction } from "../../tasks/task-messages";
+import { mayEditTask } from "../../tasks/team-rules";
 import { clipUntrusted, hasUntrusted } from "../untrusted";
 import { inputPath } from "../workspace-paths";
 import {
   actorOf,
   agentBySlug,
   clip,
+  errorResult,
   optionalDateTime,
   optionalId,
   optionalText,
@@ -243,7 +246,7 @@ export const taskTools: Record<string, ToolFactory> = {
   task_update: (ctx) =>
     tool({
       description:
-        "Update a task: status, output (the full result), priority, title, description or deadline. Only the fields you send change.",
+        "Update a task: status, output (the full result), priority, title, description or deadline. Only the fields you send change. To pause, resume, cancel or redirect work, use task_control.",
       inputSchema: z.object({
         taskId: z.string().uuid(),
         status: z.enum(TASK_STATUSES).optional(),
@@ -262,6 +265,8 @@ export const taskTools: Record<string, ToolFactory> = {
       execute: async ({ taskId, status, output, priority, title, description, deadline, nothingNew }) => {
         const found = await visibleTask(ctx, taskId);
         if ("error" in found) return found;
+        const refused = await updateRefusal(ctx, found, { status: status ?? (nothingNew ? "done" : undefined) });
+        if (refused) return { error: refused };
         if (nothingNew) {
           const refused = nothingNewRefusal(found, ctx.agent.id);
           if (refused) return { error: refused };
@@ -340,13 +345,49 @@ export const taskTools: Record<string, ToolFactory> = {
 
   task_comment: (ctx) =>
     tool({
-      description: "Add a comment to a task (progress, questions, blockers).",
-      inputSchema: z.object({ taskId: z.string().uuid(), body: z.string().min(1) }),
-      execute: async ({ taskId, body }) => {
+      description:
+        "Add a comment to a task. On a task you gave (or lead, or as the super agent) it is an instruction: it reaches its assignee at once, between its steps while it works, or wakes it in the conversation it worked in, and the latest instruction wins over the brief. Use it to change, add to or correct work underway instead of delegating it again. deliver 'next-run' only stores it for the assignee's next run. Anywhere else (your own task, a colleague's) it is a note that is only stored.",
+      inputSchema: z.object({
+        taskId: z.string().uuid(),
+        body: z.string().min(1),
+        deliver: z.enum(["now", "next-run"]).default("now"),
+      }),
+      execute: async ({ taskId, body, deliver }) => {
         const task = await visibleTask(ctx, taskId);
         if ("error" in task) return task;
-        await addTaskComment(task.id, body, { agentId: ctx.agent.id });
-        return { ok: true };
+        try {
+          const posted = await postInstruction(task.id, body, { agentId: ctx.agent.id }, { deliver, runId: ctx.run.id });
+          // A note on its own task reaches nobody working under it: say where the agents doing the work read.
+          const working =
+            task.assigneeAgentId === ctx.agent.id
+              ? await db
+                  .select({ taskId: tasks.id, title: tasks.title, assignee: agents.slug })
+                  .from(tasks)
+                  .innerJoin(agents, eq(agents.id, tasks.assigneeAgentId))
+                  .where(
+                    and(
+                      eq(tasks.parentId, task.id),
+                      ne(tasks.assigneeAgentId, ctx.agent.id),
+                      notInArray(tasks.status, ["done", "cancelled"]),
+                    ),
+                  )
+              : [];
+          return {
+            ok: true,
+            kind: posted.comment.kind,
+            delivered: posted.delivered,
+            ...(posted.runId ? { runId: posted.runId } : {}),
+            ...(posted.error ? { error: posted.error } : {}),
+            ...(working.length
+              ? {
+                  next: "This note stays on your own task: the agents working on its subtasks do not see it. To change their work, comment on their task.",
+                  subtasks: working,
+                }
+              : {}),
+          };
+        } catch (error) {
+          return errorResult(error);
+        }
       },
     }),
 
@@ -424,6 +465,44 @@ export const taskTools: Record<string, ToolFactory> = {
       },
     }),
 };
+
+type ToolContext = Parameters<ToolFactory>[0];
+
+/**
+ * Why an agent may not change the task, or null when it may. A task put aside or cancelled changes only
+ * through task_control; a peer on the team only comments (team-rules.ts mayEditTask); and an agent does
+ * not settle its own task while work it delegated from this conversation is still open, since that work
+ * comes back here.
+ */
+async function updateRefusal(ctx: ToolContext, task: Task, change: { status?: string }): Promise<string | null> {
+  if (task.status === "paused" || task.status === "cancelled") {
+    const word = task.status === "paused" ? "put aside" : "cancelled";
+    return task.assigneeAgentId === ctx.agent.id
+      ? `This task was ${word}${task.pauseReason ? ` (${task.pauseReason})` : ""}: nothing changes on it now. End your turn; ${task.status === "paused" ? "you go on here when it is resumed" : "the work is over"}.`
+      : `This task is ${task.status}: change it with task_control (resume, redirect), not task_update.`;
+  }
+  const [[delegator], [project]] = await Promise.all([
+    task.delegatedByRunId
+      ? db.select({ agentId: runs.agentId }).from(runs).where(eq(runs.id, task.delegatedByRunId))
+      : Promise.resolve([]),
+    task.projectId
+      ? db.select({ managerAgentId: projects.managerAgentId }).from(projects).where(eq(projects.id, task.projectId))
+      : Promise.resolve([]),
+  ]);
+  const authority = { delegatorAgentId: delegator?.agentId ?? null, projectManagerId: project?.managerAgentId ?? null };
+  if (!mayEditTask(ctx.agent, task, authority)) {
+    return "This task is not yours to change: you can comment on it (task_comment); its delegator or the project's manager decides.";
+  }
+  const settles = change.status === "review" || change.status === "done";
+  if (!settles || task.id !== ctx.run.taskId || !ctx.run.conversationId) return null;
+  const open = await db
+    .select({ id: tasks.id, title: tasks.title, status: tasks.status })
+    .from(tasks)
+    .innerJoin(runs, eq(runs.id, tasks.delegatedByRunId))
+    .where(and(eq(runs.conversationId, ctx.run.conversationId), isNull(tasks.reportedAt), ne(tasks.id, task.id)));
+  if (!open.length) return null;
+  return `Work you delegated from here is still open: ${open.map((t) => `"${t.title}" (${t.id}, ${t.status})`).join(", ")}. Wait for their reports (each comes back here as soon as it settles), or cancel them with task_control, before you settle your own task.`;
+}
 
 type WaitInput = {
   kind: WakeupRequest["kind"];

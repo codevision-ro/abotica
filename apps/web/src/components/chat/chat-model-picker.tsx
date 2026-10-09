@@ -7,6 +7,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ReasoningEffortControl } from "@/components/agents/reasoning-effort-control";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Drawer,
@@ -372,24 +373,41 @@ function Meta({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
+/** The reasoning effort, closed to one line with the current value: picking a model is the main job here. */
 function EffortSection({ state, selection, effective, onChange, busy }: PickerProps) {
   const t = useTranslations("chat.model");
   const te = useTranslations("agents.effort");
   const fromAgent = state.agent.reasoningEffort !== "default";
   return (
-    <ReasoningEffortControl
-      value={selection.reasoningEffort}
-      onChange={(reasoningEffort) => onChange({ ...selection, reasoningEffort })}
-      support={effective.support}
-      modelName={effective.name}
-      inherited={{
-        effort: inheritedEffort(state.agent.reasoningEffort, state.defaultReasoningEffort),
-        source: te(fromAgent ? "sources.agent" : "sources.settings"),
-      }}
-      size="sm"
-      className="shrink-0 px-3.5 pt-3 pb-3"
-    >
-      {busy && <p className="text-[11px] leading-snug text-foreground/80">{t("busyHint")}</p>}
-    </ReasoningEffortControl>
+    <Collapsible className="shrink-0">
+      <CollapsibleTrigger className="group/effort flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs outline-none hover:bg-muted/50 focus-visible:bg-muted/60">
+        <BrainIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="font-medium">{te("label")}</span>
+        <span className="ml-auto flex min-w-0 items-center gap-1.5 text-muted-foreground">
+          {selection.reasoningEffort !== null && <OverrideDot />}
+          <span className="truncate">{t(`effort.options.${effective.effort}`)}</span>
+        </span>
+        <ChevronDownIcon
+          className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/effort:rotate-180"
+          aria-hidden
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ReasoningEffortControl
+          value={selection.reasoningEffort}
+          onChange={(reasoningEffort) => onChange({ ...selection, reasoningEffort })}
+          support={effective.support}
+          modelName={effective.name}
+          inherited={{
+            effort: inheritedEffort(state.agent.reasoningEffort, state.defaultReasoningEffort),
+            source: te(fromAgent ? "sources.agent" : "sources.settings"),
+          }}
+          size="sm"
+          className="px-3.5 pt-0.5 pb-3 [&>[data-slot=field-label]]:sr-only"
+        >
+          {busy && <p className="text-[11px] leading-snug text-foreground/80">{t("busyHint")}</p>}
+        </ReasoningEffortControl>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

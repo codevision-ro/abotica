@@ -157,5 +157,21 @@
     "title": "No conversations in {project} yet",
     "description": "Start one with the project's manager. It works with the project's files, memory and knowledge.",
     "start": "Chat with the manager"
+  },
+  "taskNotice": {
+    "kinds": {
+      "instruction": "New instructions",
+      "question": "Question",
+      "answer": "Answer",
+      "progress": "Progress",
+      "control": "Task control",
+      "reminder": "Reminder",
+      "alert": "Alert",
+      "help-answer": "A colleague answered"
+    },
+    "from": "From {from}",
+    "urgent": "Urgent",
+    "showMessage": "Show message",
+    "openTask": "Open the task"
   }
 }

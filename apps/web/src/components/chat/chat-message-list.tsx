@@ -3,6 +3,7 @@
 import type { AgentAvatar as AgentAvatarValue } from "@abotica/db/avatar";
 import { isCompaction } from "@abotica/core/compaction-record";
 import { isDelegationReport } from "@abotica/core/delegation-report";
+import { isTaskNotice } from "@abotica/core/task-notices";
 import { fileIdFromUrl } from "@abotica/core/file-types";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { CircleAlert, CopyIcon, CornerDownRight, FileIcon } from "lucide-react";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { ChatFileCard, sharedFile } from "./chat-file-card";
 import { CHAT_COLUMN, ChatApproval, ChatMarkdown, ChatToolCall, ChatToolGroup, MessageTime } from "./chat-parts";
 import { CompactionDivider } from "./compaction-divider";
-import { DelegationNotice } from "./delegation-notice";
+import { DelegationNotice, TaskNotice } from "./delegation-notice";
 import { UntrustedText } from "./untrusted-text";
 
 type Part = UIMessage["parts"][number];
@@ -134,6 +135,11 @@ export function ChatMessageList({
           // Delivered to the agent as a user message, or to the user only (withheld) as a system one.
           if (isDelegationReport(message.metadata)) {
             return <DelegationNotice key={message.id} report={message.metadata} date={timestamps[message.id]} />;
+          }
+          if (isTaskNotice(message.metadata)) {
+            return (
+              <TaskNotice key={message.id} notice={message.metadata} message={message} date={timestamps[message.id]} />
+            );
           }
           if (isCompaction(message.metadata)) {
             return <CompactionDivider key={message.id} compaction={message.metadata} date={timestamps[message.id]} />;

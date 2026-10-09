@@ -97,8 +97,6 @@ export default async function RunDetailPage(props: PageProps<"/runs/[id]">) {
             <span>{tc.has(triggerKey) ? tc(triggerKey) : run.trigger}</span>
             <span aria-hidden>·</span>
             <span>{t("createdAgo", { time: fmt.relative(run.createdAt) })}</span>
-            <span aria-hidden>·</span>
-            <span className="font-mono text-xs break-all">{run.id}</span>
           </span>
         }
         actions={

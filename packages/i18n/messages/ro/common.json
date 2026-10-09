@@ -78,6 +78,8 @@
   "pagination": {
     "range": "{from}-{to} din {total}",
     "previous": "Pagina anterioară",
-    "next": "Pagina următoare"
+    "next": "Pagina următoare",
+    "aria": "Paginare",
+    "page": "Pagina {page}"
   }
 }

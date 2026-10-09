@@ -51,11 +51,8 @@
     "tabs": {
       "overview": "Overview",
       "tasks": "Tasks",
-      "memory": "Memory",
-      "knowledge": "Knowledge base",
+      "knowledge": "Knowledge",
       "repos": "Repositories",
-      "previews": "Previews",
-      "secrets": "Secrets",
       "team": "Team"
     },
     "chat": "Chat with the manager",
@@ -75,15 +72,6 @@
     "recentRuns": "Recent runs",
     "noRuns": "No runs yet. Chat with the manager to get started.",
     "noRole": "No role",
-    "config": {
-      "title": "Configuration",
-      "providers": "Providers",
-      "allProviders": "All",
-      "monthlyBudget": "Monthly budget",
-      "unlimited": "Unlimited",
-      "telegramTopic": "Telegram topic",
-      "notSet": "Not set"
-    },
     "team": "Team",
     "manageTeam": "Manage team",
     "noManager": "No manager yet. <link>Set up the team</link>"
@@ -101,14 +89,16 @@
     "goalsDescription": "Agents get them in their context on every run in this project.",
     "goalsPlaceholder": "- Grow sales by 20%\n- One blog post a week",
     "goalsMissing": "Not set yet",
-    "limitsTitle": "Budget and providers",
+    "budgetTitle": "Budget",
     "budgetLabel": "Monthly budget (USD)",
     "budgetPlaceholder": "Unlimited",
     "budgetSummary": "{budget} USD/month",
     "noBudget": "No budget limit",
     "providersLabel": "Allowed providers",
-    "providersHint": "None selected means all providers.",
+    "providersHint": "Only these providers' models work on this project, for example to keep sensitive data with one provider. None selected: all providers.",
+    "providersSummary": "Only {providers}",
     "allProviders": "All providers",
+    "advancedTitle": "Advanced",
     "telegramTitle": "Telegram",
     "topicLabel": "Topic id",
     "topicPlaceholder": "e.g. 42",
@@ -144,14 +134,14 @@
     "restore": "Reactivate",
     "restored": "Project reactivated",
     "deleteTitle": "Delete project",
-    "deleteDescription": "Permanently deletes the project with its tasks, memories, knowledge base and secrets.",
+    "deleteDescription": "Permanently deletes the project with its tasks, memories, knowledge base and keys.",
     "confirmTitle": "Delete project {name}?",
-    "confirmDescription": "This cannot be undone. All of the project's tasks, memories, knowledge base documents, secrets, schedules and triggers are deleted too. Runs stay in the history, without the link to the project.",
+    "confirmDescription": "This cannot be undone. All of the project's tasks, memories, knowledge base documents, keys, schedules and triggers are deleted too. Runs stay in the history, without the link to the project.",
     "confirm": "Delete permanently",
     "deleted": "Project deleted"
   },
   "knowledge": {
-    "intro": "Documents, links and files that the project's agents can search. Content is split into chunks and indexed for semantic search (without an OpenAI key, text search is used).",
+    "intro": "Documents, links and files the project's agents can search. Text is indexed for search as soon as it is added.",
     "kinds": {
       "document": "Document",
       "link": "Link",
@@ -193,28 +183,6 @@
     "title": "Knowledge base",
     "notSearchable": "stored, not searchable"
   },
-  "secrets": {
-    "nameExample": "NAME",
-    "intro": "API keys and tokens used only in this project, encrypted in the vault. Values are never shown. Agents use them in MCP server config as <code>{example}</code>.",
-    "empty": "No project secrets yet. Add keys specific to this project, e.g. <code>{example}</code>.",
-    "updatedAt": "updated {date}",
-    "deleted": "Secret deleted",
-    "deleteDescription": "MCP configs that use {reference} will no longer find the value in the vault.",
-    "editLabel": "Edit {name}",
-    "add": "Add secret",
-    "editTitle": "Update {name}",
-    "newTitle": "New secret",
-    "dialogDescription": "The value is encrypted and cannot be viewed after saving.",
-    "nameLabel": "Name",
-    "nameHint": "Uppercase letters, digits and _ only. The name is unique across the platform, so we recommend the prefix <code>{prefix}</code>.",
-    "valueLabel": "Value",
-    "valueKeepPlaceholder": "Leave empty to keep the current value",
-    "descriptionLabel": "Description",
-    "descriptionPlaceholder": "e.g. Shopify API key for the store",
-    "saved": "Secret saved",
-    "updated": "Secret updated",
-    "title": "Secrets"
-  },
   "tasks": {
     "newTask": "New task",
     "empty": "No tasks in this project yet. Create one or ask the project manager to plan the work.",
@@ -226,8 +194,7 @@
     "titleRequired": "Title is required",
     "contentEmpty": "Content is empty",
     "invalidUrl": "Invalid URL",
-    "searchRequired": "Type a search",
-    "secretNameFormat": "Name can only contain uppercase letters, digits and _"
+    "searchRequired": "Type a search"
   },
   "errors": {
     "notFound": "Project not found",
@@ -239,9 +206,9 @@
     "unsupportedContentType": "Unsupported content type: {type}",
     "unknownContentType": "Unsupported content type: unknown",
     "emptyPage": "The page has no text",
-    "secretNameTaken": "The name {name} is already used by another secret. Pick another name.",
+    "secretNameTaken": "The name {name} is already used by another key. Pick another name.",
     "secretValueRequired": "Value is required",
-    "secretNotSet": "Secret {name} is not set in the vault",
-    "secretOtherProject": "Secret {name} belongs to another project and cannot be used here"
+    "secretNotSet": "Key {name} is not set in Keys",
+    "secretOtherProject": "Key {name} belongs to another project and cannot be used here"
   }
 }

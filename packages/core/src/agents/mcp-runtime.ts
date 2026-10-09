@@ -42,7 +42,6 @@ import {
 } from "./mcp";
 import { resolveMcpRoutes } from "./mcp-routes";
 import { SandboxMcpTransport } from "./mcp-sandbox-transport";
-import { mcpToolDefault, mcpToolHint } from "./permissions";
 import { type SecretRedactor, secretRedactor } from "./redact";
 import { capToolText, type FullOutputTarget, fullOutputTarget, toolTextMax, type ToolOutputWorkspace } from "./tool-output";
 import { mcpWorkspaceKeyFor } from "../sandbox/sandbox-keys";
@@ -523,15 +522,10 @@ export async function loadMcpTools(servers: McpServer[], runOpts: McpRunOptions)
   const sources: Record<string, McpToolSource> = {};
   for (const listing of listings) {
     if (!listing) continue;
-    for (const { name, annotations } of listing.definitions) {
+    for (const { name } of listing.definitions) {
       const runtimeName = `${prefix(listing.server.slug)}__${name}`;
       tools[runtimeName] = listing.tools[name]!;
-      sources[runtimeName] = {
-        serverSlug: listing.server.slug,
-        tool: name,
-        defaultPermission: mcpToolDefault(annotations, listing.server.builtin),
-        readOnly: mcpToolHint(annotations) === "readOnly",
-      };
+      sources[runtimeName] = { serverSlug: listing.server.slug, tool: name };
     }
   }
   return {

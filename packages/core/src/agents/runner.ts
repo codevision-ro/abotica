@@ -26,6 +26,7 @@ import {
 import type { Run } from "../runs/runs";
 import { isKillSwitchActive } from "../platform/kill-switch";
 import { settingsLocale } from "../settings/settings";
+import { takeSoftStop } from "../tasks/control";
 import { approxTokens, effectiveWindow } from "./compaction";
 import { createCompactor, summaryMessages, toolsUsedInHistory } from "./compactor";
 import { buildInstructions, type DeferredToolGroup, loadRunContext, type RunContext, withSentTimes } from "./context";
@@ -38,7 +39,7 @@ import type { McpToolSource } from "./mcp";
 import { loadMcpTools, type McpConnection } from "./mcp-runtime";
 import { withModelFiles } from "./message-files";
 import { fullModelChain, modelChain } from "./model-chain";
-import { builtinPermission, mcpRunPermission } from "./permissions";
+import { builtinPermission, mcpToolPermission } from "./permissions";
 import { loadRepoInstructions } from "./repo-instructions";
 import { openRunSandbox } from "./sandbox-session";
 import { answerSegments, createSteering, stepStarts, withUndeliveredNotes } from "./steering";
@@ -49,6 +50,7 @@ import { deferTools, isDeferredBuiltin, TOOL_SEARCH } from "./tool-loading";
 import { builtinTools } from "./tools";
 import { messagesHaveUntrusted } from "./untrusted";
 import { wrapUntrustedResults } from "./untrusted-results";
+import { isTaskNotice } from "../tasks/task-notices";
 
 /** Progress of a running run; status changes go through run-lifecycle. */
 type RunProgress = Pick<
@@ -90,7 +92,7 @@ type ToolApproval = NonNullable<Parameters<typeof streamText<ToolSet>>[0]["toolA
 /** Effective permission of a tool in the run's tool set; skill_read and tool_search are always allowed. */
 function toolPermission(ctx: RunContext, mcpSources: Record<string, McpToolSource>, name: string) {
   const source = mcpSources[name];
-  if (source) return mcpRunPermission(ctx.agent.permissions, source);
+  if (source) return mcpToolPermission(ctx.agent.permissions, source.serverSlug, source.tool);
   if (name === "skill_read" || name === TOOL_SEARCH) return "allow";
   return builtinPermission(ctx.agent.permissions, name, ctx.agent);
 }
@@ -125,14 +127,6 @@ function deferredGroups(
 
 /** Why the run stopped before its answer, when a limit inside the loop stopped it. */
 type Stop = { reason: string; kind: RunFailureKind };
-
-/**
- * Limits of the run itself, which leave the work unfinished. They are not failures: the run ends with
- * its answer so far and the reason as its note, like a budget stop, and its task gets a comment saying
- * the work is not finished (finishRun) instead of being blocked. The task's circuit breaker does not
- * count them. Every stop ends the run as answered; only an error fails it.
- */
-const LIMIT_STOPS = new Set<RunFailureKind>(["loop", "step_limit", "timeout"]);
 
 /** The total timeout aborts the stream with this reason (AbortSignal.timeout). */
 const isTimeout = (reason: unknown) => reason instanceof DOMException && reason.name === "TimeoutError";
@@ -193,7 +187,10 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
         status,
         output,
         error,
-        unfinished: stop !== null && LIMIT_STOPS.has(stop.kind),
+        // Every stop ends the run as answered, with the reason as its note and the kind kept; only an
+        // error fails it. A limit of the run itself (steps, time, a loop) leaves its task in progress, to
+        // go on by itself or for its delegator to decide (finishRun, tasks/followups.ts onRunEnded).
+        stopKind: stop?.kind ?? null,
         actor: `agent:${ctx.agent.slug}`,
       }),
       status,
@@ -244,6 +241,14 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
     stopReason() ??
     (signal.reason instanceof Error && signal.reason.message ? signal.reason.message : t("errors.run.cancelled"));
   const killed = async () => (await isKillSwitchActive()) && stopWith(t("errors.run.stoppedByKillSwitch"), "kill_switch");
+  // Its task was put aside (tasks/control.ts pauseTask): the run ends with its answer so far, the task
+  // stays paused and is neither reported nor blocked.
+  const softStopped = async () => {
+    const reason = await takeSoftStop(runId);
+    if (!reason) return false;
+    await logRunEvent(runId, "soft-stop", { reason });
+    return stopWith(reason, "paused");
+  };
   // Stop conditions run only after a step whose tool calls all have results: the run was still working.
   const stepLimitReached: StopCondition<ToolSet> = ({ steps }) =>
     steps.length >= limits.maxSteps && stopWith(t("errors.run.stepLimitReached", { steps: limits.maxSteps }), "step_limit");
@@ -391,7 +396,12 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
         onSteered: async ({ step, messages }) => {
           await logRunEvent(runId, "steered", {
             afterStep: step - 1,
-            messages: messages.map((m) => ({ id: m.message.id, text: preview(m.message) })),
+            // A task notice says which (an instruction, an answer...), so the timeline and checks can tell.
+            messages: messages.map((m) => ({
+              id: m.message.id,
+              text: preview(m.message),
+              ...(isTaskNotice(m.message.metadata) ? { notice: m.message.metadata.notice } : {}),
+            })),
           });
           await hooks.onSteered?.(messages);
         },
@@ -416,7 +426,7 @@ async function executeClaimed(run: Run, signal: AbortSignal, hooks: RunHooks): P
         experimental_sandbox: ctx.sandbox ?? undefined,
         experimental_toolApprovalSecret: approvalSecret(),
         // In this order, so the first that holds explains the stop.
-        stopWhen: [budgetReached, loopDetected, stepLimitReached, killed],
+        stopWhen: [budgetReached, loopDetected, stepLimitReached, killed, softStopped],
         // Messages from outside the run first, then notices about the run, then what shortens the prompt
         // (see step-preparation.ts). Steered messages go at the end of the prompt, so its cached prefix stays.
         prepareStep: prepareSteps([steering.preparer, loop.nudge, compactor.midRun(prompt)]),

@@ -1,25 +1,22 @@
 {
   "groups": {
-    "main": "Principal",
-    "memory": "Memorie",
+    "work": "Lucru",
     "operations": "Operațiuni",
-    "configuration": "Configurare"
+    "setup": "Configurare"
   },
   "items": {
-    "dashboard": "Dashboard",
+    "dashboard": "Acasă",
     "chat": "Chat",
     "tasks": "Task-uri",
     "projects": "Proiecte",
     "previews": "Preview-uri",
     "agents": "Agenți",
     "memory": "Memorie",
-    "journals": "Jurnale",
-    "runs": "Rulări",
-    "approvals": "Aprobări",
     "automations": "Automatizări",
     "costs": "Costuri",
     "skills": "Skill-uri",
-    "mcp": "MCP",
-    "settings": "Setări"
+    "mcp": "Integrări",
+    "settings": "Setări",
+    "inbox": "Inbox"
   }
 }

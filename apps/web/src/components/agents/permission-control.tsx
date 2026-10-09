@@ -45,7 +45,7 @@ export function PermissionControl({
   label: string;
   className?: string;
 }) {
-  const t = useTranslations("agents.permissions");
+  const t = useTranslations("agents.tools");
   return (
     <ToggleGroup
       type="single"

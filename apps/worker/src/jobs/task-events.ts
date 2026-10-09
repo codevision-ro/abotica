@@ -3,7 +3,9 @@ import {
   checkWakeupsWaitingOn,
   createRedis,
   handleTaskEvent,
+  onTaskSettled,
   QUEUE,
+  startRetry,
   type TaskEventJob,
 } from "@abotica/core";
 import { Worker } from "bullmq";
@@ -17,11 +19,15 @@ export function startTaskEventsWorker() {
   });
 }
 
-async function handleTaskJob(job: TaskEventJob): Promise<void> {
-  // Automatic retries of failed runs are not started from here yet.
-  if (job.event === "retry") return;
+export async function handleTaskJob(job: TaskEventJob): Promise<void> {
+  // An automatic retry of a run a passing failure cut is due (it may have no task).
+  if (job.event === "retry") return void (await startRetry(job.runId));
   const { taskId, event } = job;
   if (event === "wakeups") return checkTaskWakeups(taskId);
   if (event !== "status") await handleTaskEvent(taskId, event);
-  if (event !== "created") await checkWakeupsWaitingOn(taskId);
+  if (event === "created") return;
+  await checkWakeupsWaitingOn(taskId);
+  // Done or another status: a task that settled lets work put aside for it go on, and tells the tasks
+  // waiting on it when they cannot start.
+  await onTaskSettled(taskId);
 }

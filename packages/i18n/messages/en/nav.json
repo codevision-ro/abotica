@@ -1,25 +1,22 @@
 {
   "groups": {
-    "main": "Main",
-    "memory": "Memory",
+    "work": "Work",
     "operations": "Operations",
-    "configuration": "Configuration"
+    "setup": "Setup"
   },
   "items": {
-    "dashboard": "Dashboard",
+    "dashboard": "Home",
     "chat": "Chat",
     "tasks": "Tasks",
     "projects": "Projects",
     "previews": "Previews",
     "agents": "Agents",
     "memory": "Memory",
-    "journals": "Journals",
-    "runs": "Runs",
-    "approvals": "Approvals",
     "automations": "Automations",
     "costs": "Costs",
     "skills": "Skills",
-    "mcp": "MCP",
-    "settings": "Settings"
+    "mcp": "Integrations",
+    "settings": "Settings",
+    "inbox": "Inbox"
   }
 }

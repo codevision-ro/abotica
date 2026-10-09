@@ -12,11 +12,14 @@ import { FieldGroup } from "@/components/ui/field";
  */
 export function SettingsAdvanced({
   id,
+  title,
   summary,
   invalid,
   children,
 }: {
   id: string;
+  /** "Advanced" unless the page holds more than one such section. */
+  title?: React.ReactNode;
   summary: React.ReactNode;
   invalid?: boolean;
   children: React.ReactNode;
@@ -27,7 +30,7 @@ export function SettingsAdvanced({
     <FormSectionCollapsible
       id={id}
       icon={SlidersHorizontal}
-      title={t("advanced")}
+      title={title ?? t("advanced")}
       summary={summary}
       open={open || Boolean(invalid)}
       onOpenChange={setOpen}

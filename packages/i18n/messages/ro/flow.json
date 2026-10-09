@@ -1,1 +1,45 @@
-{}
+{
+  "notices": {
+    "toUser": "{kind, select, question {❓ Întrebare} answer {💬 Răspuns} progress {📈 Progres} alert {⚠️ Alertă} reminder {⏰ Reamintire} other {📌 Notificare}} de la {from} despre \"{task}\":\n{text}\n{url}",
+    "withheld": "📋 O notificare despre sarcina \"{task}\" nu a fost dată lui {agent}: furnizorii AI permiși în proiectul ei nu includ niciunul dintre modelele cu care lucrează {agent}. Verifică tu sarcina: {url}",
+    "noticeWakesLimit": "⚠️ {agent} a primit peste {count} notificări într-o conversație în decurs de o oră, așa că următoarele așteaptă acolo următoarea lui rulare în loc să îl pornească.",
+    "roundsLimit": "⚠️ Agenții au pornit sarcina \"{task}\" de {count} ori de când ai intervenit ultima dată, așa că nu mai este pornită: ultima instrucțiune a fost salvată. Verifică sarcina și decide cum continuă: {url}"
+  },
+  "messages": {
+    "errors": {
+      "questionNotFound": "Întrebarea nu există.",
+      "questionClosed": "Întrebarea a primit deja răspuns sau a fost retrasă.",
+      "mayNotAnswer": "Doar cel căruia îi este adresată întrebarea, cineva deasupra lui sau utilizatorul îi poate răspunde.",
+      "atUser": "Întrebarea așteaptă deja utilizatorul: doar el îi mai poate răspunde.",
+      "putAside": "Sarcina este în pauză sau anulată: nu se mai adaugă nimic pe ea până nu este reluată.",
+      "duplicate": "Aceeași întrebare este deja deschisă pe această sarcină: așteaptă răspunsul.",
+      "tooManyOpen": "Această sarcină are deja {max} întrebări deschise: așteaptă răspunsurile înainte să întrebi altceva.",
+      "askRate": "Această sarcină a pus {max} întrebări în ultima oră: continuă cu ce poți decide singur.",
+      "progressRate": "Progresul a fost raportat acum {minutes, plural, one {# minut} few {# minute} other {# de minute}}; raportează din nou la următorul pas important, cel mult o dată la {every} minute, sau cu needsAttention când schimbă rezultatul ori un termen.",
+      "attentionRate": "Progresul care cere atenție a fost trimis de {max} ori în ultima oră: continuă lucrul și raportează restul odată cu rezultatul."
+    }
+  },
+  "control": {
+    "user": "utilizator",
+    "system": "Abotica",
+    "paused": "Pus deoparte de {by}: {reason}. Oprește-te unde ești și încheie tura; continui aici când sarcina este reluată.",
+    "pausedFor": "Pus deoparte de {by} pentru sarcina mai urgentă \"{task}\": {reason}. Oprește-te unde ești și încheie tura; continui aici după ce acea sarcină se încheie.",
+    "runPaused": "Pus în pauză de {by}: {reason}",
+    "resumed": "Reluat de {by}: continuă de unde te-ai oprit.",
+    "resumedNote": "Reluat de {by}: {note}",
+    "autoResumed": "\"{task}\" s-a încheiat, așa că munca pusă deoparte pentru ea continuă.",
+    "autoResumeFailed": "Această sarcină a fost pusă deoparte pentru \"{task}\", care s-a încheiat, și nu a putut continua: {reason}",
+    "cancelled": "Anulat de {by}: {reason}",
+    "cancelledWith": "Anulat de {by} împreună cu \"{task}\": {reason}",
+    "runCancelled": "Anulat de {by}: {reason}",
+    "runReassigned": "Reatribuit de {by} lui {agent}: {reason}",
+    "errors": {
+      "notPausable": "Doar o sarcină care așteaptă să înceapă sau este în lucru poate fi pusă în pauză.",
+      "waitingApproval": "Rularea sarcinii așteaptă o aprobare: decide-o mai întâi sau anulează sarcina.",
+      "notResumable": "Doar o sarcină în pauză sau blocată, ori una rămasă în lucru fără rulare, poate fi reluată.",
+      "over": "Sarcina este deja gata sau anulată.",
+      "noAgent": "Agentul căruia trebuie dată sarcina nu există sau este dezactivat.",
+      "reassign": "Sarcina nu poate merge la {agent}: {error}"
+    }
+  }
+}

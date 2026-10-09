@@ -75,7 +75,6 @@ export type McpToolInfo = {
   description: string;
   title?: string;
   inputSchema?: Record<string, unknown>;
-  annotations?: Record<string, unknown>;
 };
 
 /**
