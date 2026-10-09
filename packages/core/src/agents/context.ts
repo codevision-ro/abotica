@@ -13,7 +13,7 @@ import {
   runs,
   skills,
 } from "@abotica/db";
-import { and, asc, eq, ne, sql } from "@abotica/db/orm";
+import { and, asc, eq, inArray, ne, sql } from "@abotica/db/orm";
 import type { ManagedSandboxSession } from "@abotica/sandbox";
 import type { UIMessage } from "ai";
 import { recentJournals } from "../memory/memory";
@@ -244,7 +244,22 @@ async function projectTeam(projectId: string): Promise<TeamMember[]> {
     .orderBy(asc(agents.name));
 }
 
-const memberLine = (m: TeamMember) => `- ${m.name} (${m.slug})${m.role ? `: ${m.role}` : ""}`;
+const memberLine = (m: TeamMember, skills: string[] = []) =>
+  `- ${m.name} (${m.slug})${m.role ? `: ${m.role}` : ""}${skills.length ? `. Skills: ${skills.join(", ")}` : ""}`;
+
+/** The enabled skills of each of `agentIds`, by agent id, sorted so the prompt stays the same between runs. */
+async function memberSkills(agentIds: string[]): Promise<Map<string, string[]>> {
+  if (!agentIds.length) return new Map();
+  const rows = await db
+    .select({ agentId: agentSkills.agentId, slug: skills.slug })
+    .from(agentSkills)
+    .innerJoin(skills, eq(skills.id, agentSkills.skillId))
+    .where(and(inArray(agentSkills.agentId, agentIds), eq(skills.enabled, true)))
+    .orderBy(asc(skills.slug));
+  const byAgent = new Map<string, string[]>();
+  for (const { agentId, slug } of rows) byAgent.set(agentId, [...(byAgent.get(agentId) ?? []), slug]);
+  return byAgent;
+}
 
 /** For the super agent: every open project and who leads it; how it works with them is in its kind prompt. */
 async function projectsSection(): Promise<string> {
@@ -275,12 +290,18 @@ async function teamSection(agent: Agent, project: Project): Promise<string> {
       : manager
         ? `${project.name} is led by ${manager.name} (${manager.slug}).`
         : `${project.name} has no manager yet.`;
+  // The manager briefs them, so it sees their skills too (it can read them with skill_read).
+  const leads = project.managerAgentId === agent.id;
+  const skillsOf = leads ? await memberSkills(others.map((m) => m.id)) : new Map<string, string[]>();
   return [
     "# Your team",
     lead,
     others.length
-      ? ["Specialists (name, slug, role):", ...others.map(memberLine)].join("\n")
-      : project.managerAgentId === agent.id
+      ? [
+          leads ? "Specialists (name, slug, role, skills):" : "Specialists (name, slug, role):",
+          ...others.map((m) => memberLine(m, skillsOf.get(m.id))),
+        ].join("\n")
+      : leads
         ? "No specialists on the team yet: escalate which ones the project needs."
         : null,
   ]

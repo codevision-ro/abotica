@@ -337,7 +337,7 @@ export const agentTools: Record<string, ToolFactory> = {
   registry_assign: (ctx) =>
     tool({
       description:
-        "Give a skill or an MCP server to an agent or a project, or take it away (requires the user's approval). A project's skills and MCP servers reach every agent working in that project. Use registry_list for the slugs.",
+        "Give a skill or an MCP server to an agent or a project, or take it away (requires the user's approval). A project's skills and MCP servers reach every agent working in that project. Use registry_list for the slugs, and read a skill with skill_read before you give it.",
       inputSchema: z.object({
         action: z.enum(["add", "remove"]),
         kind: z.enum(["skill", "mcp"]),

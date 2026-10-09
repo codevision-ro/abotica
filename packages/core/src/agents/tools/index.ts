@@ -1,5 +1,6 @@
 import { type Tool, tool, type ToolSet } from "ai";
 import { z } from "zod";
+import { findReadableSkill, readsSkills, skillReadDescription } from "../../skills/skill-access";
 import { readSkillForAgent } from "../../skills/skills";
 import type { RunContext } from "../context";
 import { builtinPermission } from "../permissions";
@@ -30,18 +31,27 @@ const factories: Record<string, ToolFactory> = {
   ...previewTools,
 };
 
-/** Lets an agent load a skill listed in its prompt: SKILL.md first, then the files it points to. */
+/**
+ * Lets an agent load a skill listed in its prompt (SKILL.md first, then the files it points to), and the super
+ * agent and managers read the skills of those they brief (see findReadableSkill).
+ */
 function skillReadTool(ctx: RunContext) {
   return tool({
-    description:
-      "Load a skill from your skill list. Without a path it returns SKILL.md and the list of the skill's other files; with a path (e.g. references/api.md) it returns that file.",
+    description: skillReadDescription(ctx),
     inputSchema: z.object({
       slug: z.string(),
       path: z.string().optional().describe("A file of the skill, relative to its folder. Leave out for SKILL.md."),
     }),
     execute: async ({ slug, path }) => {
-      const skill = ctx.skills.find((s) => s.slug === slug);
-      if (!skill) return { error: `Skill ${slug} is not assigned to you` };
+      const skill = await findReadableSkill(ctx, slug);
+      if (!skill) {
+        return {
+          error:
+            ctx.agent.kind === "specialist"
+              ? `Skill ${slug} is not assigned to you`
+              : `Skill ${slug} does not exist or is not one you may read`,
+        };
+      }
       return { slug, ...(await readSkillForAgent(skill.id, path)) };
     },
   });
@@ -71,6 +81,6 @@ export function builtinTools(ctx: RunContext): ToolSet {
     if (needsRepos && !ctx.repos.length) continue;
     out[name] = group === "workspace" ? redacting(factory(ctx), secrets) : factory(ctx);
   }
-  if (ctx.skills.length) out.skill_read = skillReadTool(ctx);
+  if (readsSkills(ctx)) out.skill_read = skillReadTool(ctx);
   return out;
 }
