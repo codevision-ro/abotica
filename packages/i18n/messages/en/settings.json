@@ -136,11 +136,31 @@
   },
   "embeddings": {
     "title": "Embeddings",
-    "description": "What turns memory, journals and knowledge into vectors, so agents find them by meaning. Voice message transcription always uses OpenAI with an API key.",
-    "localName": "the built-in model",
-    "localTitle": "Built-in (local, no key needed)",
-    "localHint": "EmbeddingGemma, a multilingual model the worker runs on its own: free, nothing leaves your machine. Downloaded once, about 330 MB.",
-    "ollamaHint": "The same model (embeddinggemma) on your Ollama server, for example one with a GPU: free, and nothing leaves your machines.",
+    "description": "How agents find memory, journals and knowledge by meaning, not only by words.",
+    "local": {
+      "name": "the built-in model",
+      "title": "EmbeddingGemma, built in",
+      "where": "Runs in the worker, no key and no other server"
+    },
+    "ollama": {
+      "name": "Ollama",
+      "title": "EmbeddingGemma on Ollama",
+      "where": "Runs on your Ollama server, for example one with a GPU"
+    },
+    "facts": {
+      "languages": "100+ languages, Romanian included",
+      "private": "Nothing leaves your servers",
+      "size": "330 MB, downloaded at install",
+      "gpu": "Can use the server's GPU"
+    },
+    "badge": {
+      "active": "Active",
+      "available": "Available",
+      "loading": "Loading",
+      "failed": "Error",
+      "unreachable": "Not answering",
+      "missing": "Model missing"
+    },
     "ollamaOff": "To run the same model on an Ollama server instead, for example one with a GPU, turn Ollama on in <link>Settings > Models</link>.",
     "readiness": {
       "ready": "Ready to embed",
@@ -151,7 +171,7 @@
     },
     "changeNotice": "Saving clears the stored embeddings and embeds memory, journals and knowledge again with {provider}, in the background. Until then, search matches by keyword.",
     "saved": "Embeddings switched to {provider}: {count, plural, =0 {nothing to embed again} one {# entry is embedded again in the background} other {# entries are embedded again in the background}}",
-    "reindexing": "Embedding again with {provider}: {done} of {total}",
+    "reindexing": "Embedding again with {provider}",
     "reindexProgress": "Re-embedding progress",
     "reindexHint": "In the background. What is not embedded yet is found by keyword.",
     "reindexPaused": "Paused: {error}. It tries again every minute."

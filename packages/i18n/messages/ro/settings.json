@@ -136,11 +136,31 @@
   },
   "embeddings": {
     "title": "Embeddings",
-    "description": "Ce transformă memoria, jurnalele și cunoștințele în vectori, ca agenții să le găsească după sens. Transcrierea mesajelor vocale folosește mereu OpenAI cu cheie API.",
-    "localName": "modelul integrat",
-    "localTitle": "Integrat (local, fără cheie)",
-    "localHint": "EmbeddingGemma, un model multilingv pe care workerul îl rulează singur: gratuit, nimic nu pleacă de pe calculatorul tău. Se descarcă o singură dată, aproximativ 330 MB.",
-    "ollamaHint": "Același model (embeddinggemma) pe serverul tău Ollama, de exemplu unul cu GPU: gratuit, și nimic nu pleacă de pe serverele tale.",
+    "description": "Cum găsesc agenții memoria, jurnalele și cunoștințele după sens, nu doar după cuvinte.",
+    "local": {
+      "name": "modelul integrat",
+      "title": "EmbeddingGemma, integrat",
+      "where": "Rulează în worker, fără cheie și fără alt server"
+    },
+    "ollama": {
+      "name": "Ollama",
+      "title": "EmbeddingGemma pe Ollama",
+      "where": "Rulează pe serverul tău Ollama, de exemplu unul cu GPU"
+    },
+    "facts": {
+      "languages": "100+ limbi, inclusiv româna",
+      "private": "Nimic nu pleacă de pe serverele tale",
+      "size": "330 MB, descărcat la instalare",
+      "gpu": "Poate folosi GPU-ul serverului"
+    },
+    "badge": {
+      "active": "Activ",
+      "available": "Disponibil",
+      "loading": "Se încarcă",
+      "failed": "Eroare",
+      "unreachable": "Nu răspunde",
+      "missing": "Model lipsă"
+    },
     "ollamaOff": "Ca să rulezi același model pe un server Ollama, de exemplu unul cu GPU, activează Ollama în <link>Setări > Modele</link>.",
     "readiness": {
       "ready": "Gata de folosit",
@@ -151,7 +171,7 @@
     },
     "changeNotice": "La salvare, embeddings-urile stocate se șterg, iar memoria, jurnalele și cunoștințele se procesează din nou cu {provider}, în fundal. Până atunci, căutarea găsește după cuvinte cheie.",
     "saved": "Embeddings-urile folosesc acum {provider}: {count, plural, =0 {nimic de procesat din nou} one {# intrare se procesează din nou în fundal} few {# intrări se procesează din nou în fundal} other {# de intrări se procesează din nou în fundal}}",
-    "reindexing": "Se procesează din nou cu {provider}: {done} din {total}",
+    "reindexing": "Se reprocesează cu {provider}",
     "reindexProgress": "Progresul reprocesării",
     "reindexHint": "În fundal. Ce nu a fost încă procesat se găsește după cuvinte cheie.",
     "reindexPaused": "În pauză: {error}. Se reîncearcă în fiecare minut."
